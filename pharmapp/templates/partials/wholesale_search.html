@@ -1,0 +1,30 @@
+{% for item in items %}
+<tr>
+    <td><a class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#editWholesaleItemModal"
+            hx-get="{% url 'wholesale:edit_wholesale_item' item.id %}"
+            hx-target="#editWholesaleItemModal .modal-content">Edit</a>
+
+        <a class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#returnWholesaleItemModal"
+            hx-get="{% url 'wholesale:return_wholesale_item' item.id %}"
+            hx-target="#returnWholesaleItemModal .modal-content">Return</a>
+
+        <a href="{% url 'wholesale:delete_wholesale_item' item.id %}"
+            onclick="return confirm('Are you sure you want to delete {{item.name}} from Store?')"
+            class="btn btn-sm btn-danger">X</a>
+    </td>
+    <td>{{item.name|title}}</td>
+    <td>{{item.dosage_form|title}}</td>
+    <td>{{item.brand}}</td>
+    <td>{{item.unit}}</td>
+    {% if user.is_superuser or is_staff %}
+    <td>{{item.cost}}</td>
+    {% endif %}
+    <td>{{item.price}}</td>
+    <td>{{item.stock}}</td>
+    <td>{{item.exp_date}}</td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="6" style="text-align: center;">No item found matching "{{ request.GET.search }}"</td>
+</tr>
+{% endfor %}

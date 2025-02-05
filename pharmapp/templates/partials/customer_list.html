@@ -1,0 +1,149 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<style>
+    .table {
+        color: #333;
+    }
+
+    table {
+        width: 100%;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .table-hover th,
+    .table-hover td {
+        text-align: center;
+    }
+
+    /* Media Queries */
+
+    /* For tablets and smaller devices */
+    @media (max-width: 768px) {
+        .col-md-10 {
+            margin-left: 0;
+            margin-top: 20px;
+            padding: 0 15px;
+        }
+
+        table {
+            font-size: 0.9rem;
+            /* Reduce font size for smaller screens */
+        }
+
+        .btn {
+            font-size: 0.8rem;
+            /* Adjust button size */
+            padding: 5px 10px;
+        }
+    }
+
+    /* For mobile devices */
+    @media (max-width: 480px) {
+        .col-md-10 {
+            margin-left: 0;
+            margin-top: 15px;
+            padding: 0 10px;
+        }
+
+        table {
+            font-size: 0.8rem;
+        }
+
+        .btn {
+            font-size: 0.7rem;
+            padding: 4px 8px;
+        }
+
+        thead {
+            display: none;
+            /* Hide table header for mobile screens */
+        }
+
+        tbody tr {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        tbody td {
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 10px;
+        }
+
+        tbody td::before {
+            content: attr(data-label);
+            font-weight: bold;
+        }
+    }
+</style>
+
+
+<div class="col-15 table-responsive">
+
+
+    <h2 style="text-align: center;">CUSTOMER LIST</h2>
+    {% for message in messages %}
+    <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+    <div class="table-responsive">
+        <table class="table table-hover style=" box-shadow: 0 0 10px rgba(0, 0, 0, 0.3)">
+            <thead class="table-primary">
+                <tr>
+                    <th scope="col">SN</th>
+                    <th scope="col">WALLET</th>
+                    <th scope="col">CUSTOMERS</th>
+                    <th scope="col">PHONE</th>
+                    <th scope="col">ADDRESS</th>
+                    <th scope="col">ACTION</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customers %}
+                <tr>
+                    <td data-label="SN">{{ forloop.counter }}.</td>
+                    <td data-label="WALLET">
+                        <a href="{% url 'store:wallet_details' customer.id %}"
+                            hx-get="{% url 'store:wallet_details' customer.id %}" hx-target="#wallet-info"
+                            hx-trigger="click" class="btn btn-success btn-sm">Wallet</a>
+
+                        <a href="{% url 'store:delete_customer' customer.id %}" class="btn btn-sm btn-danger"
+                            onclick="return confirm('Are you sure you want to delete {{customer.name}} from the List?')">x</a>
+                    </td>
+                    <td data-label="CUSTOMERS">{{ customer.name|upper }}</td>
+                    <td data-label="PHONE">{{ customer.phone }}</td>
+                    <td data-label="ADDRESS">{{ customer.address|upper }}</td>
+                    <td data-label="ACTION">
+                        <a type="button" class="btn btn-sm btn-primary"
+                            href="{% url 'store:select_items' customer.id %}">Select item</a>
+
+                        <a class="btn btn-sm btn-info" data-toggle="modal" data-target="#editCustomerModal"
+                            hx-get="{% url 'store:edit_customer' customer.id %}"
+                            hx-target="#editCustomerModal .modal-content">Edit</a>
+
+                        <a type="button" class="btn btn-sm btn-warning"
+                            hx-get="{% url 'store:customer_history' customer.id %}" hx-target="#item-selection"
+                            hx-swap="innerHTML">History</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center;">No customer registered</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div id="wallet-info"></div> <!-- Display wallet details here -->
+        <div id="item-selection"></div> <!-- Display item selection form here -->
+    </div>
+</div>
+<div class="modal fade" id="editCustomerModal" tabindex="-1" aria-label="editCustomerModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,202 @@
+<style>
+    .modal-header {
+        background-color: #f8f9fa;
+        padding: 10px 15px;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .modal-header h3 {
+        font-size: 20px;
+        margin: 0;
+    }
+
+    .modal-body {
+        padding: 50px;
+    }
+
+    .modal-footer {
+        padding: 10px 15px;
+        border-top: 1px solid #dee2e6;
+    }
+
+    .modal-body form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .modal-body form .form-group {
+        display: flex;
+        align-items: center;
+    }
+
+    .modal-body form label {
+        flex: 1;
+        margin-bottom: 3px;
+        font-weight: 700;
+    }
+
+    .modal-body form .form-control {
+        flex: 2;
+        padding: 5px 10px;
+    }
+
+    .modal-body form button {
+        align-self: flex-end;
+        margin-top: 10px;
+    }
+
+    .btn-sm {
+        padding: 3px 10px;
+    }
+
+    .modal-footer .btn {
+        margin-right: 5px;
+    }
+
+    .modal-footer .btn-secondary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
+</style>
+
+
+<div class="modal-header">
+    <h3 class="col-md-6 offset-md-3">EDIT ITEM</h3>
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close">x</button>
+</div>
+<div class="modal-body">
+    <form action="{% url 'store:edit_item' item.id %}" method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="name">Item Name:</label>
+            <input type="text" name="name" class="form-control mb-3" value="{{ item.name }}">
+        </div>
+        <div class="form-group">
+            <label for="name">Dosage Form</label>
+            <select name="dosage_form" class="form-control mt-3" required>
+                <option value="Unit">Dosage form</option>
+                <option value="Tablet">Tablet</option>
+                <option value="Capsule">Capsule</option>
+                <option value="Consumable">Consumable</option>
+                <option value="Cream">Cream</option>
+                <option value="Syrup">Syrup</option>
+                <option value="Suspension">Suspension</option>
+                <option value="Eye-drop">Eye-drop</option>
+                <option value="Ear-drop">Ear-drop</option>
+                <option value="Eye-ointment">Eye-ointment</option>
+                <option value="Nasal">Nasal</option>
+                <option value="Injection">Injection</option>
+                <option value="Infusion">Infusion</option>
+                <option value="Inhaler">Inhaler</option>
+                <option value="Vaginal">Vaginal</option>
+                <option value="Rectal">Rectal</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="name">Brand Name:</label>
+            <input type="text" name="brand" class="form-control mb-3" value="{{ item.brand }}">
+        </div>
+        <div class="form-group">
+            <label for="name">Item Unit:</label>
+            <!-- Unit Selection Dropdown -->
+            <select name="unit" class="form-control mt-3" required>
+                <option value="Unit">Select Unit</option>
+                <option value="Pcs">Pieces</option>
+                <option value="Pack">Packets</option>
+                <option value="Tab">Tablets</option>
+                <option value="Tin">Tins</option>
+                <option value="Caps">Capsules</option>
+                <option value="Carton">Cartons</option>
+                <option value="Card">Cards</option>
+                <option value="Bottle">Bottles</option>
+                <option value="Roll">Rolls</option>
+                <option value="Vail">Vail</option>
+                <option value="Amp">Ample</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="cost">Cost Price:</label>
+            <input type="number" name="cost" id="cost" step="0.01" class="form-control mb-3"
+                value="{{ item.cost|floatformat:2 }}" oninput="calculatePrice()">
+        </div>
+        <div class="form-group">
+            <!-- Markup Percentage Dropdown -->
+            <label for="markup">Markup Percentage:</label>
+            <select name="markup" id="markup" class="form-control mt-3" onchange="calculatePrice()">
+                <option value="0">Select Markup</option>
+                <option value="2.5">2.5% markup</option>
+                <option value="5">5% markup</option>
+                <option value="7.5">7.5% markup</option>
+                <option value="10">10% markup</option>
+                <option value="12.5">12.5% markup</option>
+                <option value="15">15% markup</option>
+                <option value="17.5">17.5% markup</option>
+                <option value="20">20% markup</option>
+                <option value="22.5">22.5% markup</option>
+                <option value="25">25% markup</option>
+                <option value="27.5">27.5% markup</option>
+                <option value="30">30% markup</option>
+                <option value="32.5">32.5% markup</option>
+                <option value="35">35% markup</option>
+                <option value="37.5">37.5% markup</option>
+                <option value="40">40% markup</option>
+                <option value="42.5">42.5% markup</option>
+                <option value="45">45% markup</option>
+                <option value="47.5">47.5% markup</option>
+                <option value="50">50% markup</option>
+                <option value="52.5">52.5% markup</option>
+                <option value="55">55% markup</option>
+                <option value="57.5">57.5% markup</option>
+                <option value="60">60% markup</option>
+                <option value="62.5">62.5% markup</option>
+                <option value="65">65% markup</option>
+                <option value="67.5">67.5% markup</option>
+                <option value="70">70% markup</option>
+                <option value="72.5">72.5% markup</option>
+                <option value="75">75% markup</option>
+                <option value="77.5">77.5% markup</option>
+                <option value="80">80% markup</option>
+                <option value="82.5">82.5% markup</option>
+                <option value="85">85% markup</option>
+                <option value="87.5">87.5% markup</option>
+                <option value="90">90% markup</option>
+                <option value="92.5">92.5% markup</option>
+                <option value="95">95% markup</option>
+                <option value="97.5">97.5% markup</option>
+                <option value="100">100% markup</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="price">Selling Price:</label>
+            <input type="number" step="0.01" name="price" class="form-control mb-3"
+                value="{{ item.price|floatformat:2 }}">
+        </div>
+        <div class="form-group">
+            <label for="stock">Stock Qty:</label>
+            <input type="number" name="stock" class="form-control mb-3" value="{{ item.stock }}">
+        </div>
+        <div class="form-group">
+            <label for="expiry">Exp-date:</label>
+            <input type="date" name="exp_date" class="form-control mb-3" value="{{ item.exp_date|date:'Y-m-d' }}">
+        </div>
+        <button type="submit" class="btn btn-success btn-sm">Save Changes</button>
+    </form>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Close</button>
+</div>
+
+<script>
+    function calculatePrice() {
+        const cost = parseFloat(document.getElementById("cost").value) || 0;
+        const markupPercentage = parseFloat(document.getElementById("markup").value) || 0;
+
+        // Calculate price based on the cost and markup percentage
+        const price = cost + (cost * markupPercentage / 100);
+
+        // Set the calculated price in the price input field
+        document.getElementById("price").value = price.toFixed(2);
+    }
+</script>

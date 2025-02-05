@@ -1,0 +1,183 @@
+{% extends "partials/base.html" %}
+{% block content %}
+
+<style>
+    /* receipts.css */
+
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f9f9f9;
+        color: #333;
+    }
+
+    .receipt-container {
+        max-width: 800px;
+        margin: 40px auto;
+        padding: 20px;
+        background-color: #fff;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+    }
+
+    h2 {
+        color: #333;
+        text-align: center;
+        font-size: 28px;
+        margin-bottom: 20px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+
+    table th,
+    table td {
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        text-align: left;
+        font-size: 13px;
+    }
+
+    table thead th {
+        background-color: #f2f2f2;
+        color: #555;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 15px;
+    }
+
+    table tbody tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+
+    table tbody tr:hover {
+        background-color: #f1f1f1;
+    }
+
+    .wholesale-row {
+        background-color: #e8f6e8;
+        /* Light green to highlight wholesale */
+    }
+
+    a {
+        color: #3498db;
+        text-decoration: none;
+    }
+
+    a:hover {
+        text-decoration: underline;
+        color: #2c3e50;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        h2 {
+            font-size: 20px;
+        }
+
+        table th,
+        table td {
+            font-size: 11px;
+            padding: 8px;
+        }
+
+        table {
+            margin-bottom: 10px;
+        }
+
+        .col-md-10 {
+            padding: 10px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        h2 {
+            font-size: 15px;
+        }
+
+        table thead th {
+            background-color: #f2f2f2;
+            color: #555;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 10px;
+
+        }
+
+        table th,
+        table td {
+            font-size: 9px;
+            padding: 4px;
+        }
+
+        table {
+            margin-bottom: 7px;
+        }
+
+        .col-md-10 {
+            padding: 7px;
+        }
+    }
+</style>
+
+
+<div class="col-12 table-responsive">
+    <h2>Wholesale Receipts List</h2>
+
+    <!-- Search Form -->
+    <form method="get" action="" class="mb-3">
+        <div class="form-row">
+            <div class="col-md-4">
+                <label for="date">Search by Date</label>
+                <input type="date" name="date" id="date" class="form-control"
+                    style="background-color: rgb(212, 248, 159);" hx-get="" hx-target="#sales-data"
+                    hx-trigger="change delay:300ms" value="{{ request.GET.date }}">
+            </div>
+        </div>
+    </form>
+
+    <!-- Receipts Table -->
+    <div id="sales-data">
+        <table>
+            <thead>
+                <tr>
+                    <th>Receipt ID</th>
+                    <th>Customer</th>
+                    <th>Total</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for receipt in receipts %}
+                <tr>
+                    <td>{{ receipt.receipt_id }}</td>
+                    <td>
+                        {% if receipt.customer %}
+                        {{ receipt.customer.name|upper }}
+                        {% elif receipt.buyer_name %}
+                        {{ receipt.buyer_name }}
+                        {% else %}
+                        WALK-IN CUSTOMER
+                        {% endif %}
+                    </td>
+                    <td>{{ receipt.total_amount }}</td>
+                    <td>{{ receipt.date }}</td>
+                    <td>
+                        <a href="{% url 'wholesale:wholesale_receipt_detail' receipt.receipt_id %}">View Details</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="text-align: center;">No receipts found for the selected date.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

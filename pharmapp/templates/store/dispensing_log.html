@@ -1,0 +1,117 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<style>
+    /* Default styles for the main container */
+    .table {
+        color: #333;
+    }
+
+    #main {
+        margin-top: 10px;
+        margin-left: 5px;
+        /* Space from the top */
+    }
+
+    /* Media Queries */
+    @media (max-width: 992px) {
+        #main {
+            margin-left: 10px;
+            /* Adjust left margin for medium screens */
+            margin-right: 10px;
+            /* Adjust right margin for medium screens */
+        }
+
+        h3 {
+            font-size: 1.8rem;
+            /* Adjust heading size */
+        }
+
+        .table {
+            font-size: 0.95rem;
+            /* Adjust table font size for better fit */
+        }
+
+        .btn {
+            font-size: 0.85rem;
+            /* Adjust button font size */
+        }
+    }
+
+    @media (max-width: 768px) {
+        #main {
+            margin-left: 0;
+            /* Remove left margin for small screens */
+            margin-right: 0;
+            /* Remove right margin for small screens */
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            /* Further adjust heading size */
+        }
+
+        .table {
+            font-size: 0.7rem;
+            /* Further reduce table font size */
+        }
+
+        .btn {
+            font-size: 0.8rem;
+            /* Adjust button font size */
+        }
+    }
+
+    @media (max-width: 480px) {
+        h3 {
+            font-size: 1rem;
+            /* Further adjust heading size */
+        }
+
+        .table {
+            font-size: 0.5rem;
+            /* Further reduce table font size */
+        }
+    }
+</style>
+
+<div class="col-12 offset-md-2 table-responsive" id="main">
+    <h3 class="col-md-8 offset-md-3">Dispensing Logs</h3>
+
+    <!-- Add the date picker with HTMX -->
+    <form method="GET" action="" hx-get="{% url 'store:dispensing_log' %}" hx-target="#logsTable" hx-swap="outerHTML">
+        <input type="date" name="date" id="searchDate" class="form-control" value="{{ request.GET.date|default:'' }}"
+            style="background-color: rgb(196, 253, 253); width: 40%;">
+        <input type="submit" class="btn btn-primary btn-sm mb-3 mt-1" value="Search by Date">
+    </form>
+
+    <table class="table table-hover" style="box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);">
+        <thead class="table-primary">
+            <tr>
+                <th scope="col">User</th>
+                <th scope="col">Item Name</th>
+                <th scope="col">Brand</th>
+                <th scope="col">Unit</th>
+                <th scope="col">Qty</th>
+                <th scope="col">Rate</th>
+                <th scope="col">Status</th>
+                <th scope="col">Timestamp</th>
+            </tr>
+        </thead>
+        <tbody id="logsTable">
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.user.get_full_name|default:log.user.username }}</td>
+                <td>{{ log.name|title }}</td>
+                <td>{{ log.brand|title }}</td>
+                <td>{{ log.unit }}</td>
+                <td>{{ log.quantity }}</td>
+                <td>{{ log.amount }}</td>
+                <td>{{ log.get_status_display }}</td>
+                <td>{{ log.created_at }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

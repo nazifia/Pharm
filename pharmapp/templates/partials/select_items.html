@@ -1,0 +1,171 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<style>
+    .table {
+        color: #333;
+    }
+
+    table {
+        width: 100%;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .table-hover th,
+    .table-hover td {
+        text-align: center;
+    }
+
+    /* Media Queries */
+
+    /* For tablets and smaller devices */
+    @media (max-width: 768px) {
+        .col-md-10 {
+            margin-left: 0;
+            margin-top: 20px;
+            padding: 0 15px;
+        }
+
+        table {
+            width: 95%;
+            font-size: 0.6rem;
+            /* Reduce font size for smaller screens */
+        }
+
+        .btn {
+            font-size: 0.5rem;
+            /* Adjust button size */
+            padding: 5px 10px;
+        }
+    }
+
+    /* For mobile devices */
+    @media (max-width: 480px) {
+        .col-md-10 {
+            margin-left: 0;
+            margin-top: 15px;
+            padding: 0 10px;
+        }
+
+        table {
+            font-size: 0.8em;
+            width: 45%;
+            margin-left: 1em;
+        }
+
+        .btn {
+            font-size: 0.7rem;
+            padding: 4px 8px;
+        }
+
+        thead {
+            display: none;
+            /* Hide table header for mobile screens */
+        }
+
+        tbody tr {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        tbody td {
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 7px;
+        }
+
+        tbody td::before {
+            content: attr(data-label);
+            font-weight: bold;
+        }
+    }
+</style>
+
+
+<div class="col-12">
+    <h3 style="color: red;">Select for: {{ customer.name }}</h3>
+    <h4>Wallet Balance: ₦ {{ wallet_balance }}</h4>
+
+    <!-- Action selection (purchase or return) -->
+    <div class="mb-4">
+        <label for="action" class="form-label" style="font-weight: bold;">Select Action:</label>
+        <select id="action" class="form-select form-control" name="action" form="item-form"
+            style="background-color: rgb(252, 182, 182); width:auto">
+            <option value="purchase" selected>Purchase</option>
+            <option value="return">Return</option>
+        </select>
+    </div>
+
+    <!-- Search field to filter items -->
+    <!-- <div class="mb-3">
+    <input type="text" class="form-control" id="item-search" name="query" placeholder="Search for items..."
+        hx-get="" hx-trigger="keyup changed delay:500ms"
+        hx-target="#for-customer" hx-swap="outerHTML" style="background-color: rgb(210, 247, 253);">
+</div> -->
+
+
+
+    <form method="post" action="{% url 'store:select_items' customer.id %}" id="item-form">
+        {% csrf_token %}
+        <div id="item-selection" class="table-responsive">
+            <table class="table table-hover table-reponsive">
+                <thead>
+                    <tr>
+                        <th>Select</th>
+                        <th>Item</th>
+                        <th>D/form</th>
+                        <th>Brand</th>
+                        <th>Unit</th>
+                        <th>Price</th>
+                        <th>Stock Available</th>
+                        <th>Quantity</th>
+                    </tr>
+                </thead>
+                <tbody id="for-customer">
+                    {% for item in items %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" name="item_ids" value="{{ item.id }}">
+                        </td>
+                        <td>{{ item.name|title }}</td>
+                        <td>{{ item.dosage_form }}</td>
+                        <td>{{ item.brand|title }}</td>
+                        <td>{{ item.unit }}</td>
+                        <td>{{ item.price }}</td>
+                        <td>{{ item.stock }}</td>
+                        <td>
+                            <input type="number" name="quantities" min="1" max="{{ item.stock_quantity }}" value="1"
+                                class="form-control input-sm" disabled>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <button type="submit" class="btn btn-success my-3">Proceed with Action</button>
+    </form>
+</div>
+<script>
+    // Enable quantity input only when the item is selected
+    document.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+        checkbox.addEventListener('change', function () {
+            const quantityInput = this.closest('tr').querySelector('input[type="number"]');
+            quantityInput.disabled = !this.checked;
+        });
+    });
+
+    // Update form action dynamically based on selected action
+    const actionSelect = document.getElementById('action');
+    actionSelect.addEventListener('change', function () {
+        const form = document.getElementById('item-form');
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = this.value;
+        form.appendChild(actionInput);
+    });
+</script>
+
+{% endblock content %}

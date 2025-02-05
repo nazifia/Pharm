@@ -1,0 +1,16 @@
+{% for log in logs %}
+<tr>
+    <td>{{ log.user.get_full_name|default:log.user.username }}</td>
+    <td>{{ log.name }}</td>
+    <td>{{ log.brand }}</td>
+    <td>{{ log.unit }}</td>
+    <td>{{ log.quantity }}</td>
+    <td>{{ log.amount }}</td>
+    <td>{{ log.get_status_display }}</td>
+    <td>{{ log.created_at }}</td>
+</tr>
+{% empty %}
+<tr>
+    <td style="text-align: center;" colspan="8">No sales found for the selected date.</td>
+</tr>
+{% endfor %}

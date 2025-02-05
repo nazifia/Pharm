@@ -1,0 +1,170 @@
+{% extends "partials/base.html" %}
+{% load static %}
+{% block content %}
+<style>
+    .statistics {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-top: 4em;
+    }
+
+
+    .bar-chart,
+    .pie-chart {
+        background-color: white;
+        height: 60vh;
+        border: 1px solid grey;
+        /*background-color: transparent;*/
+        border-radius: 5px;
+        /*backdrop-filter: blur(10px);*/
+        padding: 10px;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Media query for tablets and smaller screens */
+    @media (max-width: 768px) {
+        .statistics {
+            grid-template-columns: 1fr;
+            /* Stacks the charts vertically */
+        }
+
+        .bar-chart,
+        .pie-chart {
+            height: 70vh;
+            width: 75vw;
+        }
+    }
+
+    /* Media query for mobile screens */
+    @media (max-width: 400px) {
+
+        .bar-chart,
+        .pie-chart {
+            height: 70vh;
+            width: 43vh;
+            padding: 5px;
+        }
+
+        h2 {
+            font-size: 1.5em;
+        }
+    }
+</style>
+
+<div
+    style="background-image: url({% static 'images/pharmacy2.jpg' %}); height: 100vh; background-size: cover; background-position: center;">
+
+
+    {% if not request.user.is_authenticated %}
+    <h2 style="color: rgb(113, 3, 3); text-align:center; font-weight:bold">Please log in to access the system.</h2>
+    {% endif %}
+    <br>
+    {% if user.is_superuser %}
+    {% for message in messages %}
+    <div style="text-align: center;" class="alert alert-{{message.tags}}">{{message}}</div>
+    {% endfor %}
+    <!-- <div class="statistics">
+        <div class="bar-chart">
+            <canvas id="dailySalesChart"></canvas>
+        </div>
+        <div class="pie-chart">
+            <canvas class="col-md-6 offset-md-2" id="monthlySalesChart"></canvas>
+        </div>
+    </div> -->
+    {% endif %}
+</div>
+
+<!-- Include Chart.js and HTMX -->
+<!-- <script src="{% static 'js/chart.min.js' %}"></script>
+<script src="https://unpkg.com/htmx.org@1.9.0"></script> -->
+<!-- <script>
+    // Function to render daily sales chart
+    function renderDailySalesChart(data) {
+        const labels = data.map(item => new Date(item.day).toLocaleDateString());
+        const sales = data.map(item => item.total_sales);
+
+        const dailySalesData = {
+            labels: labels,
+            datasets: [{
+                label: 'Daily Sales',
+                data: sales,
+                backgroundColor: 'rgba(54, 162, 235, 1)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        };
+
+        const dailySalesConfig = {
+            type: 'bar',
+            data: dailySalesData,
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        };
+
+        const dailySalesCtx = document.getElementById('dailySalesChart').getContext('2d');
+        new Chart(dailySalesCtx, dailySalesConfig);
+    }
+
+    // Function to render monthly sales chart
+    function renderMonthlySalesChart(data) {
+        const labels = data.map(item => new Date(item.month).toLocaleString('default', { month: 'long' }));
+        const sales = data.map(item => item.total_sales);
+
+        const monthlySalesData = {
+            labels: labels,
+            datasets: [{
+                label: 'Monthly Sales',
+                data: sales,
+                backgroundColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(255, 159, 64, 1)',
+                    'rgba(201, 203, 207, 1)',
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(153, 102, 255, 1)'
+                ],
+                hoverOffset: 4
+            }]
+        };
+
+        const monthlySalesConfig = {
+            type: 'pie',
+            data: monthlySalesData,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        };
+
+        const monthlySalesCtx = document.getElementById('monthlySalesChart').getContext('2d');
+        new Chart(monthlySalesCtx, monthlySalesConfig);
+    } -->
+
+<!-- // Fetch and render sales data using HTMX
+    document.addEventListener('DOMContentLoaded', function () {
+        htmx.ajax('GET', ', '#dailySalesChart', function (response) {
+            renderDailySalesChart(response.daily_sales);
+        });
+
+        htmx.ajax('GET', '', '#monthlySalesChart', function (response) {
+            renderMonthlySalesChart(response.monthly_sales);
+        });
+    });
+</script> -->
+{% endblock %}

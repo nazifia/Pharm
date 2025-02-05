@@ -1,0 +1,126 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<style>
+    .table {
+        color: #333;
+    }
+
+    .receipt-container {
+        width: auto;
+        padding: 5em;
+        background-color: #fff;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h3 {
+        color: #333;
+        text-align: center;
+        font-size: 20px;
+        margin-bottom: 10px;
+    }
+
+    p {
+        font-size: 16px;
+        margin: 10px 0;
+    }
+
+    p strong {
+        color: #555;
+    }
+
+    .table {
+        font-size: 14px;
+    }
+
+    @media (max-width: 768px) {
+        .receipt-container {
+            margin: 10px;
+            padding: 15px;
+        }
+
+        h3 {
+            font-size: 20px;
+        }
+
+        p {
+            font-size: 14px;
+        }
+
+        .table {
+            font-size: 12px;
+        }
+
+        button {
+            font-size: 14px;
+            width: 100%;
+            margin-top: 10px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .receipt-container {
+            margin: 5px;
+            padding: 10px;
+        }
+
+        h3 {
+            font-size: 18px;
+        }
+
+        p {
+            font-size: 12px;
+        }
+
+        .table {
+            font-size: 10px;
+        }
+
+        button {
+            font-size: 12px;
+            width: 100%;
+        }
+    }
+</style>
+
+
+<div class="receipt-container">
+    <h2>Wholesale Procurement Details</h2>
+    <p style="text-align: end;"><strong>Supplier:</strong> {{ procurement.supplier }}</p>
+    <p style="text-align: end;"><strong>Date:</strong> {{ procurement.date }}</p>
+
+
+    <table class="table table-hover table-bordered mt-3">
+        <thead class="table-secondary">
+            <tr>
+                <th scope="col">SN</th>
+                <th scope="col">Item Name</th>
+                <th scope="col">D/form</th>
+                <th scope="col">Brand</th>
+                <th scope="col">Unit</th>
+                <th scope="col">Rate</th>
+                <th scope="col">Quantity</th>
+                <th scope="col">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in procurement.items.all %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ item.item_name|upper }}</td>
+                <td>{{ item.dosage_form|upper }}</td>
+                <td>{{ item.brand|upper }}</td>
+                <td>{{ item.unit }}</td>
+                <td>₦{{ item.cost_price }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>₦{{ item.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p style="text-align: end;"><strong>Total Amount: ₦{{ total|floatformat:2 }}</strong></p>
+
+
+</div>
+{% endblock %}

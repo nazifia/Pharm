@@ -1,0 +1,177 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receipt Details</title>
+    <!-- Custom fonts for this template-->
+    <link href="{% static 'vendor/fontawesome-free/css/all.min.css' %}" rel="stylesheet" type="text/css">
+    <link
+        href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
+        rel="stylesheet">
+
+    <!-- Custom styles for this template-->
+    <link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet">
+    <script src="{% static 'htmx/htmx.min.js' %}"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .receipt-container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h3 {
+            color: #333;
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            font-size: 16px;
+            margin: 10px 0;
+        }
+
+        p strong {
+            color: #555;
+        }
+
+        .table {
+            font-size: 14px;
+            color: #333;
+        }
+
+        @media (max-width: 768px) {
+            .receipt-container {
+                margin: 10px;
+                padding: 15px;
+            }
+
+            h3 {
+                font-size: 20px;
+            }
+
+            p {
+                font-size: 14px;
+            }
+
+            .table {
+                font-size: 12px;
+            }
+
+            button {
+                font-size: 14px;
+                width: 100%;
+                margin-top: 10px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .receipt-container {
+                margin: 5px;
+                padding: 10px;
+            }
+
+            h3 {
+                font-size: 18px;
+            }
+
+            p {
+                font-size: 12px;
+            }
+
+            .table {
+                font-size: 10px;
+            }
+
+            button {
+                font-size: 12px;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    {% block content %}
+    <div class="receipt-container">
+        <header>
+            <div class="receipt-head" style="text-align: center;">
+                <h3>Nazz Pharmacy</h3>
+                <p>No. 123 FTH Jibia Bypass, Katsina</p>
+            </div>
+        </header>
+
+        <p><strong>Receipt ID:</strong> {{ receipt.receipt_id }}</p>
+        <p><strong>Customer Name:</strong>
+            {% if receipt.customer %}
+            {{ receipt.customer.name|upper }}
+            {% elif receipt.buyer_name %}
+            {{ receipt.buyer_name|upper }}
+            {% else %}
+            WALK-IN CUSTOMER
+            {% endif %}
+        </p>
+        <p><strong>Customer Address:</strong>
+            {% if receipt.buyer_address %}
+            {{ receipt.buyer_address|upper }}
+            {% else %}
+            Not Provided
+            {% endif %}
+        </p>
+        <p><strong>Date:</strong> {{ receipt.date|date:"F j, Y" }}</p>
+        <p><strong>Sales Person:</strong> {{ user.username }}</p>
+
+        <table class="table table-hover table-bordered mt-3">
+            <thead class="table-secondary">
+                <tr>
+                    <th scope="col">SN</th>
+                    <th scope="col">Item Name</th>
+                    <th scope="col">D/form</th>
+                    <th scope="col">Brand</th>
+                    <th scope="col">Unit</th>
+                    <th scope="col">Quantity</th>
+                    <th scope="col">Rate</th>
+                    <th scope="col">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sales_item in sales_items %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ sales_item.item.name|title }}</td>
+                    <td>{{ sales_item.item.dosage_form|title }}</td>
+                    <td>{{ sales_item.item.brand|title }}</td>
+                    <td>{{ sales_item.item.unit }}</td>
+                    <td>{{ sales_item.quantity }} </td>
+                    <td>₦{{ sales_item.price }}</td>
+                    <td>₦{{ sales_item.subtotal|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p style="text-align: end;"><strong>Total Amount: ₦{{ receipt.total_amount }}</strong></p>
+        <p style="text-align: end;"><strong>Payment Method: {{ receipt.payment_method }}</strong></p>
+
+        <button class="btn btn-outline-success btn-sm ml-2" onclick="window.print()">Reprint Receipt</button>
+
+        <footer>
+            <p style="text-align: center;">___Thank you for your patronage___</p>
+        </footer>
+    </div>
+    {% endblock %}
+</body>
+
+</html>

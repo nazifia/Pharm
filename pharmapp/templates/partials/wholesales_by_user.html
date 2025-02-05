@@ -1,0 +1,95 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<style>
+    /* Base Table Styles */
+    .table {
+        color: #333;
+    }
+
+    #table {
+        margin-left: -1em;
+        width: 100%;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+        font-size: 16px;
+        text-align: left;
+    }
+
+    thead th {
+        background-color: #f4f4f4;
+        color: #333;
+        font-weight: bold;
+        padding: 10px;
+        border-bottom: 2px solid #ddd;
+    }
+
+
+
+    tbody tr:nth-child(odd) {
+        background-color: #fff;
+    }
+
+    td {
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+    }
+
+    /* Add hover effect for rows */
+    tbody tr:hover {
+        background-color: #f1f1f1;
+    }
+
+    /* Media Query for Smaller Screens */
+    @media (max-width: 768px) {
+        table {
+            font-size: 14px;
+        }
+
+        thead {
+            display: none;
+            /* Hide table headers */
+        }
+
+        tbody td {
+            display: block;
+            width: 100%;
+            text-align: right;
+            position: relative;
+            padding-left: 50%;
+        }
+
+        tbody td::before {
+            content: attr(data-label);
+            position: absolute;
+            left: 10px;
+            font-weight: bold;
+            text-align: left;
+        }
+
+        tbody tr {
+            margin-bottom: 15px;
+            display: block;
+        }
+    }
+</style>
+
+<div class="container table-responsive" id="container">
+
+    <h1>Wholesale Sales by User</h1>
+    <form method="get" href="">
+        <label for="date_from">From:</label>
+        <input type="date" id="date_from" name="date_from">
+        <label for="date_to">To:</label>
+        <input type="date" id="date_to" name="date_to">
+        <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+    </form>
+    <div id="sales-table">
+        {% include 'partials/wholesales_by_user_table.html' %}
+    </div>
+
+</div>
+{% endblock %}

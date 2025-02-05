@@ -1,0 +1,84 @@
+{% block content %}
+
+<h3 style="color: red;">Select for: {{ customer.name }}</h3>
+<h4>Wallet Balance: ₦ {{ wallet_balance }}</h4>
+
+<!-- Action selection (purchase or return) -->
+<div class="mb-4">
+    <label for="action" class="form-label">Action:</label>
+    <select id="action" class="form-select" name="action" form="item-form"
+        style="background-color: rgb(252, 182, 182);">
+        <option value="purchase" selected>Purchase</option>
+        <option value="return">Return</option>
+    </select>
+</div>
+
+<!-- Search field to filter items -->
+<!-- <div class="mb-3">
+        <input type="text" class="form-control" id="item-search" name="query" placeholder="Search for items..."
+            hx-get="" hx-trigger="keyup changed delay:500ms"
+            hx-target="#for-customer" hx-swap="outerHTML" style="background-color: rgb(210, 247, 253);">
+    </div> -->
+
+<!-- <a class="btn btn-sm btn-secondary" href="{{ request.META.HTTP_REFERER }}">Back</a> -->
+
+<form method="post" action="" id="item-form">
+    {% csrf_token %}
+    <div id="item-selection">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Select</th>
+                    <th>Item</th>
+                    <th>D/form</th>
+                    <th>Unit</th>
+                    <th>Price</th>
+                    <th>Stock Available</th>
+                    <th>Quantity</th>
+                </tr>
+            </thead>
+            <tbody id="for-customer">
+                {% for item in items %}
+                <tr>
+                    <td>
+                        <input type="checkbox" name="item_ids" value="{{ item.id }}">
+                    </td>
+                    <td>{{ item.name|title }}</td>
+                    <td>{{ item.dosage_form|title }}</td>
+                    <td>{{ item.unit }}</td>
+                    <td>{{ item.price }}</td>
+                    <td>{{ item.stock }}</td>
+                    <td>
+                        <input type="number" name="quantities" min="1" max="{{ item.stock_quantity }}" value="1"
+                            class="form-control input-sm" disabled>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <button type="submit" class="btn btn-success">Proceed with Action</button>
+</form>
+
+<script>
+    // Enable quantity input only when the item is selected
+    document.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+        checkbox.addEventListener('change', function () {
+            const quantityInput = this.closest('tr').querySelector('input[type="number"]');
+            quantityInput.disabled = !this.checked;
+        });
+    });
+
+    // Update form action dynamically based on selected action
+    const actionSelect = document.getElementById('action');
+    actionSelect.addEventListener('change', function () {
+        const form = document.getElementById('item-form');
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = this.value;
+        form.appendChild(actionInput);
+    });
+</script>
+
+{% endblock %}

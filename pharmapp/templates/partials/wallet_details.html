@@ -1,0 +1,38 @@
+{% block content %}
+
+<div class="container my-3">
+    <div class="details">
+        <h3>{{ wallet.customer.name }}'s Wallet Balance: ₦ {{ wallet.balance }}</h3>
+        <div class="button">
+            <a type="button" data-toggle="modal" data-target="#addFundsModal"
+                href="{% url 'store:add_funds' customer.id %}" hx-get="{% url 'store:add_funds' customer.id %}"
+                hx-target="#addFundsModal .modal-body" hx-trigger="click" class="btn btn-sm btn-outline-success">Add
+                Funds</a>
+
+            <a type="button" class="btn btn-sm btn-outline-danger" href="{% url 'store:reset_wallet' customer.id %}"
+                onclick="return confirm('Are you sure you want to reset {{wallet.customer.name|upper}}\'s wallet?')">Clear
+                Wallet</a>
+            <a class="btn btn-sm btn-outline-dark" href="{{request.META.HTTP_REFERER}}">Back</a>
+        </div>
+    </div>
+</div>
+
+
+<!-- Add Funds Modal -->
+<div class="modal fade" id="addFundsModal" tabindex="-1" aria-labelledby="addFundsModalLabe" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="addFundsModalLabel">Add funds to {{ wallet.customer.name }}'s
+                    Wallet</div>
+                <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">x</button>
+            </div>
+            <div class="modal-body">
+
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}

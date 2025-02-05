@@ -1,0 +1,88 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<style>
+    /* Media Queries */
+    .table {
+        color: #333;
+    }
+
+    @media (max-width: 992px) {
+        .col-md-8 {
+            /* Adjust margin or padding for medium screens */
+            margin-top: 20px;
+            /* Reduce top margin */
+        }
+    }
+
+    @media (max-width: 768px) {
+        .col-md-8 {
+            /* Adjust margin or padding for small screens */
+            margin-left: 0;
+            /* Remove left margin */
+            margin-top: 15px;
+            /* Further reduce top margin */
+            padding: 0 10px;
+            /* Add padding for better spacing */
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            /* Adjust heading size */
+        }
+
+        .table {
+            font-size: 0.9rem;
+            /* Reduce table font size for better fit */
+        }
+
+        .btn {
+            font-size: 0.8rem;
+            /* Adjust button font size */
+        }
+    }
+
+    @media (max-width: 576px) {
+        h3 {
+            font-size: 1.2rem;
+            /* Further adjust heading size */
+        }
+
+        .table {
+            font-size: 0.8rem;
+            /* Further reduce table font size */
+        }
+    }
+</style>
+
+<div class="col-12">
+    <h3 style="text-align: center;">Wholesale Customers with Negative Wallet Balance</h3>
+    <table class="table table-hover mt-3" style="box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);">
+        <thead class="table-primary">
+            <tr>
+                <th>Customer Name</th>
+                <th>Wallet Balance (₦)</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for customer in customers %}
+            <tr>
+                <td>{{ customer.name }}</td>
+                <td class="text-danger">₦: {{ customer.wholesale_customer_wallet.balance }}</td>
+                <!-- Display negative balance in red -->
+                <td>
+                    <a href="{% url 'wholesale:wholesale_customer_wallet_details' customer.id %}"
+                        hx-get="{% url 'wholesale:wholesale_customer_wallet_details' customer.id %}"
+                        hx-target="#wallet-info" hx-trigger="click" class="btn btn-success btn-sm">Wallet</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3" class="text-center">No customers with negative wallet balance.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div id="wallet-info"></div>
+</div>
+{% endblock %}

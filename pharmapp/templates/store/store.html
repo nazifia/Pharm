@@ -1,0 +1,237 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+
+{% block content %}
+
+<style>
+    .table {
+        color: #333
+    }
+
+    .col-md-8 {
+        width: 100%;
+        margin-left: -20px;
+    }
+
+    .col-md-8 button,
+    .col-md-8 a {
+        box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .side-nav {
+        width: 100px;
+        position: sticky;
+        top: 50px;
+        height: calc(100vh - 50px);
+        margin-left: 2em;
+    }
+
+    .side-nav button,
+    .side-nav a {
+        margin: 10px;
+        width: 100px;
+        box-shadow: 2px 5px 5px rgba(0, 0, 0, 0.2);
+    }
+
+    .alert-container {
+        margin: 20px 0;
+    }
+
+    .alert-warning {
+        background-color: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeeba;
+        padding: 10px 15px;
+        border-radius: 5px;
+    }
+
+    @media (max-width: 768px) {
+        .container {
+            grid-template-columns: 1fr;
+        }
+
+        .col-md-8 {
+            width: 100%;
+            margin-left: 0;
+        }
+
+        .side-nav {
+            width: 100%;
+            height: auto;
+            margin-left: 0;
+            margin-bottom: 1em;
+        }
+
+        .side-nav button,
+        .side-nav a {
+            width: 30%;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .container {
+            grid-template-columns: 1fr;
+            margin-top: -2em;
+        }
+
+        .col-md-8 {
+            width: 85%;
+            margin-top: 1.5em;
+        }
+
+        .side-nav {
+            position: relative;
+            width: 100%;
+            height: auto;
+        }
+
+        .side-nav button,
+        .side-nav a {
+            width: 30%;
+            margin: 5px 0;
+        }
+
+        table {
+            font-size: 0.6em;
+        }
+
+        .table th,
+        .table td {
+            padding: 0.5em;
+        }
+    }
+</style>
+
+
+
+<a class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addItemModal" type="button"
+    hx-get="{% url 'store:add_item' %}" hx-target="#addItemModal .modal-content" hx-trigger="click">
+    <i class="fa fa-plus"></i> Add New Item
+</a>
+
+<a class="btn btn-success btn-sm" href="{% url 'store:cart' %}">Dispense Retail</a>
+<a class="btn btn-secondary btn-sm" href="{{request.META.HTTP_REFERER}}">Back</a>
+
+<div class="alert-container">
+    {% if low_stock_items %}
+    <div class="alert alert-warning" role="alert">
+        <strong>Restocking Alert:</strong> The following items are running low on stock:
+        <ul>
+            {% for item in low_stock_items %}
+            <li>{{ item.name|title }} (Stock: {{ item.stock }})</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+
+<div class="col-15">
+    <h2 style="text-align: center;">Retail Items</h2>
+    <input type="text" class="form-control mb-3 float-right" hx-get="{% url 'store:search_item' %}"
+        hx-trigger="keyup changed delay:300ms" hx-target="#item-list" placeholder="Search items..." name="search"
+        style="background-color: rgb(232, 253, 211); width:auto">
+
+    {% for message in messages %}
+    <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+    <div class="table-responsive">
+        <table class="table table-hover" id="dataTable" width="100%" cellspacing="0">
+            <thead class="table-secondary">
+                <tr>
+                    <th scope="col">ACTION</th>
+                    <th scope="col">GENERIC</th>
+                    <th scope="col">D/FORM</th>
+                    <th scope="col">BRAND</th>
+                    <th scope="col">UNIT</th>
+                    {% if user.is_superuser or is_staff %}
+                    <th scope="col">COST</th>
+                    {% endif %}
+                    <th scope="col">U/PRICE</th>
+                    <th scope="col">STOCK</th>
+                    <th scope="col">EXP DATE</th>
+                </tr>
+            </thead>
+            <tfoot class="table-secondary">
+                <tr>
+                    <th scope="col">ACTION</th>
+                    <th scope="col">GENERIC</th>
+                    <th scope="col">D/FORM</th>
+                    <th scope="col">BRAND</th>
+                    <th scope="col">UNIT</th>
+                    {% if user.is_superuser %}
+                    <th scope="col">COST</th>
+                    {% endif %}
+                    <th scope="col">U/PRICE</th>
+                    <th scope="col">STOCK</th>
+                    <th scope="col">EXP DATE</th>
+                </tr>
+            </tfoot>
+            <tbody id="item-list">
+                {% for item in items %}
+                <tr>
+                    <td>
+                        <a class="btn btn-sm btn-info" data-toggle="modal" data-target="#editModal"
+                            hx-get="{% url 'store:edit_item' item.id %}" hx-target="#editModal .modal-content">Edit</a>
+
+                        <a class="btn btn-sm btn-warning" data-toggle="modal" data-target="#returnItemModal"
+                            hx-get="{% url 'store:return_item' item.id %}"
+                            hx-target="#returnItemModal .modal-content">Return</a>
+
+                        <a href="{% url 'store:delete_item' item.id %}"
+                            onclick="return confirm('Are you sure you want to delete {{item.name|title}} from  Store?')"
+                            class="btn btn-sm btn-danger">x</a>
+                    </td>
+                    <td>{{item.name|title}}</td>
+                    <td>{{item.dosage_form|title}}</td>
+                    <td>{{item.brand|title}}</td>
+                    <td>{{item.unit}}</td>
+                    {% if user.is_superuser %}
+                    <td>{{item.cost}}</td>
+                    {% endif %}
+                    <td>{{item.price}}</td>
+                    <td>{{item.stock}}</td>
+                    <td>{{item.exp_date}}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Item to Store Modal -->
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+        </div>
+    </div>
+</div>
+
+
+<!-- Edit Item Modal -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-label="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content"></div>
+    </div>
+</div>
+
+<!-- Return Item Modal -->
+<div class="modal fade" id="returnItemModal" tabindex="-1" aria-label="returnItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content"></div>
+    </div>
+</div>
+
+<script>
+    function calculatePrice() {
+        const cost = parseFloat(document.getElementById("cost").value) || 0;
+        const markupPercentage = parseFloat(document.getElementById("markup_percentage").value) || 0;
+
+        // Calculate price based on the cost and markup percentage
+        const price = cost + (cost * markupPercentage / 100);
+
+        // Show the calculated price in the price input field
+        document.getElementById("price").value = price.toFixed(2);
+    }
+</script>
+
+{% endblock %}

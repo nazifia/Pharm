@@ -1,0 +1,8 @@
+<form action="{% url 'store:add_funds' customer.id %}" method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label for="amount" class="form-label">Amount</label>
+        <input type="number" name="amount" class="form-control" id="amount" required>
+    </div>
+    <button type="submit" class="btn btn-success btn-sm">Submit</button>
+</form>

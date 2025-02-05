@@ -1,0 +1,127 @@
+{% extends "partials/base.html" %}
+
+{% block content %}
+<style>
+    .table {
+        color: #333;
+    }
+
+    .box {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 10px;
+        max-width: 1500px;
+        margin-left: -1em;
+    }
+
+    .near_exp {
+        width: 95%;
+        margin-left: 20px;
+    }
+
+    .expired {
+        width: 95%;
+        margin-left: 2rem;
+    }
+
+    /* Media Queries */
+    @media (max-width: 992px) {
+        .box {
+            grid-template-columns: 1fr;
+            /* Stack columns on medium screens */
+            margin-left: 5%;
+            /* Adjust margin for smaller screens */
+        }
+
+        .near_exp,
+        .expired {
+            margin-left: 0;
+            /* Remove left margin for smaller screens */
+        }
+    }
+
+    @media (max-width: 576px) {
+        .box {
+            margin-left: 0;
+            /* Remove left margin for extra small screens */
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            /* Adjust heading size */
+        }
+
+        .table {
+            font-size: 0.9rem;
+            /* Adjust table font size */
+        }
+
+        .near_exp,
+        .expired {
+            margin-left: 0;
+            /* Remove left margin */
+        }
+    }
+</style>
+<div class="box">
+    <div class="near_exp table-responsive">
+        <h3>Item(s) Nearing Expiration - Retail</h3>
+        {% if expiring_items %}
+        <table class="table table-hover" style="box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);">
+            <thead class="table-success">
+                <tr>
+                    <th>SN</th>
+                    <th>D/FORM</th>
+                    <th>ITEM NAME</th>
+                    <th>BRAND</th>
+                    <th>EXP DATE</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in expiring_items %}
+                <tr>
+                    <td>{{ forloop.counter}}.</td>
+                    <td>{{ item.dosage_form|title }}</td>
+                    <td>{{ item.name|title }}</td>
+                    <td>{{ item.brand|title }}</td>
+                    <td style="color: rgb(255, 6, 230);">{{ item.exp_date }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="col-md-10 offset-md-1">No items are nearing expiration within the next 90 days.</p>
+        {% endif %}
+    </div>
+
+    <div class="expired table-responsive">
+        <h3>Expired Item(s) - Retail</h3>
+        {% if expired_items %}
+        <table class="table table-hover" style="box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);">
+            <thead class="table-danger">
+                <tr>
+                    <th>SN</th>
+                    <th>D/FORM</th>
+                    <th>ITEM NAME</th>
+                    <th>BRAND</th>
+                    <th>EXP DATE</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in expired_items %}
+                <tr>
+                    <td>{{ forloop.counter}}.</td>
+                    <td>{{ item.dosage_form|title }}</td>
+                    <td>{{ item.name|title }}</td>
+                    <td>{{ item.brand|title }}</td>
+                    <td style="color: rgb(255, 20, 12);">{{ item.exp_date }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="col-md-8 offset-md-2">No items have expired.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

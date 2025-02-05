@@ -1,0 +1,24 @@
+<table class="table">
+    <thead>
+        <tr>
+            <th>User</th>
+            <th>Total Sales</th>
+            <th>Total Items Sold</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if user_sales %}
+        {% for sale in user_sales %}
+        <tr>
+            <td>{{ sale.user__username|upper }}</td>
+            <td>₦{{ sale.total_sales }}</td>
+            <td>{{ sale.total_items }} (Items)</td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr>
+            <td style="text-align: center;" colspan="3">No sales found for the selected date range.</td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>

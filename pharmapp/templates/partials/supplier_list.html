@@ -1,0 +1,143 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<div class="container table-responsive">
+    <h2>Registered Suppliers</h2>
+    <table class="table table-hover">
+        <thead class="table-secondary">
+            <tr>
+                <th>Supplier Name</th>
+                <th>Contact</th>
+                <th>Address</th>
+                <!-- <th>Actions</th> -->
+            </tr>
+        </thead>
+        <tbody>
+            {% for supplier in suppliers %}
+            <tr>
+                <td data-label="Supplier Name">{{ supplier.name }}</td>
+                <td data-label="Contact">{{ supplier.phone }}</td>
+                <td data-label="Address">{{ supplier.contact_info }}</td>
+                <!-- <td data-label="Actions">
+                    <a href="" hx-get="" hx-target="#sales-data" class="btn btn-info">View</a>
+                </td> -->
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4">No suppliers registered.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- CSS for Responsiveness -->
+<style>
+    /* Desktop Styles */
+    .table {
+        color: #333;
+    }
+
+    .container {
+        margin-left: -1em;
+        width: auto;
+        padding: 1.5em;
+
+    }
+
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .table th,
+    .table td {
+        padding: 10px;
+        text-align: left;
+        border: 1px solid #ddd;
+    }
+
+    .btn {
+        font-size: 0.9rem;
+        padding: 5px 10px;
+    }
+
+    /* Tablet & Small Screen Styles */
+    @media (max-width: 768px) {
+        .container {
+            margin-left: 1em;
+            width: 98%;
+            padding: 1em;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+        }
+
+        .table {
+            font-size: 0.9rem;
+        }
+
+        .table thead {
+            display: none;
+        }
+
+        .table tbody tr {
+            display: block;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+
+        .table tbody tr td {
+            display: block;
+            text-align: right;
+            padding: 5px 0;
+        }
+
+        .table tbody tr td::before {
+            content: attr(data-label);
+            float: left;
+            font-weight: bold;
+        }
+
+        .btn {
+            font-size: 0.8rem;
+            padding: 5px 10px;
+        }
+    }
+
+    /* Mobile Styles */
+    @media (max-width: 480px) {
+        .container {
+            width: 95%;
+            padding: 1em;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+        }
+
+        .table {
+            font-size: 0.8rem;
+        }
+
+        .table tbody tr {
+            padding: 8px;
+        }
+
+        .table tbody tr td {
+            text-align: right;
+            padding: 4px 0;
+        }
+
+        .table tbody tr td::before {
+            font-size: 0.8rem;
+        }
+
+        .btn {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+        }
+    }
+</style>
+{% endblock %}

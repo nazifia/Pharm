@@ -1,0 +1,68 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<div class="container mt-2">
+    <h2>Register Supplier</h2>
+    <form method="POST" action="{% url 'store:register_supplier_view' %}">
+        {% csrf_token %}
+        <div class="row">
+            <div class="col-md-6 col-sm-12">
+                <label for="id_name"><strong>Supplier Name:</strong></label>
+                {{ form.name }}
+            </div>
+            <div class="col-md-6 col-sm-12 mt-3 mt-md-0">
+                <label for="id_phone"><strong>Phone:</strong></label>
+                {{ form.phone }}
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-6 col-sm-12 mt-3 mt-md-0">
+                <label for="id_address"><strong>Address:</strong></label>
+                {{ form.contact_info }}
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-4">Register Supplier</button>
+    </form>
+</div>
+
+<style>
+    .container {
+        margin-left: 5em;
+        width: 50em;
+    }
+
+    /* Media Query for Responsive Layout */
+    @media (max-width: 768px) {
+        .container {
+            margin-left: 1em;
+            width: 100%;
+        }
+
+        .row .col-md-6 {
+            width: auto;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .container {
+            margin-left: 1em;
+            width: 100%;
+        }
+
+        .row .col-md-6 {
+            width: auto;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}

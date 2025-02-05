@@ -1,0 +1,194 @@
+{% extends 'partials/base.html' %}
+{% block content %}
+
+<style>
+    .table {
+        color: #333;
+    }
+
+    .container {
+        display: grid;
+        grid-template-columns: 1fr 5fr;
+        margin-top: 0em;
+    }
+
+    .col-md-8 {
+        width: 80em;
+        margin-left: 2em;
+    }
+
+    .col-md-8 button,
+    .col-md-8 a {
+        box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .side-nav {
+        width: 80px;
+        position: sticky;
+        top: 50px;
+        height: calc(100vh - 50px);
+        margin-left: -2em;
+    }
+
+    .side-nav button,
+    .side-nav a {
+        margin: 10px;
+        width: 100px;
+        box-shadow: 2px 5px 5px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Media query for tablets */
+    @media (max-width: 768px) {
+        .container {
+            grid-template-columns: 1fr;
+            margin-top: 0.5em;
+        }
+
+        .col-md-8 {
+            width: 100%;
+            margin-left: 0;
+            margin-top: -18em;
+        }
+
+        .side-nav {
+            margin-left: 0;
+            width: 100%;
+        }
+    }
+
+    /* Media query for mobile devices */
+    @media (max-width: 480px) {
+        .container {
+            display: block;
+            margin-top: 0.5em;
+        }
+
+        .col-md-8 {
+            width: 100%;
+            margin-left: 0;
+            margin-top: -18em;
+        }
+
+        .side-nav {
+            position: relative;
+            width: 30%;
+            margin-bottom: 0;
+        }
+
+        .side-nav button,
+        .side-nav a {
+            width: 100%;
+        }
+
+        .cart-table table {
+            font-size: 10px;
+            max-width: 70%;
+        }
+    }
+</style>
+
+<div class="container">
+    <div class="side-nav">
+        <a class="btn btn-primary btn-sm" data-toggle="modal" data-target="#wholesaleDispenseModal"
+            hx-get="{% url 'wholesale:dispense_wholesale' %}" hx-target="#wholesaleDispenseModal .modal-body">AddTo
+            Wholesale
+            Cart</a>
+        <a class="btn btn-sm btn-warning" href="{% url 'wholesale:wholesale_cart' %}">View Wholesale cart</a>
+        <a class="btn btn-success btn-sm" href="{% url 'wholesale:wholesale_receipt' %}">Receipt</a>
+        <form method="POST" action="" onsubmit="return confirmClearCart();">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-dark btn-sm">Clear Cart</button>
+        </form>
+        <a class="btn btn-secondary btn-sm" href="{{ request.META.HTTP_REFERER }}">Back</a>
+    </div>
+
+    <div class="col-md-8 offset-md-3 cart-table table-responsive">
+        <h3 style="text-align: center;">Wholesale Cart</h3>
+        {% for message in messages %}
+        <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+
+        {% if cart_items %}
+
+        <table class="table table-hover" id="dataTable" width="100%" cellspacing="0">
+            <thead class="table-primary">
+                <tr>
+                    <th scope="col">S/no</th>
+                    <th scope="col">Generic</th>
+                    <th scope="col">D/form</th>
+                    <th scope="col">Brand</th>
+                    <th scope="col">Qty (Unit)</th>
+                    <th scope="col">Rate</th>
+                    <th scope="col">Subtotal</th>
+                    <th scope="col">Reduce-by</th>
+                    <!-- <th scope="col">Discount</th> -->
+                </tr>
+            </thead>
+            <tbody>
+                {% for cart_item in cart_items %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ cart_item.item.name|title }}</td>
+                    <td>{{ cart_item.item.dosage_form|title }}</td>
+                    <td>{{ cart_item.item.brand }}</td>
+                    <td>{{ cart_item.quantity }} ({{ cart_item.item.unit }})</td> <!-- Display Quantity and Unit -->
+                    <td>{{ cart_item.item.price }}</td>
+                    <td>{{ cart_item.subtotal }}</td>
+                    <td>
+                        <!-- Form for Adjusting Quantity -->
+                        <form action="{% url 'wholesale:update_wholesale_cart_quantity' cart_item.id %}" method="post">
+                            {% csrf_token %}
+                            <input type="number" name="quantity" min="1" value="{{ cart_item.quantity }}" id="quantity"
+                                style="width: 70px; border-radius: 3px;">
+                            <button class="btn btn-outline-danger btn-sm mb-2" type="submit">Reduce</button>
+                        </form>
+                    </td>
+                    <td>
+                        <!-- Form for Applying Discount -->
+                        <!-- <form action="" method="post"> -->
+                        <!-- {% csrf_token %} -->
+                        <!-- Use unique input name for each item using cart_item.id -->
+                        <!-- <input type="number" step="0.01" name="discount_amount-{{ cart_item.id }}" -->
+                        <!-- value="{{ cart_item.discount_amount }}" id="discount_amount" min="0" -->
+                        <!-- style="width: 70px; border-radius: 3px;"> -->
+                        <!-- <button class="btn btn-outline-info btn-sm mb-2" type="submit">Discount</button> -->
+                        <!-- </form> -->
+                    </td>
+
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+
+        <h6>TOTAL PRICE: ₦ {{ total_price }}</h6>
+        <!-- <h4>TOTAL AFTER DISCOUNT: ₦ </h4> -->
+        {% else %}
+        <div class="col-md-8 offset-md-3">
+            <h3 style="text-align: center; color:blue">No item found in the cart</h3>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function confirmClearCart() {
+        return confirm("Are you sure you want to clear the cart?");
+    }
+</script>
+
+<!-- Dispense Modal -->
+<div class="modal fade" id="wholesaleDispenseModal" tabindex="-1" aria-labelledby="wholesaleDispenseModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>SELECT ITEM FOR WHOLESALE</h3>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">x</button>
+            </div>
+            <div class="modal-body"></div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,48 @@
+<form method="POST" hx-post="{% url 'store:dispense' %}" hx-target="#dispenseModal .modal-body">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-success float-end btn-sm">Search</button>
+</form>
+<br>
+{% if results %}
+<h5>Search Results:</h5>
+<ul class="list-group">
+    {% for item in results %}
+    <li class="list-group-item">
+        <form method="POST" action="{% url 'store:add_to_cart' item.id %}">
+            {% csrf_token %}
+            <div>{{ item.name }} {{ item.dosage_form }} ({{ item.brand }})=> {{ item.stock }} {{item.unit}}
+                Available, at
+                {{item.price}} each.</div>
+
+            <!-- Unit Selection Dropdown -->
+            <!-- <div class="mb-2">
+                <select name="unit" id="unit-{{ item.id }}" class="form-select" required>
+                    <option value="Unit">Select Unit</option>
+                    <option value="PCS">Pieces</option>
+                    <option value="TAB">Tablets</option>
+                    <option value="CARD">Cards</option>
+                    <option value="CAP">Capsules</option>
+                    <option value="AMP">Ampules</option>
+                    <option value="TIN">Tins</option>
+                    <option value="BTL">Bottles</option>
+                    <option value="PCK">Packets</option>
+                    <option value="ROLL">Rolls</option>
+                    <option value="CTN">Cartons</option>
+                </select>
+            </div> -->
+
+            <!-- Quantity Input -->
+            <div class="mb-2">
+                <label for="quantity-{{ item.id }}">Quantity</label>
+                <input type="number" name="quantity" min="1" value="1" id="quantity-{{ item.id }}" required>
+            </div>
+
+            <div></div>
+            <button class="btn btn-primary btn-sm float-right" type="submit">Add to Cart</button>
+        </form>
+
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
