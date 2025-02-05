@@ -1176,6 +1176,12 @@ def register_supplier_view(request):
         form = SupplierRegistrationForm()
     return render(request, 'partials/supplier_reg_form.html', {'form': form})
 
+
+def supplier_list_partial(request):
+    suppliers = Supplier.objects.all()  # Get all suppliers
+    return render(request, 'partials/supplier_list.html', {'suppliers': suppliers})
+
+
 @login_required
 def list_suppliers_view(request):
     suppliers = Supplier.objects.all()  # Get all suppliers
