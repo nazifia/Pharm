@@ -1,0 +1,73 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<h2>Update Stock Check: {{ stock_check.id }}</h2>
+{% for message in messages %}
+<div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
+{% endfor %}
+<form method="post">
+    {% csrf_token %}
+    <table class="table table-hover shadow">
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="selectall"></th>
+                <th>SN</th>
+                <th>Item</th>
+                <th>D/form</th>
+                <th>Brand</th>
+                <th>Expected Qty</th>
+                <th>Actual Qty</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in stock_check.wholesale_items.all %}
+            <tr>
+                <td><input type="checkbox" name="item" value="{{ item.id }}" class="select-item"></td>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ item.item.name }}</td>
+                <td>{{ item.item.dosage_form }}</td>
+                <td>{{ item.item.brand }}</td>
+                <td>{{ item.expected_quantity }}</td>
+                <td><input type="number" name="item_{{ item.item.id }}" value="{{ item.actual_quantity }}"
+                        style="width: 100px;"></td>
+                <td>
+                    <span class="badge badge-{{ item.status|lower|slice:':7' }}">
+                        {{ item.get_status_display }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="btn-toolbar">
+        <button class="btn btn-primary" type="submit">Update Quantities</button>
+        <button class="btn btn-success" onclick="approveSelected()">Approve Selected</button>
+        <button class="btn btn-warning" onclick="adjustSelected()">Adjust Selected</button>
+    </div>
+</form>
+
+<script>
+    document.getElementById('selectall').addEventListener('change', function () {
+        var checkboxes = document.getElementsByClassName('select-item');
+        for (var i = 0; i < checkboxes.length; i++) {
+            checkboxes[i].checked = this.checked;
+        }
+    });
+
+    function approveSelected() {
+        if (confirm('Are you sure you want to approve these items?')) {
+            var form = document.querySelector('form');
+            form.action = "{% url 'wholesale:approve_wholesale_stock_check' stock_check.id %}";
+            form.submit();
+        }
+    }
+
+    function adjustSelected() {
+        if (confirm('Are you sure you want to adjust these items?')) {
+            var form = document.querySelector('form');
+            form.action = "{% url 'wholesale:wholesale_bulk_adjust_stock' stock_check.id %}";
+            form.submit();
+        }
+    }
+</script>
+{% endblock %}

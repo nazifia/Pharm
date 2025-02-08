@@ -206,6 +206,10 @@
                             <span>Admin-page</span></a>
                         <a class="collapse-item" href="{% url 'userauth:register' %}">
                             <i class="fas fa-fw fa-user-plus"></i> <span>User Registration</span></a>
+                        <a class="collapse-item" href="{% url 'store:create_stock_check' %}">
+                            <i class="fas fa-fw fa-search"></i> Stock Check</a>
+                        <a class="collapse-item" href="{% url 'wholesale:create_wholesale_stock_check' %}">
+                            <i class="fas fa-fw fa-search"></i> Wholesale Stock Check</a>
                     </div>
                 </div>
             </li>
@@ -623,6 +627,34 @@
             </div>
         </div>
     </div>
+
+
+
+    <script>
+        // Warn users 10 minutes before session expiration
+        const timeoutWarning = 10 * 60 * 1000; // 10 minute
+        const logoutUrl = "{% url 'store:index' %}";
+
+        let timeoutTimer;
+
+        function startTimer() {
+            timeoutTimer = setTimeout(() => {
+                window.location.href = logoutUrl;
+            }, SESSION_COOKIE_AGE * 1000 - timeoutWarning);
+
+            // Reset timer on any activity
+            document.addEventListener('mousemove', resetTimer);
+            document.addEventListener('keypress', resetTimer);
+        }
+
+        function resetTimer() {
+            clearTimeout(timeoutTimer);
+            startTimer();
+        }
+
+        startTimer();
+    </script>
+
 
 
 

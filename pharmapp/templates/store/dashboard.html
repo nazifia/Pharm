@@ -57,7 +57,9 @@
 
 
     {% if not request.user.is_authenticated %}
-    <h2 style="color: rgb(113, 3, 3); text-align:center; font-weight:bold">Please log in to access the system.</h2>
+    <br>
+    <br>
+    <h2 style="color: rgb(0, 0, 0); text-align:center; font-weight:bold">Please log in to access the system.</h2>
     {% endif %}
     <br>
     {% if user.is_superuser %}

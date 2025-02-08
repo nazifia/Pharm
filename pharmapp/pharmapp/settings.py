@@ -44,8 +44,11 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware', 
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 ROOT_URLCONF = 'pharmapp.urls'
 
@@ -138,5 +141,13 @@ MESSAGE_TAGS = {
     messages.WARNING: 'warning',
     messages.ERROR: 'danger',
 }
+
+
+
+# Set session to expire after 10 minutes (300 seconds) of inactivity
+SESSION_COOKIE_AGE = 1200  # 10 minutes in seconds
+SESSION_SAVE_EVERY_REQUEST = True  # Reset the session expiration time on each request
+
+
 
 

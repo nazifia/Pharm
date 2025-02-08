@@ -1,0 +1,16 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<h2>Adjust Stock for {{ stock_item.item.name }}</h2>
+<p>Expected: {{ stock_item.expected_quantity }}, Actual: {{ stock_item.actual_quantity }}</p>
+
+<form method="post">
+    {% csrf_token %}
+    <label for="adjusted_quantity">New Stock Quantity:</label>
+    <input type="number" name="adjusted_quantity" value="{{ stock_item.actual_quantity }}" required>
+    <button class="btn btn-success btn-sm" type="submit">Apply Adjustment</button>
+</form>
+
+<a class="btn btn-secondary btn-sm"
+    href="{% url 'wholesale:wholesale_stock_check_report' stock_item.stock_check.id %}">Back to
+    Report</a>
+{% endblock %}

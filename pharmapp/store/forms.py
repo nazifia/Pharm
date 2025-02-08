@@ -192,3 +192,4 @@ class ProcurementItemForm(forms.ModelForm):
         }
 
 ProcurementItemFormSet = modelformset_factory( ProcurementItem, form=ProcurementItemForm, extra=0)
+

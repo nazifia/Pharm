@@ -1,0 +1,12 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<th>Are you ready to Adjust the Quantity? </th>
+{% for item in stock_check.wholesale_items.all %}
+<td>
+    {% if item.stockadjustment %}
+    {{ item.stockadjustment.adjusted_quantity }}
+    {% endif %}
+</td>
+<a class="btn btn-primary btn-sm" href="{% url 'wholesale:adjust_wholesale_stock' item.id %}">Adjust</a>
+{% endfor %}
+{% endblock content %}

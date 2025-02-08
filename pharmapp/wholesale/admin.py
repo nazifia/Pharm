@@ -1,5 +1,5 @@
 from django.contrib import admin
-from store.models import WholesaleItem
+from store.models import *
 
 # Register your models here.
 class WholesaleItemAdmin(admin.ModelAdmin):
@@ -9,6 +9,14 @@ class WholesaleItemAdmin(admin.ModelAdmin):
 
 
 
+class WholesaleStockCheckItemInline(admin.TabularInline):
+    model = StockCheckItem
+    extra = 0
+
+
+class WholesaleStockCheckAdmin(admin.ModelAdmin):
+    list_display = ('id', 'created_by', 'date', 'status')
+    inlines = [WholesaleStockCheckItemInline]
 
 
 
@@ -18,3 +26,4 @@ class WholesaleItemAdmin(admin.ModelAdmin):
 
 
 admin.site.register(WholesaleItem, WholesaleItemAdmin)
+admin.site.register(WholesaleStockCheckItem)

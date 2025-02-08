@@ -1,0 +1,22 @@
+<tr id="stock-item-{{ item.id }}">
+    <td>{{ forloop.counter }}</td>
+    <td>{{ item.item.name }}</td>
+    <td>{{ item.item.dosage_form }}</td>
+    <td>{{ item.item.brand }}</td>
+    <td>{{ item.expected_quantity }}</td>
+    <td>
+        <input type="number" name="item_{{ item.item.id }}" value="{{ item.actual_quantity }}" min="0"
+            class="form-control" style="width: 100px;">
+    </td>
+    <td>
+        {% if item.stockadjustment %}
+        <span class="badge bg-success">Adjusted: {{ item.stockadjustment.adjusted_quantity }}</span>
+        {% else %}
+        <span class="badge bg-warning">Pending</span>
+        {% endif %}
+    </td>
+    <td>
+        <button class="btn btn-primary btn-sm" hx-post="{% url 'store:adjust_stock' item.id %}"
+            hx-target="#stock-item-{{ item.id }}" hx-swap="outerHTML">Adjust</button>
+    </td>
+</tr>

@@ -373,7 +373,7 @@ class WholesaleSelectionHistory(models.Model):
     
 
 
-
+# Suppliers Model Definition
 class Supplier(models.Model):
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=15, blank=True, null=True)
@@ -384,4 +384,131 @@ class Supplier(models.Model):
 
 
 
+# Retail stock check Models
+class StockCheck(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+    ]
+    
+    id = models.AutoField(primary_key=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_at')
+    date = models.DateTimeField(default=datetime.now)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
 
+    def total_discrepancy(self):
+        return sum(item.discrepancy() for item in self.stockcheckitem_set.all())
+
+    def __str__(self):
+        return f"Stock Check #{self.id} - {self.date}"
+
+class StockCheckItem(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('adjusted', 'Adjusted'),
+    ]
+    
+    stock_check = models.ForeignKey(StockCheck, on_delete=models.CASCADE)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    expected_quantity = models.PositiveIntegerField()
+    actual_quantity = models.PositiveIntegerField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    
+    
+    def discrepancy(self):
+        return self.actual_quantity - self.expected_quantity
+
+    def __str__(self):
+        return f"{self.item.name} - Stock Check #{self.stock_check.id}"
+
+
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+class StockAdjustment(models.Model):
+    stock_check_item = models.OneToOneField(StockCheckItem, on_delete=models.CASCADE)
+    adjusted_quantity = models.PositiveIntegerField()
+    adjusted_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    adjusted_at = models.DateTimeField(auto_now_add=True)
+
+    def apply_adjustment(self):
+        """Update item stock based on the adjustment"""
+        item = self.stock_check_item.item  # Ensure this relationship exists
+        logger.info(f"Applying adjustment: {self.adjusted_quantity} for item {item.name} (ID: {item.id})")
+        item.stock = self.adjusted_quantity  # Ensure field name is correct
+        item.save(update_fields=['stock'])  # Explicitly save updated field
+        logger.info(f"Stock updated: New stock quantity = {item.stock}")
+
+
+
+# Wholesale Stock check Models
+class WholesaleStockCheck(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+    ]
+    
+    id = models.AutoField(primary_key=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='wholesale_items')
+    date = models.DateTimeField(default=datetime.now)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    def total_discrepancy(self):
+        return sum(item.discrepancy() for item in self.stockcheckitem_set.all())
+
+    def __str__(self):
+        return f"Stock Check #{self.id} - {self.date}"
+
+class WholesaleStockCheckItem(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('adjusted', 'Adjusted'),
+    ]
+    
+    stock_check = models.ForeignKey(WholesaleStockCheck, on_delete=models.CASCADE, related_name='wholesale_items')
+    item = models.ForeignKey(WholesaleItem, on_delete=models.CASCADE, related_name='wholesale_item')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    expected_quantity = models.PositiveIntegerField()
+    actual_quantity = models.PositiveIntegerField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    
+    
+    def discrepancy(self):
+        return self.actual_quantity - self.expected_quantity
+
+    def __str__(self):
+        return f"{self.item.name} - Stock Check #{self.stock_check.id}"
+
+
+
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+class WholesaleStockAdjustment(models.Model):
+    stock_check_item = models.OneToOneField(WholesaleStockCheckItem, on_delete=models.CASCADE)
+    adjusted_quantity = models.PositiveIntegerField()
+    adjusted_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    adjusted_at = models.DateTimeField(auto_now_add=True)
+
+    def apply_adjustment(self):
+        """Update item stock based on the adjustment"""
+        item = self.stock_check_item.item  # Ensure this relationship exists
+        logger.info(f"Applying adjustment: {self.adjusted_quantity} for item {item.name} (ID: {item.id})")
+        item.stock = self.adjusted_quantity  # Ensure field name is correct
+        item.save(update_fields=['stock'])  # Explicitly save updated field
+        logger.info(f"Stock updated: New stock quantity = {item.stock}")

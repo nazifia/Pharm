@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from django.db.models.functions import TruncMonth, TruncDay
 from django.shortcuts import get_object_or_404, render, redirect
 from customer.models import Wallet
+from django.forms import formset_factory
 from .models import *
 from .forms import *
 from django.contrib import messages
@@ -17,6 +18,11 @@ from django.contrib.auth import authenticate, login, logout, update_session_auth
 
 
 # Create your views here.
+def is_admin(user):
+    return user.is_authenticated and user.is_superuser or user.is_staff
+
+
+
 def index(request):
     if request.method == 'POST':
         mobile = request.POST['mobile']
@@ -43,8 +49,6 @@ def logout_user(request):
 
 
 
-def is_admin(user):
-    return user.is_authenticated and user.is_superuser or user.is_staff
 
 
 @login_required
@@ -338,7 +342,7 @@ def receipt(request):
                 sales=sales,
                 receipt_id=ShortUUIDField().generate(),
                 total_amount=final_total,
-                buyer_name=buyer_name if not sales.customer else None,
+                buyer_name=buyer_name if buyer_name else sales.customer.name if sales.customer else 'WALK-IN CUSTOMER',
                 buyer_address=buyer_address,
                 date=datetime.now(),
                 payment_method=payment_method,
@@ -453,18 +457,19 @@ def receipt_detail(request, receipt_id):
 
 
 @login_required
-def return_item(request, pk):
-    item = get_object_or_404(Item, id=pk)
+def return_item(request, sales_id, item_id):
+    # Get the specific sales and item
+    sales = get_object_or_404(Sales, id=sales_id)
+    sales_item = get_object_or_404(SalesItem, id=item_id, sales=sales)
+    item = sales_item.item
 
     if request.method == 'POST':
         form = ReturnItemForm(request.POST)
         if form.is_valid():
-            return_quantity = form.cleaned_data.get('return_item_quantity')
-
-            # Validate the return quantity
-            if return_quantity <= 0:
-                messages.warning(request, 'Invalid return item quantity.')
-                return redirect('store:store')
+            return_quantity = form.cleaned_data.get('return_quantity')
+            if return_quantity <= 0 or return_quantity > sales_item.quantity:
+                messages.error(request, "Invalid return quantity.")
+                return redirect('store:customer_history', pk=sales.customer.id)
 
             try:
                 with transaction.atomic():
@@ -472,100 +477,53 @@ def return_item(request, pk):
                     item.stock += return_quantity
                     item.save()
 
-                    # Find the sales item associated with the returned item
-                    sales_item = SalesItem.objects.filter(item=item).order_by('-quantity').first()
-                    if not sales_item or sales_item.quantity < return_quantity:
-                        messages.error(request, f'No valid sales record found for {item.name}.')
-                        return redirect('store:store')
-
-                    # Calculate refund and update sales item
-                    refund_amount = return_quantity * sales_item.price
-                    if sales_item.quantity > return_quantity:
-                        sales_item.quantity -= return_quantity
-                        sales_item.save()
-                    else:
+                    # Update SalesItem quantity or delete if zero
+                    sales_item.quantity -= return_quantity
+                    if sales_item.quantity == 0:
                         sales_item.delete()
+                    else:
+                        sales_item.save()
 
-                    # Update sales total
-                    sales = sales_item.sales
-                    sales.total_amount -= refund_amount
-                    sales.save()
+                    # Recalculate the total amount for the sale
+                    sales.calculate_total_amount()
 
-                    # Process wallet refund if applicable
-                    if sales.customer and hasattr(sales.customer, 'wallet'):
+                    # Process wallet refund
+                    refund_amount = return_quantity * sales_item.price
+                    if sales.customer and sales.customer.wallet:
                         wallet = sales.customer.wallet
                         wallet.balance += refund_amount
                         wallet.save()
-
-                        # Log the refund transaction
                         TransactionHistory.objects.create(
                             customer=sales.customer,
                             transaction_type='refund',
                             amount=refund_amount,
-                            description=f'Refund for {return_quantity} of {item.name}'
+                            description=f'Refund for {return_quantity} {item.unit} of {item.name}'
                         )
-                        messages.success(
-                            request,
-                            f'{return_quantity} of {item.name} successfully returned, and ₦{refund_amount} refunded to the wallet.'
-                        )
-                    else:
-                        messages.error(request, 'Customer wallet not found or not associated.')
 
                     # Update dispensing log
-                    dispensing_log = DispensingLog.objects.filter(user=sales.user, name=item.name).last()
-                    if dispensing_log:
-                        if dispensing_log.quantity == return_quantity:
-                            dispensing_log.quantity = 0
-                            dispensing_log.status = 'Returned'
-                        elif dispensing_log.quantity > return_quantity:
-                            dispensing_log.quantity -= return_quantity
-                            dispensing_log.status = 'Partially Returned'
-                        else:
-                            messages.warning(
-                                request,
-                                f'Returned quantity exceeds dispensed quantity for {item.name}.'
-                            )
-                            return redirect('store:store')
-
-                        dispensing_log.save()
-
-                    # Update daily and monthly sales data
-                    daily_sales = get_daily_sales()
-                    monthly_sales = get_monthly_sales()
-
-                    # Render updated logs for HTMX requests
-                    if request.headers.get('HX-Request'):
-                        context = {
-                            'logs': DispensingLog.objects.all().order_by('-created_at'),
-                            'daily_sales': daily_sales,
-                            'monthly_sales': monthly_sales
-                        }
-                        return render(request, 'partials/partials_dispensing_log.html', context)
-
-                    messages.success(
-                        request,
-                        f'{return_quantity} of {item.name} successfully returned, sales and logs updated.'
+                    DispensingLog.objects.create(
+                        user=request.user,
+                        name=item.name,
+                        unit=item.unit,
+                        quantity=return_quantity,
+                        amount=-refund_amount,
+                        status='Returned' if sales_item.quantity == 0 else 'Partially Returned'
                     )
-                    return redirect('store:store')
+
+                    messages.success(request, f"Successfully returned {return_quantity} {item.unit} of {item.name}.")
+                    return redirect('store:customer_history', pk=sales.customer.id)
 
             except Exception as e:
-                # Handle exceptions during atomic transaction
-                print(f'Error during item return: {e}')
-                messages.error(request, f'Error processing return: {e}')
-                return redirect('store:store')
-        else:
-            messages.warning(request, 'Invalid input. Please correct the form and try again.')
-
+                messages.error(request, f"Error processing return: {str(e)}")
+                return redirect('store:customer_history', pk=sales.customer.id)
     else:
-        # Display the return form in a modal or a page
         form = ReturnItemForm()
 
-    # Return appropriate response for HTMX or full-page requests
-    if request.headers.get('HX-Request'):
-        return render(request, 'partials/return_item_modal.html', {'form': form, 'item': item})
-    else:
-        return render(request, 'store/store.html', {'form': form})
-    
+    return render(request, 'partials/return_item_modal.html', {
+        'form': form,
+        'item': item,
+        'sales_item': sales_item
+    })
 
 
 @login_required
@@ -1289,3 +1247,122 @@ def procurement_detail(request, procurement_id):
     })
 
 
+
+
+
+
+
+import logging
+
+
+logger = logging.getLogger(__name__)
+
+@user_passes_test(is_admin)
+@login_required
+def create_stock_check(request):
+    if request.method == "POST":
+        items = Item.objects.all()
+        if not items.exists():
+            messages.error(request, "No items found to check stock.")
+            return redirect('store:store')
+
+        stock_check = StockCheck.objects.create(created_by=request.user, status='in_progress')
+
+        stock_check_items = [
+            StockCheckItem(
+                stock_check=stock_check,
+                item=item,
+                expected_quantity=item.stock,
+                actual_quantity=0,
+                status='pending'
+            ) for item in items
+        ]
+        StockCheckItem.objects.bulk_create(stock_check_items)
+
+        messages.success(request, "Stock check created successfully.")
+        return redirect('store:update_stock_check', stock_check.id)
+
+    return render(request, 'store/create_stock_check.html')
+
+@user_passes_test(is_admin)
+@login_required
+def update_stock_check(request, stock_check_id):
+    stock_check = get_object_or_404(StockCheck, id=stock_check_id)
+    # if stock_check.status == 'completed':
+    #     return redirect('store:stock_check_report', stock_check.id)
+
+    if request.method == "POST":
+        stock_items = []
+        for item_id, actual_qty in request.POST.items():
+            if item_id.startswith("item_"):
+                item_id = int(item_id.replace("item_", ""))
+                stock_item = StockCheckItem.objects.get(stock_check=stock_check, item_id=item_id)
+                stock_item.actual_quantity = int(actual_qty)
+                stock_items.append(stock_item)
+        StockCheckItem.objects.bulk_update(stock_items, ['actual_quantity'])
+        messages.success(request, "Stock check updated successfully.")
+        return redirect('store:update_stock_check', stock_check.id)
+
+    return render(request, 'store/update_stock_check.html', {'stock_check': stock_check})
+
+@user_passes_test(is_admin)
+@login_required
+def approve_stock_check(request, stock_check_id):
+    stock_check = get_object_or_404(StockCheck, id=stock_check_id)
+    if stock_check.status != 'in_progress':
+        messages.error(request, "Stock check is not in progress.")
+        return redirect('store:store')
+
+    if request.method == "POST":
+        selected_items = request.POST.getlist('item')
+        if not selected_items:
+            messages.error(request, "Please select at least one item to approve.")
+            return redirect('store:update_stock_check', stock_check.id)
+
+        stock_items = StockCheckItem.objects.filter(id__in=selected_items, stock_check=stock_check)
+        stock_items.update(status='approved', approved_by=request.user, approved_at=datetime.now())
+
+        if stock_items.count() == stock_check.stockcheckitem_set.count():
+            stock_check.status = 'completed'
+            stock_check.save()
+
+        messages.success(request, f"{stock_items.count()} items approved successfully.")
+        return redirect('store:update_stock_check', stock_check.id)
+
+    return redirect('store:update_stock_check', stock_check.id)
+
+@user_passes_test(is_admin)
+@login_required
+def bulk_adjust_stock(request, stock_check_id):
+    stock_check = get_object_or_404(StockCheck, id=stock_check_id)
+    if stock_check.status not in ['in_progress', 'completed']:
+        messages.error(request, "Stock check status is invalid for adjustments.")
+        return redirect('store:store')
+
+    if request.method == "POST":
+        selected_items = request.POST.getlist('item')
+        if not selected_items:
+            messages.error(request, "Please select at least one item to adjust.")
+            return redirect('store:update_stock_check', stock_check.id)
+
+        stock_items = StockCheckItem.objects.filter(id__in=selected_items, stock_check=stock_check)
+        for item in stock_items:
+            discrepancy = item.discrepancy()
+            if discrepancy != 0:
+                item.item.stock += discrepancy
+                item.status = 'adjusted'
+                item.save()
+                Item.objects.filter(id=item.item.id).update(stock=item.item.stock)
+
+        messages.success(request, f"Stock adjusted for {stock_items.count()} items.")
+        return redirect('store:store')
+
+    return redirect('store:update_stock_check', stock_check.id)
+
+
+
+@user_passes_test(is_admin)
+@login_required
+def stock_check_report(request, stock_check_id):
+    stock_check = get_object_or_404(StockCheck, id=stock_check_id)
+    return render(request, 'store/stock_check_report.html', {'stock_check': stock_check})

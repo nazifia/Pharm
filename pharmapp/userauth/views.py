@@ -11,6 +11,14 @@ from store.views import is_admin
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
+
+
+
+
+
+
+
+
 # Create your views here.
 @login_required
 @user_passes_test(is_admin)

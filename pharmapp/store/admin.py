@@ -44,6 +44,15 @@ class WholesaleReceiptAdmin(admin.ModelAdmin):
     search_fields = ( 'wholesale_customer__name', 'receipt_id',)
 
 
+class StockCheckItemInline(admin.TabularInline):
+    model = StockCheckItem
+    extra = 0
+
+@admin.register(StockCheck)
+class StockCheckAdmin(admin.ModelAdmin):
+    list_display = ('id', 'created_by', 'date', 'status')
+    inlines = [StockCheckItemInline]
+
 
 
 
@@ -63,3 +72,4 @@ admin.site.register(WholesaleCart, WholesaleCartAdmin)
 admin.site.register(DispensingLog, DispensingLogAdmin)
 admin.site.register(Receipt, ReceiptAdmin)
 admin.site.register(WholesaleReceipt, WholesaleReceiptAdmin)
+admin.site.register(StockCheckItem)
