@@ -29,12 +29,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     
+    
     'django_htmx',
     'store',
     'userauth',
     'customer',
     'wholesale',
     'supplier',
+
 ]
 
 MIDDLEWARE = [

@@ -1,11 +1,11 @@
-{% load static %}
 <!DOCTYPE html>
+{% load static %}
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Receipt Details</title>
+    <title>Receipt</title>
     <!-- Custom fonts for this template-->
     <link href="{% static 'vendor/fontawesome-free/css/all.min.css' %}" rel="stylesheet" type="text/css">
     <link
@@ -14,133 +14,68 @@
 
     <!-- Custom styles for this template-->
     <link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet">
-    <script src="{% static 'htmx/htmx.min.js' %}"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
-            color: #333;
-        }
-
-        .receipt-container {
-            max-width: 600px;
-            margin: 20px auto;
-            padding: 20px;
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-
-        h3 {
-            color: #333;
-            text-align: center;
-            font-size: 24px;
-            margin-bottom: 10px;
-        }
-
-        p {
-            font-size: 16px;
-            margin: 10px 0;
-        }
-
-        p strong {
-            color: #555;
-        }
-
-        .table {
-            font-size: 14px;
-            color: #333;
-        }
-
-        @media (max-width: 768px) {
-            .receipt-container {
-                margin: 10px;
-                padding: 15px;
-            }
-
-            h3 {
-                font-size: 20px;
-            }
-
-            p {
-                font-size: 14px;
-            }
-
-            .table {
-                font-size: 12px;
-            }
-
-            button {
-                font-size: 14px;
-                width: 100%;
-                margin-top: 10px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .receipt-container {
-                margin: 5px;
-                padding: 10px;
-            }
-
-            h3 {
-                font-size: 18px;
-            }
-
-            p {
-                font-size: 12px;
-            }
-
-            .table {
-                font-size: 10px;
-            }
-
-            button {
-                font-size: 12px;
-                width: 100%;
-            }
-        }
-    </style>
+    <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
+    <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
 </head>
 
 <body>
     {% block content %}
-    <div class="receipt-container">
-        <header>
-            <div class="receipt-head" style="text-align: center;">
-                <h3>Nazz Pharmacy</h3>
-                <p>No. 123 FTH Jibia Bypass, Katsina</p>
-            </div>
-        </header>
+    <header>
+        <div class="receipt-head" style="text-align: center;">
+            <h3>Nazz Pharmacy</h3>
+            <p>No. 123 FTH Jibia Bypass, Katsina</p>
+            <p style="text-align: center;">Date: {{ receipt.date|date:"F j, Y" }}</p>
+            <p style="text-align: center;">Receipt Type: <strong>Retail</strong></p>
+            <p style="text-align: center;">Receipt ID: {{ receipt.receipt_id }}</p>
+            <p style="text-align: center;">Sales Person: {{ user.username }}</p>
+        </div>
+    </header>
 
-        <p><strong>Receipt ID:</strong> {{ receipt.receipt_id }}</p>
-        <p><strong>Customer Name:</strong>
-            {% if receipt.customer %}
-            {{ receipt.customer.name|upper }}
-            {% elif receipt.buyer_name %}
-            {{ receipt.buyer_name|upper }}
-            {% else %}
-            WALK-IN CUSTOMER
-            {% endif %}
-        </p>
-        <p><strong>Customer Address:</strong>
-            {% if receipt.buyer_address %}
-            {{ receipt.buyer_address|upper }}
-            {% else %}
-            Not Provided
-            {% endif %}
-        </p>
-        <p><strong>Date:</strong> {{ receipt.date|date:"F j, Y" }}</p>
-        <p><strong>Sales Person:</strong> {{ user.username }}</p>
+    <form id="buyer-info-form" method="POST" action="{% url 'wholesale:wholesale_receipt_detail' receipt.receipt_id %}"
+        style="text-align: center;">
+        {% csrf_token %}
+        <label for="buyer_name">Buyer's Name:</label>
+        <input type="text" id="buyer_name" name="buyer_name"
+            value="{{ receipt.buyer_name|default:'WALK-IN CUSTOMER'|upper }}" placeholder="WALK-IN CUSTOMER"
+            style="border: none; border-bottom:1px solid grey; margin-bottom: 3px;">
+        <div class="box">
+            <label for="buyer_address">Buyer's Address:</label>
+            <input type="text" id="buyer_address" name="buyer_address" value="{{ receipt.buyer_address|upper }}"
+                placeholder="" style="border: none; border-bottom:1px solid grey;">
+        </div>
+        <br><br>
 
-        <table class="table table-hover table-bordered mt-3">
-            <thead class="table-secondary">
+        <!-- Payment Status Selection -->
+        <!-- <label for="payment_status">Payment Status:</label>
+        <select id="payment_status" name="payment_status" class="form-select form-select-sm"
+            style="display: inline-block; width: auto;">
+            <option value="Paid" {% if receipt.paid %}selected{% endif %}>Paid</option>
+            <option value="Unpaid" {% if not receipt.paid %}selected{% endif %}>Unpaid</option>
+        </select> -->
+
+        <!-- Trigger Button -->
+        <button type="button" class="btn-outline-primary btn-sm" id="paymentMethodButton" data-toggle="modal"
+            data-target="#paymentMethodModal">
+            {% if receipt.payment_method %}
+            Payment Method: {{ receipt.payment_method }}
+            {% else %}
+            Select Payment Method
+            {% endif %}
+        </button>
+
+        <!-- Hidden Input for Payment Method -->
+        <input type="hidden" name="payment_method" id="paymentMethodInput" value="{{ receipt.payment_method }}">
+    </form>
+
+    {% if wholesale_sales_items %}
+    <div class="col-md-8 offset-md-2 mt-5">
+        <table class="table table-hover table-bordered mt-5">
+            <thead class="table-primary">
                 <tr>
                     <th scope="col">SN</th>
                     <th scope="col">Item Name</th>
                     <th scope="col">D/form</th>
-                    <th scope="col">Brand</th>
+                    <th scope="col">Brand Name</th>
                     <th scope="col">Unit</th>
                     <th scope="col">Quantity</th>
                     <th scope="col">Rate</th>
@@ -148,7 +83,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for sales_item in sales_items %}
+                {% for sales_item in wholesale_sales_items %}
                 <tr>
                     <td>{{ forloop.counter }}</td>
                     <td>{{ sales_item.item.name|title }}</td>
@@ -162,16 +97,62 @@
                 {% endfor %}
             </tbody>
         </table>
-        <p style="text-align: end;"><strong>Total Amount: ₦{{ receipt.total_amount }}</strong></p>
-        <p style="text-align: end;"><strong>Payment Method: {{ receipt.payment_method }}</strong></p>
+        <h6 style="text-align:end;">Total Price: ₦{{ total_price|floatformat:2 }}</h6>
 
-        <button class="btn btn-outline-success btn-sm ml-2" onclick="window.print()">Reprint Receipt</button>
+        {% if total_discounted_price %}
+        <h4 style="text-align:end;">Total Payable: ₦{{ total_discounted_price|floatformat:2 }}</h4>
+        {% endif %}
 
-        <footer>
-            <p style="text-align: center;">___Thank you for your patronage___</p>
-        </footer>
+        <button class="btn btn-outline-success btn-sm ml-2" onclick="submitFormAndPrint()">Print Receipt</button>
+        <!-- <a href="" class="btn btn-sm btn-outline-secondary">Back</a> -->
     </div>
+    {% endif %}
     {% endblock %}
+
+    <footer>
+        <p style="text-align: center;">___Thank you for patronage___</p>
+    </footer>
+
+    <!-- Modal -->
+    <div class="modal fade" id="paymentMethodModal" tabindex="-1" aria-labelledby="paymentMethodModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="paymentMethodModalLabel">Select Payment Method</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">x</button>
+                </div>
+                <div class="modal-body">
+                    <ul class="list-group">
+                        {% for method in payment_methods %}
+                        <li class="list-group-item list-group-item-action {% if receipt.payment_method == method %}active{% endif %}"
+                            onclick="selectPaymentMethod('{{ method }}')">
+                            {{ method }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function submitFormAndPrint() {
+            document.getElementById('buyer-info-form').submit();
+
+            setTimeout(function () {
+                window.print();
+                window.location.href = "{% url 'store:view_cart' %}";
+            }, 500);
+        }
+
+        function selectPaymentMethod(method) {
+            document.getElementById('paymentMethodInput').value = method;
+            document.getElementById('paymentMethodButton').textContent = `Payment Method: ${method}`;
+            var modal = bootstrap.Modal.getInstance(document.getElementById('paymentMethodModal'));
+            modal.hide();
+        }
+    </script>
 </body>
 
 </html>

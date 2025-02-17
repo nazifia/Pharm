@@ -1,7 +1,8 @@
+from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 from userauth.models import User
-from store.models import Formulation
+from store.models import Item, StoreItem, WholesaleItem
 from django.dispatch import receiver
 from django.db.models.signals import post_save, pre_delete
 
@@ -91,6 +92,122 @@ MARKUP_CHOICES = [
 
 
 
+# class Supplier(models.Model):
+#     name = models.CharField(max_length=255)
+#     phone = models.CharField(max_length=15, blank=True, null=True)
+#     contact_info = models.TextField(blank=True, null=True)
+
+#     def __str__(self):
+#         return self.name
+
+
+
+
+
+# class Procurement(models.Model):
+#     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
+#     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+#     date = models.DateField(default=timezone.now)
+#     total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+#     def __str__(self):
+#         return f'Procurement {self.supplier.name}'
+
+#     def calculate_total(self):
+#         """Calculate and update the total cost of the procurement."""
+#         self.total = sum(item.subtotal for item in self.items.all())
+#         self.save(update_fields=['total'])  # Ensure only 'total' field is updated
+
+
+# class ProcurementItem(models.Model):
+#     procurement = models.ForeignKey(Procurement, related_name='items', on_delete=models.CASCADE)
+#     item_name = models.CharField(max_length=255)
+#     dosage_form = models.CharField(max_length=255, choices=DOSAGE_FORM, default='dosage_form')
+#     brand = models.CharField(max_length=225, null=True, blank=True, default='None')
+#     unit = models.CharField(max_length=100, choices=UNIT)
+#     quantity = models.PositiveIntegerField(default=0)
+#     cost_price = models.DecimalField(max_digits=10, decimal_places=2)
+#     subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)  # Subtotal should not be editable.
+
+#     def save(self, *args, **kwargs):
+#         if self.cost_price is None or self.quantity is None:
+#             raise ValueError("Both cost_price and quantity must be provided to calculate subtotal.")
+        
+#         # Calculate subtotal
+#         self.subtotal = self.cost_price * self.quantity
+#         super().save(*args, **kwargs)
+
+#     def __str__(self):
+#         return f'{self.item_name} - {self.procurement.id}'
+
+
+# # Signals to update total in Procurement after changes in ProcurementItem
+# @receiver(post_save, sender=ProcurementItem)
+# def update_procurement_total(sender, instance, created, **kwargs):
+#     """Recalculate the procurement total after adding or updating an item."""
+#     instance.procurement.calculate_total()
+
+# @receiver(pre_delete, sender=ProcurementItem)
+# def update_procurement_total_on_delete(sender, instance, **kwargs):
+#     """Recalculate the procurement total after an item is deleted."""
+#     instance.procurement.calculate_total()
+
+
+
+# class WholesaleProcurement(models.Model):
+#     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
+#     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+#     date = models.DateField(default=timezone.now)
+#     total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+#     def __str__(self):
+#         return f'Procurement {self.supplier.name}'
+
+#     def calculate_total(self):
+#         """Calculate and update the total cost of the procurement."""
+#         self.total = sum(item.subtotal for item in self.items.all())
+#         self.save(update_fields=['total'])  # Ensure only 'total' field is updated
+
+
+# class WholesaleProcurementItem(models.Model):
+#     procurement = models.ForeignKey(WholesaleProcurement, related_name='items', on_delete=models.CASCADE)
+#     item_name = models.CharField(max_length=255)
+#     dosage_form = models.CharField(max_length=255, choices=DOSAGE_FORM, default='dosage_form')
+#     brand = models.CharField(max_length=225, null=True, blank=True, default='None')
+#     unit = models.CharField(max_length=100, choices=UNIT)
+#     quantity = models.PositiveIntegerField(default=0)
+#     cost_price = models.DecimalField(max_digits=10, decimal_places=2)
+#     subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)  # Subtotal should not be editable.
+
+#     def save(self, *args, **kwargs):
+#         if self.cost_price is None or self.quantity is None:
+#             raise ValueError("Both cost_price and quantity must be provided to calculate subtotal.")
+        
+#         # Calculate subtotal
+#         self.subtotal = self.cost_price * self.quantity
+#         super().save(*args, **kwargs)
+
+#     def __str__(self):
+#         return f'{self.item_name} - {self.procurement.id}'
+
+
+# # Signals to update total in Procurement after changes in ProcurementItem
+# @receiver(post_save, sender=WholesaleProcurementItem)
+# def update_procurement_total(sender, instance, created, **kwargs):
+#     """Recalculate the procurement total after adding or updating an item."""
+#     instance.procurement.calculate_total()
+
+# @receiver(pre_delete, sender=WholesaleProcurementItem)
+# def update_procurement_total_on_delete(sender, instance, **kwargs):
+#     """Recalculate the procurement total after an item is deleted."""
+#     instance.procurement.calculate_total()
+
+
+
+
+
+
+
 class Supplier(models.Model):
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=15, blank=True, null=True)
@@ -98,9 +215,6 @@ class Supplier(models.Model):
 
     def __str__(self):
         return self.name
-
-
-
 
 
 class Procurement(models.Model):
@@ -115,7 +229,7 @@ class Procurement(models.Model):
     def calculate_total(self):
         """Calculate and update the total cost of the procurement."""
         self.total = sum(item.subtotal for item in self.items.all())
-        self.save(update_fields=['total'])  # Ensure only 'total' field is updated
+        self.save(update_fields=['total'])
 
 
 class ProcurementItem(models.Model):
@@ -126,7 +240,9 @@ class ProcurementItem(models.Model):
     unit = models.CharField(max_length=100, choices=UNIT)
     quantity = models.PositiveIntegerField(default=0)
     cost_price = models.DecimalField(max_digits=10, decimal_places=2)
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)  # Subtotal should not be editable.
+    markup = models.FloatField(choices=MARKUP_CHOICES, default=0)
+    expiry_date = models.DateField(null=True, blank=True)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
 
     def save(self, *args, **kwargs):
         if self.cost_price is None or self.quantity is None:
@@ -136,23 +252,36 @@ class ProcurementItem(models.Model):
         self.subtotal = self.cost_price * self.quantity
         super().save(*args, **kwargs)
 
+        # Move item to store after procurement is completed
+        self.move_to_store()
+
+    def move_to_store(self):
+        """Move the procured item to the store after procurement."""
+        store_item, created = StoreItem.objects.get_or_create(
+            name=self.item_name,
+            brand=self.brand,
+            dosage_form=self.dosage_form,
+            unit=self.unit,
+            defaults={
+                "stock": self.quantity,
+                "cost_price": self.cost_price,
+                "selling_price": self.cost_price * (1 + (self.markup / 100)),
+                "expiry_date": self.expiry_date
+            }
+        )
+
+        if not created:
+            # Update existing store item stock
+            store_item.stock += self.quantity
+            store_item.selling_price = self.cost_price * (1 + (self.markup / 100))
+            store_item.expiry_date = self.expiry_date
+            store_item.save()
+
     def __str__(self):
         return f'{self.item_name} - {self.procurement.id}'
 
 
-# Signals to update total in Procurement after changes in ProcurementItem
-@receiver(post_save, sender=ProcurementItem)
-def update_procurement_total(sender, instance, created, **kwargs):
-    """Recalculate the procurement total after adding or updating an item."""
-    instance.procurement.calculate_total()
-
-@receiver(pre_delete, sender=ProcurementItem)
-def update_procurement_total_on_delete(sender, instance, **kwargs):
-    """Recalculate the procurement total after an item is deleted."""
-    instance.procurement.calculate_total()
-
-
-
+# Wholesale Procurement Models (Same logic as above)
 class WholesaleProcurement(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -165,7 +294,7 @@ class WholesaleProcurement(models.Model):
     def calculate_total(self):
         """Calculate and update the total cost of the procurement."""
         self.total = sum(item.subtotal for item in self.items.all())
-        self.save(update_fields=['total'])  # Ensure only 'total' field is updated
+        self.save(update_fields=['total'])
 
 
 class WholesaleProcurementItem(models.Model):
@@ -176,27 +305,61 @@ class WholesaleProcurementItem(models.Model):
     unit = models.CharField(max_length=100, choices=UNIT)
     quantity = models.PositiveIntegerField(default=0)
     cost_price = models.DecimalField(max_digits=10, decimal_places=2)
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)  # Subtotal should not be editable.
+    markup = models.FloatField(choices=MARKUP_CHOICES, default=0)
+    expiry_date = models.DateField(null=True, blank=True)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
 
     def save(self, *args, **kwargs):
         if self.cost_price is None or self.quantity is None:
             raise ValueError("Both cost_price and quantity must be provided to calculate subtotal.")
-        
+
         # Calculate subtotal
         self.subtotal = self.cost_price * self.quantity
         super().save(*args, **kwargs)
+
+        # Move item to store after procurement is completed
+        self.move_to_store()
+
+    def move_to_store(self):
+        """Move the procured item to the wholesale store after procurement."""
+        selling_price = self.cost_price * (Decimal(1) + (Decimal(self.markup) / Decimal(100)))
+
+        store_item, created = StoreItem.objects.get_or_create(
+            name=self.item_name,
+            brand=self.brand,
+            dosage_form=self.dosage_form,
+            unit=self.unit,
+            defaults={
+                "stock": self.quantity,
+                "cost_price": self.cost_price,
+                # "selling_price": selling_price,
+                "expiry_date": self.expiry_date
+            }
+        )
+
+        if not created:
+            store_item.stock += self.quantity
+            store_item.selling_price = selling_price
+            store_item.expiry_date = self.expiry_date
+            store_item.save()
 
     def __str__(self):
         return f'{self.item_name} - {self.procurement.id}'
 
 
-# Signals to update total in Procurement after changes in ProcurementItem
+# Signals to update procurement totals
+@receiver(post_save, sender=ProcurementItem)
+def update_procurement_total(sender, instance, created, **kwargs):
+    instance.procurement.calculate_total()
+
+@receiver(pre_delete, sender=ProcurementItem)
+def update_procurement_total_on_delete(sender, instance, **kwargs):
+    instance.procurement.calculate_total()
+
 @receiver(post_save, sender=WholesaleProcurementItem)
 def update_procurement_total(sender, instance, created, **kwargs):
-    """Recalculate the procurement total after adding or updating an item."""
     instance.procurement.calculate_total()
 
 @receiver(pre_delete, sender=WholesaleProcurementItem)
 def update_procurement_total_on_delete(sender, instance, **kwargs):
-    """Recalculate the procurement total after an item is deleted."""
     instance.procurement.calculate_total()

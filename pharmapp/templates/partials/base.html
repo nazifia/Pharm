@@ -173,16 +173,23 @@
                         <h6 class="collapse-header">Retail:</h6>
                         <a class="collapse-item" href="{% url 'store:add_procurement' %}">New R-Procurement</a>
                         <a class="collapse-item" href="{% url 'store:procurement_list' %}">R-Procurement List</a>
+                        <a class="collapse-item" href=" {% url "store:create_wholesale_transfer_request" %} ">
+                            <span>Send Rqst 2 Wholesale</span></a>
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Wholesale:</h6>
                         <a class="collapse-item" href="{% url 'wholesale:add_wholesale_procurement' %}">New
                             W-Procurement</a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_procurement_list' %}">W-Procurement
                             List</a>
-                        <!-- <a class="collapse-item" href="blank.html">Blank Page</a> -->
+                        <a class="collapse-item" href=" {% url "wholesale:create_transfer_request" %} ">
+                            <span>Send Rqst 2 Retail</span></a>
+                        <h6 class="collapse-header">Move items:</h6>
+                        <a class="collapse-item" href="{% url 'store:transfer_multiple_store_items' %}">Transfer Store Item</a>
                     </div>
                 </div>
             </li>
+
+            
 
             <!-- Divider -->
             <hr class="sidebar-divider">
@@ -620,13 +627,38 @@
     </div>
 
     <!-- Edit Retail customer modal -->
-    <div class="modal fade" id="editCustomerModal" tabindex="-1" aria-label="editCustomerModalLabel" aria-hidden="true">
+    <div class="modal fade" id="editCustomerModal" tabindex="-1" aria-labelledby="editCustomerModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
 
             </div>
         </div>
     </div>
+
+
+
+    <!-- Transfer Request Modal -->
+    <div class="modal fade" id="transferRequestModal" tabindex="-1" aria-labelledby="transferRequestModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content" id="transferRequestModalContent">
+            <!-- HTMX will load form content here -->
+                <div class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+{% comment %} Provide csrf token to transfer-request {% endcomment %}
+    <script>
+        document.body.addEventListener("htmx:configRequest", (event) => {
+            event.detail.headers["X-CSRFToken"] = "{{ csrf_token }}";
+        });
+    </script>
+    
 
 
 

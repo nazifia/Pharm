@@ -88,8 +88,10 @@
         class="fa fa-plus "></i> Add New Item</a>
 
 <a class="btn btn-success btn-sm" href="{% url 'wholesale:wholesale_cart' %}" type="button">Dispense Wholesale</a>
-
 <a class="btn btn-secondary btn-sm" href="{{request.META.HTTP_REFERER}}">Back</a>
+
+<a class="btn btn-warning btn-sm float-right mx-2" href="{% url 'wholesale:wholesale_transfer_request_list' %}">Requests History</a>
+<a class="btn btn-success btn-sm float-right" href="{% url 'wholesale:pending_wholesale_transfer_requests' %}">Pending Requests</a>
 
 <div class="alert-container my-2">
     {% if low_stock_items %}

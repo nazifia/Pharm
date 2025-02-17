@@ -55,10 +55,17 @@ urlpatterns = [
     path('create/', views.create_stock_check, name='create_stock_check'),
     path('<int:stock_check_id>/update/', views.update_stock_check, name='update_stock_check'),
     path('<int:stock_check_id>/report/', views.stock_check_report, name='stock_check_report'),
-    # path('adjust/<int:item_id>/', views.adjust_stock, name='adjust_stock'),
-    # path('adjust/<int:stock_check_id>/', views.apply_stock_adjustment, name='apply_stock_adjustment'),
     path('stock-check/<int:stock_check_id>/approve/', views.approve_stock_check, name='approve_stock_check'),
     path('stock-check/<int:stock_check_id>/bulk-adjust/', views.bulk_adjust_stock, name='bulk_adjust_stock'),
+
+    # Transfer Request URLs
+
+    path("transfer/create/", views.create_wholesale_transfer_request, name="create_wholesale_transfer_request"),
+    path("pending_transfer_requests/", views.pending_transfer_requests, name="pending_transfer_requests"),
+    path("transfer/approve/<int:transfer_id>/", views.approve_transfer, name="approve_transfer"),
+    path("transfer/reject/<int:transfer_id>/", views.reject_transfer, name="reject_transfer"),
+    path("transfer_request_list/", views.transfer_request_list, name="transfer_request_list"),
+    path("transfer/multiple/", views.transfer_multiple_store_items, name="transfer_multiple_store_items"),
 
 
 ]

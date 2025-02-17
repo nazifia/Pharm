@@ -459,7 +459,7 @@ def select_wholesale_items(request, pk):
 
         if len(item_ids) != len(quantities):
             messages.warning(request, 'Mismatch between selected items and quantities.')
-            return redirect('wholesale:select_items', pk=pk)
+            return redirect('wholesale:select_wholesale_items', pk=pk)
 
         total_cost = Decimal('0.0')
 
@@ -471,17 +471,19 @@ def select_wholesale_items(request, pk):
         )
 
         # Fetch or create a Receipt
-        receipt, receipt_created = WholesaleReceipt.objects.get_or_create(
-            wholesale_customer=customer,
-            sales=sales,
-            defaults={
-                'total_amount': Decimal('0.0'),
-                'buyer_name': customer.name,
-                'buyer_address': customer.address,
-                'date': timezone.now(),
-                # 'printed': False,
-            }
-        )
+        receipt = WholesaleReceipt.objects.filter(wholesale_customer=customer, sales=sales).first()
+
+        if not receipt:
+            receipt = WholesaleReceipt.objects.create(
+                wholesale_customer=customer,
+                sales=sales,
+                total_amount=Decimal('0.0'),
+                buyer_name=customer.name,
+                buyer_address=customer.address,
+                date=datetime.now(),
+                
+            )
+
 
         for i, item_id in enumerate(item_ids):
             try:
@@ -494,13 +496,14 @@ def select_wholesale_items(request, pk):
                     # Check stock and update inventory
                     if quantity > item.stock:
                         messages.warning(request, f'Not enough stock for {item.name}.')
-                        return redirect('wholesale:select_items', pk=pk)
+                        return redirect('wholesale:select_wholesale_items', pk=pk)
 
                     item.stock -= quantity
                     item.save()
 
                     # Update or create a WholesaleCartItem
                     cart_item, created = WholesaleCart.objects.get_or_create(
+                        user=request.user,
                         item=item,
                         defaults={'quantity': quantity, 'unit': unit}
                     )
@@ -513,14 +516,6 @@ def select_wholesale_items(request, pk):
                     # Calculate subtotal and log dispensing
                     subtotal = (item.price * quantity) 
                     total_cost += subtotal
-                    # DispensingLog.objects.create(
-                    #     user=request.user,
-                    #     name=item.name,
-                    #     unit=unit,
-                    #     quantity=quantity,
-                    #     amount=subtotal,
-                    #     status='Dispensed'
-                    # )
 
                     # Update or create WholesaleSalesItem
                     sales_item, created = WholesaleSalesItem.objects.get_or_create(
@@ -593,7 +588,7 @@ def select_wholesale_items(request, pk):
                         receipt.total_amount -= refund_amount
                         receipt.save()
 
-                    except Cart.DoesNotExist:
+                    except WholesaleSalesItem.DoesNotExist:
                         messages.warning(request, f"Item {item.name} is not part of the sales.")
                         return redirect('wholesale:select_wholesale_items', pk=pk)
 
@@ -1347,5 +1342,231 @@ def wholesale_bulk_adjust_stock(request, stock_check_id):
 def wholesale_stock_check_report(request, stock_check_id):
     stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
     return render(request, 'wholesale/wholesale_stock_check_report.html', {'stock_check': stock_check})
+
+
+
+
+
+logger = logging.getLogger(__name__)
+
+@login_required
+def create_transfer_request(request):
+    """
+    Handles transfer request creation.
+    For GET: Render the retail transfer request form where the retail user selects
+    an item from the wholesale inventory.
+    For POST: Create a transfer request initiated by a retail user, requesting that
+    a wholesale item be moved from the wholesale inventory to the retail inventory.
+    """
+    if request.method == "GET":
+        # Render form for a retail user to request items from wholesale.
+        # We use wholesale items as the available inventory.
+        wholesale_items = WholesaleItem.objects.all()
+        return render(request, "store/wholesale_transfer_request.html", {"wholesale_items": wholesale_items})
+    
+    elif request.method == "POST":
+        # For a retail-initiated request (pulling from wholesale to retail),
+        # the hidden field "from_wholesale" should be "false".
+        from_wholesale_str = request.POST.get("from_wholesale", "true")
+        # For this scenario, we expect from_wholesale to be False.
+        from_wholesale = from_wholesale_str.lower() == "true"
+        try:
+            requested_quantity = int(request.POST.get("requested_quantity", 0))
+        except (TypeError, ValueError):
+            return JsonResponse({"success": False, "message": "Invalid quantity provided."}, status=400)
+        item_id = request.POST.get("item_id")
+        
+        # Since we are pulling from wholesale to retail, the retail user is selecting from wholesale items.
+        if not from_wholesale:
+            source_item = get_object_or_404(WholesaleItem, id=item_id)
+            transfer = TransferRequest.objects.create(
+                wholesale_item=source_item,
+                requested_quantity=requested_quantity,
+                from_wholesale=False,  # Indicates this request is initiated by retail.
+                status="pending",
+                created_at=datetime.now()
+            )
+        else:
+            # Optionally, handle the unexpected case or raise an error.
+            return JsonResponse({"success": False, "message": "Invalid request direction."}, status=400)
+        
+        messages.success(request, "Transfer request created.")
+        return JsonResponse({"success": True, "message": "Transfer request created."})
+    
+    messages.error(request, 'Error creating request')
+    return render(request, 'store/create_transfer_request.html')
+
+
+
+@login_required
+def wholesale_transfer_request_list(request):
+    """
+    Display all transfer requests and transfers.
+    Optionally filter by a specific date (YYYY-MM-DD).
+    """
+    # Get the date filter from GET parameters.
+    date_str = request.GET.get("date")
+    transfers = TransferRequest.objects.all().order_by("-created_at")
+    
+    if date_str:
+        try:
+            # Parse the string into a date object.
+            filter_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            transfers = transfers.filter(created_at__date=filter_date)
+        except ValueError:
+            # If date parsing fails, ignore the filter.
+            logger.warning("Invalid date format provided: %s", date_str)
+    
+    context = {
+        "transfers": transfers,
+        "search_date": date_str or ""
+    }
+    return render(request, "store/transfer_request_list.html", context)
+
+
+
+
+# Pending requests from retail to wholesale
+@login_required
+def pending_wholesale_transfer_requests(request):
+    # For a wholesale-initiated request, the retail_item field is set.
+    wholesale_pending_transfers = TransferRequest.objects.filter(status="pending", from_wholesale=False)
+    return render(request, "wholesale/pending_wholesale_transfer_requests.html", {"wholesale_pending_transfers": wholesale_pending_transfers})
+
+
+
+@login_required
+def wholesale_approve_transfer(request, transfer_id):
+    """
+    Approves a transfer request.
+    For a wholesale-initiated request (from_wholesale=True), the source is the retail item
+    and the destination is a wholesale item.
+    The retail user can adjust the approved quantity before approval.
+    """
+    if request.method == "POST":
+        transfer = get_object_or_404(TransferRequest, id=transfer_id)
+        
+        # Determine approved quantity (if adjusted) or use the originally requested amount.
+        approved_qty_param = request.POST.get("approved_quantity")
+        if approved_qty_param:
+            try:
+                approved_qty = int(approved_qty_param)
+            except ValueError:
+                messages.error(request, 'Invalid Qty!')
+                return render(request, 'wholesale/create_wholesale_transfer_request.html')
+        else:
+            approved_qty = transfer.requested_quantity
+
+        if transfer.from_wholesale:
+            # Request initiated by wholesale: the source is the retail item.
+            source_item = transfer.retail_item
+            # Destination: corresponding wholesale item.
+            destination_item, created = WholesaleItem.objects.get_or_create(
+                name=source_item.name,
+                brand=source_item.brand,
+                unit=source_item.unit,
+                defaults={
+                    "dosage_form": source_item.dosage_form,
+                    "cost": source_item.cost,
+                    "price": source_item.price,
+                    "markup": source_item.markup,
+                    "stock": 0,
+                    "exp_date": source_item.exp_date,
+                }
+            )
+        else:
+            # Reverse scenario (if retail sends request to wholesale)
+            source_item = transfer.wholesale_item
+            destination_item, created = Item.objects.get_or_create(
+                name=source_item.name,
+                brand=source_item.brand,
+                unit=source_item.unit,
+                defaults={
+                    "dosage_form": source_item.dosage_form,
+                    "cost": source_item.cost,
+                    "price": source_item.price,
+                    "markup": source_item.markup,
+                    "stock": 0,
+                    "exp_date": source_item.exp_date,
+                }
+            )
+        
+        logger.info(f"Approving Transfer: Source {source_item.name} (Stock: {source_item.stock}) Requested Qty: {approved_qty}")
+        
+        # Check if there's enough stock before deducting
+        if source_item.stock < approved_qty:
+            messages.error(request, "Not enough stock in source!")
+            return JsonResponse({"success": False, "message": "Not enough stock in source!"}, status=400)
+
+        # Deduct approved quantity from the source item.
+        source_item.stock -= approved_qty
+        source_item.save()
+
+        # Increase stock in the destination item.
+        destination_item.stock += approved_qty
+        destination_item.cost = source_item.cost
+        destination_item.exp_date = source_item.exp_date
+        destination_item.markup = source_item.markup
+        destination_item.price = source_item.price
+        destination_item.save()
+
+        # Update the transfer request.
+        transfer.status = "approved"
+        transfer.approved_quantity = approved_qty
+        transfer.save()
+
+        messages.success(request, f"Transfer approved: {approved_qty} {source_item.name} moved from wholesale to retail.")
+        return JsonResponse({
+            "success": True,
+            "message": f"Transfer approved with quantity {approved_qty}.",
+            "destination_stock": destination_item.stock,
+        })
+    return JsonResponse({"success": False, "message": "Invalid request method!"}, status=400)
+
+
+
+
+# Reject a transfer request sent from retail
+@login_required
+def reject_wholesale_transfer(request, transfer_id):
+    """
+    Rejects a transfer request.
+    """
+    if request.method == "POST":
+        transfer = get_object_or_404(TransferRequest, id=transfer_id)
+        transfer.status = "rejected"
+        transfer.save()
+        messages.error(request, "Transfer request rejected.")
+        return JsonResponse({"success": True, "message": "Transfer rejected."})
+    return JsonResponse({"success": False, "message": "Invalid request method!"}, status=400)
+
+
+
+# List of all the Requests and Transfers
+@login_required
+def transfer_request_list(request):
+    """
+    Display all transfer requests and transfers.
+    Optionally filter by a specific date (YYYY-MM-DD).
+    """
+    # Get the date filter from GET parameters.
+    date_str = request.GET.get("date")
+    transfers = TransferRequest.objects.all().order_by("-created_at")
+    
+    if date_str:
+        try:
+            # Parse the string into a date object.
+            filter_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            transfers = transfers.filter(created_at__date=filter_date)
+        except ValueError:
+            # If date parsing fails, ignore the filter.
+            logger.warning("Invalid date format provided: %s", date_str)
+    
+    context = {
+        "transfers": transfers,
+        "search_date": date_str or ""
+    }
+    return render(request, "wholesale/wholesale_transfer_request_list.html", context)
+
 
 

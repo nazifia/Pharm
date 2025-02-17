@@ -1,0 +1,63 @@
+<!-- templates/store/transfer_request_list.html -->
+{% extends "partials/base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h2>All Transfer Requests & Transfers</h2>
+  
+  <!-- Search Form -->
+  <form method="get" class="mb-3">
+    <div class="form-group">
+      <label for="search_date">Search by Date (YYYY-MM-DD):</label>
+      <input type="date" id="search_date" name="date" class="form-control" value="{{ search_date }}">
+    </div>
+    <button type="submit" class="btn btn-sm btn-primary">Search</button>
+    <a href="{% url 'store:transfer_request_list' %}" class="btn btn-sm btn-secondary">Clear</a>
+  </form>
+  
+  <!-- Transfer Requests Table -->
+  <table class="table table-bordered table-hover">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>User</th>
+        <th>Item</th>
+        <th>Direction</th>
+        <th>Req Qty</th>
+        <th>App Qty</th>
+        <th>Status</th>
+        <th>Created At</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for transfer in transfers %}
+        <tr>
+          <td>{{ transfer.id }}</td>
+          <td>{{ request.user }}</td>
+          <td>
+            {% if transfer.from_wholesale %}
+              {{ transfer.retail_item.name }}
+            {% else %}
+              {{ transfer.wholesale_item.name }}
+            {% endif %}
+          </td>
+          <td>
+            {% if transfer.from_wholesale %}
+              Wholesale → Retail
+            {% else %}
+              Retail → Wholesale
+            {% endif %}
+          </td>
+          <td>{{ transfer.requested_quantity }}</td>
+          <td>{{ transfer.approved_quantity|default:"N/A" }}</td>
+          <td>{{ transfer.status }}</td>
+          <td>{{ transfer.created_at|date:"Y-m-d H:i" }}</td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="7">No transfers found.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

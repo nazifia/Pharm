@@ -1,5 +1,5 @@
 from django.contrib import admin
-from . models import *
+from . models import Supplier, ProcurementItem, Procurement, StoreItem
 
 # Register your models here.
 class SupplierAdmin(admin.ModelAdmin):
@@ -19,6 +19,12 @@ class ProcurementAdmin(admin.ModelAdmin):
 
 
 
+class StoreItemAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name', )
+    list_filter = ('name',)
+
+
 
 
 
@@ -35,3 +41,4 @@ class ProcurementAdmin(admin.ModelAdmin):
 admin.site.register(Supplier, SupplierAdmin)
 admin.site.register(ProcurementItem, ProcurementItemAdmin)
 admin.site.register(Procurement, ProcurementAdmin)
+admin.site.register(StoreItem, StoreItemAdmin)
