@@ -193,3 +193,14 @@ class ProcurementItemForm(forms.ModelForm):
 
 ProcurementItemFormSet = modelformset_factory( ProcurementItem, form=ProcurementItemForm, extra=0)
 
+
+class ExpenseForm(forms.ModelForm):
+    class Meta:
+        model = Expense
+        fields = ['category', 'amount', 'date', 'description']
+        widgets = {
+            'category': forms.Select(attrs={'class': 'form-control'}),
+            'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'style': 'resize: vertical;'}),
+        }

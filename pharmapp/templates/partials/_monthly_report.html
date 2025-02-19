@@ -1,0 +1,17 @@
+<h2>Monthly Profit Report</h2>
+<table>
+    <tr>
+        <th>Month</th>
+        <th>Total Sales</th>
+        <th>Total Expenses</th>
+        <th>Net Profit</th>
+    </tr>
+    {% for report in reports %}
+    <tr>
+        <td>{{ report.month }}</td>
+        <td>{{ report.total_sales }}</td>
+        <td>{{ report.total_expenses }}</td>
+        <td>{{ report.net_profit }}</td>
+    </tr>
+    {% endfor %}
+</table>

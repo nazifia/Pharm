@@ -54,9 +54,10 @@ class StockCheckAdmin(admin.ModelAdmin):
     inlines = [StockCheckItemInline]
 
 
-
-
-
+class ExpenseCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+class ExpenseAdmin(admin.ModelAdmin):
+    list_display = ('category', 'amount', 'date',)
 
 
 
@@ -73,3 +74,5 @@ admin.site.register(DispensingLog, DispensingLogAdmin)
 admin.site.register(Receipt, ReceiptAdmin)
 admin.site.register(WholesaleReceipt, WholesaleReceiptAdmin)
 admin.site.register(StockCheckItem)
+admin.site.register(ExpenseCategory, ExpenseCategoryAdmin)
+admin.site.register(Expense, ExpenseAdmin)

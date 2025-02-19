@@ -1,0 +1,70 @@
+<style>
+    /* Custom styling for side-by-side layout */
+    .expense-form {
+        padding: 15px;
+    }
+    .expense-form .row {
+        align-items: center; /* Align labels and inputs */
+        margin-bottom: 10px;
+    }
+    .expense-form label {
+        font-weight: bold;
+        text-align: right;
+    }
+    .expense-form .form-control {
+        border-radius: 8px;
+        padding: 8px;
+    }
+    .expense-form .btn {
+        width: 100%;
+        margin-top: 15px;
+    }
+</style>
+
+<!-- Expense Form -->
+<form class="expense-form" 
+      hx-post="{% url 'store:add_expense' %}" 
+      hx-target="#expense-list" 
+      hx-swap="outerHTML" 
+      hx-trigger="submit">
+    
+    {% csrf_token %}
+
+    <div class="row">
+        <div class="col-md-4">
+            <label for="id_category" class="form-label">Category:</label>
+        </div>
+        <div class="col-md-8">
+            {{ form.category }}
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <label for="id_amount" class="form-label">Amount:</label>
+        </div>
+        <div class="col-md-8">
+            {{ form.amount }}
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <label for="id_date" class="form-label">Date:</label>
+        </div>
+        <div class="col-md-8">
+            {{ form.date }}
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <label for="id_description" class="form-label">Description:</label>
+        </div>
+        <div class="col-md-8">
+            {{ form.description }}
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-success">Save Expense</button>
+</form>

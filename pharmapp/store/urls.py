@@ -52,6 +52,8 @@ urlpatterns = [
     path('procurement_detail/<int:procurement_id>/', views.procurement_detail, name='procurement_detail'),
     path('suppliers/', views.list_suppliers_view, name='list_suppliers'), 
     path('register_supplier_view/partials/supplier_list.html', views.supplier_list_partial),  
+    
+    # Stock Check URLs
     path('create/', views.create_stock_check, name='create_stock_check'),
     path('<int:stock_check_id>/update/', views.update_stock_check, name='update_stock_check'),
     path('<int:stock_check_id>/report/', views.stock_check_report, name='stock_check_report'),
@@ -59,13 +61,19 @@ urlpatterns = [
     path('stock-check/<int:stock_check_id>/bulk-adjust/', views.bulk_adjust_stock, name='bulk_adjust_stock'),
 
     # Transfer Request URLs
-
     path("transfer/create/", views.create_wholesale_transfer_request, name="create_wholesale_transfer_request"),
     path("pending_transfer_requests/", views.pending_transfer_requests, name="pending_transfer_requests"),
     path("transfer/approve/<int:transfer_id>/", views.approve_transfer, name="approve_transfer"),
     path("transfer/reject/<int:transfer_id>/", views.reject_transfer, name="reject_transfer"),
     path("transfer_request_list/", views.transfer_request_list, name="transfer_request_list"),
     path("transfer/multiple/", views.transfer_multiple_store_items, name="transfer_multiple_store_items"),
-
+    
+    # Expense URLs
+    path('expenses/', views.expense_list, name='expense_list'),
+    path('expenses/add/form/', views.add_expense_form, name='add_expense_form'),
+    path('expenses/add/', views.add_expense, name='add_expense'),
+    path('expenses/edit/<int:expense_id>/', views.edit_expense_form, name='edit_expense_form'),
+    path('expenses/update/<int:expense_id>/', views.update_expense, name='update_expense'),
+    path('expenses/delete/<int:expense_id>/', views.delete_expense, name='delete_expense'),
 
 ]

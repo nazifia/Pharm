@@ -1,0 +1,35 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<h2>Expense Management</h2>
+
+<!-- Add Expense Button -->
+<a class="btn btn-primary btn-sm my-2" 
+        hx-get="{% url 'store:add_expense_form' %}" 
+        hx-target="#modal-body" 
+        hx-trigger="click" 
+        data-toggle="modal" 
+        data-target="#expenseModal">
+    Add Expense
+</a>
+
+<!-- Expense List Table -->
+<div id="expense-list">
+    {% include 'partials/_expense_list.html' %}
+</div>
+
+<!-- Bootstrap Modal -->
+<div class="modal fade" id="expenseModal" tabindex="-1" aria-labelledby="expenseModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="expenseModalLabel">Add Expense</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">x</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Form content will be loaded here via HTMX -->
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}

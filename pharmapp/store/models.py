@@ -594,3 +594,33 @@ class TransferRequest(models.Model):
         else:
             source = self.wholesale_item
         return f"{source.name if source else 'Unknown'}: {self.requested_quantity} ({self.get_status_display()})"
+
+
+
+# EXPENSE TRACKING MODELS
+class ExpenseCategory(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.name
+
+
+class Expense(models.Model):
+    category = models.ForeignKey(ExpenseCategory, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    date = models.DateField(default=datetime.now)
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.category.name} - {self.amount} - {self.date}"
+
+
+class MonthlyReport(models.Model):
+    month = models.DateField()
+    total_sales = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    total_expenses = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    net_profit = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+
+    def calculate_net_profit(self):
+        self.net_profit = self.total_sales - self.total_expenses
+        self.save()

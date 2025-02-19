@@ -1272,7 +1272,7 @@ def add_procurement(request):
     )
 
 
-
+@login_required
 def procurement_form(request):
     # Create an empty formset for the items
     item_formset = ProcurementItemFormSet(queryset=ProcurementItem.objects.none())  # Replace with your model if needed
@@ -1283,7 +1283,7 @@ def procurement_form(request):
     # Render the HTML for the new form
     return render(request, 'partials/procurement_form.html', {'form': new_form})
 
-
+@login_required
 def procurement_list(request):
     procurements = (
         Procurement.objects.annotate(calculated_total=Sum('items__subtotal'))
@@ -1294,7 +1294,7 @@ def procurement_list(request):
     })
 
 
-
+@login_required
 def search_procurement(request):
     # Base query with calculated total and ordering
     procurements = (
@@ -1759,4 +1759,80 @@ def transfer_request_list(request):
     return render(request, "store/transfer_request_list.html", context)
 
 
+# EXPENSES TRACKING LOGIC
+@user_passes_test(is_admin)
+@login_required
+def generate_monthly_report():
+    current_month = datetime.now().replace(day=1)
+    total_sales = Sales.objects.filter(date__month=current_month.month, date__year=current_month.year).aggregate(Sum('total_amount'))['total_amount__sum'] or 0
+    total_expenses = Expense.objects.filter(date__month=current_month.month, date__year=current_month.year).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    report, created = MonthlyReport.objects.get_or_create(month=current_month)
+    report.total_sales = total_sales
+    report.total_expenses = total_expenses
+    report.calculate_net_profit()
 
+
+@user_passes_test(is_admin)
+@login_required
+def expense_list(request):
+    """Display all expenses."""
+    expenses = Expense.objects.all().order_by('-date')
+    return render(request, 'store/expense_list.html', {'expenses': expenses})
+
+
+@user_passes_test(is_admin)
+@login_required
+def add_expense_form(request):
+    """Return the modal form for adding expenses."""
+    form = ExpenseForm()
+    return render(request, 'partials/_expense_form.html', {'form': form})
+
+
+@user_passes_test(is_admin)
+@login_required
+def add_expense(request):
+    """Handle expense form submission."""
+    if request.method == 'POST':
+        form = ExpenseForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return render(request, 'partials/_expense_list.html', {'expenses': Expense.objects.all()})  
+    else:
+        form = ExpenseForm()
+    
+    return render(request, 'partials/_expense_form.html', {'form': form})
+
+
+@user_passes_test(is_admin)
+@login_required
+def edit_expense_form(request, expense_id):
+    """Return the modal form for editing an expense."""
+    expense = get_object_or_404(Expense, id=expense_id)
+    form = ExpenseForm(instance=expense)
+    return render(request, 'partials/_expense_form.html', {'form': form, 'expense_id': expense.id})
+
+
+@user_passes_test(is_admin)
+@login_required
+@require_POST
+def update_expense(request, expense_id):
+    """Handle updating an expense."""
+    expense = get_object_or_404(Expense, id=expense_id)
+    form = ExpenseForm(request.POST, instance=expense)
+    if form.is_valid():
+        form.save()
+        expenses = Expense.objects.all().order_by('-date')  # Refresh list
+        return render(request, 'partials/_expense_list.html', {'expenses': expenses})
+    return JsonResponse({'error': form.errors}, status=400)
+
+
+@user_passes_test(is_admin)
+@login_required
+@require_POST
+def delete_expense(request, expense_id):
+    """Handle deleting an expense."""
+    expense = get_object_or_404(Expense, id=expense_id)
+    expense.delete()
+    expenses = Expense.objects.all().order_by('-date')  # Refresh list
+    return render(request, 'partials/_expense_list.html', {'expenses': expenses})
