@@ -15,7 +15,7 @@ from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
 import uuid
-from store.views import get_daily_sales, get_monthly_sales
+from store.views import get_daily_sales, get_monthly_sales_with_expenses
 from django.db.models import Sum, Q, F
 
 
@@ -222,7 +222,7 @@ def return_wholesale_item(request, pk):
 
                     # Update daily and monthly sales data
                     daily_sales = get_daily_sales()
-                    monthly_sales = get_monthly_sales()
+                    monthly_sales = get_monthly_sales_with_expenses()
 
                     # Render updated logs for HTMX requests
                     if request.headers.get('HX-Request'):

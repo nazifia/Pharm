@@ -1,0 +1,9 @@
+{% extends 'partials/base.html' %}
+
+{% block content %}
+<h2>Start a Stock Check</h2>
+<form method="post">
+    {% csrf_token %}
+    <button class="btn btn-primary" type="submit">Create Stock Check</button>
+</form>
+{% endblock %}

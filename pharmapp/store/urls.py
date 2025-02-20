@@ -75,5 +75,7 @@ urlpatterns = [
     path('expenses/edit/<int:expense_id>/', views.edit_expense_form, name='edit_expense_form'),
     path('expenses/update/<int:expense_id>/', views.update_expense, name='update_expense'),
     path('expenses/delete/<int:expense_id>/', views.delete_expense, name='delete_expense'),
+    path('monthly-sales-deduction/', views.monthly_sales_with_deduction, name='monthly_sales_deduction'),
+
 
 ]

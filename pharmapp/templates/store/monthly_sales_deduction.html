@@ -1,0 +1,66 @@
+{% extends "partials/base.html" %} {% block content %}
+<div class="container my-4">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">Monthly Sales with Deducted Expenses</h2>
+
+            <!-- Month Selection Form -->
+            <form method="get" class="row g-3 mb-4">
+                <div class="col-auto">
+                    <label for="deduction_month" class="visually-hidden">
+                        Select Month for Deduction:
+                    </label>
+                    <input
+                        type="month"
+                        class="form-control"
+                        id="deduction_month"
+                        name="deduction_month"
+                        value="{{ selected_month }}"
+                    />
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-sm btn-primary my-3">
+                        Apply Deduction
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if result %}
+    <div class="card shadow">
+        <div class="card-header bg-secondary text-white">
+            Sales Data for {{ result.month|date:"F Y" }}
+        </div>
+        <div class="card-body">
+            <p>
+                <strong>Total Sales Profit:</strong>
+                {{ result.total_profit|floatformat:2 }}
+            </p>
+            <p>
+                <strong>Total Expenses:</strong>
+                <span class="text-danger">
+                    {{ result.total_expense|floatformat:2 }}
+                </span>
+            </p>
+            <p>
+                <strong>Net Profit:</strong>
+                <span
+                    class="{% if result.net_profit < 0 %}text-danger{% else %}text-success{% endif %}"
+                >
+                    {{ result.net_profit|floatformat:2 }}
+                </span>
+            </p>
+        </div>
+    </div>
+    {% else %} {% if selected_month %}
+    <div class="alert alert-warning" role="alert">
+        No data found for the selected month.
+    </div>
+    {% else %}
+    <div class="alert alert-info" role="alert">
+        Please select a month to apply expense deduction.
+    </div>
+    {% endif %} {% endif %}
+</div>
+{% endblock content %}

@@ -399,7 +399,7 @@ def receipt(request):
 
     # Fetch updated sales data.
     daily_sales_data = get_daily_sales()
-    monthly_sales_data = get_monthly_sales()
+    monthly_sales_data = get_monthly_sales_with_expenses()
 
     sales_items = sales.sales_items.all()
 
@@ -572,7 +572,7 @@ def return_item(request, pk):
 
                     # Update daily and monthly sales data
                     daily_sales = get_daily_sales()
-                    monthly_sales = get_monthly_sales()
+                    monthly_sales = get_monthly_sales_with_expenses()
 
                     # Render updated logs for HTMX requests
                     if request.headers.get('HX-Request'):
@@ -669,8 +669,20 @@ def get_daily_sales():
     return sorted_combined_sales
 
 
-def get_monthly_sales():
-    # Fetch monthly sales data
+def get_monthly_expenses():
+    """
+    Returns a dictionary mapping the first day of each month to its total expenses.
+    """
+    expenses = (
+        Expense.objects
+        .annotate(month=TruncMonth('date'))
+        .values('month')
+        .annotate(total_expense=Sum('amount'))
+    )
+    return {entry['month']: entry['total_expense'] for entry in expenses}
+
+def get_monthly_sales_with_expenses():
+    # Fetch regular sales data per month
     regular_sales = (
         SalesItem.objects
         .annotate(month=TruncMonth('sales__date'))
@@ -685,6 +697,7 @@ def get_monthly_sales():
         )
     )
 
+    # Fetch wholesale sales data per month
     wholesale_sales = (
         WholesaleSalesItem.objects
         .annotate(month=TruncMonth('sales__date'))
@@ -699,23 +712,121 @@ def get_monthly_sales():
         )
     )
 
-    # Combine results
-    combined_sales = defaultdict(lambda: {'total_sales': 0, 'total_cost': 0, 'total_profit': 0})
+    # Get monthly expenses as a dictionary: {month_date: total_expense}
+    monthly_expenses = get_monthly_expenses()
 
+    # Combine the two types of sales into one dict
+    combined_sales = defaultdict(lambda: {'total_sales': 0, 'total_cost': 0, 'total_profit': 0})
+    
     for sale in regular_sales:
         month = sale['month']
         combined_sales[month]['total_sales'] += sale['total_sales']
         combined_sales[month]['total_cost'] += sale['total_cost']
         combined_sales[month]['total_profit'] += sale['total_profit']
-
+    
     for sale in wholesale_sales:
         month = sale['month']
         combined_sales[month]['total_sales'] += sale['total_sales']
         combined_sales[month]['total_cost'] += sale['total_cost']
         combined_sales[month]['total_profit'] += sale['total_profit']
+    
+    # Add expense data and calculate net profit for each month
+    for month, data in combined_sales.items():
+        data['total_expense'] = monthly_expenses.get(month, 0)
+        data['net_profit'] = data['total_profit'] - data['total_expense']
 
-    # Sort combined sales by month in descending order (most recent first)
-    return sorted(combined_sales.items(), key=lambda x: x[0], reverse=True)
+    # Sort results by month (descending)
+    sorted_sales = sorted(combined_sales.items(), key=lambda x: x[0], reverse=True)
+    return sorted_sales
+
+
+
+@user_passes_test(is_admin)
+def monthly_sales_with_deduction(request):
+    # Read the selected month from GET parameters (format: YYYY-MM)
+    selected_month_str = request.GET.get('deduction_month')
+    result = None
+
+    if selected_month_str:
+        try:
+            # Parse selected month to a date representing the first day of that month
+            selected_month = datetime.strptime(selected_month_str, '%Y-%m').date()
+        except ValueError:
+            selected_month = None
+
+        if selected_month:
+            # Wrap the profit expression so Django knows the output type
+            profit_expr = ExpressionWrapper(
+                F('price') * F('quantity') - F('item__cost') * F('quantity'),
+                output_field=DecimalField()
+            )
+
+            total_profit_regular = SalesItem.objects.filter(
+                sales__date__year=selected_month.year,
+                sales__date__month=selected_month.month
+            ).aggregate(
+                profit=Sum(profit_expr)
+            )['profit'] or 0
+
+            total_profit_wholesale = WholesaleSalesItem.objects.filter(
+                sales__date__year=selected_month.year,
+                sales__date__month=selected_month.month
+            ).aggregate(
+                profit=Sum(profit_expr)
+            )['profit'] or 0
+
+            total_profit = total_profit_regular + total_profit_wholesale
+
+            # Get total expenses for the selected month
+            total_expense = Expense.objects.filter(
+                date__year=selected_month.year,
+                date__month=selected_month.month
+            ).aggregate(total=Sum('amount'))['total'] or 0
+
+            # Calculate net profit (sales profit minus selected month's expenses)
+            net_profit = total_profit - total_expense
+
+            result = {
+                'month': selected_month,
+                'total_profit': total_profit,
+                'total_expense': total_expense,
+                'net_profit': net_profit
+            }
+
+    return render(request, 'store/monthly_sales_deduction.html', {
+        'result': result,
+        'selected_month': selected_month_str
+    })
+
+
+
+# Assume is_admin is your custom user test function
+@user_passes_test(is_admin)
+def monthly_sales(request):
+    # Get the full monthly sales data with expenses deducted
+    sales_data = get_monthly_sales_with_expenses()
+    
+    # Read selected month from GET parameters (in YYYY-MM format)
+    selected_month_str = request.GET.get('month')
+    filtered_sales = sales_data  # default: show all months
+
+    if selected_month_str:
+        try:
+            # Convert string to a date representing the first day of that month
+            selected_month = datetime.datetime.strptime(selected_month_str, '%Y-%m').date()
+            # Filter for the selected month only
+            filtered_sales = [entry for entry in sales_data if entry[0] == selected_month]
+        except ValueError:
+            # If parsing fails, leave filtered_sales unchanged (or handle the error as needed)
+            pass
+
+    context = {
+        'monthly_sales': filtered_sales,
+        'selected_month': selected_month_str  # pass back to pre-fill the form field
+    }
+    return render(request, 'store/monthly_sales.html', context)
+
+
 
 
 
@@ -729,7 +840,7 @@ def daily_sales(request):
 
 @user_passes_test(is_admin)
 def monthly_sales(request):
-    monthly_sales = get_monthly_sales()  # This is already sorted
+    monthly_sales = get_monthly_sales_with_expenses()  # Now includes expenses
     context = {'monthly_sales': monthly_sales}
     return render(request, 'store/monthly_sales.html', context)
 
