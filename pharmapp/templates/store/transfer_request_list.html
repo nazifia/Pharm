@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container mt-4">
   <h2>All Transfer Requests & Transfers</h2>
-  
+
   <!-- Search Form -->
   <form method="get" class="mb-3">
     <div class="form-group">
@@ -13,14 +13,16 @@
     <button type="submit" class="btn btn-sm btn-primary">Search</button>
     <a href="{% url 'store:transfer_request_list' %}" class="btn btn-sm btn-secondary">Clear</a>
   </form>
-  
+
   <!-- Transfer Requests Table -->
-  <table class="table table-bordered table-hover">
-    <thead>
+  <table class="table shadow table-hover table-responsive">
+    <thead class="table-dark">
       <tr>
         <th>ID</th>
         <th>User</th>
         <th>Item</th>
+        <th>D/form</th>
+        <th>Unit</th>
         <th>Direction</th>
         <th>Req Qty</th>
         <th>App Qty</th>
@@ -42,6 +44,20 @@
           </td>
           <td>
             {% if transfer.from_wholesale %}
+              {{ transfer.retail_item.dosage_form }}
+            {% else %}
+              {{ transfer.wholesale_item.dosage_form }}
+            {% endif %}
+          </td>
+          <td>
+            {% if transfer.from_wholesale %}
+              {{ transfer.retail_item.unit }}
+            {% else %}
+              {{ transfer.wholesale_item.unit }}
+            {% endif %}
+          </td>
+          <td>
+            {% if transfer.from_wholesale %}
               Wholesale → Retail
             {% else %}
               Retail → Wholesale
@@ -54,7 +70,7 @@
         </tr>
       {% empty %}
         <tr>
-          <td colspan="7">No transfers found.</td>
+          <td colspan="10">No transfers found.</td>
         </tr>
       {% endfor %}
     </tbody>

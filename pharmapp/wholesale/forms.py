@@ -34,11 +34,11 @@ class addWholesaleForm(forms.ModelForm):
     exp_date = forms.DateField()
     markup = models.IntegerField()
     unit = forms.CharField(max_length=200)
-    
+
     class Meta:
         model = WholesaleItem
         fields = ('name', 'dosage_form', 'brand', 'unit', 'cost', 'markup',  'stock', 'exp_date')
-        
+
 
 
 class wholesaleDispenseForm(forms.Form):
@@ -80,12 +80,10 @@ class WholesaleProcurementForm(forms.ModelForm):
         }
 
 
-
-
 class WholesaleProcurementItemForm(forms.ModelForm):
     class Meta:
         model = WholesaleProcurementItem
-        fields = ['item_name', 'dosage_form', 'brand', 'unit', 'quantity', 'cost_price']
+        fields = ['item_name', 'dosage_form', 'brand', 'unit', 'quantity', 'cost_price', 'expiry_date']
         widgets = {
             'item_name': forms.TextInput(attrs={'placeholder': 'Enter item name'}),
             'dosage_form': forms.Select(attrs={'placeholder': 'Dosage form'}),
@@ -93,6 +91,7 @@ class WholesaleProcurementItemForm(forms.ModelForm):
             'unit': forms.Select(attrs={'placeholder': 'Select unit'}),
             'quantity': forms.NumberInput(attrs={'placeholder': 'Enter quantity'}),
             'cost_price': forms.NumberInput(attrs={'placeholder': 'Enter cost price'}),
+            'expiry_date': forms.DateInput(attrs={'placeholder': 'Select expiry date', 'type': 'date'}),
         }
         labels = {
             'item_name': 'Item Name',
@@ -101,6 +100,16 @@ class WholesaleProcurementItemForm(forms.ModelForm):
             'unit': 'Unit',
             'quantity': 'Quantity',
             'cost_price': 'Cost Price',
+            'expiry_date': 'Expiry Date',
         }
 
-ProcurementItemFormSet = modelformset_factory(ProcurementItem, form=WholesaleProcurementItemForm, extra=0)
+
+WholesaleProcurementItemFormSet = modelformset_factory(
+    WholesaleProcurementItem,
+    form=WholesaleProcurementItemForm,
+    extra=1,         # Provide an extra blank form for new entries
+    can_delete=True  # Allow deletion of items dynamically
+)
+
+
+

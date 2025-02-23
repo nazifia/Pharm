@@ -61,7 +61,7 @@ urlpatterns = [
     path('stock-check/<int:stock_check_id>/bulk-adjust/', views.bulk_adjust_stock, name='bulk_adjust_stock'),
 
     # Transfer Request URLs
-    path("transfer/create/", views.create_wholesale_transfer_request, name="create_wholesale_transfer_request"),
+    path("transfer/create/", views.create_transfer_request_wholesale, name="create_transfer_request_wholesale"),
     path("pending_transfer_requests/", views.pending_transfer_requests, name="pending_transfer_requests"),
     path("transfer/approve/<int:transfer_id>/", views.approve_transfer, name="approve_transfer"),
     path("transfer/reject/<int:transfer_id>/", views.reject_transfer, name="reject_transfer"),

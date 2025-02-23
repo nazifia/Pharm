@@ -5,7 +5,7 @@
     {% for message in messages %}
     <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
     {% endfor %}
-  <h2>Send Transfer Request (Retail to Wholesale)</h2>
+  <h2>Request Retail Item Transfer</h2>
   <div id="transfer-response" class="mt-3"></div>
   <form hx-post="{% url 'wholesale:create_transfer_request' %}" hx-target="#transfer-response" hx-swap="innerHTML">
     {% csrf_token %}
@@ -14,7 +14,7 @@
     <div class="form-group">
       <label for="item_id">Select Retail Item:</label>
       <select name="item_id" id="item_id" class="form-control" required>
-        {% for item in wholesale_items %}
+        {% for item in retail_items %}
           <option value="{{ item.id }}">{{ item.name }} (Stock: {{ item.stock }})</option>
         {% endfor %}
       </select>
@@ -25,6 +25,5 @@
     </div>
     <button type="submit" class="btn btn-sm btn-primary mt-3">Send Request</button>
   </form>
-  
 </div>
 {% endblock %}

@@ -18,7 +18,6 @@ urlpatterns = [
     path('update_wholesale_cart_quantity/<int:pk>/', views.update_wholesale_cart_quantity, name='update_wholesale_cart_quantity'),
     path('wholesale_receipt/', views.wholesale_receipt, name='wholesale_receipt'),
     path('wholesale_receipt_list/', views.wholesale_receipt_list, name='wholesale_receipt_list'),
-    # path('save_wholesale_receipt/', views.save_wholesale_receipt, name='save_wholesale_receipt'),
     path('wholesale_receipt_detail/<str:receipt_id>/', views.wholesale_receipt_detail, name='wholesale_receipt_detail'),
     path('wholesale_customers_on_negative/', views.wholesale_customers_on_negative, name='wholesale_customers_on_negative'),
     path('wholesale_customers/', views.wholesale_customers, name='wholesale_customers'),
@@ -49,7 +48,7 @@ urlpatterns = [
     
     
     # Request Transfer URLs
-    path("transfer/create/", views.create_transfer_request, name="create_transfer_request"),
+    path("transfer_wholesale/", views.create_transfer_request, name="create_transfer_request"),
     path("wholesale/approve/<int:transfer_id>/", views.wholesale_approve_transfer, name="wholesale_approve_transfer"),
     path("wholesale_pending_transfer_requests/", views.pending_wholesale_transfer_requests, name="pending_wholesale_transfer_requests"),
     path("transfer/reject/<int:transfer_id>/", views.reject_wholesale_transfer, name="reject_wholesale_transfer"),

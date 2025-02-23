@@ -56,12 +56,8 @@
     style="background-image: url({% static 'images/pharmacy2.jpg' %}); height: 100vh; background-size: cover; background-position: center;">
 
 
-    {% if not request.user.is_authenticated %}
-    <br>
-    <br>
-    <h2 style="color: rgb(0, 0, 0); text-align:center; font-weight:bold">Please log in to access the system.</h2>
-    {% endif %}
-    <br>
+    
+    
     {% if user.is_superuser %}
     {% for message in messages %}
     <div style="text-align: center;" class="alert alert-{{message.tags}}">{{message}}</div>

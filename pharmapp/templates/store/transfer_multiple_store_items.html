@@ -3,40 +3,46 @@
 <div class="container mt-4" id="transfer-messages">
   <h2>Transfer Store Items</h2>
   <!-- This div is updated by HTMX with messages (errors or successes) -->
-  <div  class="mt-3">
+  <div class="mt-3">
     {% for message in messages %}
       <div class="alert alert-{{ message.tags }}">{{ message }}</div>
     {% endfor %}
   </div>
-  <form id="transfer-form" method="post" 
-        hx-post="{% url 'store:transfer_multiple_store_items' %}" 
-        hx-target="#transfer-messages" 
+  <form id="transfer-form" method="post"
+        hx-post="{% url 'store:transfer_multiple_store_items' %}"
+        hx-target="#transfer-messages"
         hx-swap="outerHTML">
     {% csrf_token %}
-    <table class="table table-bordered table-hover">
+    <table class="table shadow table-hover table-responsive">
       <thead class="table-secondary">
         <tr>
           <th>Select</th>
           <th>Item Name</th>
-          <th>Stock Qty</th>
-          <th>Qty to Transfer</th>
+          <th>D/form</th>
+          <th>Brand</th>
+          <th>Unit</th>
+          <th>Stock</th>
+          <th>R/Qty</th>
           <th>Markup (%)</th>
           <th>Destination</th>
         </tr>
       </thead>
-      <tbody>
+      <!-- Wrap the rows in a tbody with an id so only that section is refreshed -->
+      <tbody id="store-items">
         {% for item in store_items %}
-        <tr>
+        <tr id="store-item-{{ item.id }}">
           <td>
             <input type="checkbox" name="select_{{ item.id }}">
           </td>
           <td>{{ item.name|upper }}</td>
+          <td>{{ item.dosage_form }}</td>
+          <td>{{ item.brand }}</td>
+          <td>{{ item.unit }}</td>
           <td>{{ item.stock }}</td>
           <td>
             <input type="number" name="quantity_{{ item.id }}" style="width:100px;" class="form-control" min="0" value="0">
           </td>
           <td>
-            <!-- Markup Percentage Dropdown with corrected name -->
             <select name="markup_{{ item.id }}" style="width:150px;" class="form-control">
               <option value="0">Select Markup</option>
               <option value="2.5">2.5% markup</option>
@@ -92,23 +98,18 @@
         {% endfor %}
       </tbody>
     </table>
-    <button type="submit" class="btn btn-primary">Process Transfers</button>
+    <button type="submit" class="btn btn-sm btn-primary">Process Transfers</button>
   </form>
-  
-  
 </div>
 
 <script>
   // When the form is submitted, disable inputs/selects in rows that are NOT selected
   document.getElementById("transfer-form").addEventListener("submit", function(e) {
-    // Get all checkboxes with names starting with "select_"
     const checkboxes = document.querySelectorAll("input[type='checkbox'][name^='select_']");
     checkboxes.forEach(function(checkbox) {
       if (!checkbox.checked) {
-        // Find the row that contains the checkbox
         const row = checkbox.closest("tr");
         if (row) {
-          // Disable all input and select elements in that row
           row.querySelectorAll("input, select").forEach(function(el) {
             el.disabled = true;
           });

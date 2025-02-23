@@ -58,7 +58,7 @@
             <li class="nav-item active">
                 <a class="nav-link" href="{% url 'store:dashboard' %}">
                     <i class="fas fa-fw fa-tachometer-alt"></i>
-                    <span>Dashboard</span></a>
+                    <span>Dashboard</span></a>                    
             </li>
 
             <!-- Divider -->
@@ -173,16 +173,14 @@
                         <h6 class="collapse-header">Retail:</h6>
                         <a class="collapse-item" href="{% url 'store:add_procurement' %}">New R-Procurement</a>
                         <a class="collapse-item" href="{% url 'store:procurement_list' %}">R-Procurement List</a>
-                        <a class="collapse-item" href=" {% url "store:create_wholesale_transfer_request" %} ">
-                            <span>Send Rqst 2 Wholesale</span></a>
+                        
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Wholesale:</h6>
                         <a class="collapse-item" href="{% url 'wholesale:add_wholesale_procurement' %}">New
                             W-Procurement</a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_procurement_list' %}">W-Procurement
                             List</a>
-                        <a class="collapse-item" href=" {% url "wholesale:create_transfer_request" %} ">
-                            <span>Send Rqst 2 Retail</span></a>
+                    
                         <h6 class="collapse-header">Move items:</h6>
                         <a class="collapse-item" href="{% url 'store:transfer_multiple_store_items' %}">Transfer Store Item</a>
                     </div>
@@ -430,6 +428,9 @@
                     <!-- Page Heading -->
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h1 class="h3 mb-0 text-gray-800">Dashboard</h1>
+                        {% if not request.user.is_authenticated %}
+                        <h2 style="color: rgb(255, 3, 3); text-align:center; font-weight:bold">Please log in to continue.</h2>
+                        {% endif %}
                     </div>
 
                     <!-- Content Row -->
@@ -575,7 +576,7 @@
                 <div class="modal-body">Select "Logout" below if you are ready to end your current session.</div>
                 <div class="modal-footer">
                     <button class="btn btn-sm btn-secondary" type="button" data-dismiss="modal">Cancel</button>
-                    <a class="btn btn-sm btn-danger" href="{% url 'store:index' %}">Logout</a>
+                    <a class="btn btn-sm btn-danger" href="{% url 'store:logout_user' %}">Logout</a>
                 </div>
             </div>
         </div>

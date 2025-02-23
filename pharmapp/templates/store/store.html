@@ -112,10 +112,12 @@
 <a class="btn btn-success btn-sm" href="{% url 'store:cart' %}">Dispense Retail</a>
 <a class="btn btn-secondary btn-sm" href="{{request.META.HTTP_REFERER}}">Back</a>
 
-<a class="btn btn-warning btn-sm float-right mx-2" href="{% url 'store:transfer_request_list' %}">Requests History</a>
-<a class="btn btn-success btn-sm float-right" href="{% url 'store:pending_transfer_requests' %}">Pending Requests</a>
+<a class="btn btn-warning btn-sm float-right mx-1" href="{% url 'store:transfer_request_list' %}">Requests History</a>
+<a class="btn btn-info btn-sm float-right" href="{% url 'store:pending_transfer_requests' %}">Pending Requests</a>
+<a class="btn btn-primary btn-sm float-right mx-1" href="{% url 'wholesale:create_transfer_request' %}">Send Requests</a>
 
-<div class="alert-container">
+
+<div class="alert-container mt-5">
     {% if low_stock_items %}
     <div class="alert alert-warning" role="alert">
         <strong>Restocking Alert:</strong> The following items are running low on stock:

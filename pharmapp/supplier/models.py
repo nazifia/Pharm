@@ -1,4 +1,5 @@
 from decimal import Decimal
+import decimal
 from django.db import models
 from django.utils import timezone
 from userauth.models import User
@@ -110,11 +111,14 @@ class Procurement(models.Model):
 
     def __str__(self):
         return f'Procurement {self.supplier.name}'
+    
+    
 
     def calculate_total(self):
         """Calculate and update the total cost of the procurement."""
         self.total = sum(item.subtotal for item in self.items.all())
         self.save(update_fields=['total'])
+    
 
 
 class ProcurementItem(models.Model):
@@ -132,7 +136,7 @@ class ProcurementItem(models.Model):
     def save(self, *args, **kwargs):
         if self.cost_price is None or self.quantity is None:
             raise ValueError("Both cost_price and quantity must be provided to calculate subtotal.")
-        
+
         # Calculate subtotal
         self.subtotal = self.cost_price * self.quantity
         super().save(*args, **kwargs)
@@ -141,7 +145,9 @@ class ProcurementItem(models.Model):
         self.move_to_store()
 
     def move_to_store(self):
-        """Move the procured item to the store after procurement."""
+        """Move the procured item to the wholesale store after procurement."""
+        selling_price = self.cost_price * (Decimal(1) + (Decimal(self.markup) / Decimal(100)))
+
         store_item, created = StoreItem.objects.get_or_create(
             name=self.item_name,
             brand=self.brand,
@@ -150,20 +156,22 @@ class ProcurementItem(models.Model):
             defaults={
                 "stock": self.quantity,
                 "cost_price": self.cost_price,
-                "selling_price": self.cost_price * (1 + (self.markup / 100)),
+                # "selling_price": selling_price,
                 "expiry_date": self.expiry_date
             }
         )
 
         if not created:
-            # Update existing store item stock
             store_item.stock += self.quantity
-            store_item.selling_price = self.cost_price * (1 + (self.markup / 100))
+            store_item.selling_price = selling_price
             store_item.expiry_date = self.expiry_date
             store_item.save()
 
     def __str__(self):
         return f'{self.item_name} - {self.procurement.id}'
+
+
+
 
 
 # Wholesale Procurement Models (Same logic as above)

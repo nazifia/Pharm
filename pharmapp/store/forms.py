@@ -70,7 +70,7 @@ MARKUP_CHOICES = [
 
 
 class EditUserProfileForm(UserChangeForm):
-    
+
     class Meta:
         model = User
         fields = ['username', 'password', 'first_name', 'last_name']
@@ -110,7 +110,7 @@ class addItemForm(forms.ModelForm):
         model = Item
         fields = ('name', 'dosage_form', 'brand', 'unit', 'cost', 'markup', 'stock', 'exp_date')
 
-        
+
 
 class dispenseForm(forms.Form):
     q = forms.CharField(min_length=2, label='', widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder':'SEARCH  HERE...'}))
@@ -124,7 +124,7 @@ class CustomerForm(forms.ModelForm):
 
 class AddFundsForm(forms.Form):
     amount = forms.DecimalField(max_digits=10, decimal_places=2)
-    
+
 
 
 class ReturnItemForm(forms.ModelForm):
@@ -146,7 +146,7 @@ class SupplierRegistrationForm(forms.ModelForm):
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'phone': forms.TextInput(attrs={'class': 'form-control'}),
-            'contact_info': forms.TextInput(attrs={'class': 'form-control'}),            
+            'contact_info': forms.TextInput(attrs={'class': 'form-control'}),
         }
 
 
@@ -168,12 +168,11 @@ class ProcurementForm(forms.ModelForm):
         }
 
 
-
-
 class ProcurementItemForm(forms.ModelForm):
     class Meta:
         model = ProcurementItem
-        fields = ['item_name', 'dosage_form', 'brand', 'unit', 'quantity', 'cost_price']
+        # Added 'expiry_date' so that it can be input via the form
+        fields = ['item_name', 'dosage_form', 'brand', 'unit', 'quantity', 'cost_price', 'expiry_date']
         widgets = {
             'item_name': forms.TextInput(attrs={'placeholder': 'Enter item name'}),
             'dosage_form': forms.Select(attrs={'placeholder': 'Dosage form'}),
@@ -181,6 +180,8 @@ class ProcurementItemForm(forms.ModelForm):
             'unit': forms.Select(attrs={'placeholder': 'Select unit'}),
             'quantity': forms.NumberInput(attrs={'placeholder': 'Enter quantity'}),
             'cost_price': forms.NumberInput(attrs={'placeholder': 'Enter cost price'}),
+            # Using a date input widget for the expiry_date field
+            'expiry_date': forms.DateInput(attrs={'placeholder': 'Select expiry date', 'type': 'date'}),
         }
         labels = {
             'item_name': 'Item Name',
@@ -189,9 +190,19 @@ class ProcurementItemForm(forms.ModelForm):
             'unit': 'Unit',
             'quantity': 'Quantity',
             'cost_price': 'Cost Price',
+            'expiry_date': 'Expiry Date',
         }
 
-ProcurementItemFormSet = modelformset_factory( ProcurementItem, form=ProcurementItemForm, extra=0)
+
+# Ensure that the formset provides an extra form if needed and supports deletion.
+ProcurementItemFormSet = modelformset_factory(
+    ProcurementItem,
+    form=ProcurementItemForm,
+    extra=1,         # Allows one blank form for new entries
+    can_delete=True  # Allows deletion of items dynamically
+)
+
+
 
 
 class ExpenseForm(forms.ModelForm):

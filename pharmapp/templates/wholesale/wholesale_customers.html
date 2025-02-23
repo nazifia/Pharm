@@ -1,5 +1,4 @@
-{% extends "partials/base.html" %}
-{% block content %}
+{% extends "partials/base.html" %} {% block content %}
 <style>
     .table {
         color: #333;
@@ -88,13 +87,17 @@
 </style>
 
 <div class="col-12">
-
-    <h3 style="text-align: center;">WHOLESALE CUSTOMER LIST</h3>
+    <h3 style="text-align: center">WHOLESALE CUSTOMER LIST</h3>
     {% for message in messages %}
-    <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
+    <div style="text-align: center" class="alert alert-{{ message.tags }}">
+        {{ message }}
+    </div>
     {% endfor %}
     <div class="table-responsive">
-        <table class="table table-hover mt-3" style="box-shadow: 0 0 10px rgba(0, 0, 0, 0.3)">
+        <table
+            class="table table-hover mt-3"
+            style="box-shadow: 0 0 10px rgba(0, 0, 0, 0.3)"
+        >
             <thead class="table-primary">
                 <tr>
                     <th scope="col">SN</th>
@@ -110,50 +113,80 @@
                 <tr>
                     <td data-label="SN">{{ forloop.counter }}.</td>
                     <td data-label="WALLET">
-                        <a href="{% url 'wholesale:wholesale_customer_wallet_details' customer.id %}"
+                        <a
+                            href="{% url 'wholesale:wholesale_customer_wallet_details' customer.id %}"
                             hx-get="{% url 'wholesale:wholesale_customer_wallet_details' customer.id %}"
-                            hx-target="#wallet-info" hx-trigger="click" class="btn btn-success btn-sm">Wallet</a>
+                            hx-target="#wallet-info"
+                            hx-trigger="click"
+                            class="btn btn-success btn-sm"
+                            >Wallet</a
+                        >
 
-                        <a href="{% url 'wholesale:delete_wholesale_customer' customer.id %}"
+                        <a
+                            href="{% url 'wholesale:delete_wholesale_customer' customer.id %}"
                             class="btn btn-sm btn-danger"
-                            onclick="return confirm('Are you sure you want to delete {{customer.name}} from the List?')">x</a>
+                            onclick="return confirm('Are you sure you want to delete {{customer.name}} from the List?')"
+                            >x</a
+                        >
                     </td>
                     <td data-label="CUSTOMERS">{{ customer.name|upper }}</td>
                     <td data-label="PHONE">{{ customer.phone }}</td>
                     <td data-label="ADDRESS">{{ customer.address|upper }}</td>
                     <td data-label="ACTION">
-                        <a type="button" class="btn btn-sm btn-primary"
+                        <a
+                            type="button"
+                            class="btn btn-sm btn-primary"
                             hx-get="{% url 'wholesale:select_wholesale_items' customer.id %}"
-                            hx-target="#item-selection" hx-swap="innerHTML">Select item</a>
+                            hx-target="#item-selection"
+                            hx-swap="innerHTML"
+                            >Select item</a
+                        >
 
-                        <a class="btn btn-sm btn-info" data-bs-toggle="modal"
-                            data-bs-target="#editWholesaleCustomerModal" hx-get=""
-                            hx-target="#editWholesaleCustomerModal .modal-content">Edit</a>
+                        <a
+                            class="btn btn-sm btn-info"
+                            data-toggle="modal"
+                            data-target="#editWholesaleCustomerModal"
+                            hx-get="{% url "wholesale:edit_wholesale_customer" customer.id %}"
+                            hx-target="#editWholesaleCustomerModal .modal-content"
+                            >Edit</a
+                        >
 
-                        <a type="button" class="btn btn-sm btn-warning"
+                        <a
+                            type="button"
+                            class="btn btn-sm btn-warning"
                             hx-get="{% url 'wholesale:wholesale_customer_history' customer.id %}"
-                            hx-target="#item-selection" hx-swap="innerHTML">History</a>
+                            hx-target="#item-selection"
+                            hx-swap="innerHTML"
+                            >History</a
+                        >
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" style="text-align: center;">No customers found.</td>
+                    <td colspan="6" style="text-align: center">
+                        No customers found.
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    <div id="wallet-info"></div> <!-- Display wallet details here -->
-    <div id="item-selection"></div> <!-- Display item selection form here -->
+    <div id="wallet-info"></div>
+    <!-- Display wallet details here -->
+    <div id="item-selection"></div>
+    <!-- Display item selection form here -->
 </div>
 
 <!-- Edit Wholesale Customer Modal -->
-<div class="modal fade" id="editWholesaleCustomerModal" tabindex="-1" aria-label="editWholesaleCustomerModalLabel"
-    aria-hidden="true">
+<div
+    class="modal fade"
+    id="editWholesaleCustomerModal"
+    tabindex="-1"
+    aria-label="editWholesaleCustomerModalLabel"
+    aria-hidden="true"
+>
     <div class="modal-dialog">
-        <div class="modal-content">
-
-        </div>
+        <div class="modal-content"></div>
     </div>
 </div>
 {% endblock %}
