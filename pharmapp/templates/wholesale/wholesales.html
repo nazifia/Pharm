@@ -1,4 +1,5 @@
 {% extends 'partials/base.html' %}
+{% load humanize %}
 {% load static %}
 
 {% block content %}
@@ -170,8 +171,8 @@
                     {% if user.is_superuser or is_staff %}
                     <td>{{item.unit}}</td>
                     {% endif %}
-                    <td>{{item.cost}}</td>
-                    <td>{{item.price}}</td>
+                    <td>{{item.cost|intcomma}}</td>
+                    <td>{{item.price|intcomma}}</td>
                     <td>{{item.stock}}</td>
                     <td>{{item.exp_date}}</td>
                 </tr>

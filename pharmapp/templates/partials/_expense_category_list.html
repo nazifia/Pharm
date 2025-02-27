@@ -1,0 +1,10 @@
+<div id="expense-category-list">
+    <h4>Expense Categories</h4>
+    <ul>
+        {% for category in categories %}
+            <li>{{ category.name }}</li>
+        {% empty %}
+            <li>No categories added yet.</li>
+        {% endfor %}
+    </ul>
+</div>

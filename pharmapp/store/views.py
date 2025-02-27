@@ -1521,22 +1521,21 @@ def procurement_detail(request, procurement_id):
 
 
 
+
 @login_required
 def transfer_multiple_store_items(request):
     if request.user.is_authenticated:
-        """
-        Process multiple store items transfers at once.
-        GET: Render a table of store items with fields to enter quantity, markup, and destination.
-        POST: For each selected item, process the transfer:
-            - Validate that the quantity is positive and available.
-            - Calculate the new selling price using the provided markup.
-            - Update or create the destination inventory item.
-            - Deduct the transferred quantity from the store item.
-            - Delete the store item if its stock is less than or equal to zero.
-        The response is returned via HTMX (without a full page reload).
-        """
         if request.method == "GET":
-            store_items = StoreItem.objects.all()
+            search_query = request.GET.get("search", "").strip()
+            if search_query:
+                store_items = StoreItem.objects.filter(name__icontains=search_query)
+            else:
+                store_items = StoreItem.objects.all()
+            
+            # If this is an HTMX request triggered by search, return only the table body
+            if request.headers.get("HX-Request") and "search" in request.GET:
+                return render(request, "partials/_store_items_table.html", {"store_items": store_items})
+            
             return render(request, "store/transfer_multiple_store_items.html", {"store_items": store_items})
         
         elif request.method == "POST":
@@ -1545,7 +1544,7 @@ def transfer_multiple_store_items(request):
             store_items = list(StoreItem.objects.all())  # materialize the queryset
             
             for item in store_items:
-                # Check if this item was selected for processing.
+                # Process only items that have been selected.
                 if request.POST.get(f'select_{item.id}') == 'on':
                     try:
                         qty = int(request.POST.get(f'quantity_{item.id}', 0))
@@ -1611,10 +1610,12 @@ def transfer_multiple_store_items(request):
                     item.stock -= qty
                     item.save()
                     
-                    # Check if the store item's stock is less than or equal to zero.
+                    # Remove the store item if its stock is zero or less.
                     if item.stock <= 0:
                         item.delete()
-                        processed_items.append(f"Transferred {qty} of {item.name} to {destination} and removed {item.name} from the store (stock reached zero).")
+                        processed_items.append(
+                            f"Transferred {qty} of {item.name} to {destination} and removed {item.name} from the store (stock reached zero)."
+                        )
                     else:
                         processed_items.append(f"Transferred {qty} of {item.name} to {destination}.")
             
@@ -1624,7 +1625,7 @@ def transfer_multiple_store_items(request):
             for msg in processed_items:
                 messages.success(request, msg)
             
-            # Refresh the store items after processing (this will exclude any deleted items).
+            # Refresh the store items after processing.
             store_items = StoreItem.objects.all()
             
             if request.headers.get('HX-request'):
@@ -1635,7 +1636,6 @@ def transfer_multiple_store_items(request):
         return JsonResponse({"success": False, "message": "Invalid request method."}, status=400)
     else:
         return redirect('store:index')
-
 
 
 
@@ -1764,11 +1764,34 @@ def bulk_adjust_stock(request, stock_check_id):
 @user_passes_test(is_admin)
 @login_required
 def stock_check_report(request, stock_check_id):
-    if request.user.is_authenticated:
-        stock_check = get_object_or_404(StockCheck, id=stock_check_id)
-        return render(request, 'store/stock_check_report.html', {'stock_check': stock_check})
-    else:
-        return redirect('store:index')
+    stock_check = get_object_or_404(StockCheck, id=stock_check_id)
+    total_cost_difference = 0
+
+    # Loop through each stock check item and aggregate the cost difference.
+    for item in stock_check.stockcheckitem_set.all():
+        discrepancy = item.discrepancy()  # Actual - Expected
+        # Assuming each item has a 'price' attribute.
+        unit_price = getattr(item.item, 'price', 0)
+        cost_difference = discrepancy * unit_price
+        total_cost_difference += cost_difference
+
+    context = {
+        'stock_check': stock_check,
+        'total_cost_difference': total_cost_difference,
+    }
+    return render(request, 'store/stock_check_report.html', context)
+
+
+@user_passes_test(is_admin)
+@login_required
+def list_stock_checks(request):
+    # Get all StockCheck objects ordered by date (newest first)
+    stock_checks = StockCheck.objects.all().order_by('-date')
+    context = {
+        'stock_checks': stock_checks,
+    }
+    return render(request, 'store/stock_check_list.html', context)
+
 
 
 
@@ -1992,13 +2015,25 @@ def generate_monthly_report():
 
 @user_passes_test(is_admin)
 @login_required
+# def expense_list(request):
+#     if request.user.is_authenticated:
+#         """Display all expenses."""
+#         expenses = Expense.objects.all().order_by('-date')
+#         return render(request, 'store/expense_list.html', {'expenses': expenses})
+#     else:  
+#         return redirect('store:index')
+
 def expense_list(request):
     if request.user.is_authenticated:
-        """Display all expenses."""
         expenses = Expense.objects.all().order_by('-date')
-        return render(request, 'store/expense_list.html', {'expenses': expenses})
+        expense_categories = ExpenseCategory.objects.all().order_by('name')
+        return render(request, 'store/expense_list.html', {
+            'expenses': expenses,
+            'expense_categories': expense_categories,
+        })
     else:  
         return redirect('store:index')
+
 
 @user_passes_test(is_admin)
 @login_required
@@ -2068,3 +2103,30 @@ def delete_expense(request, expense_id):
         return render(request, 'partials/_expense_list.html', {'expenses': expenses})
     else:
         return redirect('store:index')
+
+
+
+
+@user_passes_test(is_admin)
+@login_required
+def add_expense_category_form(request):
+    """Return the modal form for adding an expense category."""
+    form = ExpenseCategoryForm()
+    return render(request, 'partials/_expense_category_form.html', {'form': form})
+
+@user_passes_test(is_admin)
+@login_required
+def add_expense_category(request):
+    """Handle expense category form submission."""
+    if request.method == 'POST':
+        form = ExpenseCategoryForm(request.POST)
+        if form.is_valid():
+            form.save()
+            # Optionally, get all categories to update a list on the page
+            categories = ExpenseCategory.objects.all().order_by('name')
+            return render(request, 'partials/_expense_category_list.html', {'categories': categories})
+        else:
+            return render(request, 'partials/_expense_category_form.html', {'form': form})
+    else:
+        form = ExpenseCategoryForm()
+    return render(request, 'partials/_expense_category_form.html', {'form': form})

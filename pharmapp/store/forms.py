@@ -203,6 +203,14 @@ ProcurementItemFormSet = modelformset_factory(
 )
 
 
+class ExpenseCategoryForm(forms.ModelForm):
+    class Meta:
+        model = ExpenseCategory
+        fields = ['name']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+
 
 
 class ExpenseForm(forms.ModelForm):

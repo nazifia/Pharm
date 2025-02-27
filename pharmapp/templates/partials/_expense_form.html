@@ -24,8 +24,8 @@
 <!-- Expense Form -->
 <form class="expense-form" 
       hx-post="{% url 'store:add_expense' %}" 
-      hx-target="#expense-list" 
-      hx-swap="outerHTML" 
+      hx-target="#expenseTable" 
+      hx-swap="innerHTML" 
       hx-trigger="submit">
     
     {% csrf_token %}

@@ -59,6 +59,7 @@ urlpatterns = [
     path('<int:stock_check_id>/report/', views.stock_check_report, name='stock_check_report'),
     path('stock-check/<int:stock_check_id>/approve/', views.approve_stock_check, name='approve_stock_check'),
     path('stock-check/<int:stock_check_id>/bulk-adjust/', views.bulk_adjust_stock, name='bulk_adjust_stock'),
+    path('list/', views.list_stock_checks, name='list_stock_checks'),
 
     # Transfer Request URLs
     path("transfer/create/", views.create_transfer_request_wholesale, name="create_transfer_request_wholesale"),
@@ -76,6 +77,9 @@ urlpatterns = [
     path('expenses/update/<int:expense_id>/', views.update_expense, name='update_expense'),
     path('expenses/delete/<int:expense_id>/', views.delete_expense, name='delete_expense'),
     path('monthly-sales-deduction/', views.monthly_sales_with_deduction, name='monthly_sales_deduction'),
+    path('expense-category/form/', views.add_expense_category_form, name='add_expense_category_form'),
+    path('expense-category/add/', views.add_expense_category, name='add_expense_category'),
+
 
 
 ]

@@ -158,6 +158,7 @@
                 <th>Unit</th>
                 <th>Quantity</th>
                 <th>Cost Price</th>
+                <th>Expiry Date</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -171,6 +172,7 @@
                 <td>{{ form.unit }}</td>
                 <td>{{ form.quantity }}</td>
                 <td>{{ form.cost_price }}</td>
+                <td>{{ form.expiry_date }}</td>
                 <td>
                     {% if form.instance.pk %}
                     <input type="checkbox" name="{{ form.DELETE.name }}" id="{{ form.DELETE.id }}">
@@ -178,7 +180,6 @@
                     {% else %}
                     <button type="button" id="remove" class="btn btn-danger btn-sm remove-item"
                         onclick="removeRow(this)">Remove</button>
-
                     {% endif %}
                 </td>
             </tr>
@@ -237,6 +238,5 @@
             });
         }
     }
-
 </script>
 {% endblock %}
