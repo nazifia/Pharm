@@ -34,17 +34,24 @@ urlpatterns = [
     path('wholesale_receipt_list/', views.wholesale_receipt_list, name='wholesale_receipt_list'),
     path('wholesale_customer_history/<int:pk>/', views.wholesale_customer_history, name='wholesale_customer_history'),
     path('search_wholesale_receipts/', views.search_wholesale_receipts, name='search_wholesale_receipts'),
+    
+    
+    # Procurement URLs
     path('add_wholesale_procurement/', views.add_wholesale_procurement, name='add_wholesale_procurement'),
     path('wholesale_procurement_list/', views.wholesale_procurement_list, name='wholesale_procurement_list'),
     path('wholesales_by_user/', views.wholesales_by_user, name='wholesales_by_user'),
     path('wholesales_by_user/', views.wholesales_by_user, name='wholesales_by_user_table'),
     path('search_wholesale_procurement/', views.search_wholesale_procurement, name='search_wholesale_procurement'),
     path('wholesale_procurement_detail/<int:procurement_id>/', views.wholesale_procurement_detail, name='wholesale_procurement_detail'),
+    
+    
+    # Stock Check URLs
     path('create-wholesale-check/', views.create_wholesale_stock_check, name='create_wholesale_stock_check'),
     path('<int:stock_check_id>/update-wholesale/', views.update_wholesale_stock_check, name='update_wholesale_stock_check'),
     path('<int:stock_check_id>/report-wholesale/', views.wholesale_stock_check_report, name='wholesale_stock_check_report'),
     path('stock-check/<int:stock_check_id>/wholesale-approve/', views.approve_wholesale_stock_check, name='approve_wholesale_stock_check'),
     path('stock-check/<int:stock_check_id>/wholesale-bulk-adjust/', views.wholesale_bulk_adjust_stock, name='wholesale_bulk_adjust_stock'),
+    path('wholesale_list/', views.list_wholesale_stock_checks, name='list_wholesale_stock_checks'),
     
     
     # Request Transfer URLs

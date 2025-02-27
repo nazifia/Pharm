@@ -507,7 +507,7 @@ class WholesaleStockCheck(models.Model):
     approved_at = models.DateTimeField(null=True, blank=True)
 
     def total_discrepancy(self):
-        return sum(item.discrepancy() for item in self.stockcheckitem_set.all())
+        return sum(item.discrepancy() for item in self.wholesale_items.all())
 
     def __str__(self):
         return f"Stock Check #{self.id} - {self.date}"

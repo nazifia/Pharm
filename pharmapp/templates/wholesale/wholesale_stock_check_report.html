@@ -1,47 +1,55 @@
 {% extends "partials/base.html" %}
+{% load humanize %}
+{% load math_filters %}
+
 {% block content %}
-<h2>Stock Check Report: {{ stock_check.id }}</h2>
+<h2>Wholesale Stock Check Report: {{ stock_check.id }}</h2>
 <p>Date: {{ stock_check.date }}</p>
 <p>Status: <span class="badge badge-{{ stock_check.status|lower|slice:':7' }}">{{ stock_check.status }}</span></p>
 {% for message in messages %}
 <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
 {% endfor %}
-
-<table class="table table-striped">
+<div class="table-responsive">
+<table class="table table-hover">
     <thead>
         <tr>
             <th>Item</th>
             <th>Expected Quantity</th>
             <th>Actual Quantity</th>
             <th>Discrepancy</th>
+            <th>Cost Difference</th>
             <th>Status</th>
-            <th>Notes</th>
         </tr>
     </thead>
     <tbody>
-        {% for item in stock_check.stockcheckitem_set.all %}
+        {% for item in stock_check.wholesale_items.all %}
         <tr>
             <td>{{ item.item.name }}</td>
             <td>{{ item.expected_quantity }}</td>
             <td>{{ item.actual_quantity }}</td>
-            <td
-                style="color: {% if item.discrepancy < 0 %}red{% elif item.discrepancy > 0 %}green{% else %}black{% endif %};">
+            <td style="color: {% if item.discrepancy < 0 %}red{% elif item.discrepancy > 0 %}green{% else %}black{% endif %};">
                 {{ item.discrepancy }}
+            </td>
+            <td>
+                ₦ {{ item.discrepancy|mul:item.item.price|floatformat:2|intcomma }}
             </td>
             <td>
                 <span class="badge badge-{{ item.status|lower|slice:':7' }}">
                     {{ item.get_status_display }}
                 </span>
             </td>
-            <td>{{ item.notes }}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
+</div>
 
 <p><strong>Total Discrepancy: </strong> {{ stock_check.total_discrepancy }}</p>
+{% if total_cost_difference %}
+<p><strong>Total Cost Difference: </strong> ₦ {{ total_cost_difference|floatformat:2|intcomma }}</p>
+{% endif %}
 {% if stock_check.status == 'completed' %}
 <!-- <a href="" class="btn btn-info">Print Report</a> -->
 {% endif %}
-<a href="{% url 'store:update_stock_check' stock_check.id %}" class="btn btn-secondary btn-sm">Back</a>
+<a href="{% url 'wholesale:update_wholesale_stock_check' stock_check.id %}" class="btn btn-secondary btn-sm">Continue checking</a>
 {% endblock %}

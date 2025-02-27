@@ -1,0 +1,40 @@
+{% extends 'partials/base.html' %}
+{% load humanize %}
+{% block content %}
+
+  <h2>All Wholesale Stock Checks</h2>
+<div class="table-responsive">
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Date</th>
+        <th>Status</th>
+        <th>Created By</th>
+        <th>Total Discrepancy</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for stock_check in stock_checks %}
+      <tr>
+        <td>{{ stock_check.id }}</td>
+        <td>{{ stock_check.date|date:"SHORT_DATE_FORMAT" }}</td>
+        <td>{{ stock_check.status }}</td>
+        <td>{{ stock_check.created_by.username }}</td>
+        <td>{{ stock_check.total_discrepancy }}</td>
+        <td>
+          <a href="{% url 'wholesale:wholesale_stock_check_report' stock_check_id=stock_check.id %}">
+            View Report
+          </a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7">No stock checks available.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

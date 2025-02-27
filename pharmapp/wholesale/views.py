@@ -1240,10 +1240,41 @@ def wholesale_procurement_detail(request, procurement_id):
 
 
 
-import logging
+# import logging
 
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
+
+# @user_passes_test(is_admin)
+# @login_required
+# def create_wholesale_stock_check(request):
+#     if request.user.is_authenticated:
+#         if request.method == "POST":
+#             items = WholesaleItem.objects.all()
+#             if not items.exists():
+#                 messages.error(request, "No items found to check stock.")
+#                 return redirect('wholesale:wholesales')
+
+#             stock_check = WholesaleStockCheck.objects.create(created_by=request.user, status='in_progress')
+
+#             stock_check_items = [
+#                 WholesaleStockCheckItem(
+#                     stock_check=stock_check,
+#                     item=item,
+#                     expected_quantity=item.stock,
+#                     actual_quantity=0,
+#                     status='pending'
+#                 ) for item in items
+#             ]
+#             WholesaleStockCheckItem.objects.bulk_create(stock_check_items)
+
+#             messages.success(request, "Stock check created successfully.")
+#             return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
+
+#         return render(request, 'wholesale/create_wholesale_stock_check.html')
+#     else:
+#         return redirect('store:index')
+
 
 @user_passes_test(is_admin)
 @login_required
@@ -1276,13 +1307,38 @@ def create_wholesale_stock_check(request):
         return redirect('store:index')
     
     
+# @user_passes_test(is_admin)
+# @login_required
+# def update_wholesale_stock_check(request, stock_check_id):
+#     if request.user.is_authenticated:
+#         stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
+#         # if stock_check.status == 'completed':
+#         #     return redirect('wholesale:wholesale_stock_check_report', stock_check.id)
+
+#         if request.method == "POST":
+#             stock_items = []
+#             for item_id, actual_qty in request.POST.items():
+#                 if item_id.startswith("item_"):
+#                     item_id = int(item_id.replace("item_", ""))
+#                     stock_item = WholesaleStockCheckItem.objects.get(stock_check=stock_check, item_id=item_id)
+#                     stock_item.actual_quantity = int(actual_qty)
+#                     stock_items.append(stock_item)
+#             WholesaleStockCheckItem.objects.bulk_update(stock_items, ['actual_quantity'])
+#             messages.success(request, "Stock check updated successfully.")
+#             return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
+
+#         return render(request, 'wholesale/update_wholesale_stock_check.html', {'stock_check': stock_check})
+#     else:
+#         return redirect('store:index')
+    
+
 @user_passes_test(is_admin)
 @login_required
 def update_wholesale_stock_check(request, stock_check_id):
     if request.user.is_authenticated:
         stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
         # if stock_check.status == 'completed':
-        #     return redirect('wholesale:wholesale_stock_check_report', stock_check.id)
+        #     return redirect('store:stock_check_report', stock_check.id)
 
         if request.method == "POST":
             stock_items = []
@@ -1298,10 +1354,40 @@ def update_wholesale_stock_check(request, stock_check_id):
 
         return render(request, 'wholesale/update_wholesale_stock_check.html', {'stock_check': stock_check})
     else:
-        return redirect('store:index')
+        return redirect('store:index')    
     
     
+# @user_passes_test(is_admin)
+# @login_required
+# def approve_wholesale_stock_check(request, stock_check_id):
+#     if request.user.is_authenticated:
+#         stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
+#         if stock_check.status != 'in_progress':
+#             messages.error(request, "Stock check is not in progress.")
+#             return redirect('wholesale:wholesales')
+
+#         if request.method == "POST":
+#             selected_items = request.POST.getlist('item')
+#             if not selected_items:
+#                 messages.error(request, "Please select at least one item to approve.")
+#                 return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
+
+#             stock_items = WholesaleStockCheckItem.objects.filter(id__in=selected_items, stock_check=stock_check)
+#             stock_items.update(status='approved', approved_by=request.user, approved_at=datetime.now())
+
+#             if stock_items.count() == stock_check.wholesale_items.count():
+#                 stock_check.status = 'completed'
+#                 stock_check.save()
+
+#             messages.success(request, f"{stock_items.count()} items approved successfully.")
+#             return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
+
+#         return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
+#     else:
+#         return redirect('store:index')
     
+
+
 @user_passes_test(is_admin)
 @login_required
 def approve_wholesale_stock_check(request, stock_check_id):
@@ -1330,10 +1416,41 @@ def approve_wholesale_stock_check(request, stock_check_id):
         return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
     else:
         return redirect('store:index')
+
     
     
-    
-    
+# @user_passes_test(is_admin)
+# @login_required
+# def wholesale_bulk_adjust_stock(request, stock_check_id):
+#     if request.user.is_authenticated:
+#         stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
+#         if stock_check.status not in ['in_progress', 'completed']:
+#             messages.error(request, "Stock check status is invalid for adjustments.")
+#             return redirect('wholesale:wholesales')
+
+#         if request.method == "POST":
+#             selected_items = request.POST.getlist('item')
+#             if not selected_items:
+#                 messages.error(request, "Please select at least one item to adjust.")
+#                 return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
+
+#             stock_items = WholesaleStockCheckItem.objects.filter(id__in=selected_items, stock_check=stock_check)
+#             for item in stock_items:
+#                 discrepancy = item.discrepancy()
+#                 if discrepancy != 0:
+#                     item.item.stock += discrepancy
+#                     item.status = 'adjusted'
+#                     item.save()
+#                     WholesaleItem.objects.filter(id=item.item.id).update(stock=item.item.stock)
+
+#             messages.success(request, f"Stock adjusted for {stock_items.count()} items.")
+#             return redirect('wholesale:wholesales')
+
+#         return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
+#     else:
+#         return redirect('store:index')
+
+
 @user_passes_test(is_admin)
 @login_required
 def wholesale_bulk_adjust_stock(request, stock_check_id):
@@ -1347,7 +1464,7 @@ def wholesale_bulk_adjust_stock(request, stock_check_id):
             selected_items = request.POST.getlist('item')
             if not selected_items:
                 messages.error(request, "Please select at least one item to adjust.")
-                return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
+                return redirect('store:update_stock_check', stock_check.id)
 
             stock_items = WholesaleStockCheckItem.objects.filter(id__in=selected_items, stock_check=stock_check)
             for item in stock_items:
@@ -1364,17 +1481,50 @@ def wholesale_bulk_adjust_stock(request, stock_check_id):
         return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
     else:
         return redirect('store:index')
-    
+
+
+
+# @user_passes_test(is_admin)
+# @login_required
+# def wholesale_stock_check_report(request, stock_check_id):
+#     if request.user.is_authenticated:
+#         stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
+#         return render(request, 'wholesale/wholesale_stock_check_report.html', {'stock_check': stock_check})
+#     else:
+#         return redirect('store:index')
 
 
 @user_passes_test(is_admin)
 @login_required
 def wholesale_stock_check_report(request, stock_check_id):
-    if request.user.is_authenticated:
-        stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
-        return render(request, 'wholesale/wholesale_stock_check_report.html', {'stock_check': stock_check})
-    else:
-        return redirect('store:index')
+    stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
+    total_cost_difference = 0
+
+    # Loop through each stock check item and aggregate the cost difference.
+    for item in stock_check.wholesale_items.all():
+        discrepancy = item.discrepancy()  # Actual - Expected
+        # Assuming each item has a 'price' attribute.
+        unit_price = getattr(item.item, 'price', 0)
+        cost_difference = discrepancy * unit_price
+        total_cost_difference += cost_difference
+
+    context = {
+        'stock_check': stock_check,
+        'total_cost_difference': total_cost_difference,
+    }
+    return render(request, 'wholesale/wholesale_stock_check_report.html', context)
+
+
+
+@user_passes_test(is_admin)
+@login_required
+def list_wholesale_stock_checks(request):
+    # Get all StockCheck objects ordered by date (newest first)
+    stock_checks = WholesaleStockCheck.objects.all().order_by('-date')
+    context = {
+        'stock_checks': stock_checks,
+    }
+    return render(request, 'wholesale/wholesale_stock_check_list.html', context)
 
 
 

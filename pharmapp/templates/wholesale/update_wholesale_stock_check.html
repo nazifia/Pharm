@@ -1,6 +1,6 @@
 {% extends "partials/base.html" %}
 {% block content %}
-<h2>Update Stock Check: {{ stock_check.id }}</h2>
+<h2>Update Wholesale Stock Check: {{ stock_check.id }}</h2>
 {% for message in messages %}
 <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
 {% endfor %}
@@ -14,6 +14,7 @@
                 <th>Item</th>
                 <th>D/form</th>
                 <th>Brand</th>
+                <th>Unit</th>
                 <th>Expected Qty</th>
                 <th>Actual Qty</th>
                 <th>Status</th>
@@ -27,6 +28,7 @@
                 <td>{{ item.item.name }}</td>
                 <td>{{ item.item.dosage_form }}</td>
                 <td>{{ item.item.brand }}</td>
+                <td>{{ item.item.unit }}</td>
                 <td>{{ item.expected_quantity }}</td>
                 <td><input type="number" name="item_{{ item.item.id }}" value="{{ item.actual_quantity }}"
                         style="width: 100px;"></td>
