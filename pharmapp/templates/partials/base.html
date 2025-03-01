@@ -26,16 +26,57 @@
     <!-- Custom styles for this template-->
     <link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet">
 
+    <!-- Add manifest link -->
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+
+    <!-- Add theme-color meta tag -->
+    <meta name="theme-color" content="#4285f4">
+
     <style>
         .nazz:hover {
             transform: scale(1.05);
             transition: 0.5s ease-in-out;
+        }
+
+        .offline-status-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        #connection-status .badge {
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        #sync-button {
+            display: none;
+        }
+        
+        .offline-indicator {
+            background-color: #dc3545;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            text-align: center;
+            display: none;
         }
     </style>
 
 </head>
 
 <body id="page-top">
+
+    <!-- Add offline status indicator -->
+    <div class="offline-indicator" id="offline-indicator">
+        You are currently offline. Some features may be limited.
+    </div>
 
     <!-- Page Wrapper -->
     <div id="wrapper">
@@ -664,6 +705,14 @@
     </div>
 
 
+    <div class="offline-status-container">
+        <div id="connection-status"></div>
+        {% if user.is_authenticated %}
+            <button id="sync-button" class="btn btn-sm btn-primary">Sync Data</button>
+        {% endif %}
+    </div>
+
+
 {% comment %} Provide csrf token to transfer-request {% endcomment %}
     <script>
         document.body.addEventListener("htmx:configRequest", (event) => {
@@ -700,7 +749,11 @@
     </script>
 
 
+    <!-- Offline JavaScript-->
+    <script src="{% static 'js/offline.js' %}"></script>
 
+    <!-- Transaction JavaScript-->
+    <script src="{% static 'js/transactions.js' %}"></script>
 
     <!-- Bootstrap core JavaScript-->
     <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
@@ -723,6 +776,9 @@
     <script>
         document.getElementById('year').innerHTML = new Date().getFullYear();
     </script>
+
+    <!-- Add offline.js script -->
+    <script src="{% static 'js/offline.js' %}"></script>
 
 </body>
 

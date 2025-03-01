@@ -10,6 +10,8 @@ register_converter(ShortUUIDConverter, 'shortuuid')
 app_name = 'store'
 
 urlpatterns = [
+    # path("sync-offline-actions/", sync_offline_actions, name="sync-offline-actions"),
+    
     path('', views.index, name='index'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('logout_user/', views.logout_user, name='logout_user'),

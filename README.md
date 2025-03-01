@@ -1,1 +1,2 @@
 "# Pharm" 
+"# offline-enabled" 

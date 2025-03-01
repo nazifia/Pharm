@@ -1,5 +1,7 @@
 from collections import defaultdict
 from decimal import Decimal
+import json
+from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.db.models.functions import TruncMonth, TruncDay
 from django.shortcuts import get_object_or_404, render, redirect
@@ -15,6 +17,93 @@ from django.db.models import Q, F, ExpressionWrapper, Sum, DecimalField
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 
+# @csrf_exempt
+# def sync_offline_actions(request):
+#     if request.method == "POST":
+#         data = json.loads(request.body)
+#         for action in data.get("actions", []):
+#             action_type = action["actionType"]
+#             action_data = action["data"]
+
+#             if action_type == "add_customer":
+#                 Customer.objects.create(
+#                     name=action_data["name"],
+#                     email=action_data.get("email", ""),
+#                     phone=action_data.get("phone", "")
+#                 )
+
+#             elif action_type == "register_sale":
+#                 customer = get_object_or_404(Customer, id=action_data["customer_id"])
+#                 Sales.objects.create(
+#                     customer=customer,
+#                     total_amount=action_data["amount"]
+#                 )
+
+#             elif action_type == "update_stock":
+#                 item = get_object_or_404(Item, id=action_data["item_id"])
+#                 item.stock = action_data["new_stock"]
+#                 item.save()
+
+#             elif action_type == "wholesale_purchase":
+#                 customer = get_object_or_404(WholesaleCustomer, id=action_data["customer_id"])
+#                 Sales.objects.create(
+#                     wholesale_customer=customer,
+#                     total_amount=action_data["amount"]
+#                 )
+
+#             elif action_type == "add_wholesale_customer":
+#                 WholesaleCustomer.objects.create(
+#                     name=action_data["name"],
+#                     phone=action_data.get("phone", "")
+#                 )
+
+#         return JsonResponse({"status": "success"}, status=200)
+
+#     return JsonResponse({"error": "Invalid request"}, status=400)
+
+@csrf_exempt
+def sync_offline_actions(request):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        for action in data.get("actions", []):
+            action_type = action["actionType"]
+            action_data = action["data"]
+
+            if action_type == "add_customer":
+                Customer.objects.create(
+                    name=action_data["name"],
+                    email=action_data.get("email", ""),
+                    phone=action_data.get("phone", "")
+                )
+
+            elif action_type == "register_sale":
+                customer = get_object_or_404(Customer, id=action_data["customer_id"])
+                Sales.objects.create(
+                    customer=customer,
+                    total_amount=action_data["amount"]
+                )
+
+            elif action_type == "update_stock":
+                item = get_object_or_404(Item, id=action_data["item_id"])
+                item.stock = action_data["new_stock"]
+                item.save()
+
+            elif action_type == "wholesale_purchase":
+                customer = get_object_or_404(WholesaleCustomer, id=action_data["customer_id"])
+                Sales.objects.create(
+                    wholesale_customer=customer,
+                    total_amount=action_data["amount"]
+                )
+
+            elif action_type == "add_wholesale_customer":
+                WholesaleCustomer.objects.create(
+                    name=action_data["name"],
+                    phone=action_data.get("phone", "")
+                )
+
+        return JsonResponse({"status": "success"}, status=200)
+
+    return JsonResponse({"error": "Invalid request"}, status=400)
 
 
 
