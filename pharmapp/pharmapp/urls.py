@@ -12,12 +12,7 @@ urlpatterns = [
     path('', include('wholesale.urls')),
     path('', include('userauth.urls')),
     
-     path('offline/', include('offline.urls')),
-    # Service worker needs to be served from the root
-    path('sw.js', TemplateView.as_view(
-        template_name='sw.js',
-        content_type='application/javascript'
-    ), name='sw.js'),
+    
 ]
 
 if settings.DEBUG:

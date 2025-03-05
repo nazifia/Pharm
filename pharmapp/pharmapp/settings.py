@@ -40,7 +40,6 @@ INSTALLED_APPS = [
     'customer',
     'wholesale',
     'supplier',
-    'offline',
 
 ]
 
