@@ -1,0 +1,116 @@
+{% extends "partials/base.html" %}
+{% load humanize %}
+{% block content %}
+<div class="container mt-4">
+    <!-- Month Selection Form -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-auto">
+                    <label for="month" class="form-label">Select Month:</label>
+                    <input 
+                        type="month" 
+                        class="form-control" 
+                        id="month" 
+                        name="month" 
+                        value="{{ selected_month }}"
+                    >
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        Generate Report
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Report Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Expense Report - {{ month }}</h2>
+        <div>
+            <button onclick="window.print()" class="btn btn-sm btn-primary">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <button onclick="downloadPDF()" class="btn btn-sm btn-success">
+                <i class="fas fa-download"></i> Download PDF
+            </button>
+        </div>
+    </div>
+
+    {% if expenses %}
+    <!-- Summary Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>Summary</h4>
+        </div>
+        <div class="card-body">
+            <h5>Total Expenses: ₦{{ total_expenses|floatformat:2|intcomma }}</h5>
+            
+            <h5 class="mt-3">Expenses by Category:</h5>
+            <ul>
+                {% for category, amount in expenses_by_category.items %}
+                <li>{{ category }}: ₦{{ amount|floatformat:2|intcomma }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- Detailed Expenses Table -->
+    <div class="card">
+        <div class="card-header">
+            <h4>Detailed Expenses</h4>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for expense in expenses %}
+                        <tr>
+                            <td>{{ expense.date|date:"Y-m-d" }}</td>
+                            <td>{{ expense.category.name }}</td>
+                            <td>{{ expense.description }}</td>
+                            <td>₦{{ expense.amount|floatformat:2|intcomma }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        No expenses found for the selected month.
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    @media print {
+        .btn, 
+        .card:first-child,  /* Hide month selection form */
+        .navbar,
+        .sidebar { 
+            display: none; 
+        }
+        .container { 
+            width: 100%; 
+            max-width: none; 
+        }
+    }
+</style>
+
+<script>
+    function downloadPDF() {
+        window.print();
+    }
+</script>
+{% endblock %}

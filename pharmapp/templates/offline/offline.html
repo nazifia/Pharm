@@ -7,25 +7,35 @@
     <p>Some features may be limited until you reconnect to the internet.</p>
   </div>
   
-  <div class="card">
-    <div class="card-body">
-      <h5 class="card-title">Offline Mode</h5>
-      <p>You can still:</p>
-      <ul>
-        <li>View cached inventory</li>
-        <li>Create new sales (will be synced when online)</li>
-        <li>Add customers (will be synced when online)</li>
-      </ul>
-      <div id="sync-status"></div>
+  {% if is_authenticated %}
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Offline Mode</h5>
+        <p>You can still:</p>
+        <ul>
+          <li>View cached inventory</li>
+          <li>Create new sales (will be synced when online)</li>
+          <li>Add customers (will be synced when online)</li>
+        </ul>
+        <div id="sync-status"></div>
+      </div>
     </div>
-  </div>
-  
-  <div class="mt-4">
-    <h5>Pending Actions</h5>
-    <div id="pending-actions">
-      <p>Loading pending actions...</p>
+    
+    <div class="mt-4">
+      <h5>Pending Actions</h5>
+      <div id="pending-actions">
+        <p>Loading pending actions...</p>
+      </div>
     </div>
-  </div>
+  {% else %}
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Limited Access</h5>
+        <p>Please log in to access offline features.</p>
+        <a href="{% url 'store:index' %}" class="btn btn-primary">Log In</a>
+      </div>
+    </div>
+  {% endif %}
 </div>
 
 <script>

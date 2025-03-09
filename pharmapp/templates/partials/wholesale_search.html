@@ -1,10 +1,10 @@
 {% for item in items %}
 <tr>
-    <td><a class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#editWholesaleItemModal"
+    <td><a class="btn btn-sm btn-info" data-toggle="modal" data-target="#editWholesaleItemModal"
             hx-get="{% url 'wholesale:edit_wholesale_item' item.id %}"
             hx-target="#editWholesaleItemModal .modal-content">Edit</a>
 
-        <a class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#returnWholesaleItemModal"
+        <a class="btn btn-sm btn-warning" data-toggle="modal" data-target="#returnWholesaleItemModal"
             hx-get="{% url 'wholesale:return_wholesale_item' item.id %}"
             hx-target="#returnWholesaleItemModal .modal-content">Return</a>
 

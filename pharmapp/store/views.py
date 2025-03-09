@@ -17,95 +17,100 @@ from django.db.models import Q, F, ExpressionWrapper, Sum, DecimalField
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 
-# @csrf_exempt
-# def sync_offline_actions(request):
-#     if request.method == "POST":
-#         data = json.loads(request.body)
-#         for action in data.get("actions", []):
-#             action_type = action["actionType"]
-#             action_data = action["data"]
+@login_required
+def offline_view(request):
+    """
+    View for handling offline mode functionality
+    """
+    context = {
+        'title': 'Offline Mode',
+        'show_nav': True,
+        'is_authenticated': request.user.is_authenticated
+    }
+    return render(request, 'offline/offline.html', context)
 
-#             if action_type == "add_customer":
-#                 Customer.objects.create(
-#                     name=action_data["name"],
-#                     email=action_data.get("email", ""),
-#                     phone=action_data.get("phone", "")
-#                 )
 
-#             elif action_type == "register_sale":
-#                 customer = get_object_or_404(Customer, id=action_data["customer_id"])
-#                 Sales.objects.create(
-#                     customer=customer,
-#                     total_amount=action_data["amount"]
-#                 )
+def login_view(request):
+    if request.method == 'POST':
+        mobile = request.POST.get('mobile')
+        password = request.POST.get('password')
+        user = authenticate(request, mobile=mobile, password=password)
+        
+        if user is not None:
+            login(request, user)
+            next_url = request.GET.get('next', 'store:dashboard')
+            return redirect(next_url)
+        else:
+            return render(request, 'store/index.html', {
+                'error': 'Invalid credentials'
+            })
+    
+    return render(request, 'store/index.html')
 
-#             elif action_type == "update_stock":
-#                 item = get_object_or_404(Item, id=action_data["item_id"])
-#                 item.stock = action_data["new_stock"]
-#                 item.save()
-
-#             elif action_type == "wholesale_purchase":
-#                 customer = get_object_or_404(WholesaleCustomer, id=action_data["customer_id"])
-#                 Sales.objects.create(
-#                     wholesale_customer=customer,
-#                     total_amount=action_data["amount"]
-#                 )
-
-#             elif action_type == "add_wholesale_customer":
-#                 WholesaleCustomer.objects.create(
-#                     name=action_data["name"],
-#                     phone=action_data.get("phone", "")
-#                 )
-
-#         return JsonResponse({"status": "success"}, status=200)
-
-#     return JsonResponse({"error": "Invalid request"}, status=400)
 
 @csrf_exempt
 def sync_offline_actions(request):
-    if request.method == "POST":
+    """Handle syncing of offline actions"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid method'}, status=405)
+    
+    try:
         data = json.loads(request.body)
-        for action in data.get("actions", []):
-            action_type = action["actionType"]
-            action_data = action["data"]
-
-            if action_type == "add_customer":
-                Customer.objects.create(
-                    name=action_data["name"],
-                    email=action_data.get("email", ""),
-                    phone=action_data.get("phone", "")
-                )
-
-            elif action_type == "register_sale":
-                customer = get_object_or_404(Customer, id=action_data["customer_id"])
-                Sales.objects.create(
-                    customer=customer,
-                    total_amount=action_data["amount"]
-                )
-
-            elif action_type == "update_stock":
-                item = get_object_or_404(Item, id=action_data["item_id"])
-                item.stock = action_data["new_stock"]
-                item.save()
-
-            elif action_type == "wholesale_purchase":
-                customer = get_object_or_404(WholesaleCustomer, id=action_data["customer_id"])
-                Sales.objects.create(
-                    wholesale_customer=customer,
-                    total_amount=action_data["amount"]
-                )
-
-            elif action_type == "add_wholesale_customer":
-                WholesaleCustomer.objects.create(
-                    name=action_data["name"],
-                    phone=action_data.get("phone", "")
-                )
-
-        return JsonResponse({"status": "success"}, status=200)
-
-    return JsonResponse({"error": "Invalid request"}, status=400)
-
-
+        actions = data.get('pendingActions', [])
+        results = []
+        
+        with transaction.atomic():
+            for action in actions:
+                action_type = action['actionType']
+                action_data = action['data']
+                
+                try:
+                    if action_type == 'add_item':
+                        item = Item.objects.create(**action_data)
+                        results.append({
+                            'status': 'success',
+                            'action': action_type,
+                            'id': item.id
+                        })
+                    elif action_type == 'update_item':
+                        Item.objects.filter(id=action_data['id']).update(**action_data)
+                        results.append({
+                            'status': 'success',
+                            'action': action_type,
+                            'id': action_data['id']
+                        })
+                    elif action_type == 'add_customer':
+                        customer = Customer.objects.create(**action_data)
+                        results.append({
+                            'status': 'success',
+                            'action': action_type,
+                            'id': customer.id
+                        })
+                    elif action_type == 'update_customer':
+                        Customer.objects.filter(id=action_data['id']).update(**action_data)
+                        results.append({
+                            'status': 'success',
+                            'action': action_type,
+                            'id': action_data['id']
+                        })
+                    # Add more action types as needed
+                    
+                except Exception as e:
+                    results.append({
+                        'status': 'error',
+                        'action': action_type,
+                        'error': str(e)
+                    })
+        
+        return JsonResponse({
+            'status': 'success',
+            'results': results
+        })
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'error': str(e)
+        }, status=500)
 
 # Create your views here.
 def is_admin(user):
@@ -583,6 +588,144 @@ def receipt_detail(request, receipt_id):
 
 
 
+# @login_required
+# def return_item(request, pk):
+#     if request.user.is_authenticated:
+#         item = get_object_or_404(Item, id=pk)
+
+#         if request.method == 'POST':
+#             form = ReturnItemForm(request.POST)
+#             if form.is_valid():
+#                 return_quantity = form.cleaned_data.get('return_item_quantity')
+
+#                 # Validate the return quantity
+#                 if return_quantity <= 0:
+#                     messages.error(request, 'Invalid return item quantity.')
+#                     return redirect('store:store')
+
+#                 try:
+#                     with transaction.atomic():
+#                         # Update item stock
+#                         item.stock += return_quantity
+#                         item.save()
+
+#                         # Find the sales item associated with the returned item
+#                         sales_item = SalesItem.objects.filter(item=item).order_by('-quantity').first()
+#                         if not sales_item or sales_item.quantity < return_quantity:
+#                             messages.error(request, f'No valid sales record found for {item.name}.')
+#                             return redirect('store:store')
+
+#                         # Calculate refund and update sales item
+#                         refund_amount = return_quantity * sales_item.price
+#                         if sales_item.quantity > return_quantity:
+#                             sales_item.quantity -= return_quantity
+#                             sales_item.save()
+#                         else:
+#                             sales_item.delete()
+
+#                         # Update sales total
+#                         sales = sales_item.sales
+#                         sales.total_amount -= refund_amount
+#                         sales.save()
+
+#                         # Process wallet refund if applicable
+#                         if sales.customer and hasattr(sales.customer, 'customer_wallet'):
+#                             wallet = sales.customer.customer_wallet
+#                             wallet.balance += refund_amount
+#                             wallet.save()
+
+#                             # Log the refund transaction
+#                             TransactionHistory.objects.create(
+#                                 customer=sales.customer,
+#                                 transaction_type='refund',
+#                                 amount=refund_amount,
+#                                 description=f'Refund for {return_quantity} of {item.name}'
+#                             )
+#                             messages.success(
+#                                 request,
+#                                 f'{return_quantity} of {item.name} successfully returned, and ₦{refund_amount} refunded to the wallet.'
+#                             )
+#                         else:
+#                             messages.error(request, 'Customer wallet not found or not associated.')
+
+
+#                         # Update dispensing log
+#                         logs = DispensingLog.objects.filter(
+#                             user=sales.user, 
+#                             name=item.name, 
+#                             status__in=['Dispensed', 'Partially Returned']
+#                         ).order_by('-created_at')
+
+#                         remaining_return_quantity = return_quantity
+
+#                         for log in logs:
+#                             if remaining_return_quantity <= 0:
+#                                 break
+
+#                             if log.quantity <= remaining_return_quantity:
+#                                 # Fully return this log's quantity
+#                                 remaining_return_quantity -= log.quantity
+#                                 log.status = 'Returned'
+#                                 log.save()
+#                                 # log.delete()  # Completely remove the log if returned in full
+#                             else:
+#                                 # Partially return this log's quantity
+#                                 log.quantity -= remaining_return_quantity
+#                                 log.status = 'Partially Returned'
+#                                 log.save()
+#                                 remaining_return_quantity = 0
+
+#                         # Handle excess return quantities
+#                         if remaining_return_quantity > 0:
+#                             messages.warning(
+#                                 request,
+#                                 f"Some of the returned quantity ({remaining_return_quantity}) could not be processed as it exceeds the dispensed records."
+#                             )
+
+
+
+#                         # Update daily and monthly sales data
+#                         daily_sales = get_daily_sales()
+#                         monthly_sales = get_monthly_sales_with_expenses()
+
+#                         # Render updated logs for HTMX requests
+#                         if request.headers.get('HX-Request'):
+#                             context = {
+#                                 'logs': DispensingLog.objects.filter(user=sales.user).order_by('-created_at'),
+#                                 'daily_sales': daily_sales,
+#                                 'monthly_sales': monthly_sales
+#                             }
+#                             return render(request, 'store/dispensing_log.html', context)
+
+#                         messages.success(
+#                             request,
+#                             f'{return_quantity} of {item.name} successfully returned, sales and logs updated.'
+#                         )
+#                         return redirect('store:store')
+
+#                 except Exception as e:
+#                     # Handle exceptions during atomic transaction
+#                     print(f'Error during item return: {e}')
+#                     messages.error(request, f'Error processing return: {e}')
+#                     return redirect('store:store')
+#             else:
+#                 messages.error(request, 'Invalid input. Please correct the form and try again.')
+
+#         else:
+#             # Display the return form in a modal or a page
+#             form = ReturnItemForm()
+
+#         # Return appropriate response for HTMX or full-page requests
+#         if request.headers.get('HX-Request'):
+#             return render(request, 'partials/return_item_modal.html', {'form': form, 'item': item})
+#         else:
+#             return render(request, 'store/store.html', {'form': form})
+#     else:    
+#         return redirect('store:index')
+
+
+
+
 @login_required
 def return_item(request, pk):
     if request.user.is_authenticated:
@@ -715,8 +858,10 @@ def return_item(request, pk):
             return render(request, 'partials/return_item_modal.html', {'form': form, 'item': item})
         else:
             return render(request, 'store/store.html', {'form': form})
-    else:    
+    else:
         return redirect('store:index')
+
+
 
 
 @login_required
@@ -1890,53 +2035,39 @@ logger = logging.getLogger(__name__)
 @login_required
 def create_transfer_request_wholesale(request):
     if request.user.is_authenticated:
-        """
-        Handles transfer request creation for wholesale.
-        For GET: Render the wholesale transfer request form where the wholesale user selects
-        an item from the retail inventory.
-        For POST: Create a transfer request initiated by a wholesale user, requesting that
-        a retail item be moved from the retail inventory to the wholesale inventory.
-        """
         if request.method == "GET":
-            # Render form for a wholesale user to request items from retail.
-            # We use retail items as the available inventory.
-            retail_items = Item.objects.all()  # Assuming Item represents retail inventory.
-            return render(request, "wholesale/wholesale_transfer_request.html", {"retail_items": retail_items})
-
+            # Render form for a retail user to request items from wholesale
+            wholesale_items = WholesaleItem.objects.all().order_by('name')
+            return render(request, "store/retail_transfer_request.html", {"wholesale_items": wholesale_items})
+        
         elif request.method == "POST":
-            # For a wholesale-initiated request (pulling from retail to wholesale),
-            # the hidden field "from_wholesale" should be "true".
-            from_wholesale_str = request.POST.get("from_wholesale", "false")
-            # For this scenario, we expect from_wholesale to be True.
-            from_wholesale = from_wholesale_str.lower() == "true"
             try:
                 requested_quantity = int(request.POST.get("requested_quantity", 0))
-            except (TypeError, ValueError):
-                return JsonResponse({"success": False, "message": "Invalid quantity provided."}, status=400)
-            item_id = request.POST.get("item_id")
-            
-            # Since we are pulling from retail to wholesale, the wholesale user selects from retail items.
-            if from_wholesale:
-                # The wholesale user selects a retail item (e.g. from the Item model)
-                source_item = get_object_or_404(Item, id=item_id)
+                item_id = request.POST.get("item_id")
+                from_wholesale = request.POST.get("from_wholesale", "false").lower() == "true"
+
+                if not item_id or requested_quantity <= 0:
+                    return JsonResponse({"success": False, "message": "Invalid input provided."}, status=400)
+
+                source_item = get_object_or_404(WholesaleItem, id=item_id)
+                
                 transfer = TransferRequest.objects.create(
-                    retail_item=source_item,  # Assumes TransferRequest has a field for retail items.
+                    wholesale_item=source_item,
                     requested_quantity=requested_quantity,
-                    from_wholesale=True,  # Indicates this request is initiated by wholesale.
+                    from_wholesale=False,
                     status="pending",
-                    created_at=datetime.now()
+                    created_at=timezone.now()
                 )
-            else:
-                # Optionally, handle the unexpected case.
-                return JsonResponse({"success": False, "message": "Invalid request direction."}, status=400)
-            
-            messages.success(request, "Transfer request created.")
-            return JsonResponse({"success": True, "message": "Transfer request created."})
-        
-        messages.error(request, 'Error creating request')
-        return render(request, 'wholesale/wholesale_transfer_request.html')
-    else:
-        return redirect('store:index')
+                
+                messages.success(request, "Transfer request created successfully.")
+                return JsonResponse({"success": True, "message": "Transfer request created successfully."})
+                
+            except (TypeError, ValueError) as e:
+                return JsonResponse({"success": False, "message": str(e)}, status=400)
+            except Exception as e:
+                return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
+    
+    return redirect('store:index')
 
 
 
@@ -2091,15 +2222,40 @@ def transfer_request_list(request):
 # EXPENSES TRACKING LOGIC
 @user_passes_test(is_admin)
 @login_required
-def generate_monthly_report():
-    current_month = datetime.now().replace(day=1)
-    total_sales = Sales.objects.filter(date__month=current_month.month, date__year=current_month.year).aggregate(Sum('total_amount'))['total_amount__sum'] or 0
-    total_expenses = Expense.objects.filter(date__month=current_month.month, date__year=current_month.year).aggregate(Sum('amount'))['amount__sum'] or 0
+def generate_monthly_report(request):
+    # Get selected month from request, default to current month
+    selected_month_str = request.GET.get('month')
     
-    report, created = MonthlyReport.objects.get_or_create(month=current_month)
-    report.total_sales = total_sales
-    report.total_expenses = total_expenses
-    report.calculate_net_profit()
+    if selected_month_str:
+        try:
+            selected_date = datetime.strptime(selected_month_str, '%Y-%m')
+        except ValueError:
+            selected_date = datetime.now()
+    else:
+        selected_date = datetime.now()
+    
+    # Filter expenses for the selected month
+    expenses = Expense.objects.filter(
+        date__month=selected_date.month, 
+        date__year=selected_date.year
+    ).order_by('-date')
+    
+    total_expenses = expenses.aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    # Group expenses by category
+    expenses_by_category = defaultdict(Decimal)
+    for expense in expenses:
+        expenses_by_category[expense.category.name] += expense.amount
+    
+    context = {
+        'expenses': expenses,
+        'total_expenses': total_expenses,
+        'expenses_by_category': dict(expenses_by_category),
+        'month': selected_date.strftime('%B %Y'),
+        'selected_month': selected_month_str or selected_date.strftime('%Y-%m')
+    }
+    
+    return render(request, 'store/expense_report.html', context)
 
 
 @user_passes_test(is_admin)

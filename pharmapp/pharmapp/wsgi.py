@@ -8,9 +8,21 @@ https://docs.djangoproject.com/en/5.1/howto/deployment/wsgi/
 """
 
 import os
+import sys
+from pathlib import Path
 
-from django.core.wsgi import get_wsgi_application
+# Get the project base directory
+BASE_DIR = Path(__file__).resolve().parent.parent
+# Add the project directory to the Python path
+sys.path.insert(0, str(BASE_DIR))
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'pharmapp.settings')
 
-application = get_wsgi_application()
+try:
+    from django.core.wsgi import get_wsgi_application
+    application = get_wsgi_application()
+except Exception as e:
+    import traceback
+    print(f"Error loading WSGI application: {e}")
+    traceback.print_exc()
+    raise

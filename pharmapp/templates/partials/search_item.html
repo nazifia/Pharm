@@ -1,10 +1,10 @@
 {% for item in items %}
 <tr>
     <td>
-        <a class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#editModal"
+        <a class="btn btn-sm btn-info" data-toggle="modal" data-target="#editModal"
             hx-get="{% url 'store:edit_item' item.id %}" hx-target="#editModal .modal-content">Edit</a>
 
-        <a class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#returnItemModal" hx-get=""
+        <a class="btn btn-sm btn-warning" data-toggle="modal" data-target="#returnItemModal" hx-get="{% url 'store:return_item' item.id %}"
             hx-target="#returnItemModal .modal-content">Return</a>
 
         <a href="" onclick="return confirm('Are you sure you want to delete {{item.name|title}} from  Store?')"

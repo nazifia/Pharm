@@ -1,0 +1,37 @@
+{% load static %}
+
+<form id="{{ form_id }}" 
+      data-offline 
+      data-offline-action="{{ action_type }}"
+      data-success-url="{{ success_url }}"
+      class="offline-enabled-form">
+    {% csrf_token %}
+    
+    {{ form.as_p }}
+    
+    <button type="submit" class="btn btn-primary">
+        {{ submit_text|default:"Save" }}
+    </button>
+    
+    <div class="offline-status mt-2" style="display: none;">
+        <div class="alert alert-warning">
+            <i class="fas fa-wifi-slash"></i>
+            You're offline. This {{ entity_name }} will be saved locally and synchronized when you're back online.
+        </div>
+    </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('{{ form_id }}');
+    const offlineStatus = form.querySelector('.offline-status');
+    
+    function updateOfflineStatus() {
+        offlineStatus.style.display = navigator.onLine ? 'none' : 'block';
+    }
+    
+    window.addEventListener('online', updateOfflineStatus);
+    window.addEventListener('offline', updateOfflineStatus);
+    updateOfflineStatus();
+});
+</script>

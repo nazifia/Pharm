@@ -178,6 +178,8 @@
                         <a class="collapse-item" href="{% url 'store:dispensing_log' %}">Dispensing Log</a>
                         <a class="collapse-item" href="{% url 'store:daily_sales' %}">Daily sales</a>
                         <a class="collapse-item" href="{% url 'store:monthly_sales' %}">Monthly sales</a>
+                        <a class="collapse-item" href="{% url 'store:expense_list' %}">
+                            <i class="fas fa-fw fa-list"></i> Manage Expenses</a>
                         <h6 class="collapse-header">Retailing:</h6>
                         <a class="collapse-item" href="{% url 'store:sales_by_user' %}">sales by user</a>
                         <a class="collapse-item" href="{% url 'store:receipt_list' %}">Retail receipts</a>
@@ -253,12 +255,11 @@
                             <span>Admin-page</span></a>
                         <a class="collapse-item" href="{% url 'userauth:register' %}">
                             <i class="fas fa-fw fa-user-plus"></i> <span>User Registration</span></a>
+                            <h6 class="collapse-header">Stock Check:</h6>
                         <a class="collapse-item" href="{% url 'store:create_stock_check' %}">
                             <i class="fas fa-fw fa-search"></i> Stock Check</a>
                         <a class="collapse-item" href="{% url 'wholesale:create_wholesale_stock_check' %}">
                             <i class="fas fa-fw fa-search"></i> Wholesale Stock Check</a>
-                        <a class="collapse-item" href="{% url 'store:expense_list' %}">
-                            <i class="fas fa-fw fa-list"></i> Manage Expenses</a>
                         <h6 class="collapse-header">Stock Check report:</h6>
                         <a class="collapse-item" href="{% url 'store:list_stock_checks' %}">
                             <i class="fas fa-fw fa-list"></i> Stock reports

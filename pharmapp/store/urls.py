@@ -11,6 +11,9 @@ app_name = 'store'
 
 urlpatterns = [
     # path("sync-offline-actions/", sync_offline_actions, name="sync-offline-actions"),
+    path('index/', views.login_view, name='index'),
+    path('offline/', views.offline_view, name='offline'),
+    path('sync-offline-actions/', views.sync_offline_actions, name='sync_offline_actions'),
     
     path('', views.index, name='index'),
     path('dashboard/', views.dashboard, name='dashboard'),
@@ -81,6 +84,7 @@ urlpatterns = [
     path('monthly-sales-deduction/', views.monthly_sales_with_deduction, name='monthly_sales_deduction'),
     path('expense-category/form/', views.add_expense_category_form, name='add_expense_category_form'),
     path('expense-category/add/', views.add_expense_category, name='add_expense_category'),
+    path('expenses/report/', views.generate_monthly_report, name='generate_monthly_report'),
 
 
 

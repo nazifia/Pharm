@@ -2,28 +2,49 @@
 {% extends "partials/base.html" %}
 {% block content %}
 <div class="container mt-4">
-    {% for message in messages %}
-      <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
-    {% endfor %}
+    <div id="messages-container">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-dismiss="alert" aria-label="Close">x</button>
+        </div>
+        {% endfor %}
+    </div>
+
     <h2>Request Wholesale Item Transfer</h2>
     <div id="transfer-response" class="mt-3"></div>
-    <form hx-post="{% url 'wholesale:create_transfer_request' %}" hx-target="#transfer-response" hx-swap="innerHTML">
+    
+    <form hx-post="{% url 'wholesale:create_transfer_request' %}" 
+          hx-target="#transfer-response" 
+          hx-swap="innerHTML"
+          hx-indicator="#loading">
         {% csrf_token %}
-        <!-- Indicate that this request is initiated by retail -->
         <input type="hidden" name="from_wholesale" value="false">
-        <div class="form-group">
-          <label for="item_id">Select Wholesale Item:</label>
-          <select name="item_id" id="item_id" class="form-control" required>
-            {% for item in wholesale_items %}
-              <option value="{{ item.id }}">{{ item.name }} (Stock: {{ item.stock }})</option>
-            {% endfor %}
-          </select>
+        
+        <div class="form-group mb-3">
+            <label for="item_id" class="form-label">Select Wholesale Item:</label>
+            <select name="item_id" id="item_id" class="form-select" required>
+                <option value="">Select an item...</option>
+                {% for item in wholesale_items %}
+                    <option value="{{ item.id }}">{{ item.name }} (Stock: {{ item.stock }} {{ item.unit }})</option>
+                {% endfor %}
+            </select>
         </div>
-        <div class="form-group mt-2">
-          <label for="requested_quantity">Requested Quantity:</label>
-          <input type="number" name="requested_quantity" id="requested_quantity" class="form-control" min="1" required>
+        
+        <div class="form-group mb-3">
+            <label for="requested_quantity" class="form-label">Requested Quantity:</label>
+            <input type="number" 
+                   name="requested_quantity" 
+                   id="requested_quantity" 
+                   class="form-control" 
+                   min="1" 
+                   required>
         </div>
-        <button type="submit" class="btn btn-sm btn-primary mt-3">Send Request</button>
+        
+        <button type="submit" class="btn btn-sm btn-primary">
+            <span class="spinner-border spinner-border-sm d-none" id="loading" role="status"></span>
+            Send Request
+        </button>
     </form>
 </div>
 {% endblock %}

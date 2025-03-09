@@ -5,112 +5,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Receipt Details</title>
-    <!-- Custom fonts for this template-->
+    <title>Receipt Details - {{ receipt.receipt_id }}</title>
     <link href="{% static 'vendor/fontawesome-free/css/all.min.css' %}" rel="stylesheet" type="text/css">
-    <link
-        href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
-        rel="stylesheet">
-
-    <!-- Custom styles for this template-->
     <link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/receipt_print.css' %}" rel="stylesheet">
     <script src="{% static 'htmx/htmx.min.js' %}"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
-            color: #333;
-        }
-
-        .receipt-container {
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-
-        h3 {
-            color: #333;
-            text-align: center;
-            font-size: 24px;
-            margin-bottom: 10px;
-        }
-
-        p {
-            font-size: 16px;
-            margin: 10px 0;
-        }
-
-        p strong {
-            color: #555;
-        }
-
-        .table {
-            font-size: 14px;
-            color: #333;
-        }
-
-        @media (max-width: 768px) {
-            .receipt-container {
-                margin: 10px;
-                padding: 15px;
-            }
-
-            h3 {
-                font-size: 20px;
-            }
-
-            p {
-                font-size: 14px;
-            }
-
-            .table {
-                font-size: 12px;
-            }
-
-            button {
-                font-size: 14px;
-                width: 100%;
-                margin-top: 10px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .receipt-container {
-                margin: 5px;
-                padding: 10px;
-            }
-
-            h3 {
-                font-size: 18px;
-            }
-
-            p {
-                font-size: 12px;
-            }
-
-            .table {
-                font-size: 10px;
-            }
-
-            button {
-                font-size: 12px;
-                width: 100%;
-            }
-        }
-    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 
 <body>
-    {% block content %}
-    <div class="receipt-container">
+    <div class="receipt-container" id="receipt">
         <header>
-            <div class="receipt-head" style="text-align: center;">
+            <div class="receipt-head">
                 <h3>Nazz Pharmacy</h3>
                 <p>No. 123 FTH Jibia Bypass, Katsina</p>
+                <p>Tel: +234-XXX-XXX-XXXX</p>
             </div>
         </header>
 
@@ -165,13 +74,84 @@
         <p style="text-align: end;"><strong>Total Amount: ₦{{ receipt.total_amount }}</strong></p>
         <p style="text-align: end;"><strong>Payment Method: {{ receipt.payment_method }}</strong></p>
 
-        <button class="btn btn-outline-success btn-sm ml-2" onclick="window.print()">Reprint Receipt</button>
+        {% if receipt.has_returns %}
+        <div class="returns-section mt-4">
+            <h4>Returns Information</h4>
+            <pre>{{ receipt.return_notes }}</pre>
+        </div>
+        {% endif %}
 
         <footer>
-            <p style="text-align: center;">___Thank you for your patronage___</p>
+            <p>___Thank you for your patronage___</p>
+            <p>This is a computer-generated receipt</p>
+            <small>{{ receipt.date|date:"F j, Y H:i" }}</small>
         </footer>
     </div>
-    {% endblock %}
+
+    <div class="action-buttons no-print">
+        <button class="btn btn-primary btn-sm" onclick="printReceipt('thermal')">
+            <i class="fas fa-print"></i> Thermal Print
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="printReceipt('a4')">
+            <i class="fas fa-print"></i> A4 Print
+        </button>
+        <button class="btn btn-success btn-sm" onclick="downloadPDF()">
+            <i class="fas fa-download"></i> Download PDF
+        </button>
+        <button class="btn btn-info btn-sm" onclick="window.location.reload()">
+            <i class="fas fa-redo"></i> Reset
+        </button>
+    </div>
+
+    <script>
+        function printReceipt(format) {
+            const originalTitle = document.title;
+            const receipt = document.getElementById('receipt');
+            
+            // Remove any existing format classes
+            receipt.classList.remove('thermal-print', 'a4-print');
+            
+            if (format === 'thermal') {
+                receipt.classList.add('thermal-print');
+                receipt.style.width = '80mm';
+                document.title = 'Thermal_' + originalTitle;
+            } else {
+                receipt.classList.add('a4-print');
+                receipt.style.width = '210mm';
+                document.title = 'A4_' + originalTitle;
+            }
+
+            // Add small delay to ensure styles are applied
+            setTimeout(() => {
+                window.print();
+                
+                // Reset after printing
+                setTimeout(() => {
+                    receipt.style.width = '';
+                    document.title = originalTitle;
+                    receipt.classList.remove('thermal-print', 'a4-print');
+                }, 100);
+            }, 100);
+        }
+
+        function downloadPDF() {
+            const receipt = document.getElementById('receipt');
+            const options = {
+                margin: 10,
+                filename: 'Receipt_{{ receipt.receipt_id }}.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().from(receipt).set(options).save();
+        }
+
+        // Handle print dialog close
+        window.onafterprint = function() {
+            document.title = 'Receipt Details - {{ receipt.receipt_id }}';
+        };
+    </script>
 </body>
 
 </html>

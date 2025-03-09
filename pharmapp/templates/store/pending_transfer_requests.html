@@ -8,8 +8,9 @@
     <thead>
       <tr>
         <th>Item Name</th>
-        <th>Requested Quantity</th>
-        <th>Approved Quantity</th>
+        <th>Rqsted Qty</th>
+        <th>Item Unit</th>
+        <th>Approved Qty</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -17,6 +18,7 @@
       {% for transfer in pending_transfers %}
       <tr id="transfer-{{ transfer.id }}">
         <td>{{ transfer.retail_item.name }}</td>
+        <td>{{ transfer.retail_item.unit }}</td>
         <td>{{ transfer.requested_quantity }}</td>
         <td>
           <!-- Inline form for approved quantity -->

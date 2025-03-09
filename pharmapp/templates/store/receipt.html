@@ -5,115 +5,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Receipt</title>
-    <!-- Custom fonts for this template-->
+    <title>Receipt - {{ receipt.receipt_id }}</title>
     <link href="{% static 'vendor/fontawesome-free/css/all.min.css' %}" rel="stylesheet" type="text/css">
-    <link
-        href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
-        rel="stylesheet">
-
-    <!-- Custom styles for this template-->
     <link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/receipt_print.css' %}" rel="stylesheet">
     <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
     <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 
 <body>
-    {% block content %}
-    <header>
-        <div class="receipt-head" style="text-align: center;">
-            <h3>Nazz Pharmacy</h3>
-            <p>No. 123 FTH Jibia Bypass, Katsina</p>
-            <p style="text-align: center;">Date: {{ receipt.date|date:"F j, Y" }}</p>
-            <p style="text-align: center;">Receipt Type: <strong>Retail</strong></p>
-            <p style="text-align: center;">Receipt ID: {{ receipt.receipt_id }}</p>
-            <p style="text-align: center;">Sales Person: {{ user.username }}</p>
+    <div id="receipt" class="receipt-container">
+        {% block content %}
+        <header>
+            <div class="receipt-head">
+                <h3>Nazz Pharmacy</h3>
+                <p>No. 123 FTH Jibia Bypass, Katsina</p>
+                <p>Tel: +234-XXX-XXX-XXXX</p>
+                <p>Date: {{ receipt.date|date:"F j, Y" }}</p>
+                <p>Receipt Type: <strong>Retail</strong></p>
+                <p>Receipt ID: {{ receipt.receipt_id }}</p>
+                <p>Sales Person: {{ user.username }}</p>
+            </div>
+        </header>
+
+        <form id="buyer-info-form" method="POST" action="{% url 'store:receipt_detail' receipt.receipt_id %}"
+            style="text-align: center;">
+            {% csrf_token %}
+            <label for="buyer_name">Buyer's Name:</label>
+            <input type="text" id="buyer_name" name="buyer_name"
+                value="{{ receipt.buyer_name|default:'WALK-IN CUSTOMER'|upper }}" placeholder="WALK-IN CUSTOMER"
+                style="border: none; border-bottom:1px solid grey; margin-bottom: 3px;">
+            <div class="box">
+                <label for="buyer_address">Buyer's Address:</label>
+                <input type="text" id="buyer_address" name="buyer_address" value="{{ receipt.buyer_address|default:'' }}"
+                    placeholder="Customer Address" style="border: none; border-bottom:1px solid grey;">
+            </div>
+
+            <button type="button" id="paymentMethodButton" class="btn btn-outline-primary btn-sm mt-2"
+                data-toggle="modal" data-target="#paymentMethodModal">
+                {% if receipt.payment_method %}
+                Payment Method: {{ receipt.payment_method }}
+                {% else %}
+                Select Payment Method
+                {% endif %}
+            </button>
+
+            <input type="hidden" name="payment_method" id="paymentMethodInput" value="{{ receipt.payment_method }}">
+        </form>
+
+        {% if sales_items %}
+        <div class="table-responsive mt-3">
+            <table class="table table-hover table-bordered">
+                <thead class="table-primary">
+                    <tr>
+                        <th>SN</th>
+                        <th>Item Name</th>
+                        <th>D/form</th>
+                        <th>Brand Name</th>
+                        <th>Unit</th>
+                        <th>Quantity</th>
+                        <th>Rate</th>
+                        <th>Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sales_item in sales_items %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ sales_item.item.name|title }}</td>
+                        <td>{{ sales_item.item.dosage_form|title }}</td>
+                        <td>{{ sales_item.item.brand|title }}</td>
+                        <td>{{ sales_item.item.unit }}</td>
+                        <td>{{ sales_item.quantity }}</td>
+                        <td>₦{{ sales_item.price }}</td>
+                        <td>₦{{ sales_item.subtotal|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="totals" style="text-align: right;">
+                <h6>Total Price: ₦{{ total_price|floatformat:2 }}</h6>
+                {% if total_discounted_price %}
+                <h4>Total Payable: ₦{{ total_discounted_price|floatformat:2 }}</h4>
+                {% endif %}
+            </div>
         </div>
-    </header>
-
-    <form id="buyer-info-form" method="POST" action="{% url 'store:receipt_detail' receipt.receipt_id %}"
-        style="text-align: center;">
-        {% csrf_token %}
-        <label for="buyer_name">Buyer's Name:</label>
-        <input type="text" id="buyer_name" name="buyer_name"
-            value="{{ receipt.buyer_name|default:'WALK-IN CUSTOMER'|upper }}" placeholder="WALK-IN CUSTOMER"
-            style="border: none; border-bottom:1px solid grey; margin-bottom: 3px;">
-        <div class="box">
-            <label for="buyer_address">Buyer's Address:</label>
-            <input type="text" id="buyer_address" name="buyer_address" value="{{ receipt.buyer_address|upper }}"
-                placeholder="" style="border: none; border-bottom:1px solid grey;">
-        </div>
-        <br><br>
-
-        <!-- Payment Status Selection -->
-        <!-- <label for="payment_status">Payment Status:</label>
-        <select id="payment_status" name="payment_status" class="form-select form-select-sm"
-            style="display: inline-block; width: auto;">
-            <option value="Paid" {% if receipt.paid %}selected{% endif %}>Paid</option>
-            <option value="Unpaid" {% if not receipt.paid %}selected{% endif %}>Unpaid</option>
-        </select> -->
-
-        <!-- Trigger Button -->
-        <button type="button" class="btn-outline-primary btn-sm" id="paymentMethodButton" data-toggle="modal"
-            data-target="#paymentMethodModal">
-            {% if receipt.payment_method %}
-            Payment Method: {{ receipt.payment_method }}
-            {% else %}
-            Select Payment Method
-            {% endif %}
-        </button>
-
-        <!-- Hidden Input for Payment Method -->
-        <input type="hidden" name="payment_method" id="paymentMethodInput" value="{{ receipt.payment_method }}">
-    </form>
-
-    {% if sales_items %}
-    <div class="col-md-8 offset-md-2 mt-5">
-        <table class="table table-hover table-bordered mt-5">
-            <thead class="table-primary">
-                <tr>
-                    <th scope="col">SN</th>
-                    <th scope="col">Item Name</th>
-                    <th scope="col">D/form</th>
-                    <th scope="col">Brand Name</th>
-                    <th scope="col">Unit</th>
-                    <th scope="col">Quantity</th>
-                    <th scope="col">Rate</th>
-                    <th scope="col">Subtotal</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for sales_item in sales_items %}
-                <tr>
-                    <td>{{ forloop.counter }}</td>
-                    <td>{{ sales_item.item.name|title }}</td>
-                    <td>{{ sales_item.item.dosage_form|title }}</td>
-                    <td>{{ sales_item.item.brand|title }}</td>
-                    <td>{{ sales_item.item.unit }}</td>
-                    <td>{{ sales_item.quantity }} </td>
-                    <td>₦{{ sales_item.price }}</td>
-                    <td>₦{{ sales_item.subtotal|floatformat:2 }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <h6 style="text-align:end;">Total Price: ₦{{ total_price|floatformat:2 }}</h6>
-
-        {% if total_discounted_price %}
-        <h4 style="text-align:end;">Total Payable: ₦{{ total_discounted_price|floatformat:2 }}</h4>
         {% endif %}
+        {% endblock %}
 
-        <button class="btn btn-outline-success btn-sm ml-2" onclick="submitFormAndPrint()">Print Receipt</button>
-        <!-- <a href="" class="btn btn-sm btn-outline-secondary">Back</a> -->
+        <footer>
+            <p>___Thank you for your patronage___</p>
+            <p>This is a computer-generated receipt</p>
+            <small>{{ receipt.date|date:"F j, Y H:i" }}</small>
+        </footer>
     </div>
-    {% endif %}
-    {% endblock %}
 
-    <footer>
-        <p style="text-align: center;">___Thank you for patronage___</p>
-    </footer>
-
-    <!-- Modal -->
+    <!-- Payment Method Modal -->
     <div class="modal fade" id="paymentMethodModal" tabindex="-1" aria-labelledby="paymentMethodModalLabel"
         aria-hidden="true">
         <div class="modal-dialog">
@@ -136,12 +124,26 @@
         </div>
     </div>
 
+    <div class="action-buttons no-print">
+        <button class="btn btn-primary btn-sm" onclick="printReceipt('thermal')">
+            <i class="fas fa-print"></i> Thermal Print
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="printReceipt('a4')">
+            <i class="fas fa-print"></i> A4 Print
+        </button>
+        <button class="btn btn-success btn-sm" onclick="downloadPDF()">
+            <i class="fas fa-download"></i> Download PDF
+        </button>
+        <button class="btn btn-info btn-sm" onclick="submitFormAndPrint()">
+            <i class="fas fa-save"></i> Save & Print
+        </button>
+    </div>
+
     <script>
         function submitFormAndPrint() {
             document.getElementById('buyer-info-form').submit();
-
             setTimeout(function () {
-                window.print();
+                printReceipt('thermal');
                 window.location.href = "{% url 'store:view_cart' %}";
             }, 500);
         }
@@ -152,6 +154,43 @@
             var modal = bootstrap.Modal.getInstance(document.getElementById('paymentMethodModal'));
             modal.hide();
         }
+
+        function printReceipt(format) {
+            const originalTitle = document.title;
+            const receipt = document.getElementById('receipt');
+            
+            if (format === 'thermal') {
+                receipt.style.width = '80mm';
+                document.title = 'Thermal_' + originalTitle;
+            } else {
+                receipt.style.width = '210mm';
+                document.title = 'A4_' + originalTitle;
+            }
+
+            window.print();
+            
+            setTimeout(() => {
+                receipt.style.width = '';
+                document.title = originalTitle;
+            }, 100);
+        }
+
+        function downloadPDF() {
+            const receipt = document.getElementById('receipt');
+            const options = {
+                margin: 10,
+                filename: 'Receipt_{{ receipt.receipt_id }}.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().from(receipt).set(options).save();
+        }
+
+        window.onafterprint = function() {
+            document.title = 'Receipt - {{ receipt.receipt_id }}';
+        };
     </script>
 </body>
 

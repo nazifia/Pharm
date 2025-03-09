@@ -1,0 +1,16 @@
+{% extends 'partials/base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Add Inventory Item</h2>
+    
+    {% include 'partials/offline_form.html' with 
+        form_id="inventory-form"
+        action_type="add_item"
+        success_url=url 'store:store'
+        entity_name="inventory item"
+        form=form
+        submit_text="Add Item"
+    %}
+</div>
+{% endblock %}

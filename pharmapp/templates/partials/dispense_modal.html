@@ -17,8 +17,7 @@
         <form method="POST" action="{% url 'store:add_to_cart' item.id %}">
             {% csrf_token %}
             <div>
-                {{ item.name }} {{ item.dosage_form }} ({{ item.brand }})=> {{
-                item.stock }} {{item.unit}} Available, at {{item.price}} each.
+                {{ item.name }} {{ item.dosage_form }} ({{ item.brand }})=> {{item.stock }} {{item.unit}} Available, at {{item.price}} each.
             </div>
 
             <!-- Quantity Input -->

@@ -15,7 +15,9 @@
     Add Expense Category
 </a>
 
-<a href="{% url "store:monthly_sales_deduction" %}" class="btn btn-success btn-sm my-2"> Generate Expense Report </a>
+<a href="{% url "store:monthly_sales_deduction" %}" class="btn btn-info btn-sm my-2"> Generate Expense Summary </a>
+
+<a href="{% url 'store:generate_monthly_report' %}?month={% now 'Y-m' %}" class="btn btn-sm btn-success btn-sm my-2"> Generate Expense Report </a>
 
 <!-- Expense List Table -->
 <div id="expense-list">{% include 'partials/_expense_list.html' %}</div>

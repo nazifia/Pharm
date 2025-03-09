@@ -16,9 +16,8 @@ SECRET_KEY = 'django-insecure-745$ysi)dtow@&h&g9%um@8m-7#8)xkva&4r1q4vx_mpg3pg&3
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-ALLOWED_HOSTS = ['yourusername.pythonanywhere.com', 'localhost', '127.0.0.1']
-
+# ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 
 # Application definition
@@ -30,6 +29,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
+    'whitenoise.runserver_nostatic',
     
     'django.contrib.humanize',
     
@@ -52,6 +53,11 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware', 
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    # Add custom offline middleware
+    'pharmapp.middleware.OfflineMiddleware',
 ]
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
@@ -134,6 +140,19 @@ MEDIA_ROOT = BASE_DIR /'media'
 AUTH_USER_MODEL = 'userauth.User'
 
 
+
+# Add to your settings.py for offline-mode
+# PWA_SERVICE_WORKER_PATH = os.path.join(BASE_DIR, 'static', 'js', 'sw.js')
+PWA_APP_NAME = 'PharmApp'
+PWA_APP_DESCRIPTION = "Pharmacy Management System"
+PWA_APP_THEME_COLOR = '#4285f4'
+PWA_APP_BACKGROUND_COLOR = '#ffffff'
+PWA_APP_DISPLAY = 'standalone'
+PWA_APP_SCOPE = '/'
+PWA_APP_START_URL = '/'
+PWA_APP_STATUS_BAR_COLOR = 'default'
+
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
@@ -156,4 +175,7 @@ SESSION_SAVE_EVERY_REQUEST = True  # Reset the session expiration time on each r
 
 
 
-
+# Authentication settings
+LOGIN_URL = 'store:index'  # Update this to match your login URL pattern
+LOGIN_REDIRECT_URL = 'store:index'
+LOGOUT_REDIRECT_URL = 'store:index'

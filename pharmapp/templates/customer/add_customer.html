@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Add Customer</h2>
+    
+    <div class="card">
+        <div class="card-body">
+            <form id="customer-form" 
+                  data-offline 
+                  data-offline-action="add_customer"
+                  data-success-url="{% url 'customer:list' %}">
+                {% csrf_token %}
+                
+                <div class="mb-3">
+                    <label for="name" class="form-label">Name</label>
+                    <input type="text" class="form-control" id="name" name="name" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="email" name="email">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="phone" class="form-label">Phone</label>
+                    <input type="text" class="form-control" id="phone" name="phone">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">
+                    Save Customer
+                </button>
+                
+                <div class="offline-status mt-2" style="display: none;">
+                    <small class="text-muted">
+                        You're offline. This customer will be saved locally and synchronized when you're back online.
+                    </small>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('customer-form');
+    const offlineStatus = form.querySelector('.offline-status');
+    
+    function updateOfflineStatus() {
+        offlineStatus.style.display = navigator.onLine ? 'none' : 'block';
+    }
+    
+    window.addEventListener('online', updateOfflineStatus);
+    window.addEventListener('offline', updateOfflineStatus);
+    updateOfflineStatus();
+});
+</script>
+{% endblock %}

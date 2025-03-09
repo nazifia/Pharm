@@ -127,14 +127,23 @@ class AddFundsForm(forms.Form):
 
 
 
-class ReturnItemForm(forms.ModelForm):
-    return_item_quantity = forms.IntegerField(min_value=1, label="Return Quantity")
+class ReturnItemForm(forms.Form):
+    return_item_quantity = forms.IntegerField(
+        min_value=1,
+        label="Return Quantity",
+        widget=forms.NumberInput(attrs={'class': 'form-control mb-3'})
+    )
+    return_reason = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control mb-3', 'rows': 3}),
+        required=True,
+        label="Reason for Return"
+    )
 
-    class Meta:
-        model = Item
-        fields = ['name', 'dosage_form', 'brand', 'price', 'exp_date']  # Fields to display (readonly)
-
-
+    def clean_return_item_quantity(self):
+        quantity = self.cleaned_data.get('return_item_quantity')
+        if quantity <= 0:
+            raise forms.ValidationError("Return quantity must be greater than zero.")
+        return quantity
 
 
 

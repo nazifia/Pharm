@@ -1534,53 +1534,39 @@ logger = logging.getLogger(__name__)
 @login_required
 def create_transfer_request(request):
     if request.user.is_authenticated:
-        """
-        Handles transfer request creation for retail users.
-        For GET: Render the retail transfer request form where the retail user selects
-        a wholesale item from the wholesale inventory.
-        For POST: Create a transfer request initiated by a retail user, requesting that
-        a wholesale item be moved from the wholesale inventory to the retail inventory.
-        """
         if request.method == "GET":
-            # Render form for a retail user to request items from wholesale.
-            # We use wholesale items as the available inventory.
-            wholesale_items = WholesaleItem.objects.all()
-            return render(request, "store/retail_transfer_request.html", {"wholesale_items": wholesale_items})
+            # Render form for a wholesale user to request items from retail
+            retail_items = Item.objects.all().order_by('name')
+            return render(request, "wholesale/wholesale_transfer_request.html", {"retail_items": retail_items})
         
         elif request.method == "POST":
-            # For a retail-initiated request (pulling from wholesale to retail),
-            # the hidden field "from_wholesale" should be "false".
-            from_wholesale_str = request.POST.get("from_wholesale", "false")
-            # For this scenario, we expect from_wholesale to be False.
-            from_wholesale = from_wholesale_str.lower() == "true"
             try:
                 requested_quantity = int(request.POST.get("requested_quantity", 0))
-            except (TypeError, ValueError):
-                return JsonResponse({"success": False, "message": "Invalid quantity provided."}, status=400)
-            item_id = request.POST.get("item_id")
-            
-            # Since we are pulling from wholesale to retail, the retail user is selecting from wholesale items.
-            if not from_wholesale:
-                # The retail user selects a wholesale item (i.e. from the WholesaleItem model)
-                source_item = get_object_or_404(WholesaleItem, id=item_id)
+                item_id = request.POST.get("item_id")
+                from_wholesale = request.POST.get("from_wholesale", "false").lower() == "true"
+
+                if not item_id or requested_quantity <= 0:
+                    return JsonResponse({"success": False, "message": "Invalid input provided."}, status=400)
+
+                source_item = get_object_or_404(Item, id=item_id)
+                
                 transfer = TransferRequest.objects.create(
-                    wholesale_item=source_item,
+                    retail_item=source_item,
                     requested_quantity=requested_quantity,
-                    from_wholesale=False,  # Indicates this request is initiated by a retail user.
+                    from_wholesale=True,
                     status="pending",
-                    created_at=datetime.now()
+                    created_at=timezone.now()
                 )
-            else:
-                # Optionally, handle the unexpected case or raise an error.
-                return JsonResponse({"success": False, "message": "Invalid request direction."}, status=400)
-            
-            messages.success(request, "Transfer request created.")
-            return JsonResponse({"success": True, "message": "Transfer request created."})
-        
-        messages.error(request, 'Error creating request')
-        return render(request, 'store/retail_transfer_request.html')
-    else:
-        return redirect('store:index')
+                
+                messages.success(request, "Transfer request created successfully.")
+                return JsonResponse({"success": True, "message": "Transfer request created successfully."})
+                
+            except (TypeError, ValueError) as e:
+                return JsonResponse({"success": False, "message": str(e)}, status=400)
+            except Exception as e:
+                return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
+    
+    return redirect('store:index')
     
     
 
