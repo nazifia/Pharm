@@ -1,4 +1,5 @@
 import os
+import shutil
 from django.contrib import messages
 
 from pathlib import Path
@@ -31,20 +32,18 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     
     'whitenoise.runserver_nostatic',
-    
     'django.contrib.humanize',
-    
-    
     'django_htmx',
     'store',
     'userauth',
     'customer',
     'wholesale',
     'supplier',
-
+    'corsheaders',  # Make sure this is here
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # This should be first
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -58,6 +57,22 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     # Add custom offline middleware
     'pharmapp.middleware.OfflineMiddleware',
+]
+
+# CORS settings
+CORS_ALLOWED_ORIGINS = [
+    "capacitor://localhost",
+    "http://localhost",
+    "http://localhost:8000",
+]
+
+CORS_ALLOW_METHODS = [
+    'GET',
+    'POST',
+    'PUT',
+    'PATCH',
+    'DELETE',
+    'OPTIONS'
 ]
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
@@ -179,3 +194,13 @@ SESSION_SAVE_EVERY_REQUEST = True  # Reset the session expiration time on each r
 LOGIN_URL = 'store:index'  # Update this to match your login URL pattern
 LOGIN_REDIRECT_URL = 'store:index'
 LOGOUT_REDIRECT_URL = 'store:index'
+
+# def copy_index_html(sender, **kwargs):
+#     """Copy capacitor_index.html to staticfiles/index.html after collectstatic"""
+#     source = os.path.join(BASE_DIR, 'templates', 'capacitor_index.html')
+#     dest = os.path.join(BASE_DIR, 'staticfiles', 'index.html')
+#     if os.path.exists(source):
+#         shutil.copy2(source, dest)
+
+# from django.core.signals import static_files_copied
+# static_files_copied.connect(copy_index_html)

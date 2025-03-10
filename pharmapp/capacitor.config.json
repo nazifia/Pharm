@@ -1,0 +1,8 @@
+{
+  "appId": "com.pharmapp.app",
+  "appName": "PharmApp",
+  "webDir": "staticfiles",
+  "server": {
+    "androidScheme": "https"
+  }
+}
