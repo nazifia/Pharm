@@ -588,144 +588,6 @@ def receipt_detail(request, receipt_id):
 
 
 
-# @login_required
-# def return_item(request, pk):
-#     if request.user.is_authenticated:
-#         item = get_object_or_404(Item, id=pk)
-
-#         if request.method == 'POST':
-#             form = ReturnItemForm(request.POST)
-#             if form.is_valid():
-#                 return_quantity = form.cleaned_data.get('return_item_quantity')
-
-#                 # Validate the return quantity
-#                 if return_quantity <= 0:
-#                     messages.error(request, 'Invalid return item quantity.')
-#                     return redirect('store:store')
-
-#                 try:
-#                     with transaction.atomic():
-#                         # Update item stock
-#                         item.stock += return_quantity
-#                         item.save()
-
-#                         # Find the sales item associated with the returned item
-#                         sales_item = SalesItem.objects.filter(item=item).order_by('-quantity').first()
-#                         if not sales_item or sales_item.quantity < return_quantity:
-#                             messages.error(request, f'No valid sales record found for {item.name}.')
-#                             return redirect('store:store')
-
-#                         # Calculate refund and update sales item
-#                         refund_amount = return_quantity * sales_item.price
-#                         if sales_item.quantity > return_quantity:
-#                             sales_item.quantity -= return_quantity
-#                             sales_item.save()
-#                         else:
-#                             sales_item.delete()
-
-#                         # Update sales total
-#                         sales = sales_item.sales
-#                         sales.total_amount -= refund_amount
-#                         sales.save()
-
-#                         # Process wallet refund if applicable
-#                         if sales.customer and hasattr(sales.customer, 'customer_wallet'):
-#                             wallet = sales.customer.customer_wallet
-#                             wallet.balance += refund_amount
-#                             wallet.save()
-
-#                             # Log the refund transaction
-#                             TransactionHistory.objects.create(
-#                                 customer=sales.customer,
-#                                 transaction_type='refund',
-#                                 amount=refund_amount,
-#                                 description=f'Refund for {return_quantity} of {item.name}'
-#                             )
-#                             messages.success(
-#                                 request,
-#                                 f'{return_quantity} of {item.name} successfully returned, and ₦{refund_amount} refunded to the wallet.'
-#                             )
-#                         else:
-#                             messages.error(request, 'Customer wallet not found or not associated.')
-
-
-#                         # Update dispensing log
-#                         logs = DispensingLog.objects.filter(
-#                             user=sales.user, 
-#                             name=item.name, 
-#                             status__in=['Dispensed', 'Partially Returned']
-#                         ).order_by('-created_at')
-
-#                         remaining_return_quantity = return_quantity
-
-#                         for log in logs:
-#                             if remaining_return_quantity <= 0:
-#                                 break
-
-#                             if log.quantity <= remaining_return_quantity:
-#                                 # Fully return this log's quantity
-#                                 remaining_return_quantity -= log.quantity
-#                                 log.status = 'Returned'
-#                                 log.save()
-#                                 # log.delete()  # Completely remove the log if returned in full
-#                             else:
-#                                 # Partially return this log's quantity
-#                                 log.quantity -= remaining_return_quantity
-#                                 log.status = 'Partially Returned'
-#                                 log.save()
-#                                 remaining_return_quantity = 0
-
-#                         # Handle excess return quantities
-#                         if remaining_return_quantity > 0:
-#                             messages.warning(
-#                                 request,
-#                                 f"Some of the returned quantity ({remaining_return_quantity}) could not be processed as it exceeds the dispensed records."
-#                             )
-
-
-
-#                         # Update daily and monthly sales data
-#                         daily_sales = get_daily_sales()
-#                         monthly_sales = get_monthly_sales_with_expenses()
-
-#                         # Render updated logs for HTMX requests
-#                         if request.headers.get('HX-Request'):
-#                             context = {
-#                                 'logs': DispensingLog.objects.filter(user=sales.user).order_by('-created_at'),
-#                                 'daily_sales': daily_sales,
-#                                 'monthly_sales': monthly_sales
-#                             }
-#                             return render(request, 'store/dispensing_log.html', context)
-
-#                         messages.success(
-#                             request,
-#                             f'{return_quantity} of {item.name} successfully returned, sales and logs updated.'
-#                         )
-#                         return redirect('store:store')
-
-#                 except Exception as e:
-#                     # Handle exceptions during atomic transaction
-#                     print(f'Error during item return: {e}')
-#                     messages.error(request, f'Error processing return: {e}')
-#                     return redirect('store:store')
-#             else:
-#                 messages.error(request, 'Invalid input. Please correct the form and try again.')
-
-#         else:
-#             # Display the return form in a modal or a page
-#             form = ReturnItemForm()
-
-#         # Return appropriate response for HTMX or full-page requests
-#         if request.headers.get('HX-Request'):
-#             return render(request, 'partials/return_item_modal.html', {'form': form, 'item': item})
-#         else:
-#             return render(request, 'store/store.html', {'form': form})
-#     else:    
-#         return redirect('store:index')
-
-
-
-
 @login_required
 def return_item(request, pk):
     if request.user.is_authenticated:
@@ -735,133 +597,98 @@ def return_item(request, pk):
             form = ReturnItemForm(request.POST)
             if form.is_valid():
                 return_quantity = form.cleaned_data.get('return_item_quantity')
+                return_reason = form.cleaned_data.get('return_reason', 'No reason provided')
 
-                # Validate the return quantity
                 if return_quantity <= 0:
-                    messages.error(request, 'Invalid return item quantity.')
+                    messages.error(request, 'Return quantity must be greater than zero.')
                     return redirect('store:store')
 
                 try:
                     with transaction.atomic():
-                        # Update item stock
-                        item.stock += return_quantity
-                        item.save()
+                        # Find the most recent sales item
+                        sales_item = SalesItem.objects.select_for_update().filter(
+                            item=item,
+                            sales__date__gte=timezone.now() - timezone.timedelta(days=30)
+                        ).order_by('-sales__date').first()
 
-                        # Find the sales item associated with the returned item
-                        sales_item = SalesItem.objects.filter(item=item).order_by('-quantity').first()
-                        if not sales_item or sales_item.quantity < return_quantity:
-                            messages.error(request, f'No valid sales record found for {item.name}.')
+                        if not sales_item:
+                            messages.error(request, f'No recent sales record found for {item.name}.')
                             return redirect('store:store')
 
-                        # Calculate refund and update sales item
-                        refund_amount = return_quantity * sales_item.price
-                        if sales_item.quantity > return_quantity:
-                            sales_item.quantity -= return_quantity
-                            sales_item.save()
-                        else:
+                        # Get current quantities
+                        current_quantity = sales_item.quantity
+                        if current_quantity < return_quantity:
+                            messages.error(
+                                request, 
+                                f'Cannot return {return_quantity} items. Only {current_quantity} were purchased.'
+                            )
+                            return redirect('store:store')
+
+                        receipt = Receipt.objects.select_for_update().filter(sales=sales_item.sales).first()
+                        if not receipt:
+                            messages.error(request, 'No receipt found for this sale.')
+                            return redirect('store:store')
+
+                        # Calculate refund amount
+                        refund_amount = Decimal(str(return_quantity)) * sales_item.price
+
+                        # Update item stock first
+                        item.stock = models.F('stock') + return_quantity
+                        item.save()
+                        item.refresh_from_db()
+
+                        # Update sales item quantity
+                        new_quantity = current_quantity - return_quantity
+                        if new_quantity == 0:
                             sales_item.delete()
-
-                        # Update sales total
-                        sales = sales_item.sales
-                        sales.total_amount -= refund_amount
-                        sales.save()
-
-                        # Process wallet refund if applicable
-                        if sales.customer and hasattr(sales.customer, 'customer_wallet'):
-                            wallet = sales.customer.customer_wallet
-                            wallet.balance += refund_amount
-                            wallet.save()
-
-                            # Log the refund transaction
-                            TransactionHistory.objects.create(
-                                customer=sales.customer,
-                                transaction_type='refund',
-                                amount=refund_amount,
-                                description=f'Refund for {return_quantity} of {item.name}'
-                            )
-                            messages.success(
-                                request,
-                                f'{return_quantity} of {item.name} successfully returned, and ₦{refund_amount} refunded to the wallet.'
-                            )
                         else:
-                            messages.error(request, 'Customer wallet not found or not associated.')
+                            sales_item.quantity = new_quantity
+                            sales_item.save()
 
+                        # Update receipt
+                        receipt.total_amount -= refund_amount
+                        receipt.return_notes = (receipt.return_notes or '') + \
+                            f"\nReturned {return_quantity} {item.name} - {return_reason} (₦{refund_amount})"
+                        receipt.has_returns = True
+                        receipt.save()
 
-                        # Update dispensing log
-                        logs = DispensingLog.objects.filter(
-                            user=sales.user, 
-                            name=item.name, 
-                            status__in=['Dispensed', 'Partially Returned']
-                        ).order_by('-created_at')
-
-                        remaining_return_quantity = return_quantity
-
-                        for log in logs:
-                            if remaining_return_quantity <= 0:
-                                break
-
-                            if log.quantity <= remaining_return_quantity:
-                                # Fully return this log's quantity
-                                remaining_return_quantity -= log.quantity
-                                log.status = 'Returned'
-                                log.save()
-                                # log.delete()  # Completely remove the log if returned in full
-                            else:
-                                # Partially return this log's quantity
-                                log.quantity -= remaining_return_quantity
-                                log.status = 'Partially Returned'
-                                log.save()
-                                remaining_return_quantity = 0
-
-                        # Handle excess return quantities
-                        if remaining_return_quantity > 0:
-                            messages.warning(
-                                request,
-                                f"Some of the returned quantity ({remaining_return_quantity}) could not be processed as it exceeds the dispensed records."
-                            )
-
-
-
-                        # Update daily and monthly sales data
-                        daily_sales = get_daily_sales()
-                        monthly_sales = get_monthly_sales_with_expenses()
-
-                        # Render updated logs for HTMX requests
-                        if request.headers.get('HX-Request'):
-                            context = {
-                                'logs': DispensingLog.objects.filter(user=sales.user).order_by('-created_at'),
-                                'daily_sales': daily_sales,
-                                'monthly_sales': monthly_sales
-                            }
-                            return render(request, 'store/dispensing_log.html', context)
+                        # Create return log
+                        DispensingLog.objects.create(
+                            user=request.user,
+                            name=item.name,
+                            brand=item.brand,
+                            unit=item.unit,
+                            quantity=-return_quantity,
+                            amount=-refund_amount,
+                            status="Returned"
+                        )
 
                         messages.success(
-                            request,
-                            f'{return_quantity} of {item.name} successfully returned, sales and logs updated.'
+                            request, 
+                            f'{return_quantity} of {item.name} successfully returned. Refund amount: ₦{refund_amount}'
                         )
                         return redirect('store:store')
 
+                except IntegrityError as e:
+                    print(f'Integrity Error during item return: {e}')
+                    messages.error(request, 'Invalid quantity for return. Please check the amount.')
+                    return redirect('store:store')
                 except Exception as e:
-                    # Handle exceptions during atomic transaction
                     print(f'Error during item return: {e}')
-                    messages.error(request, f'Error processing return: {e}')
+                    messages.error(request, 'Error processing return. Please try again.')
                     return redirect('store:store')
             else:
-                messages.error(request, 'Invalid input. Please correct the form and try again.')
+                messages.error(request, 'Invalid form data. Please check your input.')
 
         else:
-            # Display the return form in a modal or a page
             form = ReturnItemForm()
 
-        # Return appropriate response for HTMX or full-page requests
         if request.headers.get('HX-Request'):
             return render(request, 'partials/return_item_modal.html', {'form': form, 'item': item})
         else:
             return render(request, 'store/store.html', {'form': form})
-    else:
+    else:    
         return redirect('store:index')
-
-
 
 
 @login_required
