@@ -1,5 +1,6 @@
 <!-- templates/store/transfer_request_list.html -->
 {% extends "partials/base.html" %}
+{% load humanize %}
 {% block content %}
 <div class="container mt-4">
   <h2>All Transfer Requests & Transfers</h2>
@@ -26,6 +27,8 @@
         <th>Direction</th>
         <th>Req Qty</th>
         <th>App Qty</th>
+        <th>Unit Cost</th>
+        <th>Total Cost</th>
         <th>Status</th>
         <th>Created At</th>
       </tr>
@@ -65,12 +68,30 @@
           </td>
           <td>{{ transfer.requested_quantity }}</td>
           <td>{{ transfer.approved_quantity|default:"N/A" }}</td>
-          <td>{{ transfer.status }}</td>
-          <td>{{ transfer.created_at|date:"Y-m-d H:i" }}</td>
+          <td>
+            {% if transfer.from_wholesale %}
+              ₦{{ transfer.retail_item.cost|intcomma }}
+            {% else %}
+              ₦{{ transfer.wholesale_item.cost|intcomma }}
+            {% endif %}
+          </td>
+          <td>
+            {% if transfer.total_cost %}
+              ₦{{ transfer.total_cost|intcomma }}
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge {% if transfer.status == 'pending' %}bg-warning{% elif transfer.status == 'approved' %}bg-success{% else %}bg-danger{% endif %}">
+              {{ transfer.status|title }}
+            </span>
+          </td>
+          <td>{{ transfer.created_at|date:"d-m-Y H:i" }}</td>
         </tr>
       {% empty %}
         <tr>
-          <td colspan="10">No transfers found.</td>
+          <td colspan="12">No transfers found.</td>
         </tr>
       {% endfor %}
     </tbody>

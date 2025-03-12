@@ -1531,13 +1531,51 @@ def list_wholesale_stock_checks(request):
 
 logger = logging.getLogger(__name__)
 
+# @login_required
+# def create_transfer_request(request):
+#     if request.user.is_authenticated:
+#         if request.method == "GET":
+#             # Render form for a wholesale user to request items from retail
+#             retail_items = Item.objects.all().order_by('name')
+#             return render(request, "wholesale/wholesale_transfer_request.html", {"retail_items": retail_items})
+        
+#         elif request.method == "POST":
+#             try:
+#                 requested_quantity = int(request.POST.get("requested_quantity", 0))
+#                 item_id = request.POST.get("item_id")
+#                 from_wholesale = request.POST.get("from_wholesale", "false").lower() == "true"
+
+#                 if not item_id or requested_quantity <= 0:
+#                     return JsonResponse({"success": False, "message": "Invalid input provided."}, status=400)
+
+#                 source_item = get_object_or_404(Item, id=item_id)
+                
+#                 transfer = TransferRequest.objects.create(
+#                     retail_item=source_item,
+#                     requested_quantity=requested_quantity,
+#                     from_wholesale=True,
+#                     status="pending",
+#                     created_at=timezone.now()
+#                 )
+                
+#                 messages.success(request, "Transfer request created successfully.")
+#                 return JsonResponse({"success": True, "message": "Transfer request created successfully."})
+                
+#             except (TypeError, ValueError) as e:
+#                 return JsonResponse({"success": False, "message": str(e)}, status=400)
+#             except Exception as e:
+#                 return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
+    
+#     return redirect('store:index')
+
+
 @login_required
 def create_transfer_request(request):
     if request.user.is_authenticated:
         if request.method == "GET":
-            # Render form for a wholesale user to request items from retail
-            retail_items = Item.objects.all().order_by('name')
-            return render(request, "wholesale/wholesale_transfer_request.html", {"retail_items": retail_items})
+            # Render form for a retail user to request items from wholesale
+            wholesale_items = WholesaleItem.objects.all().order_by('name')
+            return render(request, "store/retail_transfer_request.html", {"wholesale_items": wholesale_items})
         
         elif request.method == "POST":
             try:
@@ -1548,15 +1586,25 @@ def create_transfer_request(request):
                 if not item_id or requested_quantity <= 0:
                     return JsonResponse({"success": False, "message": "Invalid input provided."}, status=400)
 
-                source_item = get_object_or_404(Item, id=item_id)
-                
-                transfer = TransferRequest.objects.create(
-                    retail_item=source_item,
-                    requested_quantity=requested_quantity,
-                    from_wholesale=True,
-                    status="pending",
-                    created_at=timezone.now()
-                )
+                # Get the source item based on transfer direction
+                if from_wholesale:
+                    source_item = get_object_or_404(Item, id=item_id)
+                    transfer = TransferRequest.objects.create(
+                        retail_item=source_item,
+                        requested_quantity=requested_quantity,
+                        from_wholesale=True,
+                        status="pending",
+                        created_at=timezone.now()
+                    )
+                else:
+                    source_item = get_object_or_404(WholesaleItem, id=item_id)
+                    transfer = TransferRequest.objects.create(
+                        wholesale_item=source_item,
+                        requested_quantity=requested_quantity,
+                        from_wholesale=False,
+                        status="pending",
+                        created_at=timezone.now()
+                    )
                 
                 messages.success(request, "Transfer request created successfully.")
                 return JsonResponse({"success": True, "message": "Transfer request created successfully."})
@@ -1564,10 +1612,11 @@ def create_transfer_request(request):
             except (TypeError, ValueError) as e:
                 return JsonResponse({"success": False, "message": str(e)}, status=400)
             except Exception as e:
+                logger.error(f"Error in create_transfer_request: {str(e)}")
                 return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
     
     return redirect('store:index')
-    
+
     
 
 @login_required

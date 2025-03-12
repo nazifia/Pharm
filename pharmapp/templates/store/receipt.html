@@ -34,7 +34,9 @@
             {% csrf_token %}
             <label for="buyer_name">Buyer's Name:</label>
             <input type="text" id="buyer_name" name="buyer_name"
-                value="{{ receipt.buyer_name|default:'WALK-IN CUSTOMER'|upper }}" placeholder="WALK-IN CUSTOMER"
+                value="{% if receipt.customer %}{{ receipt.customer.name|upper }}{% elif receipt.buyer_name %}{{ receipt.buyer_name|upper }}{% else %}WALK-IN CUSTOMER{% endif %}"
+                {% if receipt.customer %}readonly{% endif %}
+                placeholder="WALK-IN CUSTOMER"
                 style="border: none; border-bottom:1px solid grey; margin-bottom: 3px;">
             <div class="box">
                 <label for="buyer_address">Buyer's Address:</label>

@@ -1,3 +1,4 @@
+from django.db import transaction, IntegrityError
 from collections import defaultdict
 from decimal import Decimal
 import json
@@ -535,57 +536,23 @@ def receipt(request):
 
 @login_required
 def receipt_detail(request, receipt_id):
-    if request.user.is_authenticated:
-        # Retrieve the existing receipt
-        receipt = get_object_or_404(Receipt, receipt_id=receipt_id)
-
-        # If the form is submitted, update buyer details and other fields
-        if request.method == 'POST':
-            buyer_name = request.POST.get('buyer_name')
-            buyer_address = request.POST.get('buyer_address')
-            payment_method = request.POST.get('payment_method')
-            payment_status = request.POST.get('payment_status')  # New: Capture payment status
-
-            # Update receipt buyer info if provided
-            if buyer_name:
-                receipt.buyer_name = buyer_name
-            if buyer_address:
-                receipt.buyer_address = buyer_address
-            if payment_method:
-                receipt.payment_method = payment_method
-            if payment_status:
-                receipt.paid = (payment_status == 'Paid')  # Update Paid/Unpaid status
-
-            # Save the updated receipt
-            receipt.save()
-
-            # Redirect to the same page to reflect updated details
-            return redirect('store:receipt_detail', receipt_id=receipt_id.replace('RID:', ''))
-
-        # Retrieve sales and sales items linked to the receipt
-        sales = receipt.sales
-        sales_items = sales.sales_items.all() if sales else []
-
-        # Calculate totals for the receipt
-        total_price = sum(item.subtotal for item in sales_items)
-        total_discount = Decimal('0.0')  # Modify if a discount amount is present in `Receipt`
-        total_discounted_price = total_price - total_discount
-
-        # Update and save the receipt with calculated totals
-        receipt.total_amount = total_discounted_price
+    receipt = get_object_or_404(Receipt, receipt_id=receipt_id)
+    sales_items = SalesItem.objects.filter(receipt=receipt)
+    
+    if request.method == 'POST':
+        # Only update buyer_name if there's no customer associated
+        if not receipt.customer:
+            receipt.buyer_name = request.POST.get('buyer_name', '').strip() or 'WALK-IN CUSTOMER'
+        receipt.buyer_address = request.POST.get('buyer_address', '')
+        receipt.payment_method = request.POST.get('payment_method', '')
         receipt.save()
-
-        # Render the receipt details template
-        return render(request, 'partials/receipt_detail.html', {
-            'receipt': receipt,
-            'sales_items': sales_items,
-            'total_price': total_price,
-            'total_discount': total_discount,
-            'total_discounted_price': total_discounted_price,
-        })
-    else:
-        return redirect('store:index')
-
+    
+    context = {
+        'receipt': receipt,
+        'sales_items': sales_items,
+        'user': request.user,
+    }
+    return render(request, 'partials/receipt_detail.html', context)
 
 
 @login_required
@@ -597,88 +564,57 @@ def return_item(request, pk):
             form = ReturnItemForm(request.POST)
             if form.is_valid():
                 return_quantity = form.cleaned_data.get('return_item_quantity')
-                return_reason = form.cleaned_data.get('return_reason', 'No reason provided')
-
-                if return_quantity <= 0:
-                    messages.error(request, 'Return quantity must be greater than zero.')
-                    return redirect('store:store')
-
+                
                 try:
                     with transaction.atomic():
-                        # Find the most recent sales item
-                        sales_item = SalesItem.objects.select_for_update().filter(
-                            item=item,
-                            sales__date__gte=timezone.now() - timezone.timedelta(days=30)
-                        ).order_by('-sales__date').first()
-
-                        if not sales_item:
-                            messages.error(request, f'No recent sales record found for {item.name}.')
-                            return redirect('store:store')
-
-                        # Get current quantities
-                        current_quantity = sales_item.quantity
-                        if current_quantity < return_quantity:
-                            messages.error(
-                                request, 
-                                f'Cannot return {return_quantity} items. Only {current_quantity} were purchased.'
-                            )
-                            return redirect('store:store')
-
-                        receipt = Receipt.objects.select_for_update().filter(sales=sales_item.sales).first()
-                        if not receipt:
-                            messages.error(request, 'No receipt found for this sale.')
-                            return redirect('store:store')
-
-                        # Calculate refund amount
-                        refund_amount = Decimal(str(return_quantity)) * sales_item.price
-
-                        # Update item stock first
-                        item.stock = models.F('stock') + return_quantity
+                        # Update item stock
+                        item.stock += return_quantity
                         item.save()
-                        item.refresh_from_db()
 
-                        # Update sales item quantity
-                        new_quantity = current_quantity - return_quantity
-                        if new_quantity == 0:
-                            sales_item.delete()
-                        else:
-                            sales_item.quantity = new_quantity
+                        # Find the sales item associated with the returned item
+                        sales_item = SalesItem.objects.filter(item=item).order_by('-quantity').first()
+                        if not sales_item or sales_item.quantity < return_quantity:
+                            messages.error(request, f'No valid sales record found for {item.name}.')
+                            return redirect('store:store')
+
+                        # Calculate refund and update sales item
+                        refund_amount = return_quantity * sales_item.price
+                        if sales_item.quantity > return_quantity:
+                            sales_item.quantity -= return_quantity
                             sales_item.save()
+                        else:
+                            sales_item.delete()
 
-                        # Update receipt
-                        receipt.total_amount -= refund_amount
-                        receipt.return_notes = (receipt.return_notes or '') + \
-                            f"\nReturned {return_quantity} {item.name} - {return_reason} (₦{refund_amount})"
-                        receipt.has_returns = True
-                        receipt.save()
+                        # Update sales total
+                        sales = sales_item.sales
+                        sales.total_amount -= refund_amount
+                        sales.save()
 
-                        # Create return log
-                        DispensingLog.objects.create(
-                            user=request.user,
-                            name=item.name,
-                            brand=item.brand,
-                            unit=item.unit,
-                            quantity=-return_quantity,
-                            amount=-refund_amount,
-                            status="Returned"
-                        )
+                        # Handle customer wallet refund if applicable
+                        if sales.customer:
+                            try:
+                                wallet = Wallet.objects.get(customer=sales.customer)
+                                wallet.balance += refund_amount
+                                wallet.save()
+                                messages.success(
+                                    request,
+                                    f'{return_quantity} of {item.name} successfully returned, and ₦{refund_amount} refunded to the wallet.'
+                                )
+                            except Wallet.DoesNotExist:
+                                messages.error(request, 'Customer wallet not found or not associated.')
 
                         messages.success(
-                            request, 
-                            f'{return_quantity} of {item.name} successfully returned. Refund amount: ₦{refund_amount}'
+                            request,
+                            f'{return_quantity} of {item.name} successfully returned.'
                         )
                         return redirect('store:store')
 
-                except IntegrityError as e:
-                    print(f'Integrity Error during item return: {e}')
-                    messages.error(request, 'Invalid quantity for return. Please check the amount.')
-                    return redirect('store:store')
                 except Exception as e:
                     print(f'Error during item return: {e}')
-                    messages.error(request, 'Error processing return. Please try again.')
+                    messages.error(request, f'Error processing return: {e}')
                     return redirect('store:store')
             else:
-                messages.error(request, 'Invalid form data. Please check your input.')
+                messages.error(request, 'Invalid input. Please correct the form and try again.')
 
         else:
             form = ReturnItemForm()
@@ -687,7 +623,7 @@ def return_item(request, pk):
             return render(request, 'partials/return_item_modal.html', {'form': form, 'item': item})
         else:
             return render(request, 'store/store.html', {'form': form})
-    else:    
+    else:
         return redirect('store:index')
 
 
@@ -1863,9 +1799,9 @@ logger = logging.getLogger(__name__)
 def create_transfer_request_wholesale(request):
     if request.user.is_authenticated:
         if request.method == "GET":
-            # Render form for a retail user to request items from wholesale
-            wholesale_items = WholesaleItem.objects.all().order_by('name')
-            return render(request, "store/retail_transfer_request.html", {"wholesale_items": wholesale_items})
+            # Render form for a wholesale user to request items from retail
+            retail_items = Item.objects.all().order_by('name')
+            return render(request, "wholesale/wholesale_transfer_request.html", {"retail_items": retail_items})
         
         elif request.method == "POST":
             try:
@@ -1876,12 +1812,12 @@ def create_transfer_request_wholesale(request):
                 if not item_id or requested_quantity <= 0:
                     return JsonResponse({"success": False, "message": "Invalid input provided."}, status=400)
 
-                source_item = get_object_or_404(WholesaleItem, id=item_id)
+                source_item = get_object_or_404(Item, id=item_id)
                 
                 transfer = TransferRequest.objects.create(
-                    wholesale_item=source_item,
+                    retail_item=source_item,
                     requested_quantity=requested_quantity,
-                    from_wholesale=False,
+                    from_wholesale=True,
                     status="pending",
                     created_at=timezone.now()
                 )
@@ -1895,6 +1831,44 @@ def create_transfer_request_wholesale(request):
                 return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
     
     return redirect('store:index')
+
+
+# @login_required
+# def create_transfer_request_wholesale(request):
+#     if request.user.is_authenticated:
+#         if request.method == "GET":
+#             # Render form for a retail user to request items from wholesale
+#             wholesale_items = WholesaleItem.objects.all().order_by('name')
+#             return render(request, "store/retail_transfer_request.html", {"wholesale_items": wholesale_items})
+        
+#         elif request.method == "POST":
+#             try:
+#                 requested_quantity = int(request.POST.get("requested_quantity", 0))
+#                 item_id = request.POST.get("item_id")
+#                 from_wholesale = request.POST.get("from_wholesale", "false").lower() == "true"
+
+#                 if not item_id or requested_quantity <= 0:
+#                     return JsonResponse({"success": False, "message": "Invalid input provided."}, status=400)
+
+#                 source_item = get_object_or_404(WholesaleItem, id=item_id)
+                
+#                 transfer = TransferRequest.objects.create(
+#                     wholesale_item=source_item,
+#                     requested_quantity=requested_quantity,
+#                     from_wholesale=False,
+#                     status="pending",
+#                     created_at=timezone.now()
+#                 )
+                
+#                 messages.success(request, "Transfer request created successfully.")
+#                 return JsonResponse({"success": True, "message": "Transfer request created successfully."})
+                
+#             except (TypeError, ValueError) as e:
+#                 return JsonResponse({"success": False, "message": str(e)}, status=400)
+#             except Exception as e:
+#                 return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
+    
+#     return redirect('store:index')
 
 
 
@@ -1912,92 +1886,95 @@ def pending_transfer_requests(request):
 @login_required
 def approve_transfer(request, transfer_id):
     if request.user.is_authenticated:
-        """
-        Approves a transfer request.
-        For a wholesale-initiated request (from_wholesale=True), the source is the retail item
-        and the destination is a wholesale item.
-        The retail user can adjust the approved quantity before approval.
-        """
         if request.method == "POST":
-            transfer = get_object_or_404(TransferRequest, id=transfer_id)
-            
-            # Determine approved quantity (if adjusted) or use the originally requested amount.
-            approved_qty_param = request.POST.get("approved_quantity")
-            if approved_qty_param:
-                try:
-                    approved_qty = int(approved_qty_param)
-                except ValueError:
-                    messages.error(request, 'Invalid Qty!')
-                    return render(request, 'store/create_transfer_request.html')
-            else:
-                approved_qty = transfer.requested_quantity
-
-            if transfer.from_wholesale:
-                # Request initiated by wholesale: the source is the retail item.
-                source_item = transfer.retail_item
-                # Destination: corresponding wholesale item.
-                destination_item, created = WholesaleItem.objects.get_or_create(
-                    name=source_item.name,
-                    brand=source_item.brand,
-                    unit=source_item.unit,
-                    defaults={
-                        "dosage_form": source_item.dosage_form,
-                        "cost": source_item.cost,
-                        "price": source_item.price,
-                        "markup": source_item.markup,
-                        "stock": 0,
-                        "exp_date": source_item.exp_date,
-                    }
-                )
-            else:
-                # Reverse scenario (if retail sends request to wholesale)
-                source_item = transfer.wholesale_item
-                destination_item, created = Item.objects.get_or_create(
-                    name=source_item.name,
-                    brand=source_item.brand,
-                    unit=source_item.unit,
-                    defaults={
-                        "dosage_form": source_item.dosage_form,
-                        "cost": source_item.cost,
-                        "price": source_item.price,
-                        "markup": source_item.markup,
-                        "stock": 0,
-                        "exp_date": source_item.exp_date,
-                    }
-                )
-            
-            logger.info(f"Approving Transfer: Source {source_item.name} (Stock: {source_item.stock}) Requested Qty: {approved_qty}")
-            if source_item.stock < approved_qty:
-                messages.error(request, "Not enough stock in source!")
+            try:
+                transfer = get_object_or_404(TransferRequest, id=transfer_id)
                 
+                # Determine approved quantity
+                approved_qty_param = request.POST.get("approved_quantity")
+                try:
+                    approved_qty = int(approved_qty_param) if approved_qty_param else transfer.requested_quantity
+                    if approved_qty <= 0:
+                        return JsonResponse({
+                            "success": False,
+                            "message": "Quantity must be greater than zero."
+                        }, status=400)
+                except ValueError:
+                    return JsonResponse({
+                        "success": False,
+                        "message": "Invalid quantity value."
+                    }, status=400)
 
-            # Deduct stock from the retail source.
-            source_item.stock -= approved_qty
-            source_item.save()
+                if transfer.from_wholesale:
+                    source_item = transfer.retail_item
+                    # Check if source has enough stock
+                    if source_item.stock < approved_qty:
+                        return JsonResponse({
+                            "success": False,
+                            "message": f"Insufficient stock. Available: {source_item.stock}, Requested: {approved_qty}"
+                        }, status=400)
 
-            # Increase stock in the wholesale destination.
-            destination_item.stock += approved_qty
-            # Ensure key fields are consistent.
-            destination_item.cost = source_item.cost
-            destination_item.exp_date = source_item.exp_date
-            destination_item.markup = source_item.markup
-            destination_item.price = source_item.price
-            destination_item.save()
+                    # Create or get destination wholesale item
+                    destination_item, created = WholesaleItem.objects.get_or_create(
+                        name=source_item.name,
+                        brand=source_item.brand,
+                        unit=source_item.unit,
+                        defaults={
+                            "dosage_form": source_item.dosage_form,
+                            "cost": source_item.cost,
+                            "price": source_item.price,
+                            "markup": source_item.markup,
+                            "stock": 0,
+                            "exp_date": source_item.exp_date,
+                        }
+                    )
 
-            # Update the transfer request.
-            transfer.status = "approved"
-            transfer.approved_quantity = approved_qty
-            transfer.save()
+                    # Use transaction to ensure atomicity
+                    with transaction.atomic():
+                        # Deduct from source
+                        source_item.stock = F('stock') - approved_qty
+                        source_item.save()
+                        source_item.refresh_from_db()
 
-            messages.success(request, f"Transfer approved: {approved_qty} {source_item.name} moved from retail to wholesale.")
-            return JsonResponse({
-                "success": True,
-                "message": f"Transfer approved with quantity {approved_qty}.",
-                "destination_stock": destination_item.stock,
-            })
-        return JsonResponse({"success": False, "message": "Invalid request method!"}, status=400)
-    else:
-        return redirect('store:index')
+                        # Add to destination
+                        destination_item.stock = F('stock') + approved_qty
+                        destination_item.cost = source_item.cost
+                        destination_item.exp_date = source_item.exp_date
+                        destination_item.markup = source_item.markup
+                        destination_item.price = source_item.price
+                        destination_item.save()
+                        destination_item.refresh_from_db()
+
+                        # Update transfer request
+                        transfer.status = "approved"
+                        transfer.approved_quantity = approved_qty
+                        transfer.save()
+
+                    messages.success(
+                        request, 
+                        f"Transfer approved: {approved_qty} {source_item.name} moved from retail to wholesale."
+                    )
+                    
+                    return JsonResponse({
+                        "success": True,
+                        "message": f"Transfer approved with quantity {approved_qty}.",
+                        "source_stock": source_item.stock,
+                        "destination_stock": destination_item.stock,
+                    })
+
+            except Exception as e:
+                logger.error(f"Error in approve_transfer: {str(e)}")
+                return JsonResponse({
+                    "success": False,
+                    "message": "An error occurred while processing the transfer."
+                }, status=500)
+
+        return JsonResponse({
+            "success": False,
+            "message": "Invalid request method."
+        }, status=400)
+
+    return redirect('store:index')
 
 
 
@@ -2161,7 +2138,6 @@ def update_expense(request, expense_id):
         return JsonResponse({'error': form.errors}, status=400)
     else:
         return redirect('store:index')
-    
 
 @user_passes_test(is_admin)
 @login_required

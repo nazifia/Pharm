@@ -1,5 +1,7 @@
-<!DOCTYPE html>
 {% load static %}
+{% load wholesale_filters %}
+
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -16,7 +18,6 @@
 
 <body>
     <div id="receipt" class="receipt-container">
-        {% block content %}
         <header>
             <div class="receipt-head">
                 <h3>Nazz Pharmacy</h3>
@@ -54,7 +55,6 @@
             <input type="hidden" name="payment_method" id="paymentMethodInput" value="{{ receipt.payment_method }}">
         </form>
 
-        {% if sales_items %}
         <div class="table-responsive mt-3">
             <table class="table table-hover table-bordered">
                 <thead class="table-primary">
@@ -70,29 +70,34 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for sales_item in sales_items %}
-                    <tr>
-                        <td>{{ forloop.counter }}</td>
-                        <td>{{ sales_item.item.name|title }}</td>
-                        <td>{{ sales_item.item.dosage_form|title }}</td>
-                        <td>{{ sales_item.item.brand|title }}</td>
-                        <td>{{ sales_item.item.unit }}</td>
-                        <td>{{ sales_item.quantity }}</td>
-                        <td>₦{{ sales_item.price }}</td>
-                        <td>₦{{ sales_item.subtotal|floatformat:2 }}</td>
-                    </tr>
-                    {% endfor %}
+                    {% if wholesale_sales_items %}
+                        {% for item in wholesale_sales_items %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ item.item.name|title }}</td>
+                            <td>{{ item.item.dosage_form|title }}</td>
+                            <td>{{ item.item.brand|title }}</td>
+                            <td>{{ item.item.unit }}</td>
+                            <td>{{ item.quantity }}</td>
+                            <td>₦{{ item.price }}</td>
+                            <td>₦{{ item.price|multiply:item.quantity|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center">No items found</td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
             <div class="totals" style="text-align: right;">
                 <h6>Total Price: ₦{{ total_price|floatformat:2 }}</h6>
-                {% if total_discounted_price %}
-                <h4>Total Payable: ₦{{ total_discounted_price|floatformat:2 }}</h4>
+                {% if total_discount %}
+                <h6>Discount: ₦{{ total_discount|floatformat:2 }}</h6>
                 {% endif %}
+                <h4>Total Payable: ₦{{ total_discounted_price|floatformat:2 }}</h4>
             </div>
         </div>
-        {% endif %}
-        {% endblock %}
 
         <footer>
             <p>___Thank you for your patronage___</p>
@@ -127,6 +132,11 @@
     </div>
 
     <div class="action-buttons no-print">
+        {% if receipt.receipt_id == 'PREVIEW' %}
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('buyer-info-form').submit();">
+            <i class="fas fa-save"></i> Generate Receipt
+        </button>
+        {% else %}
         <button class="btn btn-primary btn-sm" onclick="printReceipt('thermal')">
             <i class="fas fa-print"></i> Thermal Print
         </button>
@@ -136,9 +146,7 @@
         <button class="btn btn-success btn-sm" onclick="downloadPDF()">
             <i class="fas fa-download"></i> Download PDF
         </button>
-        <button class="btn btn-info btn-sm" onclick="submitFormAndPrint()">
-            <i class="fas fa-save"></i> Save & Print
-        </button>
+        {% endif %}
     </div>
 
     <script>
@@ -146,15 +154,14 @@
             document.getElementById('buyer-info-form').submit();
             setTimeout(function () {
                 printReceipt('thermal');
-                window.location.href = "{% url 'wholesale:view_wholesale_cart' %}";
+                window.location.href = "{% url 'wholesale:wholesale_cart' %}";
             }, 500);
         }
 
         function selectPaymentMethod(method) {
             document.getElementById('paymentMethodInput').value = method;
             document.getElementById('paymentMethodButton').textContent = `Payment Method: ${method}`;
-            var modal = bootstrap.Modal.getInstance(document.getElementById('paymentMethodModal'));
-            modal.hide();
+            $('#paymentMethodModal').modal('hide');
         }
 
         function printReceipt(format) {

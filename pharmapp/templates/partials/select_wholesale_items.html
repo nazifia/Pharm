@@ -84,8 +84,14 @@
 
 
 <div class="col-12">
-    <h3 style="color: red;">Select for: {{ customer.name }}</h3>
-    <h4>Wallet Balance: ₦ {{ wallet_balance }}</h4>
+    {% if customer %}
+    <div class="customer-info mb-4">
+        <h3 style="color: red;">Select for: {{ customer.name|upper }}</h3>
+        <input type="hidden" name="customer_id" value="{{ customer.id }}">
+        <input type="hidden" name="customer_name" value="{{ customer.name }}">
+        <h4>Wallet Balance: ₦ {{ wallet_balance }}</h4>
+    </div>
+    {% endif %}
 
     <!-- Action selection (purchase or return) -->
     <div class="mb-4">
@@ -108,6 +114,11 @@
 
     <form method="post" action="{% url 'wholesale:select_wholesale_items' customer.id %}" id="item-form">
         {% csrf_token %}
+        <!-- Add hidden fields for customer information -->
+        <input type="hidden" name="customer_id" value="{{ customer.id }}">
+        <input type="hidden" name="customer_name" value="{{ customer.name }}">
+        <input type="hidden" name="customer_address" value="{{ customer.address|default:'' }}">
+
         <div id="item-selection" class="table-responsive">
             <table class="table table-hover table-reponsive">
                 <thead>
@@ -159,11 +170,15 @@
     const actionSelect = document.getElementById('action');
     actionSelect.addEventListener('change', function () {
         const form = document.getElementById('item-form');
-        const actionInput = document.createElement('input');
-        actionInput.type = 'hidden';
-        actionInput.name = 'action';
-        actionInput.value = this.value;
-        form.appendChild(actionInput);
+        const customerId = document.querySelector('input[name="customer_id"]').value;
+        const action = this.value;
+        
+        // Update form action URL based on the selected action
+        if (action === 'return') {
+            form.action = `/wholesale/return_items/${customerId}/`;
+        } else {
+            form.action = `/wholesale/select_wholesale_items/${customerId}/`;
+        }
     });
 </script>
 

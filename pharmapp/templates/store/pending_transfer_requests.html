@@ -1,7 +1,12 @@
 <!-- templates/store/pending_transfer_requests.html -->
 {% extends "partials/base.html" %}
 {% block content %}
-<div class="container mt-4">
+<div class="container mt-4 table-responsive">
+  {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-{{ message.tags }} mt-2 text-center">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
   <h2>Pending Transfer Requests (Retail Side)</h2>
   {% if pending_transfers %}
   <table class="table table-bordered table-hover shadow">
@@ -27,29 +32,29 @@
                 hx-swap="outerHTML"
                 style="display: inline;">
             {% csrf_token %}
-            <input type="number" name="approved_quantity" 
+            <input type="number" 
+                   name="approved_quantity" 
                    value="{{ transfer.requested_quantity }}" 
                    class="form-control d-inline-block" 
-                   style="width: 100px;" min="1" required>
+                   style="width: 100px;" 
+                   min="1"
+                   max="{{ transfer.retail_item.stock }}"
+                   required>
         </td>
         <td>
             <button type="submit" class="btn btn-sm btn-success">Approve</button>
-          </form>
-          <button type="button"
-                  hx-post="{% url 'store:reject_transfer' transfer.id %}"
-                  hx-target="#transfer-{{ transfer.id }}"
-                  hx-swap="outerHTML"
-                  class="btn btn-sm btn-danger ml-2">
-            Reject
-          </button>
-          {% if messages %}
-            {% for message in messages %}
-              <div class="alert alert-{{ message.tags }} mt-2 text-center">{{ message }}</div>
-            {% endfor %}
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
+            </form>
+            <button type="button"
+                    hx-post="{% url 'store:reject_transfer' transfer.id %}"
+                    hx-target="#transfer-{{ transfer.id }}"
+                    hx-swap="outerHTML"
+                    class="btn btn-sm btn-danger ml-2">
+                Reject
+            </button>
+            
+            </td>
+        </tr>
+        {% endfor %}
     </tbody>
   </table>
   {% else %}

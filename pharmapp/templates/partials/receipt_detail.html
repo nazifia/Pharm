@@ -24,6 +24,7 @@
         </header>
 
         <p><strong>Receipt ID:</strong> {{ receipt.receipt_id }}</p>
+        <p><strong>Receipt Type:</strong> Retail</p>
         <p><strong>Customer Name:</strong>
             {% if receipt.customer %}
             {{ receipt.customer.name|upper }}
@@ -40,7 +41,7 @@
             Not Provided
             {% endif %}
         </p>
-        <p><strong>Date:</strong> {{ receipt.date|date:"F j, Y" }}</p>
+        <p><strong>Date:</strong> {{ receipt.date|date:"F j, Y. H:i" }}</p>
         <p><strong>Sales Person:</strong> {{ user.username }}</p>
 
         <table class="table table-hover table-bordered mt-3">

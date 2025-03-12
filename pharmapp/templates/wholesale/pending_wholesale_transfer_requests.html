@@ -1,7 +1,12 @@
 <!-- templates/wholesale/pending_wholesale_transfer_requests.html -->
 {% extends "partials/base.html" %}
 {% block content %}
-<div class="container mt-4">
+<div class="container mt-4 table-responsive">
+  {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-{{ message.tags }} mt-2 text-center">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
   <h2>Pending Transfer Requests (Wholesale Side)</h2>
   {% if wholesale_pending_transfers %}
   <table class="table table-bordered table-hover shadow">
@@ -27,10 +32,14 @@
                 hx-swap="outerHTML"
                 style="display: inline;">
             {% csrf_token %}
-            <input type="number" name="approved_quantity" 
+            <input type="number" 
+                   name="approved_quantity" 
                    value="{{ transfer.requested_quantity }}" 
                    class="form-control d-inline-block" 
-                   style="width: 100px;" min="1" required>
+                   style="width: 100px;" 
+                   min="1" 
+                   max="{{ transfer.wholesale_item.stock }}"
+                   required>
         </td>
         <td>
             <button type="submit" class="btn btn-sm btn-success">Approve</button>
@@ -42,11 +51,7 @@
                   class="btn btn-sm btn-danger ml-2">
             Reject
           </button>
-          {% if messages %}
-            {% for message in messages %}
-              <div class="alert alert-{{ message.tags }} mt-2 text-center">{{ message }}</div>
-            {% endfor %}
-          {% endif %}
+          
         </td>
       </tr>
       {% endfor %}

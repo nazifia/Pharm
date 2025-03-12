@@ -85,8 +85,14 @@
 
 
 <div class="col-12">
-    <h3 style="color: red;">Select for: {{ customer.name }}</h3>
-    <h4>Wallet Balance: ₦ {{ wallet_balance }}</h4>
+    {% if customer %}
+    <div class="customer-info mb-4">
+        <h3 style="color: red;">Select for: {{ customer.name|upper }}</h3>
+        <input type="hidden" name="customer_id" value="{{ customer.id }}">
+        <input type="hidden" name="customer_name" value="{{ customer.name }}">
+        <h4>Wallet Balance: ₦ {{ wallet_balance }}</h4>
+    </div>
+    {% endif %}
 
     <!-- Action selection (purchase or return) -->
     <div class="mb-4">
@@ -109,6 +115,11 @@
 
     <form method="post" action="{% url 'store:select_items' customer.id %}" id="item-form">
         {% csrf_token %}
+        <!-- Add hidden fields for customer information -->
+        <input type="hidden" name="customer_id" value="{{ customer.id }}">
+        <input type="hidden" name="customer_name" value="{{ customer.name }}">
+        <input type="hidden" name="customer_address" value="{{ customer.address|default:'' }}">
+
         <div id="item-selection" class="table-responsive">
             <table class="table table-hover table-reponsive">
                 <thead>
