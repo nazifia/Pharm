@@ -232,3 +232,12 @@ class ExpenseForm(forms.ModelForm):
             'date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'style': 'resize: vertical;'}),
         }
+
+
+class StoreSettingsForm(forms.ModelForm):
+    class Meta:
+        model = StoreSettings
+        fields = ['low_stock_threshold']
+        widgets = {
+            'low_stock_threshold': forms.NumberInput(attrs={'class': 'form-control'})
+        }

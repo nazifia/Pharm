@@ -60,7 +60,9 @@ urlpatterns = [
     path("wholesale_pending_transfer_requests/", views.pending_wholesale_transfer_requests, name="pending_wholesale_transfer_requests"),
     path("transfer/reject/<int:transfer_id>/", views.reject_wholesale_transfer, name="reject_wholesale_transfer"),
     path("transfer_request_list/", views.wholesale_transfer_request_list, name="wholesale_transfer_request_list"),
-
-
-
+    
+    # Add these new URLs for stock adjustment
+    path('adjust-wholesale-stock-levels/', views.adjust_wholesale_stock_levels, name='adjust_wholesale_stock_levels'),
+    path('search-wholesale-for-adjustment/', views.search_wholesale_for_adjustment, name='search_wholesale_for_adjustment'),
+    path('adjust-wholesale-stock-level/<int:item_id>/', views.adjust_wholesale_stock_level, name='adjust_wholesale_stock_level'),
 ]

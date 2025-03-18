@@ -18,14 +18,7 @@
     $(this).removeClass("show");
   });
 
-  // Only collapse menu items on small screens, don't auto-toggle sidebar
-  $(window).resize(function() {
-    if ($(window).width() < 768) {
-      $('.sidebar .collapse').collapse('hide');
-    }
-  });
-
-  // Prevent the content wrapper from scrolling when the fixed side navigation hovered over
+  // Only prevent the content wrapper from scrolling when the fixed side navigation hovered over
   $('body.fixed-nav .sidebar').on('mousewheel DOMMouseScroll wheel', function(e) {
     if ($(window).width() > 768) {
       var e0 = e.originalEvent,

@@ -151,19 +151,33 @@ def logout_user(request):
 def store(request):
     if request.user.is_authenticated:
         items = Item.objects.all().order_by('name')
-        low_stock_threshold = 10  # Adjust this number as needed
+        settings = StoreSettings.get_settings()
 
-        # Ensure correct field values for cost and price
+        if request.method == 'POST' and request.user.is_superuser:
+            settings_form = StoreSettingsForm(request.POST, instance=settings)
+            if settings_form.is_valid():
+                settings = settings_form.save()
+                messages.success(request, 'Settings updated successfully')
+            else:
+                messages.error(request, 'Error updating settings')
+        else:
+            settings_form = StoreSettingsForm(instance=settings)
+
+        # Use the threshold from settings
+        low_stock_threshold = settings.low_stock_threshold
+
+        # Calculate values using the threshold from settings
         total_purchase_value = sum(item.cost * item.stock for item in items)
         total_stock_value = sum(item.price * item.stock for item in items)
         total_profit = total_stock_value - total_purchase_value
 
-        # Identify low-stock items
+        # Identify low-stock items using the threshold from settings
         low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
 
         context = {
             'items': items,
             'low_stock_items': low_stock_items,
+            'settings_form': settings_form,
             'low_stock_threshold': low_stock_threshold,
             'total_purchase_value': total_purchase_value,
             'total_stock_value': total_stock_value,
@@ -2138,6 +2152,53 @@ def update_expense(request, expense_id):
         return JsonResponse({'error': form.errors}, status=400)
     else:
         return redirect('store:index')
+
+@user_passes_test(lambda u: u.is_superuser)
+@login_required
+def adjust_stock_levels(request):
+    """View for the main stock adjustment page"""
+    items = Item.objects.all().order_by('name')
+    return render(request, 'store/adjust_stock_level.html', {'items': items})
+
+@user_passes_test(lambda u: u.is_superuser)
+@login_required
+def search_for_adjustment(request):
+    """Handle search requests for stock adjustment"""
+    query = request.GET.get('q', '')
+    if query:
+        items = Item.objects.filter(
+            Q(name__icontains=query) |
+            Q(brand__icontains=query) |
+            Q(dosage_form__icontains=query)
+        ).order_by('name')
+    else:
+        items = Item.objects.all().order_by('name')
+    return render(request, 'store/search_for_adjustment.html', {'items': items})
+
+@user_passes_test(lambda u: u.is_superuser)
+@login_required
+def adjust_stock_level(request, item_id):
+    """Handle individual item stock adjustments"""
+    if request.method == 'POST':
+        item = get_object_or_404(Item, id=item_id)
+        try:
+            new_stock = int(request.POST.get(f'new-stock-{item_id}', 0))
+            old_stock = item.stock
+            item.stock = new_stock
+            item.save()
+            
+            messages.success(
+                request, 
+                f'Stock for {item.name} updated from {old_stock} to {new_stock}'
+            )
+            
+            return render(request, 'store/search_for_adjustment.html', {'items': [item]})
+            
+        except ValueError:
+            messages.error(request, 'Invalid stock value provided')
+            return HttpResponse(status=400)
+            
+    return HttpResponse(status=405)  # Method not allowed
 
 @user_passes_test(is_admin)
 @login_required

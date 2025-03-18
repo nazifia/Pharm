@@ -17,9 +17,58 @@ from django.views.decorators.http import require_POST
 import uuid
 from store.views import get_daily_sales, get_monthly_sales_with_expenses
 from django.db.models import Sum, Q, F
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponse
+from django.contrib import messages
+from django.db.models import Q
+from store.models import WholesaleItem  # Updated import path
 
+# Add this at the top of your views.py if not already present
+def is_superuser(user):
+    return user.is_superuser
 
+@login_required
+@user_passes_test(is_superuser)
+def adjust_wholesale_stock_levels(request):
+    items = WholesaleItem.objects.all().order_by('name')
+    context = {
+        'items': items,
+        'title': 'Adjust Wholesale Stock Levels'
+    }
+    return render(request, 'wholesale/adjust_wholesale_stock_level.html', context)
 
+@login_required
+@user_passes_test(is_superuser)
+def search_wholesale_for_adjustment(request):
+    query = request.GET.get('q', '')
+    if query:
+        items = WholesaleItem.objects.filter(
+            Q(name__icontains=query) |
+            Q(brand__icontains=query) |
+            Q(dosage_form__icontains=query)
+        ).order_by('name')
+    else:
+        items = WholesaleItem.objects.all().order_by('name')
+    return render(request, 'wholesale/search_wholesale_for_adjustment.html', {'items': items})
+
+@login_required
+@user_passes_test(is_superuser)
+def adjust_wholesale_stock_level(request, item_id):
+    if request.method == 'POST':
+        item = get_object_or_404(WholesaleItem, id=item_id)
+        try:
+            new_stock = int(request.POST.get(f'new-stock-{item_id}', 0))
+            old_stock = item.stock
+            item.stock = new_stock
+            item.save()
+            
+            messages.success(request, f'Stock for {item.name} updated from {old_stock} to {new_stock}')
+            return render(request, 'wholesale/search_wholesale_for_adjustment.html', {'items': [item]})
+        except ValueError:
+            messages.error(request, 'Invalid stock value provided')
+            return HttpResponse(status=400)
+    return HttpResponse(status=405)
 
 # Admin check
 def is_admin(user):
@@ -32,6 +81,71 @@ def wholesale_page(request):
 def wholesales(request):
     if request.user.is_authenticated:
         items = WholesaleItem.objects.all().order_by('name')
+        settings = WholesaleSettings.get_settings()
+
+        if request.method == 'POST' and request.user.is_superuser:
+            settings_form = WholesaleSettingsForm(request.POST, instance=settings)
+            if settings_form.is_valid():
+                settings = settings_form.save()
+                messages.success(request, 'Wholesale settings updated successfully')
+            else:
+                messages.error(request, 'Error updating wholesale settings')
+        else:
+            settings_form = WholesaleSettingsForm(instance=settings)
+
+        # Use the threshold from settings
+        low_stock_threshold = settings.low_stock_threshold
+        
+        # Calculate values using the threshold from settings
+        total_purchase_value = sum(item.cost * item.stock for item in items)
+        total_stock_value = sum(item.price * item.stock for item in items)
+        total_profit = total_stock_value - total_purchase_value
+        
+        # Identify low-stock items using the threshold from settings
+        low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
+
+        context = {
+            'items': items,
+            'low_stock_items': low_stock_items,
+            'settings_form': settings_form,
+            'low_stock_threshold': low_stock_threshold,
+            'total_purchase_value': total_purchase_value,
+            'total_stock_value': total_stock_value,
+            'total_profit': total_profit,
+        }
+        return render(request, 'wholesale/wholesales.html', context)
+    else:
+        return redirect('store:index')
+
+@login_required
+def search_wholesale_item(request):
+    if request.user.is_authenticated:
+        query = request.GET.get('search', '').strip()
+        if query:
+            # Search across multiple fields using Q objects
+            items = WholesaleItem.objects.filter(
+                Q(name__icontains=query) |  # Search by name
+                Q(brand__icontains=query) #|  # Search by brand name
+                # Q(category__icontains=query)  # Search by category
+            )
+        else:
+            items = WholesaleItem.objects.filter(name__icontains=query) if query else WholesaleItem.objects.all()
+        return render(request, 'partials/wholesale_search.html', {'items': items})
+    else:
+        return redirect('store:index')
+    
+
+@user_passes_test(is_admin)
+@login_required
+def add_to_wholesale(request):
+    if request.user.is_authenticated:
+        if request.method == 'POST':
+            form = addWholesaleForm(request.POST)
+            if form.is_valid():
+                item = form.save(commit=False)
+                item.save()
+                messages.success(request, 'Item added successfully')
+                return redirect('wholesale:wholesales')
         low_stock_threshold = 10  # Adjust this number as needed
         
         # Calculate total purchase value and total stock value

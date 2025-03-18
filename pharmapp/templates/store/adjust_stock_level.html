@@ -1,0 +1,62 @@
+{% extends "partials/base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Adjust Stock Levels</h2>
+    
+    <!-- Search Field -->
+    <div class="mb-3">
+        <input type="text" 
+               class="form-control" 
+               style="width: 300px; background-color: lightblue;" 
+               placeholder="Search Items..."
+               hx-get="{% url 'store:search_for_adjustment' %}"
+               hx-target="#items-table"
+               hx-trigger="keyup changed delay:500ms">
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover shadow">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>D/Form</th>
+                    <th>Brand</th>
+                    <th>Unit</th>
+                    <th>Current Stock</th>
+                    <th>New Stock</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="items-table">
+                {% for item in items %}
+                <tr id="item-row-{{ item.id }}">
+                    <td>{{ item.name|title }}</td>
+                    <td>{{ item.dosage_form }}</td>
+                    <td>{{ item.brand }}</td>
+                    <td>{{ item.unit }}</td>
+                    <td>{{ item.stock }}</td>
+                    <td>
+                        <input type="number" 
+                               class="form-control" 
+                               style="width: 120px;"
+                               id="new-stock-{{ item.id }}"
+                               value="{{ item.stock }}"
+                               min="0">
+                    </td>
+                    <td>
+                        <button class="btn btn-primary btn-sm"
+                                hx-post="{% url 'store:adjust_stock_level' item.id %}"
+                                hx-include="#new-stock-{{ item.id }}"
+                                hx-target="#item-row-{{ item.id }}"
+                                hx-swap="outerHTML">
+                            Update Stock
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

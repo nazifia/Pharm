@@ -1,5 +1,12 @@
 {% extends "partials/base.html" %}
+{% load static %}
 {% block content %}
+<head>
+    <link href="{% static 'css/receipt_print.css' %}" rel="stylesheet">
+    <script src="{% static 'htmx/htmx.min.js' %}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+
 <style>
     .table {
         color: #333;
@@ -82,15 +89,69 @@
             width: 100%;
         }
     }
+
+    /* Add print-specific styles */
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        
+        #receipt, #receipt * {
+            visibility: visible;
+        }
+        
+        #receipt {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            padding: 20px;
+        }
+
+        .no-print {
+            display: none !important;
+        }
+    }
+
+    /* Thermal print specific styles */
+    .thermal-print {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 12px;
+        line-height: 1.2;
+        margin: 0 auto;
+    }
+
+    .thermal-print table {
+        font-size: 10px;
+    }
+
+    /* A4 print specific styles */
+    .a4-print {
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        line-height: 1.4;
+        margin: 0 auto;
+    }
+
+    .a4-print table {
+        font-size: 12px;
+    }
 </style>
 
+<div class="receipt-container" id="receipt">
+    <header>
+        <div class="receipt-head">
+            <h3>Nazz Pharmacy</h3>
+            <p>No. 123 FTH Jibia Bypass, Katsina</p>
+            <p>Tel: +234-XXX-XXX-XXXX</p>
+        </div>
+    </header>
 
-<div class="receipt-container">
     <h2>Retail Procurement Details</h2>
     <p style="text-align: end;"><strong>Supplier:</strong> {{ procurement.supplier }}</p>
-    <p style="text-align: end;"><strong>Date:</strong> {{ procurement.date }}</p>
+    <p style="text-align: end;"><strong>Date:</strong> {{ procurement.date|date:"F j, Y" }}</p>
 
-
+<div class="table-responsive">div>
     <table class="table table-hover table-bordered mt-3">
         <thead class="table-secondary">
             <tr>
@@ -119,8 +180,32 @@
             {% endfor %}
         </tbody>
     </table>
+</div>
+
     <p style="text-align: end;"><strong>Total Amount: ₦{{ total|floatformat:2 }}</strong></p>
 
-
+    <footer>
+        <p>___Official Procurement Record___</p>
+        <p>This is a computer-generated document</p>
+        <small>{{ procurement.date|date:"F j, Y" }}</small>
+    </footer>
 </div>
+
+<div class="action-buttons no-print">
+    <button onclick="window.print()" class="btn btn-sm btn-primary">
+        <i class="fas fa-print"></i> Print
+    </button>
+    <button onclick="downloadPDF()" class="btn btn-sm btn-success">
+        <i class="fas fa-download"></i> Download PDF
+    </button>
+    <button class="btn btn-info btn-sm" onclick="window.location.reload()">
+        <i class="fas fa-redo"></i> Reset
+    </button>
+</div>
+
+<script>
+    function downloadPDF() {
+        window.print();
+    }
+</script>
 {% endblock %}

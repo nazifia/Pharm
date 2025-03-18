@@ -1,11 +1,5 @@
-from django.urls import path, register_converter 
-from.converters import ShortUUIDConverter
+from django.urls import path
 from . import views
-
-
-# Register the ShortUUIDConverter
-register_converter(ShortUUIDConverter, 'shortuuid')
-
 
 app_name = 'store'
 
@@ -86,6 +80,8 @@ urlpatterns = [
     path('expense-category/add/', views.add_expense_category, name='add_expense_category'),
     path('expenses/report/', views.generate_monthly_report, name='generate_monthly_report'),
 
-
-
+    # Stock Adjustment URLs
+    path('adjust-stock-levels/', views.adjust_stock_levels, name='adjust_stock_levels'),
+    path('search-for-adjustment/', views.search_for_adjustment, name='search_for_adjustment'),
+    path('adjust-stock-level/<int:item_id>/', views.adjust_stock_level, name='adjust_stock_level'),
 ]

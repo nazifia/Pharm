@@ -90,13 +90,10 @@
     </div>
 
     <div class="action-buttons no-print">
-        <button class="btn btn-primary btn-sm" onclick="printReceipt('thermal')">
-            <i class="fas fa-print"></i> Thermal Print
+        <button onclick="window.print()" class="btn btn-sm btn-primary">
+            <i class="fas fa-print"></i> Print
         </button>
-        <button class="btn btn-secondary btn-sm" onclick="printReceipt('a4')">
-            <i class="fas fa-print"></i> A4 Print
-        </button>
-        <button class="btn btn-success btn-sm" onclick="downloadPDF()">
+        <button onclick="downloadPDF()" class="btn btn-sm btn-success">
             <i class="fas fa-download"></i> Download PDF
         </button>
         <button class="btn btn-info btn-sm" onclick="window.location.reload()">
@@ -105,52 +102,9 @@
     </div>
 
     <script>
-        function printReceipt(format) {
-            const originalTitle = document.title;
-            const receipt = document.getElementById('receipt');
-            
-            // Remove any existing format classes
-            receipt.classList.remove('thermal-print', 'a4-print');
-            
-            if (format === 'thermal') {
-                receipt.classList.add('thermal-print');
-                receipt.style.width = '80mm';
-                document.title = 'Thermal_' + originalTitle;
-            } else {
-                receipt.classList.add('a4-print');
-                receipt.style.width = '210mm';
-                document.title = 'A4_' + originalTitle;
-            }
-
-            // Add small delay to ensure styles are applied
-            setTimeout(() => {
-                window.print();
-                
-                // Reset after printing
-                setTimeout(() => {
-                    receipt.style.width = '';
-                    document.title = originalTitle;
-                    receipt.classList.remove('thermal-print', 'a4-print');
-                }, 100);
-            }, 100);
-        }
-
         function downloadPDF() {
-            const receipt = document.getElementById('receipt');
-            const options = {
-                margin: 10,
-                filename: 'Wholesale_Receipt_{{ receipt.receipt_id }}.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-
-            html2pdf().from(receipt).set(options).save();
+            window.print();
         }
-
-        window.onafterprint = function() {
-            document.title = 'Receipt Details - {{ receipt.receipt_id }}';
-        };
     </script>
 </body>
 

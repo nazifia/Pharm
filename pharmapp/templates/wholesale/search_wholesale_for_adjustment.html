@@ -1,0 +1,27 @@
+{% for item in items %}
+<tr id="item-row-{{ item.id }}">
+    <td>{{ item.name|title }}</td>
+    <td>{{ item.dosage_form }}</td>
+    <td>{{ item.brand }}</td>
+    <td>{{ item.unit }}</td>
+    <td>{{ item.stock }}</td>
+    <td>
+        <input type="number" 
+               class="form-control" 
+               style="width: 120px;"
+               id="new-stock-{{ item.id }}"
+               name="new-stock-{{ item.id }}"
+               value="{{ item.stock }}"
+               min="0">
+    </td>
+    <td>
+        <button class="btn btn-primary btn-sm"
+                hx-post="{% url 'wholesale:adjust_wholesale_stock_level' item.id %}"
+                hx-include="#new-stock-{{ item.id }}"
+                hx-target="#item-row-{{ item.id }}"
+                hx-swap="outerHTML">
+            Update Stock
+        </button>
+    </td>
+</tr>
+{% endfor %}

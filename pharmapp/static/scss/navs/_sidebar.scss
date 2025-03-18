@@ -25,6 +25,19 @@
             width: $sidebar-collapsed-width !important;
         }
     }
+
+    // Remove any auto-collapse behavior
+    .nav-item {
+        .collapse {
+            display: block;
+        }
+
+        .nav-link {
+            span {
+                display: inline;
+            }
+        }
+    }
 }
 
 @include media-breakpoint-up(md) {

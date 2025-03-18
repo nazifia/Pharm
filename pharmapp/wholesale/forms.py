@@ -112,4 +112,11 @@ WholesaleProcurementItemFormSet = modelformset_factory(
 )
 
 
+class WholesaleSettingsForm(forms.ModelForm):
+    class Meta:
+        model = WholesaleSettings
+        fields = ['low_stock_threshold']
+        widgets = {
+            'low_stock_threshold': forms.NumberInput(attrs={'class': 'form-control'})
+        }
 

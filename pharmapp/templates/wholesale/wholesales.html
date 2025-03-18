@@ -95,9 +95,29 @@
 <a class="btn btn-info btn-sm float-right" href="{% url 'wholesale:pending_wholesale_transfer_requests' %}">Pending Requests</a>
 <a class="btn btn-primary btn-sm float-right mx-1" href="{% url 'store:create_transfer_request_wholesale' %}">Send Requests</a>
 
-<div class="alert-container mt-5">
-    
+{% if user.is_superuser %}
+<a class="btn btn-outline-warning btn-sm" href="{% url 'wholesale:adjust_wholesale_stock_levels' %}">
+    <i class="fa fa-balance-scale"></i> Adjust Stock Levels
+</a>
+{% endif %}
+
+{% if user.is_superuser %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Wholesale Settings</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="{{ settings_form.low_stock_threshold.id_for_label }}">Low Stock Threshold:</label>
+                {{ settings_form.low_stock_threshold }}
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-primary mt-2">Update Settings</button>
+        </form>
+    </div>
 </div>
+{% endif %}
 
 <div class="col-15 ">
     <h2 style="text-align: center;">Wholesale Items</h2>

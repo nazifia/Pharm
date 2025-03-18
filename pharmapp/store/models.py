@@ -142,7 +142,6 @@ class WholesaleItem(models.Model):
     stock = models.PositiveIntegerField(default=0, null=True, blank=True)
     low_stock_threshold = models.PositiveIntegerField(default=0, null=True, blank=True)
     exp_date = models.DateField(null=True, blank=True)    
-    
     class Meta:
         ordering = ('name',)
     
@@ -636,3 +635,41 @@ class MonthlyReport(models.Model):
     def calculate_net_profit(self):
         self.net_profit = self.total_sales - self.total_expenses
         self.save()
+
+
+class StoreSettings(models.Model):
+    low_stock_threshold = models.PositiveIntegerField(default=10)
+    
+    class Meta:
+        verbose_name = 'Store Settings'
+        verbose_name_plural = 'Store Settings'
+
+    def save(self, *args, **kwargs):
+        if not self.pk and StoreSettings.objects.exists():
+            # If you're trying to create a new settings instance but one already exists,
+            # update the existing instance instead
+            return StoreSettings.objects.first()
+        return super().save(*args, **kwargs)
+
+    @classmethod
+    def get_settings(cls):
+        settings, _ = cls.objects.get_or_create(pk=1)
+        return settings
+
+
+class WholesaleSettings(models.Model):
+    low_stock_threshold = models.PositiveIntegerField(default=10)
+    
+    class Meta:
+        verbose_name = 'Wholesale Settings'
+        verbose_name_plural = 'Wholesale Settings'
+
+    def save(self, *args, **kwargs):
+        if not self.pk and WholesaleSettings.objects.exists():
+            return WholesaleSettings.objects.first()
+        return super().save(*args, **kwargs)
+
+    @classmethod
+    def get_settings(cls):
+        settings, _ = cls.objects.get_or_create(pk=1)
+        return settings
