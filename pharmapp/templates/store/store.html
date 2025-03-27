@@ -6,7 +6,35 @@
 
 <style>
     .table {
-        color: #333
+        color: #333;
+        font-size: 1.1em; /* Increased font size */
+    }
+
+    .table th {
+        font-size: 1.15em; /* Slightly larger headers */
+        font-weight: 600;
+    }
+
+    /* Responsive font sizes */
+    @media (max-width: 768px) {
+        .table {
+            font-size: 0.95em;
+        }
+        .table th {
+            font-size: 1em;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .table {
+            font-size: 0.8em;
+        }
+        .table th {
+            font-size: 0.85em;
+        }
+        .table td, .table th {
+            padding: 0.5rem;
+        }
     }
 
     .col-md-8 {
@@ -101,9 +129,32 @@
             padding: 0.5em;
         }
     }
+
+    /* Print styles */
+    @media print {
+        .btn, 
+        .form-control,
+        .alert-container,
+        .action-buttons,
+        .navbar,
+        .sidebar { 
+            display: none !important; 
+        }
+        .container { 
+            width: 100% !important; 
+            max-width: none !important; 
+        }
+        .table {
+            font-size: 14px !important; /* Adjusted print font size */
+        }
+        .table th {
+            font-size: 15px !important;
+        }
+    }
 </style>
 
-
+<!-- Add this in the head section or before closing body -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <a class="btn btn-primary btn-sm "  data-toggle="modal" data-target="#addItemModal" type="button"
     hx-get="{% url 'store:add_item' %}" hx-target="#addItemModal .modal-content" hx-trigger="click">
@@ -160,6 +211,15 @@
     <input type="text" class="form-control mb-3 float-right" hx-get="{% url 'store:search_item' %}"
         hx-trigger="keyup changed delay:300ms" hx-target="#item-list" placeholder="Search items..." name="search"
         style="background-color: rgb(232, 253, 211); width:auto">
+
+    <div class="action-buttons mb-3">
+        <button class="btn btn-primary btn-sm" onclick="printContent('a4')">
+            <i class="fas fa-print"></i> Print A4
+        </button>
+        {% comment %} <button class="btn btn-success btn-sm" onclick="downloadPDF()">
+            <i class="fas fa-download"></i> Download PDF
+        </button> {% endcomment %}
+    </div>
 
     {% for message in messages %}
     <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
@@ -263,6 +323,57 @@
 
         // Show the calculated price in the price input field
         document.getElementById("price").value = price.toFixed(2);
+    }
+</script>
+
+<script>
+    function printContent(format) {
+        const originalTitle = document.title;
+        const content = document.querySelector('.col-15');
+        
+        // Hide elements we don't want to print
+        const elementsToHide = document.querySelectorAll('.btn, .form-control, .alert-container, .action-buttons');
+        elementsToHide.forEach(el => el.classList.add('d-none'));
+        
+        window.print();
+        
+        // Restore hidden elements
+        elementsToHide.forEach(el => el.classList.remove('d-none'));
+        document.title = originalTitle;
+    }
+
+    function downloadPDF() {
+        // Show loading indicator
+        const loadingDiv = document.createElement('div');
+        loadingDiv.innerHTML = '<div class="alert alert-info">Generating PDF, please wait...</div>';
+        document.querySelector('.col-15').prepend(loadingDiv);
+
+        const content = document.querySelector('.col-15');
+        const options = {
+            margin: [0.3, 0.3],
+            filename: 'Store_Inventory.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { 
+                scale: 2,
+                logging: true,
+                letterRendering: true
+            },
+            jsPDF: { 
+                unit: 'in',
+                format: 'a4',
+                orientation: 'landscape'
+            }
+        };
+
+        // Generate PDF
+        html2pdf().set(options).from(content).save().then(() => {
+            // Remove loading indicator
+            loadingDiv.remove();
+        }).catch(error => {
+            console.error('PDF generation failed:', error);
+            loadingDiv.innerHTML = '<div class="alert alert-danger">PDF generation failed. Please try again.</div>';
+            setTimeout(() => loadingDiv.remove(), 3000);
+        });
     }
 </script>
 

@@ -1,0 +1,64 @@
+{% extends "partials/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Complete History for {{ customer.name }}</h2>
+        <a href="{% url 'store:customer_list' %}" class="btn btn-primary">Back to Customers</a>
+    </div>
+
+    {% for year, year_data in history_data.items %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between">
+            <h3 class="mb-0">{{ year }}</h3>
+            <div>Net Total: ₦{{ year_data.total|floatformat:2 }}</div>
+        </div>
+
+        {% for month, month_data in year_data.months.items %}
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">{{ month }}</h4>
+                <div>Monthly Net: ₦{{ month_data.total|floatformat:2 }}</div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Item</th>
+                            <th>Action</th>
+                            <th>Quantity</th>
+                            <th>Unit Price</th>
+                            <th>Subtotal</th>
+                            <th>Staff</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for history in month_data.items %}
+                        <tr class="{% if history.action == 'return' %}table-warning{% endif %}">
+                            <td>{{ history.date|date:"M d, Y H:i" }}</td>
+                            <td>{{ history.item.name }}</td>
+                            <td>
+                                <span class="badge {% if history.action == 'return' %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ history.action|title }}
+                                </span>
+                            </td>
+                            <td>{{ history.quantity }}</td>
+                            <td>₦{{ history.price|floatformat:2 }}</td>
+                            <td>₦{{ history.subtotal|floatformat:2 }}</td>
+                            <td>{{ history.user.username }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% empty %}
+    <div class="alert alert-info">No history found for this customer.</div>
+    {% endfor %}
+</div>
+{% endblock %}

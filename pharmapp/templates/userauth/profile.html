@@ -78,10 +78,23 @@
 
 <div class="container">
     <h1>Edit Profile</h1>
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        {% endfor %}
+    {% endif %}
     <form method="POST" enctype="multipart/form-data" action="{% url 'userauth:profile' %}">
         {% csrf_token %}
         <label for="full_name">Full Name:</label>
         <input type="text" id="full_name" name="full_name" value="{{ profile.full_name }}" required>
+
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" value="{{ request.user.username }}" required>
 
         <label for="mobile">Mobile:</label>
         <input type="text" id="mobile" name="mobile" value="{{ request.user.mobile }}" required>

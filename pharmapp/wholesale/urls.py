@@ -32,8 +32,9 @@ urlpatterns = [
     path('select_wholesale_items/<int:pk>/', views.select_wholesale_items, name='select_wholesale_items'),
     path('wholesale_exp_alert/', views.wholesale_exp_alert, name='wholesale_exp_alert'),
     path('wholesale_receipt_list/', views.wholesale_receipt_list, name='wholesale_receipt_list'),
-    path('wholesale_customer_history/<int:pk>/', views.wholesale_customer_history, name='wholesale_customer_history'),
+    path('wholesale_customer_history/<int:customer_id>/', views.wholesale_customer_history, name='wholesale_customer_history'),
     path('search_wholesale_receipts/', views.search_wholesale_receipts, name='search_wholesale_receipts'),
+    path('complete_wholesale_customer_history/<int:customer_id>/', views.complete_wholesale_customer_history, name='complete_wholesale_customer_history'),
     
     
     # Procurement URLs

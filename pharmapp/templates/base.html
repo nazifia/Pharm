@@ -1,0 +1,123 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- ... other head elements ... -->
+    <link rel="stylesheet" href="{% static 'css/offline-indicator.css' %}">
+    <style>
+        .marquee-container {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .marquee-text {
+            color: black;
+            padding: 10px;
+            white-space: nowrap;
+        }
+
+        .edit-marquee-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1000;
+            display: none;
+        }
+
+        .marquee-container:hover .edit-marquee-btn {
+            display: block;
+        }
+
+        #marqueeModal .modal-body {
+            padding: 20px;
+        }
+
+        #marqueeForm input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="connection-status" class="connection-status">
+        <div class="status-indicator">
+            <span class="status-dot"></span>
+            <span class="status-text">Online</span>
+        </div>
+        <div class="sync-status hidden">
+            <span class="sync-icon">↻</span>
+            <span class="sync-text">Syncing...</span>
+        </div>
+    </div>
+
+    <!-- ... your existing content ... -->
+
+    <!-- Replace your existing marquee with this new structure -->
+    <div class="card border-left-warning shadow h-100 py-2">
+        <div class="card-head text-xs" style="color: red;">INFORMATION
+            <div class="marquee-container">
+                <marquee id="dynamic-marquee" behavior="" direction="">
+                    <h4 class="marquee-text">{% if marquee_text %}{{ marquee_text }}{% else %}WELCOME TO NAZZ PHARMACY{% endif %}</h4>
+                </marquee>
+                {% if user.is_superuser %}
+                <button class="btn btn-sm btn-primary edit-marquee-btn" 
+                        data-bs-toggle="modal" 
+                        data-bs-target="#marqueeModal">
+                    <i class="fas fa-edit"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Modal for editing marquee -->
+    {% if user.is_superuser %}
+    <div class="modal fade" id="marqueeModal" tabindex="-1" aria-labelledby="marqueeModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="marqueeModalLabel">Edit Marquee Text</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="marqueeForm" hx-post="{% url 'store:update_marquee' %}" hx-target="#dynamic-marquee">
+                        <div class="mb-3">
+                            <label for="marqueeText" class="form-label">Marquee Text</label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="marqueeText" 
+                                   name="marquee_text" 
+                                   value="{% if marquee_text %}{{ marquee_text }}{% else %}WELCOME TO NAZZ PHARMACY{% endif %}"
+                                   required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Update</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <script src="{% static 'js/offline-storage.js' %}"></script>
+    <script src="{% static 'js/connection-handler.js' %}"></script>
+    <script>
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            if (evt.detail.target.id === 'dynamic-marquee') {
+                // Close the modal after successful update
+                var modal = bootstrap.Modal.getInstance(document.getElementById('marqueeModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                // Show success message
+                const toast = new bootstrap.Toast(document.createElement('div'));
+                toast.show();
+            }
+        });
+    </script>
+</body>
+</html>
+

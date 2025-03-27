@@ -42,7 +42,7 @@ urlpatterns = [
     path('monthly_sales/', views.monthly_sales, name='monthly_sales'),
     path('sales_by_user/', views.sales_by_user, name='sales_by_user'),
     path('exp_date_alert/', views.exp_date_alert, name='exp_date_alert'),
-    path('customer_history/<int:pk>/', views.customer_history, name='customer_history'),
+    path('customer_history/<int:customer_id>/', views.customer_history, name='customer_history'),
     path('register_supplier_view/', views.register_supplier_view, name='register_supplier_view'),
     path('list_suppliers_view/', views.list_suppliers_view, name='supplier_list'),
     path('procurement_list/', views.procurement_list, name='procurement_list'),
@@ -84,4 +84,6 @@ urlpatterns = [
     path('adjust-stock-levels/', views.adjust_stock_levels, name='adjust_stock_levels'),
     path('search-for-adjustment/', views.search_for_adjustment, name='search_for_adjustment'),
     path('adjust-stock-level/<int:item_id>/', views.adjust_stock_level, name='adjust_stock_level'),
+    path('update-marquee/', views.update_marquee, name='update_marquee'),
+    path('complete_customer_history/<int:customer_id>/', views.complete_customer_history, name='complete_customer_history'),
 ]

@@ -1,0 +1,53 @@
+.connection-status {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 10px;
+    border-radius: 5px;
+    background: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ccc;
+}
+
+.online .status-dot {
+    background: #4CAF50;
+}
+
+.offline .status-dot {
+    background: #f44336;
+}
+
+.sync-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.sync-status.hidden {
+    display: none;
+}
+
+.sync-icon {
+    animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}

@@ -1,6 +1,9 @@
-const CACHE_NAME = 'pharmapp-v1';
-const API_CACHE_NAME = 'pharmapp-api-v1';
+const CACHE_NAME = 'pharmapp-v2';
+const API_CACHE_NAME = 'pharmapp-api-v2';
 const OFFLINE_URL = '/offline/';
+
+// Add sync queue
+let syncQueue = [];
 
 const URLS_TO_CACHE = [
     // Core routes
@@ -107,33 +110,31 @@ self.addEventListener('fetch', event => {
         event.request.url.includes(endpoint));
     
     event.respondWith(
-        caches.open(isApiRequest ? API_CACHE_NAME : CACHE_NAME)
-            .then(cache => {
-                return cache.match(event.request)
+        fetch(event.request)
+            .then(response => {
+                // Online mode - cache response
+                const responseToCache = response.clone();
+                caches.open(isApiRequest ? API_CACHE_NAME : CACHE_NAME)
+                    .then(cache => cache.put(event.request, responseToCache));
+                return response;
+            })
+            .catch(() => {
+                // Offline mode - return cached response
+                return caches.match(event.request)
                     .then(response => {
-                        if (response) {
-                            console.log('[ServiceWorker] Return cache', event.request.url);
-                            return response;
+                        if (response) return response;
+                        if (event.request.mode === 'navigate') {
+                            return caches.match(OFFLINE_URL);
                         }
-
-                        return fetch(event.request)
-                            .then(networkResponse => {
-                                if (!networkResponse || 
-                                    networkResponse.status !== 200 || 
-                                    networkResponse.type !== 'basic') {
-                                    return networkResponse;
-                                }
-
-                                const responseToCache = networkResponse.clone();
-                                cache.put(event.request, responseToCache);
-                                return networkResponse;
-                            })
-                            .catch(() => {
-                                if (event.request.mode === 'navigate') {
-                                    return caches.match(OFFLINE_URL);
-                                }
-                            });
                     });
             })
     );
 });
+
+// Add background sync
+self.addEventListener('sync', event => {
+    if (event.tag === 'sync-pending-actions') {
+        event.waitUntil(syncPendingActions());
+    }
+});
+

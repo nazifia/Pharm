@@ -1,9 +1,11 @@
+from django.views.decorators.http import require_http_methods 
+from django.core.cache import cache
 from django.db import transaction, IntegrityError
 from collections import defaultdict
 from decimal import Decimal
 import json
 from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.db.models.functions import TruncMonth, TruncDay
 from django.shortcuts import get_object_or_404, render, redirect
 from customer.models import Wallet
@@ -17,6 +19,10 @@ from django.views.decorators.http import require_POST
 from django.db.models import Q, F, ExpressionWrapper, Sum, DecimalField
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+
+
+
+
 
 @login_required
 def offline_view(request):
@@ -60,56 +66,25 @@ def sync_offline_actions(request):
         actions = data.get('pendingActions', [])
         results = []
         
-        with transaction.atomic():
-            for action in actions:
-                action_type = action['actionType']
-                action_data = action['data']
-                
-                try:
-                    if action_type == 'add_item':
-                        item = Item.objects.create(**action_data)
-                        results.append({
-                            'status': 'success',
-                            'action': action_type,
-                            'id': item.id
-                        })
-                    elif action_type == 'update_item':
-                        Item.objects.filter(id=action_data['id']).update(**action_data)
-                        results.append({
-                            'status': 'success',
-                            'action': action_type,
-                            'id': action_data['id']
-                        })
-                    elif action_type == 'add_customer':
-                        customer = Customer.objects.create(**action_data)
-                        results.append({
-                            'status': 'success',
-                            'action': action_type,
-                            'id': customer.id
-                        })
-                    elif action_type == 'update_customer':
-                        Customer.objects.filter(id=action_data['id']).update(**action_data)
-                        results.append({
-                            'status': 'success',
-                            'action': action_type,
-                            'id': action_data['id']
-                        })
-                    # Add more action types as needed
-                    
-                except Exception as e:
-                    results.append({
-                        'status': 'error',
-                        'action': action_type,
-                        'error': str(e)
-                    })
+        for action in actions:
+            # Process each offline action
+            action_type = action.get('type')
+            action_data = action.get('data')
+            
+            if action_type == 'CREATE':
+                # Handle create operations
+                model_name = action_data.get('model')
+                model_data = action_data.get('data')
+                result = process_create_action(model_name, model_data)
+                results.append(result)
+            # Add other action types as needed
         
         return JsonResponse({
-            'status': 'success',
+            'success': True,
             'results': results
         })
     except Exception as e:
         return JsonResponse({
-            'status': 'error',
             'error': str(e)
         }, status=500)
 
@@ -1372,21 +1347,50 @@ def exp_date_alert(request):
 
 
 @login_required
-def customer_history(request, pk):
+def customer_history(request, customer_id):
     if request.user.is_authenticated:
-        customer = get_object_or_404(Customer, id=pk)
-        histories = ItemSelectionHistory.objects.filter(customer=customer).select_related('customer__user').order_by('-date')
+        customer = get_object_or_404(Customer, id=customer_id)
         
-        # Add a 'subtotal' field to each history
-        for history in histories:
-            history.subtotal = history.quantity * history.unit_price
+        histories = SalesItem.objects.filter(
+            sales__customer=customer
+        ).select_related(
+            'item', 'sales'
+        ).order_by('-sales__date')
 
-        return render(request, 'partials/customer_history.html', {
+        # Process histories and calculate totals
+        history_data = {}
+        for history in histories:
+            year = history.sales.date.year
+            month = history.sales.date.strftime('%B')  # Full month name
+            
+            if year not in history_data:
+                history_data[year] = {'total': Decimal('0'), 'months': {}}
+            
+            if month not in history_data[year]['months']:
+                history_data[year]['months'][month] = {'total': Decimal('0'), 'items': []}
+            
+            # Calculate subtotal
+            calculated_subtotal = history.quantity * history.price
+            
+            # Update totals
+            history_data[year]['total'] += calculated_subtotal
+            history_data[year]['months'][month]['total'] += calculated_subtotal
+            
+            # Add the history item to the month's items list
+            history_data[year]['months'][month]['items'].append({
+                'date': history.sales.date,
+                'item': history.item,
+                'quantity': history.quantity,
+                'subtotal': calculated_subtotal
+            })
+
+        context = {
             'customer': customer,
-            'histories': histories,
-        })
-    else:
-        return redirect('store:index')
+            'history_data': history_data,
+        }
+        
+        return render(request, 'partials/customer_history.html', context)
+    return redirect('store:index')
 
 
 @login_required
@@ -2239,3 +2243,68 @@ def add_expense_category(request):
     else:
         form = ExpenseCategoryForm()
     return render(request, 'partials/_expense_category_form.html', {'form': form})
+
+@require_http_methods(["POST"])
+@user_passes_test(lambda u: u.is_superuser)
+def update_marquee(request):
+    marquee_text = request.POST.get('marquee_text')
+    if marquee_text:
+        # Store the marquee text in cache
+        cache.set('marquee_text', marquee_text, timeout=None)
+        return HttpResponse(status=200)
+    return HttpResponse(status=400)
+
+
+@login_required
+def complete_customer_history(request, customer_id):
+    if request.user.is_authenticated:
+        customer = get_object_or_404(Customer, id=customer_id)
+        
+        # Get all selection history (includes both purchases and returns)
+        selection_history = ItemSelectionHistory.objects.filter(
+            customer=customer
+        ).select_related(
+            'item', 'user'
+        ).order_by('-date')  # Changed from -created_at to -date
+
+        # Combine and process all history
+        history_data = {}
+        
+        # Process selection history
+        for entry in selection_history:
+            year = entry.date.year  # Changed from created_at to date
+            month = entry.date.strftime('%B')
+            
+            if year not in history_data:
+                history_data[year] = {'total': Decimal('0'), 'months': {}}
+            
+            if month not in history_data[year]['months']:
+                history_data[year]['months'][month] = {'total': Decimal('0'), 'items': []}
+            
+            subtotal = entry.quantity * entry.unit_price
+            
+            # Update totals (subtract for returns, add for purchases)
+            if entry.action == 'return':
+                history_data[year]['total'] -= subtotal
+                history_data[year]['months'][month]['total'] -= subtotal
+            else:
+                history_data[year]['total'] += subtotal
+                history_data[year]['months'][month]['total'] += subtotal
+            
+            history_data[year]['months'][month]['items'].append({
+                'date': entry.date,  # Changed from created_at to date
+                'item': entry.item,
+                'quantity': entry.quantity,
+                'price': entry.unit_price,
+                'subtotal': subtotal,
+                'action': entry.action,
+                'user': entry.user
+            })
+
+        context = {
+            'customer': customer,
+            'history_data': history_data,
+        }
+        
+        return render(request, 'store/complete_customer_history.html', context)
+    return redirect('store:index')

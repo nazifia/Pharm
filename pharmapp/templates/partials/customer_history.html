@@ -1,79 +1,52 @@
+{% load static %}
 {% block content %}
-<style>
-    .table {
-        color: #333;
-    }
-
-    .table-responsive {
-        overflow-x: auto;
-    }
-
-    @media (max-width: 768px) {
-        .container {
-            margin-left: .2em;
-            width: auto;
-        }
-
-        h2 {
-            font-size: 1.5rem;
-            text-align: center;
-        }
-
-        table {
-            width: 95%;
-            font-size: 0.9rem;
-        }
-
-        th,
-        td {
-            padding: 8px;
-            text-align: left;
-        }
-
-        .btn-secondary {
-            width: 100%;
-            margin-top: 15px;
-        }
-    }
-</style>
 
 <div class="container">
-    <h2>Item Selection History for {{ customer.name }}</h2>
+    <h2 class="mb-4">Purchase History for {{ customer.name }}</h2>
 
-    <table class="table table-hover">
-        <thead class="table-secondary">
-            <tr>
-                <th>Date</th>
-                <th>User</th>
-                <th>Item</th>
-                <th>D/form</th>
-                <th>Brand</th>
-                <th>Quantity</th>
-                <th>Subtotal</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for history in histories %}
-            <tr>
-                <td>{{ history.date|date:"M d, Y H:i" }}</td>
-                <td>{{ history.user.username|default:"N/A" }}</td>
-                <td>{{ history.item.name }}</td>
-                <td>{{ history.item.dosage_form }}</td>
-                <td>{{ history.item.brand }}</td>
-                <td>{{ history.quantity }}</td>
-                <td>₦ {{ history.subtotal|floatformat:2 }}</td>
-                <td>{{ history.action|title }}</td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="8">No history found.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    {% for year, year_data in history_data.items %}
+    <div class="year-section">
+        <div class="year-header">
+            <h3>{{ year }}</h3>
+            <div>Annual Total: ₦{{ year_data.total|floatformat:2 }}</div>
+        </div>
 
-    <!-- <a href="{{request.META.HTTP_REFERER}}" class="btn btn-sm btn-secondary">Back</a> -->
+        {% for month, month_data in year_data.months.items %}
+        <div class="month-section">
+            <div class="period-header">
+                <h4>{{ month }}</h4>
+                <div>Monthly Total: ₦{{ month_data.total|floatformat:2 }}</div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Item</th>
+                            <th>Quantity</th>
+                            <th>Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for history in month_data.items %}
+                        <tr>
+                            <td>{{ history.date|date:"M d, Y" }}</td>
+                            <td>{{ history.item.name }}</td>
+                            <td>{{ history.quantity }}</td>
+                            <td>₦{{ history.subtotal|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% empty %}
+    <div class="alert alert-info">No purchase history found.</div>
+    {% endfor %}
 </div>
 
-{% endblock %}
+</div>
+    {% endblock %}

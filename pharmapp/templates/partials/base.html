@@ -301,10 +301,35 @@
 
                     <!-- Topbar marquee -->
                     <div class="card border-left-warning shadow h-100 py-2">
-                        <div class="card-head text-xs" style="color: red;">INFORMATION
-                            <marquee behavior="" direction="">
-                                <h4 style="color: black">WELCOME TO NAZZ PHARMACY</h4>
-                            </marquee>
+                        <div class="card-head text-xs" style="color: red;">
+                            INFORMATION
+                            <div class="marquee-container">
+                                <div id="marquee-wrapper" class="d-flex align-items-center">
+                                    <marquee id="dynamic-marquee" behavior="" direction="">
+                                        <h4 class="marquee-text">{% if marquee_text %}{{ marquee_text }}{% else %}WELCOME TO NAZZ PHARMACY{% endif %}</h4>
+                                    </marquee>
+                                    
+                                </div>
+                                <div id="marquee-edit" style="display: none;" class="d-flex align-items-center">
+                                    <input type="text" 
+                                           id="marquee-input" 
+                                           class="form-control form-control-sm me-2" 
+                                           value="{% if marquee_text %}{{ marquee_text }}{% else %}WELCOME TO NAZZ PHARMACY{% endif %}">
+                                           {% if user.is_superuser %}
+                                           <button class="btn btn-sm btn-primary ms-2 mx-5" 
+                                                   onclick="toggleMarqueeEdit()"
+                                                   style="position: absolute; right: 10px; z-index: 1000;">
+                                               <i class="fas fa-edit"></i>
+                                           </button>
+                                       {% endif %}
+                                    <button class="btn btn-sm btn-success me-1" onclick="saveMarquee()">
+                                        <i class="fas fa-save"></i>
+                                    </button>
+                                    {% comment %} <button class="btn btn-sm btn-danger" onclick="toggleMarqueeEdit()">
+                                        <i class="fas fa-times"></i>
+                                    </button> {% endcomment %}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -596,7 +621,7 @@
             <footer class="sticky-footer bg-white">
                 <div class="container my-auto">
                     <div class="copyright text-center my-auto">
-                        <span>Copyright &copy; Nazz Tech <span id="year"></span>. All rights reserved.</span>
+                        <span>Copyright &copy; Nazz Tech <span>2025</span>. All rights reserved.</span>
                     </div>
                 </div>
             </footer>
@@ -778,6 +803,124 @@
     <!-- Add offline.js script -->
     <script src="{% static 'js/offline.js' %}"></script>
 
+    <!-- Add this style section to your existing styles -->
+    <style>
+        .marquee-container {
+            position: relative;
+            width: 100%;
+            padding: 0 10px;
+        }
+
+        #marquee-wrapper, #marquee-edit {
+            width: 100%;
+            position: relative;
+        }
+
+        #marquee-edit {
+            padding: 5px 0;
+        }
+
+        .marquee-text {
+            margin: 0;
+            color: black;
+        }
+
+        /* Toast notification styles */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+
+        .toast {
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1);
+            margin-bottom: 10px;
+            min-width: 250px;
+        }
+    </style>
+
+    <!-- Add this right before the closing body tag -->
+    <div class="toast-container"></div>
+
+    <!-- Add this to your existing scripts section -->
+    <script>
+        function toggleMarqueeEdit() {
+            const wrapper = document.getElementById('marquee-wrapper');
+            const edit = document.getElementById('marquee-edit');
+            
+            if (wrapper.style.display !== 'none') {
+                wrapper.style.display = 'none';
+                edit.style.display = 'flex';
+                document.getElementById('marquee-input').focus();
+            } else {
+                wrapper.style.display = 'flex';
+                edit.style.display = 'none';
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toastContainer = document.querySelector('.toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast show alert alert-${type}`;
+            toast.innerHTML = message;
+            toastContainer.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        function saveMarquee() {
+            const newText = document.getElementById('marquee-input').value.trim();
+            if (!newText) {
+                showToast('Marquee text cannot be empty!', 'danger');
+                return;
+            }
+
+            // Send AJAX request using fetch
+            fetch("{% url 'store:update_marquee' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: `marquee_text=${encodeURIComponent(newText)}`
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.text();
+            })
+            .then(html => {
+                // Update the marquee content
+                document.getElementById('dynamic-marquee').innerHTML = 
+                    `<h4 class="marquee-text">${newText}</h4>`;
+                
+                // Switch back to display mode
+                toggleMarqueeEdit();
+                
+                // Show success message
+                showToast('Marquee updated successfully!');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Failed to update marquee!', 'danger');
+            });
+        }
+
+        // Add keyboard event listener for the input
+        document.getElementById('marquee-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                saveMarquee();
+            } else if (e.key === 'Escape') {
+                toggleMarqueeEdit();
+            }
+        });
+    </script>
 </body>
 
 </html>

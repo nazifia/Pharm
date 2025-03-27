@@ -496,21 +496,47 @@ def add_to_wholesale_cart(request, item_id):
 
 
 @login_required
-def wholesale_customer_history(request, pk):
+def wholesale_customer_history(request, customer_id):
     if request.user.is_authenticated:
-        wholesale_customer = get_object_or_404(WholesaleCustomer, id=pk)
-        histories = WholesaleSelectionHistory.objects.filter(wholesale_customer=wholesale_customer).select_related('wholesale_customer__user').order_by('-date')
+        wholesale_customer = get_object_or_404(WholesaleCustomer, id=customer_id)
         
-        # Add a 'subtotal' field to each history
-        for history in histories:
-            history.subtotal = history.quantity * history.unit_price
+        histories = WholesaleSalesItem.objects.filter(
+            sales__wholesale_customer=wholesale_customer
+        ).select_related(
+            'item', 'sales', 'sales__user'
+        ).order_by('-sales__date')
 
-        return render(request, 'partials/wholesale_customer_history.html', {
+        # Process histories and calculate totals
+        processed_histories = []
+        for history in histories:
+            history.date = history.sales.date
+            history.user = history.sales.user
+            history.action = 'return' if history.quantity < 0 else 'purchase'
+            processed_histories.append(history)
+
+        # Group histories by year and month
+        history_data = {}
+        for history in processed_histories:
+            year = history.date.year
+            month = history.date.strftime('%B')  # Full month name
+            
+            if year not in history_data:
+                history_data[year] = {'total': Decimal('0'), 'months': {}}
+            
+            if month not in history_data[year]['months']:
+                history_data[year]['months'][month] = {'total': Decimal('0'), 'items': []}
+            
+            history_data[year]['total'] += history.subtotal
+            history_data[year]['months'][month]['total'] += history.subtotal
+            history_data[year]['months'][month]['items'].append(history)
+
+        context = {
             'wholesale_customer': wholesale_customer,
-            'histories': histories,
-        })
-    else:
-        return redirect('store:index')
+            'history_data': history_data,
+        }
+        
+        return render(request, 'partials/wholesale_customer_history.html', context)
+    return redirect('store:index')
 
 
 
@@ -1913,5 +1939,61 @@ def transfer_request_list(request):
         return render(request, "store/transfer_request_list.html", context)
     else:
         return redirect('store:index')
+
+
+@login_required
+def complete_wholesale_customer_history(request, customer_id):
+    if request.user.is_authenticated:
+        customer = get_object_or_404(WholesaleCustomer, id=customer_id)
+        
+        # Get all wholesale selection history
+        selection_history = WholesaleSelectionHistory.objects.filter(
+            wholesale_customer=customer
+        ).select_related(
+            'item', 'user'
+        ).order_by('-date')  # Changed from created_at to date
+
+        # Process history
+        history_data = {}
+        
+        for entry in selection_history:
+            year = entry.date.year  # Changed from created_at to date
+            month = entry.date.strftime('%B')
+            
+            if year not in history_data:
+                history_data[year] = {'total': Decimal('0'), 'months': {}}
+            
+            if month not in history_data[year]['months']:
+                history_data[year]['months'][month] = {'total': Decimal('0'), 'items': []}
+            
+            subtotal = entry.quantity * entry.unit_price
+            
+            # Update totals (subtract for returns, add for purchases)
+            if entry.action == 'return':
+                history_data[year]['total'] -= subtotal
+                history_data[year]['months'][month]['total'] -= subtotal
+            else:
+                history_data[year]['total'] += subtotal
+                history_data[year]['months'][month]['total'] += subtotal
+            
+            history_data[year]['months'][month]['items'].append({
+                'date': entry.date,  # Changed from created_at to date
+                'item': entry.item,
+                'quantity': entry.quantity,
+                'price': entry.unit_price,
+                'subtotal': subtotal,
+                'action': entry.action,
+                'user': entry.user
+            })
+
+        context = {
+            'wholesale_customer': customer,
+            'history_data': history_data,
+        }
+        
+        return render(request, 'wholesale/complete_wholesale_customer_history.html', context)
+    return redirect('store:index')
+
+
 
 

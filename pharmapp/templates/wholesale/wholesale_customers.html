@@ -157,7 +157,14 @@
                             hx-get="{% url 'wholesale:wholesale_customer_history' customer.id %}"
                             hx-target="#item-selection"
                             hx-swap="innerHTML"
-                            >History</a
+                            >Summary</a
+                        >
+
+                        <a
+                            type="button"
+                            class="btn btn-sm btn-secondary"
+                            href="{% url 'wholesale:complete_wholesale_customer_history' customer.id %}"
+                            >Full History</a
                         >
                     </td>
                 </tr>

@@ -23,34 +23,32 @@ from django.views.decorators.csrf import csrf_exempt
 @login_required
 @user_passes_test(is_admin)
 def register_view(request):
+    if request.method == 'POST':
+        form = UserRegistrationForm(request.POST)
+        if form.is_valid():
+            try:
+                user = form.save(commit=False)
+                # Now we'll use the provided username instead of mobile
+                user.username = form.cleaned_data['username']
+                user.mobile = form.cleaned_data['mobile']
+                user.save()
+                
+                # Create or update profile
+                profile = Profile.objects.get_or_create(user=user)[0]
+                profile.full_name = form.cleaned_data['full_name']
+                profile.user_type = form.cleaned_data['user_type']
+                profile.save()
+                
+                messages.success(request, 'User account created successfully.')
+                return redirect('userauth:register')
+            except Exception as e:
+                messages.error(request, f'Error creating user: {str(e)}')
+    else:
+        form = UserRegistrationForm()
     
-    form = UserRegistrationForm(request.POST or None)
-    if form.is_valid():
-        user = form.save()
-        full_name = form.cleaned_data['full_name']
-        email = form.cleaned_data['email']
-        mobile = form.cleaned_data['mobile']
-        password = form.cleaned_data['password1']
-        user_type = form.cleaned_data['user_type']
-        
-        user = authenticate(mobile=mobile, password=password, user_type=user_type)
-        login(request, user)
-        
-        messages.success(request, 'Account successfully created.')
-        profile = Profile.objects.create(user=user, full_name=full_name)
-        
-        if user_type == 'Admin':
-            profile.user_type = 'Admin'
-        elif user_type == 'Pharmacist':
-            profile.user_type = 'Pharmacist'
-        else:
-            profile.user_type = 'Pharm-tech'
-        profile.save()
-        
-        next_url = request.GET.get('next', 'store:index')
-        return redirect(next_url)
-    context ={
+    context = {
         'form': form,
+        'title': 'Register New User'
     }
     return render(request, 'userauth/register.html', context)
 
@@ -64,6 +62,7 @@ def edit_user_profile(request):
     if request.method == 'POST':
         # Get form data
         full_name = request.POST.get('full_name')
+        username = request.POST.get('username')
         mobile = request.POST.get('mobile')
         password = request.POST.get('password')
         image = request.FILES.get('image')
@@ -82,8 +81,14 @@ def edit_user_profile(request):
                 messages.success(request, 'Password updated successfully. Please log in again.')
                 return redirect('store:index')  # Redirect to login after password change
 
+        # Check if username is already taken by another user
+        if username != user.username and User.objects.filter(username=username).exists():
+            messages.error(request, 'This username is already taken.')
+            return redirect(reverse('userauth:profile'))
+
         # Update other fields
         profile.full_name = full_name
+        user.username = username
         user.mobile = mobile
 
         try:
@@ -93,7 +98,7 @@ def edit_user_profile(request):
         except ValidationError as e:
             messages.error(request, f'Error: {e}')
 
-        return redirect(reverse('userauth:profile'))  # Replace with actual profile page URL
+        return redirect(reverse('userauth:profile'))
 
     return render(request, 'userauth/profile.html', {'profile': profile})
 
