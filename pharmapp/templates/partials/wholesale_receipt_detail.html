@@ -1,4 +1,5 @@
 {% load static %}
+{% load humanize %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -44,35 +45,37 @@
         <p><strong>Date:</strong> {{ receipt.date|date:"F j, Y" }}</p>
         <p><strong>Sales Person:</strong> {{ user.username }}</p>
 
-        <table class="table table-hover table-bordered mt-3">
-            <thead class="table-secondary">
-                <tr>
-                    <th scope="col">SN</th>
-                    <th scope="col">Item Name</th>
-                    <th scope="col">D/form</th>
-                    <th scope="col">Brand</th>
-                    <th scope="col">Unit</th>
-                    <th scope="col">Qty</th>
-                    <th scope="col">Rate</th>
-                    <th scope="col">Subtotal</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for sales_item in sales_items %}
-                <tr>
-                    <td>{{ forloop.counter }}</td>
-                    <td>{{ sales_item.item.name|title }}</td>
-                    <td>{{ sales_item.item.dosage_form|title }}</td>
-                    <td>{{ sales_item.item.brand|title }}</td>
-                    <td>{{ sales_item.item.unit }}</td>
-                    <td>{{ sales_item.quantity }} </td>
-                    <td>₦{{ sales_item.price }}</td>
-                    <td>₦{{ sales_item.subtotal|floatformat:2 }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <p style="text-align: end;"><strong>Total Amount: ₦{{ receipt.total_amount }}</strong></p>
+        <div class="table-responsive mt-3">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Item Name</th>
+                        <th class="dosage-form-column">Dosage Form</th>
+                        <th class="brand-column">Brand</th>
+                        <th>Unit</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sales_item in sales_items %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ sales_item.item.name|title }}</td>
+                        <td class="dosage-form-column">{{ sales_item.item.dosage_form|title }}</td>
+                        <td class="brand-column">{{ sales_item.item.brand|title }}</td>
+                        <td>{{ sales_item.item.unit }}</td>
+                        <td>{{ sales_item.quantity|intcomma }}</td>
+                        <td>₦{{ sales_item.price|intcomma }}</td>
+                        <td>₦{{ sales_item.subtotal|floatformat:2|intcomma }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p style="text-align: end;"><strong>Total Amount: ₦{{ receipt.total_amount|floatformat:2|intcomma }}</strong></p>
         <p style="text-align: end;"><strong>Payment Method: {{ receipt.payment_method }}</strong></p>
 
         {% if receipt.has_returns %}
@@ -90,8 +93,11 @@
     </div>
 
     <div class="action-buttons no-print">
-        <button onclick="window.print()" class="btn btn-sm btn-primary">
-            <i class="fas fa-print"></i> Print
+        <button class="btn btn-primary btn-sm" onclick="printReceipt('thermal')">
+            <i class="fas fa-print"></i> Thermal Print
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="printReceipt('a4')">
+            <i class="fas fa-print"></i> A4 Print
         </button>
         <button onclick="downloadPDF()" class="btn btn-sm btn-success">
             <i class="fas fa-download"></i> Download PDF
@@ -102,9 +108,102 @@
     </div>
 
     <script>
-        function downloadPDF() {
-            window.print();
+    function printReceipt(format) {
+        const originalTitle = document.title;
+        const receipt = document.getElementById('receipt');
+        const originalWidth = receipt.style.width;
+        
+        // Store original display values of dosage form columns
+        const dosageFormCells = document.querySelectorAll('.dosage-form-column');
+        const originalDisplayValues = Array.from(dosageFormCells).map(cell => cell.style.display);
+        
+        if (format === 'thermal') {
+            receipt.style.width = '80mm'; // Increased from 72mm
+            receipt.style.margin = '0 auto';
+            receipt.style.padding = '2mm';
+            document.title = 'Thermal_' + originalTitle;
+            
+            // Add thermal-specific styles
+            receipt.classList.add('thermal-print');
+            receipt.classList.add('hide-dosage');
+            receipt.style.fontSize = '9px';
+            receipt.style.lineHeight = '1.1';
+            
+            // Hide dosage form columns
+            dosageFormCells.forEach(cell => {
+                cell.style.display = 'none';
+            });
+            
+            // Ensure table fits within thermal width
+            const table = receipt.querySelector('table');
+            if (table) {
+                table.style.width = '76mm'; // Increased from 68mm
+                table.style.fontSize = '8px';
+                table.style.tableLayout = 'fixed';
+            }
+        } else {
+            // A4 format settings
+            receipt.style.width = '210mm';
+            document.title = 'A4_' + originalTitle;
+            receipt.classList.remove('thermal-print');
+            receipt.classList.remove('hide-dosage');
+            
+            // Show dosage form columns
+            dosageFormCells.forEach((cell, index) => {
+                cell.style.display = originalDisplayValues[index];
+            });
+            
+            // Reset table styles
+            const table = receipt.querySelector('table');
+            if (table) {
+                table.style.width = '100%';
+                table.style.fontSize = '';
+                table.style.tableLayout = '';
+            }
         }
+
+        window.print();
+        
+        // Restore original styles after printing
+        setTimeout(() => {
+            receipt.style.width = originalWidth;
+            receipt.style.margin = '';
+            receipt.style.padding = '';
+            receipt.classList.remove('thermal-print');
+            receipt.classList.remove('hide-dosage');
+            document.title = originalTitle;
+            
+            // Restore dosage form columns
+            dosageFormCells.forEach((cell, index) => {
+                cell.style.display = originalDisplayValues[index];
+            });
+            
+            // Reset all modified styles
+            const table = receipt.querySelector('table');
+            if (table) {
+                table.style.width = '';
+                table.style.fontSize = '';
+                table.style.tableLayout = '';
+            }
+        }, 100);
+    }
+
+    function downloadPDF() {
+        const receipt = document.getElementById('receipt');
+        const options = {
+            margin: 10,
+            filename: 'Receipt_{{ receipt.receipt_id }}.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().from(receipt).set(options).save();
+    }
+
+    window.onafterprint = function() {
+        document.title = 'Receipt Details - {{ receipt.receipt_id }}';
+    };
     </script>
 </body>
 
