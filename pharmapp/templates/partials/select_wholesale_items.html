@@ -103,12 +103,7 @@
         </select>
     </div>
 
-    <!-- Search field to filter items -->
-    <!-- <div class="mb-3">
-    <input type="text" class="form-control" id="item-search" name="query" placeholder="Search for items..."
-        hx-get="" hx-trigger="keyup changed delay:500ms"
-        hx-target="#for-customer" hx-swap="outerHTML" style="background-color: rgb(210, 247, 253);">
-</div> -->
+    
 
 
 
@@ -146,7 +141,7 @@
                         <td>{{ item.price }}</td>
                         <td>{{ item.stock }}</td>
                         <td>
-                            <input type="number" name="quantities" min="1" max="{{ item.stock_quantity }}" value="1"
+                            <input type="number" name="quantities" min="0.5" max="{{ item.stock_quantity }}" value="1"
                                 class="form-control input-sm" disabled>
                         </td>
                     </tr>
