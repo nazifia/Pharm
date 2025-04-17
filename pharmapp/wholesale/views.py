@@ -149,6 +149,7 @@ def add_to_wholesale(request):
         low_stock_threshold = 10  # Adjust this number as needed
         
         # Calculate total purchase value and total stock value
+        items = WholesaleItem.objects.all()
         total_purchase_value = sum(item.cost * item.stock for item in items)
         total_stock_value = sum(item.price * item.stock for item in items)
         total_profit = total_stock_value - total_purchase_value
@@ -445,10 +446,10 @@ from django.views.decorators.http import require_POST
 def add_to_wholesale_cart(request, item_id):
     if request.user.is_authenticated:
         item = get_object_or_404(WholesaleItem, id=item_id)
-        quantity = int(request.POST.get('quantity', 1))
+        quantity = Decimal(request.POST.get('quantity', 0.5))
         unit = request.POST.get('unit')
 
-        if quantity <= 0:
+        if quantity < 0.5:  # Minimum quantity is 0.5 units
             messages.warning(request, "Quantity must be greater than zero.")
             return redirect('wholesale:wholesale_cart')
 
@@ -593,7 +594,7 @@ def select_wholesale_items(request, pk):
             for i, item_id in enumerate(item_ids):
                 try:
                     item = WholesaleItem.objects.get(id=item_id)
-                    quantity = int(quantities[i])
+                    quantity = Decimal(quantities[i])
                     # discount = Decimal(discount_amounts[i]) if i < len(discount_amounts) else Decimal('0.0')
                     unit = units[i] if i < len(units) else item.unit
 
@@ -769,7 +770,7 @@ def update_wholesale_cart_quantity(request, pk):
     if request.user.is_authenticated:
         cart_item = get_object_or_404(WholesaleCart, id=pk)
         if request.method == 'POST':
-            quantity_to_return = int(request.POST.get('quantity', 0))
+            quantity_to_return = Decimal(request.POST.get('quantity', 0))
             if 0 < quantity_to_return <= cart_item.quantity:
                 cart_item.item.stock += quantity_to_return
                 cart_item.item.save()
@@ -800,7 +801,18 @@ def clear_wholesale_cart(request):
         if request.method == 'POST':
             try:
                 with transaction.atomic():
-                    cart_items = Cart.objects.all()
+                    # Get cart items specifically for wholesale
+                    cart_items = WholesaleCart.objects.filter(user=request.user)
+
+                    if not cart_items.exists():
+                        messages.info(request, 'Cart is already empty.')
+                        return redirect('wholesale:wholesale_cart')
+
+                    # Calculate total amount to potentially refund
+                    total_refund = sum(
+                        item.item.price * item.quantity 
+                        for item in cart_items
+                    )
 
                     for cart_item in cart_items:
                         # Return items to stock
@@ -812,40 +824,56 @@ def clear_wholesale_cart(request):
                             user=request.user,
                             name=cart_item.item.name,
                             quantity=cart_item.quantity,
-                            amount=cart_item.item.price * cart_item.quantity
+                            status='Dispensed'  # Only remove dispensed logs
                         ).delete()
 
-                        # Reverse sales entry
-                        sales_entry = Sales.objects.filter(
-                            user=request.user,
-                            total_amount=cart_item.item.price * cart_item.quantity
-                        ).first()  # Replace with the correct field for items
+                    # Find any pending sales entries (those without receipts)
+                    sales_entries = Sales.objects.filter(
+                        user=request.user,
+                        wholesale_customer__isnull=False,  # Only wholesale sales
+                        receipts__isnull=True  # Pending sales have no receipts
+                    ).distinct()
 
-                        if sales_entry:
-                            if sales_entry.customer:
-                                wallet = sales_entry.customer.wallet
-                                wallet.balance += cart_item.item.price * cart_item.quantity
-                                wallet.save()
+                    for sale in sales_entries:
+                        if sale.wholesale_customer:
+                            try:
+                                wallet = sale.wholesale_customer.wholesale_customer_wallet
+                                if wallet and total_refund > 0:
+                                    wallet.balance += total_refund
+                                    wallet.save()
+                                    
+                                    # Create transaction history for the refund
+                                    TransactionHistory.objects.create(
+                                        customer=sale.wholesale_customer,
+                                        transaction_type='refund',
+                                        amount=total_refund,
+                                        description='Cart cleared - items returned'
+                                    )
+                            except WholesaleCustomerWallet.DoesNotExist:
+                                messages.warning(
+                                    request, 
+                                    f'Wallet not found for customer {sale.wholesale_customer.name}'
+                                )
 
-                            if sales_entry.wholesale_customer:
-                                wholesale_wallet = sales_entry.wholesale_customer.wholesale_customer_wallet
-                                wholesale_wallet.balance += cart_item.item.price * cart_item.quantity
-                                wholesale_wallet.save()
-
-                            # Delete sales entry
-                            sales_entry.delete()
+                        # Delete associated sales items first
+                        sale.wholesale_sales_items.all().delete()
+                        # Delete the sale
+                        sale.delete()
 
                     # Clear cart items
                     cart_items.delete()
-                    messages.success(request, 'Cart cleared, items returned to stock, and wallet transactions reversed.')
+                    
+                    messages.success(
+                        request, 
+                        'Cart cleared successfully. All items returned to stock and transactions reversed.'
+                    )
 
             except Exception as e:
-                messages.warning(request, f"An error occurred: {e}")
-                print(f"Error during clear_wholesale_cart: {e}")
+                messages.error(request, f'Error clearing cart: {str(e)}')
+                return redirect('wholesale:wholesale_cart')
 
-        return redirect('wholesale_cart')
-    else:
-        return redirect('store:index')
+        return redirect('wholesale:wholesale_cart')
+    return redirect('store:index')
 
 
 

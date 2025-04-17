@@ -90,23 +90,40 @@
 <div class="container">
     <div class="side-nav">
         <a class="btn btn-primary btn-sm" data-toggle="modal" data-target="#wholesaleDispenseModal"
-            hx-get="{% url 'wholesale:dispense_wholesale' %}" hx-target="#wholesaleDispenseModal .modal-body">AddTo
-            Wholesale
-            Cart</a>
+            hx-get="{% url 'wholesale:dispense_wholesale' %}" hx-target="#wholesaleDispenseModal .modal-body">
+            AddTo Wholesale Cart
+        </a>
         <a class="btn btn-sm btn-warning" href="{% url 'wholesale:wholesale_cart' %}">View Wholesale cart</a>
         <a class="btn btn-success btn-sm" href="{% url 'wholesale:wholesale_receipt' %}">Receipt</a>
-        <form method="POST" action="" onsubmit="return confirmClearCart();">
+        
+        <!-- Updated Clear Cart form with better confirmation and feedback -->
+        <form id="clearCartForm" method="POST" action="{% url 'wholesale:clear_wholesale_cart' %}" 
+              onsubmit="return confirmClearCart(event);">
             {% csrf_token %}
-            <button type="submit" class="btn btn-outline-dark btn-sm">Clear Cart</button>
+            <button type="submit" class="btn btn-outline-dark btn-sm" id="clearCartBtn">
+                Clear Cart
+            </button>
         </form>
+        
         <a class="btn btn-secondary btn-sm" href="{{ request.META.HTTP_REFERER }}">Back</a>
     </div>
 
     <div class="col-md-8 offset-md-3 cart-table table-responsive">
         <h3 style="text-align: center;">Wholesale Cart</h3>
-        {% for message in messages %}
-        <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
-        {% endfor %}
+        
+        <!-- Message display with auto-hide -->
+        {% if messages %}
+        <div id="messages-container">
+            {% for message in messages %}
+            <div style="text-align: center;" class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
 
         {% if cart_items %}
 
@@ -138,7 +155,7 @@
                         <!-- Form for Adjusting Quantity -->
                         <form action="{% url 'wholesale:update_wholesale_cart_quantity' cart_item.id %}" method="post">
                             {% csrf_token %}
-                            <input type="number" name="quantity" min="1" value="{{ cart_item.quantity }}" id="quantity"
+                            <input type="number" name="quantity" min="0.5" step="0.5" value="{{ cart_item.quantity }}" id="quantity"
                                 style="width: 70px; border-radius: 3px;">
                             <button class="btn btn-outline-danger btn-sm mb-2" type="submit">Reduce</button>
                         </form>
@@ -161,7 +178,7 @@
         </table>
 
 
-        <h6>TOTAL PRICE: ₦ {{ total_price }}</h6>
+        <h6>TOTAL PRICE: ₦ <span id="totalPrice">{{ total_price }}</span></h6>
         <!-- <h4>TOTAL AFTER DISCOUNT: ₦ </h4> -->
         {% else %}
         <div class="col-md-8 offset-md-3">
@@ -171,20 +188,58 @@
     </div>
 </div>
 
+<!-- Enhanced JavaScript for cart functionality -->
 <script>
-    function confirmClearCart() {
-        return confirm("Are you sure you want to clear the cart?");
+    // Improved clear cart confirmation
+    function confirmClearCart(event) {
+        event.preventDefault();
+        
+        if (document.querySelectorAll('#dataTable tbody tr').length === 0) {
+            alert('Cart is already empty.');
+            return false;
+        }
+
+        const confirmed = confirm("Are you sure you want to clear the cart? This will:\n" +
+            "- Remove all items from cart\n" +
+            "- Return items to stock\n" +
+            "- Reverse any pending transactions\n" +
+            "\nThis action cannot be undone.");
+
+        if (confirmed) {
+            // Disable the clear cart button to prevent double submission
+            document.getElementById('clearCartBtn').disabled = true;
+            document.getElementById('clearCartForm').submit();
+        }
+        return false;
+    }
+
+    // Auto-hide messages after 5 seconds
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            const messages = document.querySelectorAll('.alert');
+            messages.forEach(function(message) {
+                const alert = new bootstrap.Alert(message);
+                alert.close();
+            });
+        }, 5000);
+    });
+
+    // Prevent form resubmission on page refresh
+    if (window.history.replaceState) {
+        window.history.replaceState(null, null, window.location.href);
     }
 </script>
 
 <!-- Dispense Modal -->
-<div class="modal fade" id="wholesaleDispenseModal" tabindex="-1" aria-labelledby="wholesaleDispenseModalLabel"
-    aria-hidden="true">
+<div class="modal fade" id="wholesaleDispenseModal" tabindex="-1" 
+     aria-labelledby="wholesaleDispenseModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <h3>SELECT ITEM FOR WHOLESALE</h3>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">x</button>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
             <div class="modal-body"></div>
         </div>
