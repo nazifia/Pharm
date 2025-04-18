@@ -1,10 +1,10 @@
 {% for sales_item in sales_items %}
 <tr>
     <td>{{ sales_item.item.name }}</td>
-    <td>{{ sales_item.quantity }}</td>
-    <td>{{ sales_item.returned_quantity|default:0 }}</td>
+    <td>{{ sales_item.quantity|floatformat:2 }}</td>
+    <td>{{ sales_item.returned_quantity|default:0|floatformat:2 }}</td>
     <td data-available-quantity="{{ sales_item.quantity|sub:sales_item.returned_quantity|default:sales_item.quantity }}">
-        {{ sales_item.quantity|sub:sales_item.returned_quantity|default:sales_item.quantity }}
+        {{ sales_item.quantity|sub:sales_item.returned_quantity|default:sales_item.quantity|floatformat:2 }}
     </td>
 </tr>
 {% endfor %}

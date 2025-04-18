@@ -112,28 +112,28 @@
         const originalTitle = document.title;
         const receipt = document.getElementById('receipt');
         const originalWidth = receipt.style.width;
-        
+
         // Store original display values of dosage form columns
         const dosageFormCells = document.querySelectorAll('.dosage-form-column');
         const originalDisplayValues = Array.from(dosageFormCells).map(cell => cell.style.display);
-        
+
         if (format === 'thermal') {
             receipt.style.width = '80mm'; // Increased from 72mm
             receipt.style.margin = '0 auto';
             receipt.style.padding = '2mm';
             document.title = 'Thermal_' + originalTitle;
-            
+
             // Add thermal-specific styles
             receipt.classList.add('thermal-print');
             receipt.classList.add('hide-dosage');
             receipt.style.fontSize = '9px';
             receipt.style.lineHeight = '1.1';
-            
+
             // Hide dosage form columns
             dosageFormCells.forEach(cell => {
                 cell.style.display = 'none';
             });
-            
+
             // Ensure table fits within thermal width
             const table = receipt.querySelector('table');
             if (table) {
@@ -147,12 +147,12 @@
             document.title = 'A4_' + originalTitle;
             receipt.classList.remove('thermal-print');
             receipt.classList.remove('hide-dosage');
-            
+
             // Show dosage form columns
             dosageFormCells.forEach((cell, index) => {
                 cell.style.display = originalDisplayValues[index];
             });
-            
+
             // Reset table styles
             const table = receipt.querySelector('table');
             if (table) {
@@ -163,7 +163,7 @@
         }
 
         window.print();
-        
+
         // Restore original styles after printing
         setTimeout(() => {
             receipt.style.width = originalWidth;
@@ -172,12 +172,12 @@
             receipt.classList.remove('thermal-print');
             receipt.classList.remove('hide-dosage');
             document.title = originalTitle;
-            
+
             // Restore dosage form columns
             dosageFormCells.forEach((cell, index) => {
                 cell.style.display = originalDisplayValues[index];
             });
-            
+
             // Reset all modified styles
             const table = receipt.querySelector('table');
             if (table) {

@@ -30,13 +30,14 @@ urlpatterns = [
     path('wholesale_customer_add_funds/<int:pk>/', views.wholesale_customer_add_funds, name='wholesale_customer_add_funds'),
     path('wholesale_transactions/<int:customer_id>/', views.wholesale_transactions, name='wholesale_transactions'),
     path('select_wholesale_items/<int:pk>/', views.select_wholesale_items, name='select_wholesale_items'),
+    path('wholesale/select_wholesale_items/<int:pk>/', views.select_wholesale_items, name='select_wholesale_items_alt'),
     path('wholesale_exp_alert/', views.wholesale_exp_alert, name='wholesale_exp_alert'),
     path('wholesale_receipt_list/', views.wholesale_receipt_list, name='wholesale_receipt_list'),
     path('wholesale_customer_history/<int:customer_id>/', views.wholesale_customer_history, name='wholesale_customer_history'),
     path('search_wholesale_receipts/', views.search_wholesale_receipts, name='search_wholesale_receipts'),
     path('complete_wholesale_customer_history/<int:customer_id>/', views.complete_wholesale_customer_history, name='complete_wholesale_customer_history'),
-    
-    
+
+
     # Procurement URLs
     path('add_wholesale_procurement/', views.add_wholesale_procurement, name='add_wholesale_procurement'),
     path('wholesale_procurement_list/', views.wholesale_procurement_list, name='wholesale_procurement_list'),
@@ -44,8 +45,8 @@ urlpatterns = [
     path('wholesales_by_user/', views.wholesales_by_user, name='wholesales_by_user_table'),
     path('search_wholesale_procurement/', views.search_wholesale_procurement, name='search_wholesale_procurement'),
     path('wholesale_procurement_detail/<int:procurement_id>/', views.wholesale_procurement_detail, name='wholesale_procurement_detail'),
-    
-    
+
+
     # Stock Check URLs
     path('create-wholesale-check/', views.create_wholesale_stock_check, name='create_wholesale_stock_check'),
     path('<int:stock_check_id>/update-wholesale/', views.update_wholesale_stock_check, name='update_wholesale_stock_check'),
@@ -53,17 +54,20 @@ urlpatterns = [
     path('stock-check/<int:stock_check_id>/wholesale-approve/', views.approve_wholesale_stock_check, name='approve_wholesale_stock_check'),
     path('stock-check/<int:stock_check_id>/wholesale-bulk-adjust/', views.wholesale_bulk_adjust_stock, name='wholesale_bulk_adjust_stock'),
     path('wholesale_list/', views.list_wholesale_stock_checks, name='list_wholesale_stock_checks'),
-    
-    
+
+
     # Request Transfer URLs
     path("transfer_wholesale/", views.create_transfer_request, name="create_transfer_request"),
     path("wholesale/approve/<int:transfer_id>/", views.wholesale_approve_transfer, name="wholesale_approve_transfer"),
     path("wholesale_pending_transfer_requests/", views.pending_wholesale_transfer_requests, name="pending_wholesale_transfer_requests"),
     path("transfer/reject/<int:transfer_id>/", views.reject_wholesale_transfer, name="reject_wholesale_transfer"),
     path("transfer_request_list/", views.wholesale_transfer_request_list, name="wholesale_transfer_request_list"),
-    
+
     # Add these new URLs for stock adjustment
     path('adjust-wholesale-stock-levels/', views.adjust_wholesale_stock_levels, name='adjust_wholesale_stock_levels'),
     path('search-wholesale-for-adjustment/', views.search_wholesale_for_adjustment, name='search_wholesale_for_adjustment'),
     path('adjust-wholesale-stock-level/<int:item_id>/', views.adjust_wholesale_stock_level, name='adjust_wholesale_stock_level'),
+
+    # Customer return items URL
+    path('wholesale/return_items/<int:pk>/', views.return_wholesale_items_for_customer, name='return_wholesale_items_for_customer'),
 ]

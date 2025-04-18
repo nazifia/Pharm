@@ -81,7 +81,7 @@
                         <td class="dosage-form-column">{{ item.item.dosage_form|title }}</td>
                         <td class="brand-column">{{ item.item.brand|title }}</td>
                         <td>{{ item.item.unit }}</td>
-                        <td>{{ item.quantity|intcomma }}</td>
+                        <td>{{ item.quantity|floatformat:2|intcomma }}</td>
                         <td>₦{{ item.price|intcomma }}</td>
                         <td>₦{{ item.price|multiply:item.quantity|floatformat:2|intcomma }}</td>
                     </tr>
@@ -163,19 +163,19 @@
             const receipt = document.getElementById('receipt');
             const originalTitle = document.title;
             const originalWidth = receipt.style.width;
-            
+
             // Store original display values
             const dosageFormCells = document.querySelectorAll('.dosage-form-column');
             const brandCells = document.querySelectorAll('.brand-column');
             const originalDosageDisplayValues = Array.from(dosageFormCells).map(cell => cell.style.display);
             const originalBrandDisplayValues = Array.from(brandCells).map(cell => cell.style.display);
-            
+
             if (format === 'thermal') {
                 receipt.style.width = '80mm';
                 receipt.style.margin = '0 auto';
                 receipt.style.padding = '3mm';
                 document.title = 'Thermal_' + originalTitle;
-                
+
                 // Add thermal-specific styles
                 const style = document.createElement('style');
                 style.id = 'thermal-print-styles';
@@ -257,25 +257,25 @@
                     }
                 `;
                 document.head.appendChild(style);
-                
+
                 receipt.classList.add('thermal-print');
-                
+
                 // Hide dosage form and brand columns
                 dosageFormCells.forEach(cell => cell.style.display = 'none');
                 brandCells.forEach(cell => cell.style.display = 'none');
-                
+
             } else {
                 // A4 format settings
                 receipt.style.width = '210mm';
                 receipt.style.padding = '15mm';
                 document.title = 'A4_' + originalTitle;
-                
+
                 // Remove thermal styles
                 const thermalStyles = document.getElementById('thermal-print-styles');
                 if (thermalStyles) thermalStyles.remove();
-                
+
                 receipt.classList.remove('thermal-print');
-                
+
                 // Show all columns
                 dosageFormCells.forEach((cell, index) => {
                     cell.style.display = originalDosageDisplayValues[index];
@@ -286,17 +286,17 @@
             }
 
             window.print();
-            
+
             // Restore original styles
             setTimeout(() => {
                 receipt.style.width = originalWidth;
                 receipt.style.margin = '';
                 receipt.style.padding = '';
                 receipt.classList.remove('thermal-print');
-                
+
                 const thermalStyles = document.getElementById('thermal-print-styles');
                 if (thermalStyles) thermalStyles.remove();
-                
+
                 // Restore columns
                 dosageFormCells.forEach((cell, index) => {
                     cell.style.display = originalDosageDisplayValues[index];
@@ -304,7 +304,7 @@
                 brandCells.forEach((cell, index) => {
                     cell.style.display = originalBrandDisplayValues[index];
                 });
-                
+
                 document.title = originalTitle;
             }, 100);
         }

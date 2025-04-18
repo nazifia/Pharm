@@ -4,8 +4,8 @@
     <td>{{ log.name }}</td>
     <td>{{ log.brand }}</td>
     <td>{{ log.unit }}</td>
-    <td>{{ log.quantity }}</td>
-    <td>{{ log.amount }}</td>
+    <td>{{ log.quantity|floatformat:2 }}</td>
+    <td>{{ log.amount|floatformat:2 }}</td>
     <td>{{ log.get_status_display }}</td>
     <td>{{ log.created_at }}</td>
 </tr>

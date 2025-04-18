@@ -5,7 +5,7 @@ register = template.Library()
 @register.filter
 def subtract(value, arg):
     try:
-        return value - int(arg)
+        return float(value) - float(arg)
     except (ValueError, TypeError):
         return value
 

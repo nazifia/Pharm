@@ -99,7 +99,7 @@ STATUS_CHOICES = [
 
 class Formulation(models.Model):
     dosage_form = models.CharField(max_length=200, choices=DOSAGE_FORM, null=True, blank=True, default='DosageForm')
-    
+
     def __str__(self):
         return self.dosage_form
 
@@ -114,14 +114,14 @@ class Item(models.Model):
     markup = models.DecimalField(max_digits=6, decimal_places=2, default=0, choices=MARKUP_CHOICES)
     stock = models.PositiveIntegerField(default=0, null=True, blank=True)
     low_stock_threshold = models.PositiveIntegerField(default=0, null=True, blank=True)
-    exp_date = models.DateField(null=True, blank=True)    
-    
+    exp_date = models.DateField(null=True, blank=True)
+
     class Meta:
         ordering = ('name',)
-    
+
     def __str__(self):
         return f'{self.name} {self.brand} {self.unit} {self.cost} {self.price} {self.markup} {self.stock} {self.exp_date}'
-    
+
     def save(self, *args, **kwargs):
         if not self.price or self.price == self.cost + (self.cost * Decimal(self.markup) / Decimal("100")):
             self.price = self.cost + (self.cost * Decimal(self.markup) / Decimal("100"))
@@ -141,13 +141,13 @@ class WholesaleItem(models.Model):
     markup = models.DecimalField(max_digits=6, decimal_places=2, default=0, choices=MARKUP_CHOICES)
     stock = models.DecimalField(max_digits=6, decimal_places=2, default=0, null=True, blank=True)
     low_stock_threshold = models.DecimalField(max_digits=6, decimal_places=2, default=0, null=True, blank=True)
-    exp_date = models.DateField(null=True, blank=True)    
+    exp_date = models.DateField(null=True, blank=True)
     class Meta:
         ordering = ('name',)
-    
+
     def __str__(self):
         return f'{self.name} {self.brand} {self.unit} {self.cost} {self.price} {self.markup} {self.stock} {self.exp_date}'
-    
+
     def save(self, *args, **kwargs):
         # Check if the price was provided; if not, calculate based on the markup
         if not self.price or self.price == self.cost + (Decimal(self.cost) * Decimal(self.markup) / 100):
@@ -166,14 +166,14 @@ class Cart(models.Model):
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     cart_id = ShortUUIDField(unique=True, length=5, max_length=50, prefix='CID: ', alphabet='1234567890')
-    
+
     def __str__(self):
         return f'{self.cart_id} {self.user}'
-    
+
     @property
     def calculate_subtotal(self):
         return self.price * self.quantity
-    
+
     def save(self, *args, **kwargs):
         self.subtotal = self.calculate_subtotal
         super().save(*args, **kwargs)
@@ -191,14 +191,14 @@ class WholesaleCart(models.Model):
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     cart_id = ShortUUIDField(unique=True, length=5, max_length=50, prefix='CID: ', alphabet='1234567890')
-    
+
     def __str__(self):
         return f'{self.cart_id} {self.user}'
-    
+
     @property
     def calculate_subtotal(self):
         return self.price * self.quantity
-    
+
     def save(self, *args, **kwargs):
         self.subtotal = self.calculate_subtotal
         super().save(*args, **kwargs)
@@ -211,7 +211,7 @@ class DispensingLog(models.Model):
     dosage_form = models.ForeignKey(Formulation, on_delete=models.CASCADE, blank=True, null=True)
     brand = models.CharField(max_length=100, blank=True, null=True)
     unit = models.CharField(max_length=10, choices=UNIT, null=True, blank=True)
-    quantity = models.PositiveIntegerField(default=0)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Dispensed')
     created_at = models.DateTimeField(default=datetime.now)
@@ -321,11 +321,11 @@ class SalesItem(models.Model):
     dosage_form = models.ForeignKey(Formulation, on_delete=models.CASCADE, blank=True, null=True)
     brand = models.CharField(max_length=225, null=True, blank=True, default='None')
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    quantity = models.IntegerField()
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
         return f'{self.item.name} - {self.quantity} at {self.price}'
-    
+
     @property
     def subtotal(self):
         return self.price * self.quantity
@@ -339,11 +339,11 @@ class WholesaleSalesItem(models.Model):
     brand = models.CharField(max_length=225, null=True, blank=True, default='None')
     unit = models.CharField(max_length=10, choices=UNIT, default='unit')
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    quantity = models.IntegerField()
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
         return f'{self.item.name} - {self.quantity} at {self.price}'
-    
+
     @property
     def subtotal(self):
         return self.price * self.quantity
@@ -377,7 +377,7 @@ class WholesaleSelectionHistory(models.Model):
 
     def __str__(self):
         return f'{self.wholesale_customer.name} - {self.item.name} ({self.action})'
-    
+
 
 
 # Suppliers Model Definition
@@ -407,7 +407,7 @@ class StoreItem(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.brand}) - {self.stock} in stock"
-    
+
     def update_stock(self, quantity):
         """Increase stock when new items are procured."""
         self.stock += quantity
@@ -432,7 +432,7 @@ class StockCheck(models.Model):
         ('in_progress', 'In Progress'),
         ('completed', 'Completed'),
     ]
-    
+
     id = models.AutoField(primary_key=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_at')
     date = models.DateTimeField(default=datetime.now)
@@ -452,7 +452,7 @@ class StockCheckItem(models.Model):
         ('approved', 'Approved'),
         ('adjusted', 'Adjusted'),
     ]
-    
+
     stock_check = models.ForeignKey(StockCheck, on_delete=models.CASCADE)
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
@@ -460,8 +460,8 @@ class StockCheckItem(models.Model):
     actual_quantity = models.PositiveIntegerField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     approved_at = models.DateTimeField(null=True, blank=True)
-    
-    
+
+
     def discrepancy(self):
         return self.actual_quantity - self.expected_quantity
 
@@ -497,7 +497,7 @@ class WholesaleStockCheck(models.Model):
         ('in_progress', 'In Progress'),
         ('completed', 'Completed'),
     ]
-    
+
     id = models.AutoField(primary_key=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='wholesale_items')
     date = models.DateTimeField(default=datetime.now)
@@ -517,7 +517,7 @@ class WholesaleStockCheckItem(models.Model):
         ('approved', 'Approved'),
         ('adjusted', 'Adjusted'),
     ]
-    
+
     stock_check = models.ForeignKey(WholesaleStockCheck, on_delete=models.CASCADE, related_name='wholesale_items')
     item = models.ForeignKey(WholesaleItem, on_delete=models.CASCADE, related_name='wholesale_item')
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
@@ -525,8 +525,8 @@ class WholesaleStockCheckItem(models.Model):
     actual_quantity = models.PositiveIntegerField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     approved_at = models.DateTimeField(null=True, blank=True)
-    
-    
+
+
     def discrepancy(self):
         return self.actual_quantity - self.expected_quantity
 
@@ -607,7 +607,7 @@ class TransferRequest(models.Model):
 # EXPENSE TRACKING MODELS
 class ExpenseCategory(models.Model):
     name = models.CharField(max_length=100, unique=True)
-    
+
     class Meta:
         verbose_name_plural = 'Expense Categories'
 
@@ -620,7 +620,7 @@ class Expense(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     date = models.DateField(default=datetime.now)
     description = models.TextField(blank=True, null=True)
-    
+
 
     def __str__(self):
         return f"{self.category.name} - {self.amount} - {self.date}"
@@ -639,7 +639,7 @@ class MonthlyReport(models.Model):
 
 class StoreSettings(models.Model):
     low_stock_threshold = models.PositiveIntegerField(default=10)
-    
+
     class Meta:
         verbose_name = 'Store Settings'
         verbose_name_plural = 'Store Settings'
@@ -659,7 +659,7 @@ class StoreSettings(models.Model):
 
 class WholesaleSettings(models.Model):
     low_stock_threshold = models.PositiveIntegerField(default=10)
-    
+
     class Meta:
         verbose_name = 'Wholesale Settings'
         verbose_name_plural = 'Wholesale Settings'

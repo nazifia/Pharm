@@ -67,7 +67,7 @@
                     <td class="dosage-form-column">{{ sales_item.item.dosage_form|title }}</td>
                     <td class="brand-column">{{ sales_item.item.brand|title }}</td>
                     <td>{{ sales_item.item.unit }}</td>
-                    <td>{{ sales_item.quantity|intcomma }}</td>
+                    <td>{{ sales_item.quantity|floatformat:2|intcomma }}</td>
                     <td>₦{{ sales_item.price|intcomma }}</td>
                     <td>₦{{ sales_item.subtotal|floatformat:2|intcomma }}</td>
                 </tr>
@@ -75,7 +75,7 @@
             </tbody>
         </table>
     </div>
-        
+
         <p style="text-align: end;"><strong>Total Amount: ₦{{ receipt.total_amount|floatformat:2|intcomma }}</strong></p>
         <p style="text-align: end;"><strong>Payment Method: {{ receipt.payment_method }}</strong></p>
 
@@ -113,35 +113,35 @@
         const originalTitle = document.title;
         const receipt = document.getElementById('receipt');
         const originalWidth = receipt.style.width;
-        
+
         // Store original display values of dosage form columns
         const dosageFormCells = document.querySelectorAll('.dosage-form-column');
         const originalDisplayValues = Array.from(dosageFormCells).map(cell => cell.style.display);
-        
+
         if (format === 'thermal') {
             receipt.style.width = '80mm';
             receipt.style.margin = '0 auto';
             receipt.style.padding = '2mm';
             document.title = 'Thermal_' + originalTitle;
-            
+
             // Add thermal-specific styles
             receipt.classList.add('thermal-print');
             receipt.classList.add('hide-dosage');
             receipt.style.fontSize = '9px';
             receipt.style.lineHeight = '1.1';
-            
+
             // Hide dosage form columns
             dosageFormCells.forEach(cell => {
                 cell.style.display = 'none';
             });
-            
+
             // Ensure table fits within thermal width
             const table = receipt.querySelector('table');
             if (table) {
                 table.style.width = '76mm';
                 table.style.fontSize = '8px';
                 table.style.tableLayout = 'fixed';
-                
+
                 // Adjust column widths for thermal
                 const firstCells = table.querySelectorAll('th:first-child, td:first-child');
                 firstCells.forEach(cell => {
@@ -155,18 +155,18 @@
             receipt.classList.remove('thermal-print');
             receipt.classList.remove('hide-dosage');
             receipt.classList.add('a4-print');
-            
+
             // Show dosage form columns
             dosageFormCells.forEach((cell, index) => {
                 cell.style.display = originalDisplayValues[index];
             });
-            
+
             // Adjust table styles for A4
             const table = receipt.querySelector('table');
             if (table) {
                 table.style.width = '100%';
                 table.style.fontSize = '14px';
-                
+
                 // Adjust column widths for A4
                 const firstCells = table.querySelectorAll('th:first-child, td:first-child');
                 firstCells.forEach(cell => {
@@ -176,7 +176,7 @@
         }
 
         window.print();
-        
+
         // Restore original styles after printing
         setTimeout(() => {
             receipt.style.width = originalWidth;
@@ -186,19 +186,19 @@
             receipt.classList.remove('hide-dosage');
             receipt.classList.remove('a4-print');
             document.title = originalTitle;
-            
+
             // Restore dosage form columns
             dosageFormCells.forEach((cell, index) => {
                 cell.style.display = originalDisplayValues[index];
             });
-            
+
             // Reset all modified styles
             const table = receipt.querySelector('table');
             if (table) {
                 table.style.width = '';
                 table.style.fontSize = '';
                 table.style.tableLayout = '';
-                
+
                 // Reset column widths
                 const firstCells = table.querySelectorAll('th:first-child, td:first-child');
                 firstCells.forEach(cell => {

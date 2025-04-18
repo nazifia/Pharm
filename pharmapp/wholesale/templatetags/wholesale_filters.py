@@ -14,3 +14,14 @@ def multiply(value, arg):
         return Decimal(str(value)) * Decimal(str(arg))
     except (ValueError, TypeError, decimal.InvalidOperation):
         return Decimal('0.0')
+
+@register.filter
+def sub(value, arg):
+    """
+    Subtracts the argument from the value
+    Usage: {{ value|sub:arg }}
+    """
+    try:
+        return Decimal(str(value)) - Decimal(str(arg))
+    except (ValueError, TypeError, decimal.InvalidOperation):
+        return value

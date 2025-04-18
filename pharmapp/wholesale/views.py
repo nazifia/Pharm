@@ -62,7 +62,7 @@ def adjust_wholesale_stock_level(request, item_id):
             old_stock = item.stock
             item.stock = new_stock
             item.save()
-            
+
             messages.success(request, f'Stock for {item.name} updated from {old_stock} to {new_stock}')
             return render(request, 'wholesale/search_wholesale_for_adjustment.html', {'items': [item]})
         except ValueError:
@@ -95,12 +95,12 @@ def wholesales(request):
 
         # Use the threshold from settings
         low_stock_threshold = settings.low_stock_threshold
-        
+
         # Calculate values using the threshold from settings
         total_purchase_value = sum(item.cost * item.stock for item in items)
         total_stock_value = sum(item.price * item.stock for item in items)
         total_profit = total_stock_value - total_purchase_value
-        
+
         # Identify low-stock items using the threshold from settings
         low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
 
@@ -133,7 +133,7 @@ def search_wholesale_item(request):
         return render(request, 'partials/wholesale_search.html', {'items': items})
     else:
         return redirect('store:index')
-    
+
 
 @user_passes_test(is_admin)
 @login_required
@@ -147,16 +147,16 @@ def add_to_wholesale(request):
                 messages.success(request, 'Item added successfully')
                 return redirect('wholesale:wholesales')
         low_stock_threshold = 10  # Adjust this number as needed
-        
+
         # Calculate total purchase value and total stock value
         items = WholesaleItem.objects.all()
         total_purchase_value = sum(item.cost * item.stock for item in items)
         total_stock_value = sum(item.price * item.stock for item in items)
         total_profit = total_stock_value - total_purchase_value
-        
+
         low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
 
-        
+
         context = {
             'items': items,
             'low_stock_items': low_stock_items,
@@ -184,7 +184,7 @@ def search_wholesale_item(request):
         return render(request, 'partials/wholesale_search.html', {'items': items})
     else:
         return redirect('store:index')
-    
+
 
 @user_passes_test(is_admin)
 @login_required
@@ -222,13 +222,13 @@ def edit_wholesale_item(request, pk):
                 # Convert markup_percentage to Decimal to ensure compatible types
                 markup = Decimal(form.cleaned_data.get("markup", 0))
                 item.markup = markup
-                
+
                 # Calculate and update the price
                 item.price = item.cost + (item.cost * markup / Decimal(100))
-                
+
                 # Save the form with updated fields
                 form.save()
-                
+
                 messages.success(request, f'{item.name} updated successfully')
                 return redirect('wholesale:wholesales')
             else:
@@ -310,8 +310,8 @@ def return_wholesale_item(request, pk):
 
                         # Update dispensing log
                         logs = DispensingLog.objects.filter(
-                            user=sales.user, 
-                            name=item.name, 
+                            user=sales.user,
+                            name=item.name,
                             status__in=['Dispensed', 'Partially Returned']
                         ).order_by('-created_at')
 
@@ -403,18 +403,18 @@ def delete_wholesale_item(request, pk):
 def wholesale_exp_alert(request):
     if request.user.is_authenticated:
         alert_threshold = timezone.now() + timedelta(days=90)
-        
+
         expiring_items = WholesaleItem.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=timezone.now())
-        
+
         expired_items = WholesaleItem.objects.filter(exp_date__lt=timezone.now())
-        
+
         for expired_item in expired_items:
-            
+
             if expired_item.stock > 0:
-                
+
                 expired_item.stock = 0
                 expired_item.save()
-                
+
         return render(request, 'partials/wholesale_exp_date_alert.html', {
             'expired_items': expired_items,
             'expiring_items': expiring_items,
@@ -422,7 +422,7 @@ def wholesale_exp_alert(request):
     else:
         return redirect('store:index')
 
-    
+
 
 @login_required
 def dispense_wholesale(request):
@@ -500,7 +500,7 @@ def add_to_wholesale_cart(request, item_id):
 def wholesale_customer_history(request, customer_id):
     if request.user.is_authenticated:
         wholesale_customer = get_object_or_404(WholesaleCustomer, id=customer_id)
-        
+
         histories = WholesaleSalesItem.objects.filter(
             sales__wholesale_customer=wholesale_customer
         ).select_related(
@@ -520,13 +520,13 @@ def wholesale_customer_history(request, customer_id):
         for history in processed_histories:
             year = history.date.year
             month = history.date.strftime('%B')  # Full month name
-            
+
             if year not in history_data:
                 history_data[year] = {'total': Decimal('0'), 'months': {}}
-            
+
             if month not in history_data[year]['months']:
                 history_data[year]['months'][month] = {'total': Decimal('0'), 'items': []}
-            
+
             history_data[year]['total'] += history.subtotal
             history_data[year]['months'][month]['total'] += history.subtotal
             history_data[year]['months'][month]['items'].append(history)
@@ -535,7 +535,7 @@ def wholesale_customer_history(request, customer_id):
             'wholesale_customer': wholesale_customer,
             'history_data': history_data,
         }
-        
+
         return render(request, 'partials/wholesale_customer_history.html', context)
     return redirect('store:index')
 
@@ -587,7 +587,7 @@ def select_wholesale_items(request, pk):
                     buyer_name=customer.name,
                     buyer_address=customer.address,
                     date=datetime.now(),
-                    
+
                 )
 
 
@@ -620,7 +620,7 @@ def select_wholesale_items(request, pk):
                         cart_item.save()
 
                         # Calculate subtotal and log dispensing
-                        subtotal = (item.price * quantity) 
+                        subtotal = (item.price * quantity)
                         total_cost += subtotal
 
                         # Update or create WholesaleSalesItem
@@ -636,7 +636,7 @@ def select_wholesale_items(request, pk):
                         # Update the receipt
                         receipt.total_amount += subtotal
                         receipt.save()
-                        
+
                         # **Log Item Selection History (Purchase)**
                         WholesaleSelectionHistory.objects.create(
                             wholesale_customer=customer,
@@ -665,7 +665,7 @@ def select_wholesale_items(request, pk):
                             else:
                                 sales_item.save()
 
-                            refund_amount = (item.price * quantity) 
+                            refund_amount = (item.price * quantity)
                             sales.total_amount -= refund_amount
                             sales.save()
 
@@ -677,7 +677,7 @@ def select_wholesale_items(request, pk):
                                 amount=refund_amount,
                                 status='Partially Returned' if sales_item.quantity > 0 else 'Returned'  # Status based on remaining quantity
                             )
-                            
+
                             # **Log Item Selection History (Return)**
                             WholesaleSelectionHistory.objects.create(
                                 wholesale_customer=customer,
@@ -749,7 +749,7 @@ def wholesale_cart(request):
             cart_item.subtotal = cart_item.item.price * cart_item.quantity
             total_price += cart_item.subtotal
             # total_discount += cart_item.discount_amount
-        
+
         final_total = total_price - total_discount
 
         total_discounted_price = total_price - total_discount
@@ -810,7 +810,7 @@ def clear_wholesale_cart(request):
 
                     # Calculate total amount to potentially refund
                     total_refund = sum(
-                        item.item.price * item.quantity 
+                        item.item.price * item.quantity
                         for item in cart_items
                     )
 
@@ -841,7 +841,7 @@ def clear_wholesale_cart(request):
                                 if wallet and total_refund > 0:
                                     wallet.balance += total_refund
                                     wallet.save()
-                                    
+
                                     # Create transaction history for the refund
                                     TransactionHistory.objects.create(
                                         customer=sale.wholesale_customer,
@@ -851,7 +851,7 @@ def clear_wholesale_cart(request):
                                     )
                             except WholesaleCustomerWallet.DoesNotExist:
                                 messages.warning(
-                                    request, 
+                                    request,
                                     f'Wallet not found for customer {sale.wholesale_customer.name}'
                                 )
 
@@ -862,9 +862,9 @@ def clear_wholesale_cart(request):
 
                     # Clear cart items
                     cart_items.delete()
-                    
+
                     messages.success(
-                        request, 
+                        request,
                         'Cart cleared successfully. All items returned to stock and transactions reversed.'
                     )
 
@@ -980,6 +980,132 @@ def wholesale_receipt(request):
 
 
 
+@transaction.atomic
+@login_required
+def return_wholesale_items_for_customer(request, pk):
+    if request.user.is_authenticated:
+        customer = get_object_or_404(WholesaleCustomer, id=pk)
+        items = WholesaleItem.objects.all().order_by('name')
+
+        # Fetch wallet balance
+        wallet_balance = Decimal('0.0')
+        try:
+            wallet_balance = customer.wholesale_customer_wallet.balance
+        except WholesaleCustomerWallet.DoesNotExist:
+            messages.warning(request, 'This customer does not have an associated wallet.')
+
+        if request.method == 'POST':
+            item_ids = request.POST.getlist('item_ids', [])
+            quantities = request.POST.getlist('quantities', [])
+            units = request.POST.getlist('units', [])
+
+            if len(item_ids) != len(quantities):
+                messages.warning(request, 'Mismatch between selected items and quantities.')
+                return redirect('wholesale:select_wholesale_items', pk=pk)
+
+            total_refund = Decimal('0.0')
+
+            # Fetch or create a Sales record
+            sales, created = Sales.objects.get_or_create(
+                user=request.user,
+                wholesale_customer=customer,
+                defaults={'total_amount': Decimal('0.0')}
+            )
+
+            # Fetch or create a Receipt
+            receipt = WholesaleReceipt.objects.filter(wholesale_customer=customer, sales=sales).first()
+
+            if not receipt:
+                receipt = WholesaleReceipt.objects.create(
+                    wholesale_customer=customer,
+                    sales=sales,
+                    total_amount=Decimal('0.0'),
+                    buyer_name=customer.name,
+                    buyer_address=customer.address,
+                    date=datetime.now(),
+                )
+
+            for i, item_id in enumerate(item_ids):
+                try:
+                    item = WholesaleItem.objects.get(id=item_id)
+                    quantity = Decimal(quantities[i])
+                    unit = units[i] if i < len(units) else item.unit
+
+                    # Handle return logic
+                    item.stock += quantity
+                    item.save()
+
+                    try:
+                        sales_item = WholesaleSalesItem.objects.get(sales=sales, item=item)
+
+                        if sales_item.quantity < quantity:
+                            messages.warning(request, f"Cannot return more {item.name} than purchased.")
+                            return redirect('wholesale:wholesale_customers')
+
+                        sales_item.quantity -= quantity
+                        if sales_item.quantity == 0:
+                            sales_item.delete()
+                        else:
+                            sales_item.save()
+
+                        refund_amount = (item.price * quantity)
+                        sales.total_amount -= refund_amount
+                        sales.save()
+
+                        DispensingLog.objects.create(
+                            user=request.user,
+                            name=item.name,
+                            unit=unit,
+                            quantity=quantity,
+                            amount=refund_amount,
+                            status='Partially Returned' if sales_item.quantity > 0 else 'Returned'  # Status based on remaining quantity
+                        )
+
+                        # Log Item Selection History (Return)
+                        WholesaleSelectionHistory.objects.create(
+                            wholesale_customer=customer,
+                            user=request.user,
+                            item=item,
+                            quantity=quantity,
+                            action='return',
+                            unit_price=item.price,
+                        )
+
+                        total_refund += refund_amount
+
+                        # Update the receipt
+                        receipt.total_amount -= refund_amount
+                        receipt.save()
+
+                    except WholesaleSalesItem.DoesNotExist:
+                        messages.warning(request, f"Item {item.name} is not part of the sales.")
+                        return redirect('wholesale:select_wholesale_items', pk=pk)
+
+                except WholesaleItem.DoesNotExist:
+                    messages.warning(request, 'One of the selected items does not exist.')
+                    return redirect('wholesale:select_wholesale_items', pk=pk)
+
+            # Update customer's wallet balance
+            try:
+                wallet = customer.wholesale_customer_wallet
+                wallet.balance += abs(total_refund)
+                wallet.save()
+            except WholesaleCustomerWallet.DoesNotExist:
+                messages.warning(request, 'Customer does not have a wallet.')
+                return redirect('wholesale:select_wholesale_items', pk=pk)
+
+            messages.success(request, f'Action completed: Items returned successfully. Total refund: ₦{total_refund}')
+            return redirect('wholesale:wholesale_cart')
+
+        return render(request, 'partials/select_wholesale_items.html', {
+            'customer': customer,
+            'items': items,
+            'wallet_balance': wallet_balance
+        })
+    else:
+        return redirect('store:index')
+
+
 def wholesale_receipt_list(request):
     if request.user.is_authenticated:
         receipts = WholesaleReceipt.objects.all().order_by('-date')  # Only wholesale receipts
@@ -1029,7 +1155,7 @@ def wholesale_receipt_detail(request, receipt_id):
                 receipt.buyer_name = buyer_name
             if buyer_address:
                 receipt.buyer_address = buyer_address
-            
+
             payment_method = request.POST.get('payment_method')
             if payment_method:
                 receipt.payment_method = payment_method
@@ -1168,7 +1294,7 @@ def wholesale_customers(request):
     if request.user.is_authenticated:
         customers = WholesaleCustomer.objects.all().order_by('name')  # Order by customer name in ascending order
         return render(request, 'wholesale/wholesale_customers.html', {'customers': customers})
-    else: 
+    else:
         return redirect('store:index')
 
 
@@ -1210,10 +1336,10 @@ def delete_wholesale_customer(request, pk):
 def wholesale_customer_add_funds(request, pk):
     if request.user.is_authenticated:
         customer = get_object_or_404(WholesaleCustomer, pk=pk)
-        
+
         # Get or create the wholesale customer's wallet
         wallet, created = WholesaleCustomerWallet.objects.get_or_create(customer=customer)
-        
+
         if request.method == 'POST':
             form = WholesaleCustomerAddFundsForm(request.POST)
             if form.is_valid():
@@ -1225,7 +1351,7 @@ def wholesale_customer_add_funds(request, pk):
                 messages.error(request, 'Error adding funds')
         else:
             form = WholesaleCustomerAddFundsForm()
-        
+
         return render(request, 'partials/wholesale_customer_add_funds_modal.html', {'form': form, 'customer': customer})
     else:
         return redirect('store:index')
@@ -1235,10 +1361,10 @@ def wholesale_customer_add_funds(request, pk):
 def wholesale_customer_wallet_details(request, pk):
     if request.user.is_authenticated:
         customer = get_object_or_404(WholesaleCustomer, pk=pk)
-        
+
         # Check if the customer has a wallet; create one if it doesn't exist
         wallet, created = WholesaleCustomerWallet.objects.get_or_create(customer=customer)
-        
+
         return render(request, 'wholesale/wholesale_customer_wallet_details.html', {
             'customer': customer,
             'wallet': wallet
@@ -1276,14 +1402,14 @@ def wholesale_customers_on_negative(request):
 def wholesale_transactions(request, customer_id):
     # Get the wholesale customer
     customer = get_object_or_404(WholesaleCustomer, id=customer_id)
-    
+
     # Get the wholesale customer's wallet
     wallet = getattr(customer, 'wholesale_customer_wallet', None)
     wallet_balance = wallet.balance if wallet else 0.00  # Set to 0.00 if wallet does not exist
 
     # Filter sales where customer is None, since wholesale sales may not be linked to Customer
     wholesale_sales = Sales.objects.filter(customer=None).prefetch_related('sales_items__item').order_by('-date')
-    
+
     # Pass wallet balance to the template
     return render(request, 'partials/wholesale_transactions.html', {
         'customer': customer,
@@ -1338,7 +1464,7 @@ def add_wholesale_procurement(request):
         )
     else:
         return redirect('store:index')
-    
+
 
 
 def wholesale_procurement_form(request):
@@ -1353,7 +1479,7 @@ def wholesale_procurement_form(request):
         return render(request, 'wholesale/wholesale_procurement_form.html', {'form': new_form})
     else:
         return redirect('store:index')
-    
+
 
 def wholesale_procurement_list(request):
     if request.user.is_authenticated:
@@ -1389,7 +1515,7 @@ def search_wholesale_procurement(request):
         })
     else:
         return redirect('store:index')
-    
+
 
 @login_required
 def wholesale_procurement_detail(request, procurement_id):
@@ -1473,8 +1599,8 @@ def create_wholesale_stock_check(request):
         return render(request, 'wholesale/create_wholesale_stock_check.html')
     else:
         return redirect('store:index')
-    
-    
+
+
 # @user_passes_test(is_admin)
 # @login_required
 # def update_wholesale_stock_check(request, stock_check_id):
@@ -1498,7 +1624,7 @@ def create_wholesale_stock_check(request):
 #         return render(request, 'wholesale/update_wholesale_stock_check.html', {'stock_check': stock_check})
 #     else:
 #         return redirect('store:index')
-    
+
 
 @user_passes_test(is_admin)
 @login_required
@@ -1522,9 +1648,9 @@ def update_wholesale_stock_check(request, stock_check_id):
 
         return render(request, 'wholesale/update_wholesale_stock_check.html', {'stock_check': stock_check})
     else:
-        return redirect('store:index')    
-    
-    
+        return redirect('store:index')
+
+
 # @user_passes_test(is_admin)
 # @login_required
 # def approve_wholesale_stock_check(request, stock_check_id):
@@ -1553,7 +1679,7 @@ def update_wholesale_stock_check(request, stock_check_id):
 #         return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
 #     else:
 #         return redirect('store:index')
-    
+
 
 
 @user_passes_test(is_admin)
@@ -1585,8 +1711,8 @@ def approve_wholesale_stock_check(request, stock_check_id):
     else:
         return redirect('store:index')
 
-    
-    
+
+
 # @user_passes_test(is_admin)
 # @login_required
 # def wholesale_bulk_adjust_stock(request, stock_check_id):
@@ -1706,7 +1832,7 @@ logger = logging.getLogger(__name__)
 #             # Render form for a wholesale user to request items from retail
 #             retail_items = Item.objects.all().order_by('name')
 #             return render(request, "wholesale/wholesale_transfer_request.html", {"retail_items": retail_items})
-        
+
 #         elif request.method == "POST":
 #             try:
 #                 requested_quantity = int(request.POST.get("requested_quantity", 0))
@@ -1717,7 +1843,7 @@ logger = logging.getLogger(__name__)
 #                     return JsonResponse({"success": False, "message": "Invalid input provided."}, status=400)
 
 #                 source_item = get_object_or_404(Item, id=item_id)
-                
+
 #                 transfer = TransferRequest.objects.create(
 #                     retail_item=source_item,
 #                     requested_quantity=requested_quantity,
@@ -1725,15 +1851,15 @@ logger = logging.getLogger(__name__)
 #                     status="pending",
 #                     created_at=timezone.now()
 #                 )
-                
+
 #                 messages.success(request, "Transfer request created successfully.")
 #                 return JsonResponse({"success": True, "message": "Transfer request created successfully."})
-                
+
 #             except (TypeError, ValueError) as e:
 #                 return JsonResponse({"success": False, "message": str(e)}, status=400)
 #             except Exception as e:
 #                 return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
-    
+
 #     return redirect('store:index')
 
 
@@ -1744,7 +1870,7 @@ def create_transfer_request(request):
             # Render form for a retail user to request items from wholesale
             wholesale_items = WholesaleItem.objects.all().order_by('name')
             return render(request, "store/retail_transfer_request.html", {"wholesale_items": wholesale_items})
-        
+
         elif request.method == "POST":
             try:
                 requested_quantity = int(request.POST.get("requested_quantity", 0))
@@ -1773,19 +1899,19 @@ def create_transfer_request(request):
                         status="pending",
                         created_at=timezone.now()
                     )
-                
+
                 messages.success(request, "Transfer request created successfully.")
                 return JsonResponse({"success": True, "message": "Transfer request created successfully."})
-                
+
             except (TypeError, ValueError) as e:
                 return JsonResponse({"success": False, "message": str(e)}, status=400)
             except Exception as e:
                 logger.error(f"Error in create_transfer_request: {str(e)}")
                 return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
-    
+
     return redirect('store:index')
 
-    
+
 
 @login_required
 def wholesale_transfer_request_list(request):
@@ -1797,7 +1923,7 @@ def wholesale_transfer_request_list(request):
         # Get the date filter from GET parameters.
         date_str = request.GET.get("date")
         transfers = TransferRequest.objects.all().order_by("-created_at")
-        
+
         if date_str:
             try:
                 # Parse the string into a date object.
@@ -1806,7 +1932,7 @@ def wholesale_transfer_request_list(request):
             except ValueError:
                 # If date parsing fails, ignore the filter.
                 logger.warning("Invalid date format provided: %s", date_str)
-        
+
         context = {
             "transfers": transfers,
             "search_date": date_str or ""
@@ -1839,7 +1965,7 @@ def wholesale_approve_transfer(request, transfer_id):
         """
         if request.method == "POST":
             transfer = get_object_or_404(TransferRequest, id=transfer_id)
-            
+
             # Determine approved quantity (if adjusted) or use the originally requested amount.
             approved_qty_param = request.POST.get("approved_quantity")
             if approved_qty_param:
@@ -1884,9 +2010,9 @@ def wholesale_approve_transfer(request, transfer_id):
                         "exp_date": source_item.exp_date,
                     }
                 )
-            
+
             logger.info(f"Approving Transfer: Source {source_item.name} (Stock: {source_item.stock}) Requested Qty: {approved_qty}")
-            
+
             # Check if there's enough stock before deducting
             if source_item.stock < approved_qty:
                 messages.error(request, "Not enough stock in source!")
@@ -1950,7 +2076,7 @@ def transfer_request_list(request):
         # Get the date filter from GET parameters.
         date_str = request.GET.get("date")
         transfers = TransferRequest.objects.all().order_by("-created_at")
-        
+
         if date_str:
             try:
                 # Parse the string into a date object.
@@ -1959,7 +2085,7 @@ def transfer_request_list(request):
             except ValueError:
                 # If date parsing fails, ignore the filter.
                 logger.warning("Invalid date format provided: %s", date_str)
-        
+
         context = {
             "transfers": transfers,
             "search_date": date_str or ""
@@ -1973,7 +2099,7 @@ def transfer_request_list(request):
 def complete_wholesale_customer_history(request, customer_id):
     if request.user.is_authenticated:
         customer = get_object_or_404(WholesaleCustomer, id=customer_id)
-        
+
         # Get all wholesale selection history
         selection_history = WholesaleSelectionHistory.objects.filter(
             wholesale_customer=customer
@@ -1983,19 +2109,19 @@ def complete_wholesale_customer_history(request, customer_id):
 
         # Process history
         history_data = {}
-        
+
         for entry in selection_history:
             year = entry.date.year  # Changed from created_at to date
             month = entry.date.strftime('%B')
-            
+
             if year not in history_data:
                 history_data[year] = {'total': Decimal('0'), 'months': {}}
-            
+
             if month not in history_data[year]['months']:
                 history_data[year]['months'][month] = {'total': Decimal('0'), 'items': []}
-            
+
             subtotal = entry.quantity * entry.unit_price
-            
+
             # Update totals (subtract for returns, add for purchases)
             if entry.action == 'return':
                 history_data[year]['total'] -= subtotal
@@ -2003,7 +2129,7 @@ def complete_wholesale_customer_history(request, customer_id):
             else:
                 history_data[year]['total'] += subtotal
                 history_data[year]['months'][month]['total'] += subtotal
-            
+
             history_data[year]['months'][month]['items'].append({
                 'date': entry.date,  # Changed from created_at to date
                 'item': entry.item,
@@ -2018,7 +2144,7 @@ def complete_wholesale_customer_history(request, customer_id):
             'wholesale_customer': customer,
             'history_data': history_data,
         }
-        
+
         return render(request, 'wholesale/complete_wholesale_customer_history.html', context)
     return redirect('store:index')
 
