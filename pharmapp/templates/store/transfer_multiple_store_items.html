@@ -2,7 +2,7 @@
 {% block content %}
 <div class="container mt-4" id="transfer-messages">
   <h2>Transfer Store Items</h2>
-  
+
   <!-- Search Field -->
   <div class="mb-3">
     <input type="text" name="search" id="search" style="width: 300px; background-color: lightblue;" class="form-control" placeholder="Search Items..."
@@ -10,14 +10,14 @@
            hx-target="#store-items"
            hx-trigger="keyup changed delay:500ms">
   </div>
-  
+
   <!-- Messages (errors or successes) -->
   <div class="mt-3">
     {% for message in messages %}
       <div class="alert alert-{{ message.tags }}">{{ message }}</div>
     {% endfor %}
   </div>
-  
+
   <form id="transfer-form" method="post"
         hx-post="{% url 'store:transfer_multiple_store_items' %}"
         hx-target="#transfer-messages"
@@ -33,6 +33,8 @@
           <th>Unit</th>
           <th>Stock</th>
           <th>R/Qty</th>
+          <th>Transfer Unit</th>
+          <th>Unit Conversion</th>
           <th>Markup (%)</th>
           <th>Destination</th>
         </tr>
@@ -51,6 +53,20 @@
           <td>{{ item.stock }}</td>
           <td>
             <input type="number" name="quantity_{{ item.id }}" style="width:100px;" class="form-control" min="0" value="0">
+          </td>
+          <td>
+            <select name="transfer_unit_{{ item.id }}" style="width:130px;" class="form-control unit-select" data-item-id="{{ item.id }}">
+              <option value="{{ item.unit }}" selected>{{ item.unit }}</option>
+              {% for unit_value, unit_display in unit_choices %}
+                {% if unit_value != item.unit %}
+                  <option value="{{ unit_value }}">{{ unit_display }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <input type="number" name="unit_conversion_{{ item.id }}" style="width:100px;" class="form-control unit-conversion" min="1" value="1" step="0.01">
+            <small class="text-muted conversion-label">1 {{ item.unit }} = <span class="conversion-value">1</span> <span class="target-unit">{{ item.unit }}</span></small>
           </td>
           <td>
             <select name="markup_{{ item.id }}" style="width:150px;" class="form-control">
@@ -126,6 +142,44 @@
         }
       }
     });
+  });
+
+  // Update the conversion label when the unit or conversion value changes
+  document.addEventListener('DOMContentLoaded', function() {
+    // Handle unit selection change
+    const unitSelects = document.querySelectorAll('.unit-select');
+    unitSelects.forEach(function(select) {
+      select.addEventListener('change', updateConversionLabel);
+    });
+
+    // Handle conversion value change
+    const conversionInputs = document.querySelectorAll('.unit-conversion');
+    conversionInputs.forEach(function(input) {
+      input.addEventListener('input', updateConversionLabel);
+    });
+
+    // Initial update of all conversion labels
+    unitSelects.forEach(updateConversionLabel);
+
+    function updateConversionLabel() {
+      const itemId = this.getAttribute('data-item-id');
+      const row = this.closest('tr');
+
+      // If called directly on page load, we need to get the itemId differently
+      const actualItemId = itemId || this.querySelector('.unit-select').getAttribute('data-item-id');
+
+      const sourceUnit = row.querySelector('td:nth-child(5)').textContent.trim();
+      const targetUnit = row.querySelector('.unit-select').value;
+      const conversionValue = row.querySelector('.unit-conversion').value;
+
+      const conversionLabel = row.querySelector('.conversion-label');
+      const conversionValueSpan = row.querySelector('.conversion-value');
+      const targetUnitSpan = row.querySelector('.target-unit');
+
+      conversionValueSpan.textContent = conversionValue;
+      targetUnitSpan.textContent = targetUnit;
+      conversionLabel.innerHTML = `1 ${sourceUnit} = <span class="conversion-value">${conversionValue}</span> <span class="target-unit">${targetUnit}</span>`;
+    }
   });
 </script>
 {% endblock %}

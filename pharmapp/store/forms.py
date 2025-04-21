@@ -85,6 +85,8 @@ class addItemForm(forms.ModelForm):
             ('Capsule', 'Capsule'),
             ('Consumable', 'Consumable'),
             ('Cream', 'Cream'),
+            ('Galenical', 'Galenical'),
+            ('Solution', 'Solution'),
             ('Syrup', 'Syrup'),
             ('Suspension', 'Suspension'),
             ('Eye-drop', 'Eye-drop'),
@@ -103,12 +105,13 @@ class addItemForm(forms.ModelForm):
     unit = forms.CharField(max_length=200)
     cost = forms.DecimalField(max_digits=12, decimal_places=2)
     markup = forms.DecimalField(max_digits=6, decimal_places=2)
+    price = forms.DecimalField(max_digits=12, decimal_places=2, required=False)
     stock = forms.IntegerField()
     exp_date = forms.DateField()
 
     class Meta:
         model = Item
-        fields = ('name', 'dosage_form', 'brand', 'unit', 'cost', 'markup', 'stock', 'exp_date')
+        fields = ('name', 'dosage_form', 'brand', 'unit', 'cost', 'markup', 'price', 'stock', 'exp_date')
 
 
 

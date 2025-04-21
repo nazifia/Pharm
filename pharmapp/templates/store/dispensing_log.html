@@ -1,5 +1,7 @@
 {% extends "partials/base.html" %}
 {% block content %}
+<!-- Include HTMX if not already included in base template -->
+<script src="https://unpkg.com/htmx.org@1.9.2"></script>
 <style>
     /* Default styles for the main container */
     .table {
@@ -10,6 +12,40 @@
         margin-top: 10px;
         margin-left: 5px;
         /* Space from the top */
+    }
+
+    /* Loading indicator styles */
+    .htmx-indicator {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 10px;
+        border-radius: 4px;
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+
+    /* Date picker styles */
+    #searchDate {
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+
+    #searchDate:focus {
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+
+    /* Clear filter button styles */
+    .btn-secondary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+        color: white;
+        transition: background-color 0.15s ease-in-out;
+    }
+
+    .btn-secondary:hover {
+        background-color: #5a6268;
+        border-color: #545b62;
     }
 
     /* Media Queries */
@@ -59,6 +95,11 @@
             font-size: 0.8rem;
             /* Adjust button font size */
         }
+
+        /* Stack the date picker and button on small screens */
+        .col-md-4, .col-md-2 {
+            margin-bottom: 10px;
+        }
     }
 
     @media (max-width: 480px) {
@@ -78,11 +119,31 @@
     <h3 class="col-md-8 offset-md-3">Dispensing Logs</h3>
 
     <!-- Add the date picker with HTMX -->
-    <form method="GET" action="" hx-get="{% url 'store:dispensing_log' %}" hx-target="#logsTable" hx-swap="outerHTML">
-        <input type="date" name="date" id="searchDate" class="form-control" value="{{ request.GET.date|default:'' }}"
-            style="background-color: rgb(196, 253, 253); width: 40%;">
-        <input type="submit" class="btn btn-primary btn-sm mb-3 mt-1" value="Search by Date">
-    </form>
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <input type="date" name="date" id="searchDate" class="form-control" value="{{ request.GET.date|default:'' }}"
+                style="background-color: rgb(196, 253, 253);"
+                hx-get="{% url 'store:dispensing_log' %}"
+                hx-target="#logsTable"
+                hx-trigger="change"
+                hx-indicator=".htmx-indicator">
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-secondary btn-sm"
+                hx-get="{% url 'store:dispensing_log' %}"
+                hx-target="#logsTable"
+                hx-trigger="click"
+                hx-indicator=".htmx-indicator">Clear Filter</button>
+        </div>
+        <div class="col-md-6">
+            <div class="htmx-indicator" style="display:none">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <span class="ms-2">Loading...</span>
+            </div>
+        </div>
+    </div>
 
     <table class="table table-hover" style="box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);">
         <thead class="table-primary">
@@ -98,20 +159,38 @@
             </tr>
         </thead>
         <tbody id="logsTable">
-            {% for log in logs %}
-            <tr>
-                <td>{{ log.user.get_full_name|default:log.user.username }}</td>
-                <td>{{ log.name|title }}</td>
-                <td>{{ log.brand|title }}</td>
-                <td>{{ log.unit }}</td>
-                <td>{{ log.quantity|floatformat:2 }}</td>
-                <td>{{ log.amount|floatformat:2 }}</td>
-                <td>{{ log.get_status_display }}</td>
-                <td>{{ log.created_at }}</td>
-            </tr>
-            {% endfor %}
+            {% include 'partials/partials_dispensing_log.html' with logs=logs %}
         </tbody>
     </table>
 </div>
 
+<script>
+    // JavaScript to handle the clear filter button
+    document.addEventListener('DOMContentLoaded', function() {
+        const clearFilterBtn = document.querySelector('button[hx-trigger="click"]');
+        const searchDateInput = document.getElementById('searchDate');
+
+        if (clearFilterBtn && searchDateInput) {
+            clearFilterBtn.addEventListener('click', function() {
+                // Clear the date input
+                searchDateInput.value = '';
+            });
+        }
+
+        // Show/hide the loading indicator
+        document.body.addEventListener('htmx:beforeRequest', function(event) {
+            const indicator = document.querySelector('.htmx-indicator');
+            if (indicator) {
+                indicator.style.display = 'inline-flex';
+            }
+        });
+
+        document.body.addEventListener('htmx:afterRequest', function(event) {
+            const indicator = document.querySelector('.htmx-indicator');
+            if (indicator) {
+                indicator.style.display = 'none';
+            }
+        });
+    });
+</script>
 {% endblock %}

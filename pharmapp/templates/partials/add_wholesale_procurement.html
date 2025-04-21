@@ -158,6 +158,7 @@
                 <th>Unit</th>
                 <th>Quantity</th>
                 <th>Cost Price</th>
+                <th>Subtotal</th>
                 <th>Expiry Date</th>
                 <th>Actions</th>
             </tr>
@@ -172,6 +173,7 @@
                 <td>{{ form.unit }}</td>
                 <td>{{ form.quantity }}</td>
                 <td>{{ form.cost_price }}</td>
+                <td class="subtotal">0.00</td>
                 <td>{{ form.expiry_date }}</td>
                 <td>
                     {% if form.instance.pk %}
@@ -187,12 +189,67 @@
         </tbody>
     </table>
 
-    <button class="btn btn-primary btn-sm" type="button" id="add-item">Add Item</button>
-    <button class="btn btn-success btn-sm" id="save" type="submit">Save</button>
+    <div class="row">
+        <div class="col-md-6">
+            <button class="btn btn-primary btn-sm" type="button" id="add-item">Add Item</button>
+            <button class="btn btn-success btn-sm" id="save" type="submit" name="action" value="save">Save</button>
+            <button class="btn btn-warning btn-sm" id="pause" type="submit" name="action" value="pause">Pause</button>
+        </div>
+        <div class="col-md-6 text-right">
+            <h4>Total: <span id="grand-total">0.00</span></h4>
+        </div>
+    </div>
 
 </form>
 
 <script>
+    // Function to calculate subtotal for a row
+    function calculateSubtotal(row) {
+        const quantity = parseFloat(row.querySelector('input[name$="-quantity"]').value) || 0;
+        const costPrice = parseFloat(row.querySelector('input[name$="-cost_price"]').value) || 0;
+        const subtotal = quantity * costPrice;
+        row.querySelector('.subtotal').textContent = subtotal.toFixed(2);
+        return subtotal;
+    }
+
+    // Function to calculate grand total
+    function calculateGrandTotal() {
+        const rows = document.querySelectorAll('#item-formset tbody tr');
+        let grandTotal = 0;
+        rows.forEach(row => {
+            grandTotal += parseFloat(row.querySelector('.subtotal').textContent) || 0;
+        });
+        document.getElementById('grand-total').textContent = grandTotal.toFixed(2);
+    }
+
+    // Add event listeners to quantity and cost price inputs
+    function addCalculationListeners(row) {
+        const quantityInput = row.querySelector('input[name$="-quantity"]');
+        const costPriceInput = row.querySelector('input[name$="-cost_price"]');
+
+        if (quantityInput && costPriceInput) {
+            quantityInput.addEventListener('input', function() {
+                calculateSubtotal(row);
+                calculateGrandTotal();
+            });
+
+            costPriceInput.addEventListener('input', function() {
+                calculateSubtotal(row);
+                calculateGrandTotal();
+            });
+        }
+    }
+
+    // Initialize calculation listeners for existing rows
+    document.addEventListener('DOMContentLoaded', function() {
+        const rows = document.querySelectorAll('#item-formset tbody tr');
+        rows.forEach(row => {
+            addCalculationListeners(row);
+            calculateSubtotal(row);
+        });
+        calculateGrandTotal();
+    });
+
     document.getElementById('add-item').addEventListener('click', function () {
         const tableBody = document.querySelector('#item-formset tbody');
         const totalForms = document.querySelector('input[name="form-TOTAL_FORMS"]');
@@ -211,11 +268,17 @@
             if (input.type !== 'hidden') input.value = ''; // Clear input values for new row
         });
 
+        // Reset subtotal
+        newRow.querySelector('.subtotal').textContent = '0.00';
+
         // Update the management form total
         totalForms.value = formIdx + 1;
 
         // Add the new row to the table body
         tableBody.appendChild(newRow);
+
+        // Add calculation listeners to the new row
+        addCalculationListeners(newRow);
     });
 
     // Remove a dynamically added row
@@ -236,6 +299,9 @@
                     input.id = input.id.replace(/-\d+-/, `-${index}-`);
                 });
             });
+
+            // Recalculate grand total
+            calculateGrandTotal();
         }
     }
 </script>

@@ -27,8 +27,8 @@
         <p><strong>Receipt ID:</strong> {{ receipt.receipt_id }}</p>
         <p><strong>Receipt Type:</strong> <strong>Wholesale</strong></p>
         <p><strong>Customer Name:</strong>
-            {% if receipt.customer %}
-            {{ receipt.customer.name|upper }}
+            {% if receipt.wholesale_customer %}
+            {{ receipt.wholesale_customer.name|upper }}
             {% elif receipt.buyer_name %}
             {{ receipt.buyer_name|upper }}
             {% else %}
@@ -44,6 +44,26 @@
         </p>
         <p><strong>Date:</strong> {{ receipt.date|date:"F j, Y" }}</p>
         <p><strong>Sales Person:</strong> {{ user.username }}</p>
+        <form id="payment-form" method="POST" action="{% url 'wholesale:wholesale_receipt_detail' receipt.receipt_id %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="payment_method"><strong>Payment Method:</strong></label>
+                <select id="payment_method" name="payment_method" class="form-control">
+                    {% for method in payment_methods %}
+                    <option value="{{ method }}" {% if receipt.payment_method == method %}selected{% endif %}>{{ method }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="status"><strong>Payment Status:</strong></label>
+                <select id="status" name="status" class="form-control">
+                    {% for status_option in statuses %}
+                    <option value="{{ status_option }}" {% if receipt.status == status_option %}selected{% endif %}>{{ status_option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Update Payment Info</button>
+        </form>
 
         <div class="table-responsive mt-3">
             <table class="table">
@@ -76,7 +96,6 @@
             </table>
         </div>
         <p style="text-align: end;"><strong>Total Amount: ₦{{ receipt.total_amount|floatformat:2|intcomma }}</strong></p>
-        <p style="text-align: end;"><strong>Payment Method: {{ receipt.payment_method }}</strong></p>
 
         {% if receipt.has_returns %}
         <div class="returns-section mt-4">
@@ -105,6 +124,7 @@
         <button class="btn btn-info btn-sm" onclick="window.location.reload()">
             <i class="fas fa-redo"></i> Reset
         </button>
+        <a href="{{ request.META.HTTP_REFERER }}" class="btn btn-outline-dark btn-sm">Back</a>
     </div>
 
     <script>

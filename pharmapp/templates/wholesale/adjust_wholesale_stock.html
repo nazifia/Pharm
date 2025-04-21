@@ -1,16 +1,64 @@
 {% extends "partials/base.html" %}
+
 {% block content %}
-<h2>Adjust Stock for {{ stock_item.item.name }}</h2>
-<p>Expected: {{ stock_item.expected_quantity }}, Actual: {{ stock_item.actual_quantity }}</p>
+<div class="container mt-4">
+    <h2>Adjust Stock for {{ stock_item.item.name }}</h2>
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <h5>Item Details</h5>
+                    <p><strong>Name:</strong> {{ stock_item.item.name }}</p>
+                    <p><strong>Brand:</strong> {{ stock_item.item.brand }}</p>
+                    <p><strong>Dosage Form:</strong> {{ stock_item.item.dosage_form }}</p>
+                    <p><strong>Unit:</strong> {{ stock_item.item.unit }}</p>
+                </div>
+                <div class="col-md-6">
+                    <h5>Stock Information</h5>
+                    <p><strong>Expected Quantity:</strong> {{ stock_item.expected_quantity }}</p>
+                    <p><strong>Actual Quantity:</strong> {{ stock_item.actual_quantity }}</p>
+                    <p><strong>Discrepancy:</strong> <span class="{% if stock_item.discrepancy < 0 %}text-danger{% elif stock_item.discrepancy > 0 %}text-success{% endif %}">{{ stock_item.discrepancy }}</span></p>
+                </div>
+            </div>
 
-<form method="post">
-    {% csrf_token %}
-    <label for="adjusted_quantity">New Stock Quantity:</label>
-    <input type="number" name="adjusted_quantity" value="{{ stock_item.actual_quantity }}" required>
-    <button class="btn btn-success btn-sm" type="submit">Apply Adjustment</button>
-</form>
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="adjusted_quantity" class="form-label">New Stock Quantity:</label>
+                    <input type="number" class="form-control" id="adjusted_quantity" name="adjusted_quantity" value="{{ stock_item.actual_quantity }}" required>
+                </div>
 
-<a class="btn btn-secondary btn-sm"
-    href="{% url 'wholesale:wholesale_stock_check_report' stock_item.stock_check.id %}">Back to
-    Report</a>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="zeroItem" name="zero_item" {% if stock_item.expected_quantity == 0 and stock_item.actual_quantity == 0 %}checked{% endif %}>
+                    <label class="form-check-label" for="zeroItem">
+                        Zero this item (use if item has neither expected nor actual quantity)
+                    </label>
+                </div>
+
+                <div class="d-flex">
+                    <button class="btn btn-success" type="submit">Apply Adjustment</button>
+                    <a class="btn btn-secondary ms-2" href="{% url 'wholesale:wholesale_stock_check_report' stock_item.stock_check.id %}">Back to Report</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-zero the item if checkbox is checked
+    document.getElementById('zeroItem').addEventListener('change', function() {
+        const quantityInput = document.getElementById('adjusted_quantity');
+        if (this.checked) {
+            quantityInput.value = '0';
+            quantityInput.disabled = true;
+        } else {
+            quantityInput.disabled = false;
+        }
+    });
+
+    // Initialize the state
+    if (document.getElementById('zeroItem').checked) {
+        document.getElementById('adjusted_quantity').disabled = true;
+    }
+</script>
 {% endblock %}

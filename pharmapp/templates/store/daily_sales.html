@@ -90,6 +90,9 @@
                         <th scope="col">Total Sales</th>
                         <th scope="col">Total Cost</th>
                         <th scope="col">Total Profit</th>
+                        <th scope="col">Cash</th>
+                        <th scope="col">Wallet</th>
+                        <th scope="col">Transfer</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -99,6 +102,9 @@
                         <td>{{ sale.total_sales }}</td>
                         <td>{{ sale.total_cost }}</td>
                         <td>{{ sale.total_profit }}</td>
+                        <td>{{ sale.payment_methods.Cash }}</td>
+                        <td>{{ sale.payment_methods.Wallet }}</td>
+                        <td>{{ sale.payment_methods.Transfer }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -113,9 +119,15 @@
         <div class="col-md-10 offset-md-1 chart-container">
             <canvas id="dailySalesChart"></canvas>
         </div>
+
+        <div class="col-md-10 offset-md-1 chart-container mt-5">
+            <h3 style="text-align: center;">Sales by Payment Method</h3>
+            <canvas id="paymentMethodChart"></canvas>
+        </div>
     </div>
 
     <script>
+        // Daily Sales Chart
         const dailySalesData = {
             labels: [
                 {% for day, sale in daily_sales %}
@@ -125,13 +137,7 @@
         datasets: [{
             label: 'Daily Sales',
             backgroundColor: [
-                'rgba(255, 99, 132, 0.7)',
                 'rgba(54, 162, 235, 0.7)',
-                'rgba(255, 206, 86, 0.7)',
-                'rgba(75, 192, 192, 0.7)',
-                'rgba(153, 102, 255, 0.7)',
-                'rgba(255, 159, 64, 0.7)',
-                'rgba(201, 203, 207, 0.7)'
             ],
             borderColor: 'rgba(54, 162, 235, 1)',
             borderWidth: 1,
@@ -158,6 +164,73 @@
         const dailySalesChart = new Chart(
             document.getElementById('dailySalesChart'),
             dailySalesConfig
+        );
+
+        // Payment Method Chart
+        const paymentMethodData = {
+            labels: [
+                {% for day, sale in daily_sales %}
+        "{{ day }}",
+            {% endfor %}
+            ],
+            datasets: [
+                {
+                    label: 'Cash',
+                    backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1,
+                    data: [
+                        {% for day, sale in daily_sales %}
+                {{ sale.payment_methods.Cash }},
+                        {% endfor %}
+                    ]
+                },
+                {
+                    label: 'Wallet',
+                    backgroundColor: 'rgba(153, 102, 255, 0.7)',
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    borderWidth: 1,
+                    data: [
+                        {% for day, sale in daily_sales %}
+                {{ sale.payment_methods.Wallet }},
+                        {% endfor %}
+                    ]
+                },
+                {
+                    label: 'Transfer',
+                    backgroundColor: 'rgba(255, 159, 64, 0.7)',
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    borderWidth: 1,
+                    data: [
+                        {% for day, sale in daily_sales %}
+                {{ sale.payment_methods.Transfer }},
+                        {% endfor %}
+                    ]
+                }
+            ]
+        };
+
+        const paymentMethodConfig = {
+            type: 'bar',
+            data: paymentMethodData,
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Sales by Payment Method'
+                    }
+                }
+            }
+        };
+
+        const paymentMethodChart = new Chart(
+            document.getElementById('paymentMethodChart'),
+            paymentMethodConfig
         );
     </script>
 </body>

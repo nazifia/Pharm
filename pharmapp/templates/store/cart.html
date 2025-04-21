@@ -1,5 +1,7 @@
 {% extends 'partials/base.html' %}
+{% load humanize %}
 {% load static %}
+{% load custom_filters %}
 
 {% block content %}
 
@@ -96,7 +98,7 @@
 
         <a class="btn btn-sm btn-warning" href="{% url 'store:view_cart' %}">View cart</a>
 
-        <a class="btn btn-success btn-sm" href="{% url 'store:receipt' %}">Receipt</a>
+        <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#paymentModal">Generate Receipt</button>
 
         <form method="POST" action="{% url 'store:clear_cart' %}" onsubmit="return confirmClearCart();">
             {% csrf_token %}
@@ -137,8 +139,8 @@
                         <td>{{ cart_item.item.brand }}</td>
                         <td>{{ cart_item.item.unit }}</td>
                         <td>{{ cart_item.quantity }}</td>
-                        <td>{{ cart_item.item.price }}</td>
-                        <td>{{ cart_item.calculate_subtotal }}</td>
+                        <td>₦{{ cart_item.item.price|floatformat:2|intcomma }}</td>
+                        <td>₦{{ cart_item.subtotal|floatformat:2|intcomma }}</td>
                         <td>
                             <form action="{% url 'store:update_cart_quantity' cart_item.id %}" method="post">
                                 {% csrf_token %}
@@ -162,13 +164,15 @@
             </table>
         </div>
 
-        <h6>
-            TOTAL PRICE: ₦ <strong>{{ total_price }}</strong>
-        </h6>
-
-        <h4>
-            <!-- TOTAL AFTER DISCOUNT: ₦  -->
-        </h4>
+        <div class="card mt-3 mb-3">
+            <div class="card-body">
+                <h6 class="card-title">TOTAL PRICE: <strong>₦{{ total_price|floatformat:2|intcomma }}</strong></h6>
+                {% if total_discount > 0 %}
+                <h6 class="card-title">DISCOUNT: <strong>₦{{ total_discount|floatformat:2|intcomma }}</strong></h6>
+                <h5 class="card-title">TOTAL AFTER DISCOUNT: <strong>₦{{ total_discounted_price|floatformat:2|intcomma }}</strong></h5>
+                {% endif %}
+            </div>
+        </div>
         {% else %}
         <div class="col-md-8 offset-md-3">
             <h3 style="text-align: center; color:blue">No item found in the cart</h3>
@@ -183,6 +187,193 @@
     function confirmClearCart() {
         return confirm("Are you sure you want to clear the cart?");
     }
+
+    // Update debug info when payment method or status changes
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set up event listener for when the payment modal is shown
+        $('#paymentModal').on('show.bs.modal', function () {
+            // Check if there's a customer
+            const hasCustomer = {% if customer %}true{% else %}false{% endif %};
+
+            // Set default values based on customer presence
+            const paymentMethodSelect = document.getElementById('payment_method');
+            const statusSelect = document.getElementById('status');
+
+            if (paymentMethodSelect) {
+                if (hasCustomer) {
+                    // Find and select the Wallet option for registered customers
+                    for (let i = 0; i < paymentMethodSelect.options.length; i++) {
+                        if (paymentMethodSelect.options[i].value === 'Wallet') {
+                            paymentMethodSelect.selectedIndex = i;
+                            break;
+                        }
+                    }
+                } else {
+                    // Find and select the Cash option for walk-in customers
+                    for (let i = 0; i < paymentMethodSelect.options.length; i++) {
+                        if (paymentMethodSelect.options[i].value === 'Cash') {
+                            paymentMethodSelect.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (statusSelect) {
+                // Find and select the Paid option for all customers
+                for (let i = 0; i < statusSelect.options.length; i++) {
+                    if (statusSelect.options[i].value === 'Paid') {
+                        statusSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // Trigger change events to update hidden fields
+            if (paymentMethodSelect) {
+                const event = new Event('change');
+                paymentMethodSelect.dispatchEvent(event);
+            }
+
+            if (statusSelect) {
+                const event = new Event('change');
+                statusSelect.dispatchEvent(event);
+            }
+        });
+
+        const paymentMethodSelect = document.getElementById('payment_method');
+        const statusSelect = document.getElementById('status');
+        const selectedPaymentMethod = document.getElementById('selected_payment_method');
+        const selectedStatus = document.getElementById('selected_status');
+        const selectedPaymentMethodHidden = document.getElementById('selected_payment_method_hidden');
+        const selectedStatusHidden = document.getElementById('selected_status_hidden');
+        const debugInfo = document.querySelector('.alert-info');
+
+        // For development, uncomment this line to show debug info
+        // if (debugInfo) debugInfo.style.display = 'block';
+
+        // Initialize debug info and hidden fields with current values
+        if (paymentMethodSelect) {
+            // Get the pre-selected value
+            const initialPaymentMethod = paymentMethodSelect.value;
+            console.log('Initial payment method:', initialPaymentMethod);
+
+            if (selectedPaymentMethod) {
+                selectedPaymentMethod.textContent = initialPaymentMethod;
+            }
+            if (selectedPaymentMethodHidden) {
+                selectedPaymentMethodHidden.value = initialPaymentMethod;
+            }
+        }
+        if (statusSelect) {
+            // Get the pre-selected value
+            const initialStatus = statusSelect.value;
+            console.log('Initial status:', initialStatus);
+
+            if (selectedStatus) {
+                selectedStatus.textContent = initialStatus;
+            }
+            if (selectedStatusHidden) {
+                selectedStatusHidden.value = initialStatus;
+            }
+        }
+
+        // Update debug info and hidden fields when payment method changes
+        if (paymentMethodSelect) {
+            paymentMethodSelect.addEventListener('change', function() {
+                const value = this.value;
+                if (selectedPaymentMethod) {
+                    selectedPaymentMethod.textContent = value;
+                }
+                if (selectedPaymentMethodHidden) {
+                    selectedPaymentMethodHidden.value = value;
+                }
+                console.log('Payment method changed to:', value);
+            });
+        }
+
+        // Update debug info and hidden fields when status changes
+        if (statusSelect) {
+            statusSelect.addEventListener('change', function() {
+                const value = this.value;
+                if (selectedStatus) {
+                    selectedStatus.textContent = value;
+                }
+                if (selectedStatusHidden) {
+                    selectedStatusHidden.value = value;
+                }
+                console.log('Payment status changed to:', value);
+            });
+        }
+
+        // Submit form handler
+        const paymentForm = document.getElementById('paymentForm');
+        if (paymentForm) {
+            paymentForm.addEventListener('submit', function(e) {
+                // Temporarily stop the form submission
+                e.preventDefault();
+
+                // Get the current values from the select elements
+                const paymentMethodValue = paymentMethodSelect ? paymentMethodSelect.value : 'Cash';
+                const statusValue = statusSelect ? statusSelect.value : 'Paid';
+
+                // Remove any existing hidden fields with the same names to avoid duplicates
+                const existingHiddenFields = paymentForm.querySelectorAll('input[type="hidden"][name="payment_method"], input[type="hidden"][name="status"]');
+                existingHiddenFields.forEach(field => field.remove());
+
+                // Create new hidden input fields with the selected values
+                // This ensures they are submitted with the form
+                const paymentMethodInput = document.createElement('input');
+                paymentMethodInput.type = 'hidden';
+                paymentMethodInput.name = 'payment_method';
+                paymentMethodInput.value = paymentMethodValue;
+                paymentForm.appendChild(paymentMethodInput);
+
+                const statusInput = document.createElement('input');
+                statusInput.type = 'hidden';
+                statusInput.name = 'status';
+                statusInput.value = statusValue;
+                paymentForm.appendChild(statusInput);
+
+                // Also update the existing select elements
+                if (paymentMethodSelect) {
+                    paymentMethodSelect.value = paymentMethodValue;
+                }
+                if (statusSelect) {
+                    statusSelect.value = statusValue;
+                }
+
+                // Also update the hidden fields as a backup
+                if (selectedPaymentMethodHidden) {
+                    selectedPaymentMethodHidden.value = paymentMethodValue;
+                }
+                if (selectedStatusHidden) {
+                    selectedStatusHidden.value = statusValue;
+                }
+
+                // Log form values before submission
+                console.log('Form submitted with:');
+                console.log('Payment Method:', paymentMethodValue);
+                console.log('Status:', statusValue);
+                console.log('Hidden Payment Method:', selectedPaymentMethodHidden ? selectedPaymentMethodHidden.value : 'N/A');
+                console.log('Hidden Status:', selectedStatusHidden ? selectedStatusHidden.value : 'N/A');
+                console.log('Buyer Name:', document.getElementById('buyer_name') ? document.getElementById('buyer_name').value : 'N/A');
+
+                // Now submit the form
+                // Add a direct console log of the final form data
+                console.log('FINAL FORM DATA:');
+                const formData = new FormData(paymentForm);
+                for (let [key, value] of formData.entries()) {
+                    console.log(`${key}: ${value}`);
+                }
+
+                // Submit with a small delay to ensure all DOM updates are complete
+                setTimeout(() => {
+                    paymentForm.submit();
+                }, 100);
+            });
+        }
+    });
 </script>
 
 
@@ -196,6 +387,74 @@
             </div>
             <div class="modal-body">
 
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Method Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>SELECT PAYMENT METHOD</h3>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">x</button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{% url 'store:receipt' %}" id="paymentForm" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="payment_method"><strong>Payment Method:</strong></label>
+                        <select name="payment_method" id="payment_method" class="form-control" required data-original-name="payment_method">
+                            {% if payment_methods %}
+                                {% for method in payment_methods %}
+                                    <option value="{{ method }}" {% if customer and method == 'Wallet' %}selected{% elif not customer and method == 'Cash' %}selected{% endif %}>{{ method }}</option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="Cash" {% if not customer %}selected{% endif %}>Cash</option>
+                                <option value="Transfer">Bank Transfer</option>
+                                <option value="Wallet" {% if customer %}selected{% endif %}>Customer Wallet</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="status"><strong>Payment Status:</strong></label>
+                        <select name="status" id="status" class="form-control" required data-original-name="status">
+                            {% if statuses %}
+                                {% for status_option in statuses %}
+                                    <option value="{{ status_option }}" {% if status_option == 'Paid' %}selected{% endif %}>{{ status_option }}</option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="Paid" selected>Paid</option>
+                                <option value="Unpaid">Unpaid</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <input type="hidden" name="selected_payment_method" id="selected_payment_method_hidden">
+                    <input type="hidden" name="selected_status" id="selected_status_hidden">
+                    <!-- Debug info -->
+                    <div class="alert alert-info" style="display: none;">
+                        <p>Selected Payment Method: <span id="selected_payment_method">Cash</span></p>
+                        <p>Selected Payment Status: <span id="selected_status">Paid</span></p>
+                    </div>
+                    <div class="form-group">
+                        <label for="buyer_name"><strong>Buyer's Name:</strong></label>
+                        <input type="text" name="buyer_name" id="buyer_name" class="form-control"
+                            value="{% if customer %}{{ customer.name }}{% endif %}"
+                            {% if customer %}readonly{% endif %}
+                            placeholder="WALK-IN CUSTOMER">
+                    </div>
+                    <div class="form-group">
+                        <label for="buyer_address"><strong>Buyer's Address:</strong></label>
+                        <input type="text" name="buyer_address" id="buyer_address" class="form-control"
+                            value="{% if customer %}{{ customer.address }}{% endif %}"
+                            placeholder="Address">
+                    </div>
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-primary">Generate Receipt</button>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

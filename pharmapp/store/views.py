@@ -1,4 +1,4 @@
-from django.views.decorators.http import require_http_methods 
+from django.views.decorators.http import require_http_methods
 from django.core.cache import cache
 from django.db import transaction, IntegrityError
 from collections import defaultdict
@@ -19,6 +19,9 @@ from django.views.decorators.http import require_POST
 from django.db.models import Q, F, ExpressionWrapper, Sum, DecimalField
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -42,7 +45,7 @@ def login_view(request):
         mobile = request.POST.get('mobile')
         password = request.POST.get('password')
         user = authenticate(request, mobile=mobile, password=password)
-        
+
         if user is not None:
             login(request, user)
             next_url = request.GET.get('next', 'store:dashboard')
@@ -51,7 +54,7 @@ def login_view(request):
             return render(request, 'store/index.html', {
                 'error': 'Invalid credentials'
             })
-    
+
     return render(request, 'store/index.html')
 
 
@@ -60,25 +63,32 @@ def sync_offline_actions(request):
     """Handle syncing of offline actions"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Invalid method'}, status=405)
-    
+
     try:
         data = json.loads(request.body)
         actions = data.get('pendingActions', [])
         results = []
-        
+
         for action in actions:
             # Process each offline action
             action_type = action.get('type')
             action_data = action.get('data')
-            
+
             if action_type == 'CREATE':
                 # Handle create operations
                 model_name = action_data.get('model')
                 model_data = action_data.get('data')
-                result = process_create_action(model_name, model_data)
+                if model_name == 'Item':
+                    item = Item.objects.create(**model_data)
+                    result = {'id': item.id, 'status': 'success'}
+                elif model_name == 'Sales':
+                    sale = Sales.objects.create(**model_data)
+                    result = {'id': sale.id, 'status': 'success'}
+                else:
+                    result = {'status': 'error', 'message': f'Unknown model: {model_name}'}
                 results.append(result)
             # Add other action types as needed
-        
+
         return JsonResponse({
             'success': True,
             'results': results
@@ -98,7 +108,7 @@ def index(request):
     if request.method == 'POST':
         mobile = request.POST['mobile']
         password = request.POST['password']
-        
+
         # Perform any necessary authentication logic here
         user = authenticate(mobile=mobile, password=password)
         if user is not None:
@@ -186,8 +196,8 @@ def add_item(request):
             return render(request, 'store/store.html', {'form': form})
     else:
         return redirect('store:index')
-    
-    
+
+
 @login_required
 def search_item(request):
     if request.user.is_authenticated:
@@ -213,16 +223,26 @@ def edit_item(request, pk):
         if request.method == 'POST':
             form = addItemForm(request.POST, instance=item)
             if form.is_valid():
+                # Check if manual price override is enabled
+                manual_price_override = request.POST.get('manual_price_override') == 'on'
+
                 # Convert markup_percentage to Decimal to ensure compatible types
                 markup = Decimal(form.cleaned_data.get("markup", 0))
                 item.markup = markup
-                
-                # Calculate and update the price
-                item.price = item.cost + (item.cost * markup / Decimal(100))
-                
+
+                # Get the price from the form
+                submitted_price = Decimal(form.cleaned_data.get("price", 0))
+
+                if not manual_price_override:
+                    # Calculate price based on the cost and markup percentage
+                    item.price = item.cost + (item.cost * markup / Decimal(100))
+                else:
+                    # Use the manually entered price
+                    item.price = submitted_price
+
                 # Save the form with updated fields
                 form.save()
-                
+
                 messages.success(request, f'{item.name} updated successfully')
                 return redirect('store:store')
             else:
@@ -290,7 +310,10 @@ def add_to_cart(request, pk):
         )
         if not created:
             cart_item.quantity += quantity
-        
+
+        # Always update the price to match the current item price
+        cart_item.price = item.price
+
         # Save the cart item (subtotal is recalculated in the model's save method)
         cart_item.save()
 
@@ -333,20 +356,46 @@ def view_cart(request):
 
         # Calculate totals
         for cart_item in cart_items:
-            cart_item.subtotal = cart_item.item.price * cart_item.quantity
+            # Update the price field to match the item's current price
+            if cart_item.price != cart_item.item.price:
+                cart_item.price = cart_item.item.price
+                # This will trigger the save method which recalculates subtotal
+                cart_item.save()
+            else:
+                # Ensure subtotal is correctly calculated even if price hasn't changed
+                cart_item.subtotal = cart_item.price * cart_item.quantity
+                cart_item.save(update_fields=['subtotal'])
+
+            # Add to total price
             total_price += cart_item.subtotal
             # total_discount += cart_item.discount_amount
 
-        
-        final_total = total_price - total_discount
 
+        final_total = total_price - total_discount
         total_discounted_price = total_price - total_discount
+
+        # Get customer from session if it exists
+        customer = None
+        customer_id = request.session.get('customer_id')
+        if customer_id:
+            try:
+                customer = Customer.objects.get(id=customer_id)
+            except Customer.DoesNotExist:
+                pass
+
+        # Define available payment methods and statuses
+        payment_methods = ["Cash", "Wallet", "Transfer"]
+        statuses = ["Paid", "Unpaid"]
+
         return render(request, 'store/cart.html', {
             'cart_items': cart_items,
             'total_discount': total_discount,
             'total_price': total_price,
             'total_discounted_price': total_discounted_price,
             'final_total': final_total,
+            'customer': customer,
+            'payment_methods': payment_methods,
+            'statuses': statuses,
         })
     else:
         return redirect('store:index')
@@ -412,14 +461,49 @@ def clear_cart(request):
         return redirect('store:index')
 
 
+
+@transaction.atomic
 @login_required
 def receipt(request):
     if request.user.is_authenticated:
         buyer_name = request.POST.get('buyer_name', '')
         buyer_address = request.POST.get('buyer_address', '')
 
-        # If you want cart items per user, filter by the user:
-        cart_items = Cart.objects.filter(user=request.user)
+        # IMPORTANT: Get payment method and status from POST data
+        # These are the values selected by the user in the payment modal
+        payment_method = request.POST.get('payment_method')
+        status = request.POST.get('status')
+
+        # Dump all POST data for debugging
+        print("\n\n==== ALL POST DATA: =====")
+        for key, value in request.POST.items():
+            print(f"  {key}: {value}")
+        print(f"\nDirect access - Payment Method: {payment_method}, Status: {status}\n")
+
+        # Get customer ID from session if it exists
+        customer_id = request.session.get('customer_id')
+        has_customer = False
+        if customer_id:
+            try:
+                customer = Customer.objects.get(id=customer_id)
+                has_customer = True
+            except Customer.DoesNotExist:
+                pass
+
+        # Set default values based on customer presence if not provided
+        if not payment_method:
+            if has_customer:  # If this is a registered customer
+                payment_method = "Wallet"  # Default for registered customers
+            else:  # For walk-in customers
+                payment_method = "Cash"  # Default for walk-in customers
+
+        if not status:
+            # Default status is "Paid" for all customers (both registered and walk-in)
+            status = "Paid"
+
+        print(f"After initial defaults - Payment Method: {payment_method}, Status: {status}")
+
+        cart_items = Cart.objects.all()
         if not cart_items.exists():
             messages.warning(request, "No items in the cart.")
             return redirect('store:cart')
@@ -429,59 +513,97 @@ def receipt(request):
         for cart_item in cart_items:
             subtotal = cart_item.item.price * cart_item.quantity
             total_price += subtotal
-            total_discount += getattr(cart_item, 'discount_amount', 0)  # in case discount_amount is missing
+            total_discount += getattr(cart_item, 'discount_amount', 0)
 
         total_discounted_price = total_price - total_discount
         final_total = total_discounted_price if total_discount > 0 else total_price
 
-        # Always create a new Sales record so that each transaction is unique
-        # and the date (used for aggregations) is set properly.
+        # Get wholesale customer ID from session if it exists
+        customer_id = request.session.get('customer_id')
+        customer = None
+        if customer_id:
+            try:
+                customer = Customer.objects.get(id=customer_id)
+            except Customer.DoesNotExist:
+                pass
+
+        # Always create a new Sales instance to avoid conflicts
         sales = Sales.objects.create(
             user=request.user,
-            total_amount=final_total,
-            date=timezone.now()  # Make sure your Sales model either accepts this or has auto_now_add=True
+            customer=customer,
+            total_amount=final_total
         )
 
         try:
-            # Try to see if a receipt already exists for this sale (unlikely in this workflow)
             receipt = Receipt.objects.filter(sales=sales).first()
             if not receipt:
-                payment_method = request.POST.get('payment_method', 'Cash')
-                status = request.POST.get('status', 'Paid')  # Default status is 'Paid'
+                # Ensure we're using the payment_method and status from the beginning of the function
+                # This ensures we use the values selected by the user
+
+                # Ensure payment_method and status have valid values
+                if payment_method not in ["Cash", "Wallet", "Transfer"]:
+                    if sales.customer:
+                        payment_method = "Wallet"  # Default for registered customers
+                    else:
+                        payment_method = "Cash"  # Default for walk-in customers
+
+                if status not in ["Paid", "Unpaid"]:
+                    # Default status is "Paid" for all customers (both registered and walk-in)
+                    status = "Paid"
+
+                # Force the values for debugging purposes
+                print(f"\n==== FORCING VALUES FOR RECEIPT =====")
+                print(f"Customer: {sales.customer}")
+                print(f"Payment Method: {payment_method}")
+                print(f"Status: {status}\n")
+
+                print(f"\n==== FINAL VALUES =====")
+                print(f"Payment Method: {payment_method}")
+                print(f"Status: {status}\n")
+
+                # Generate a unique receipt ID using uuid
+                import uuid
+                receipt_id = str(uuid.uuid4())[:5]  # Use first 5 characters of a UUID
+
+                # Create the receipt WITHOUT payment method and status first
                 receipt = Receipt.objects.create(
                     sales=sales,
-                    receipt_id=ShortUUIDField().generate(),
+                    receipt_id=receipt_id,
                     total_amount=final_total,
-                    buyer_name=(
-                        buyer_name or 
-                        (hasattr(sales, 'customer') and sales.customer.name) or 
-                        'WALK-IN CUSTOMER'
-                    ),
-                    buyer_address=buyer_address,
-                    date=timezone.now(),  # Use timezone.now() for consistency
-                    payment_method=payment_method,
-                    status=status
+                    customer=sales.customer,
+                    buyer_name=buyer_name if not sales.customer else sales.customer.name,
+                    buyer_address=buyer_address if not sales.customer else sales.customer.address,
+                    date=datetime.now()
                 )
+
+                # Now explicitly set the payment method and status
+                receipt.payment_method = payment_method
+                receipt.status = status
+                receipt.save()
+
+                # Double-check that the payment method and status were set correctly
+                # Refresh from database to ensure we see the actual saved values
+                receipt.refresh_from_db()
+                print(f"\n==== CREATED RECEIPT =====")
+                print(f"Receipt ID: {receipt.receipt_id}")
+                print(f"Payment Method: {receipt.payment_method}")
+                print(f"Status: {receipt.status}\n")
         except Exception as e:
             print(f"Error processing receipt: {e}")
             messages.error(request, "An error occurred while processing the receipt.")
             return redirect('store:cart')
 
-        # Create SalesItem entries for each cart item.
         for cart_item in cart_items:
-            # You may want to use update_or_create if there is any chance that the same item might be added twice.
-            SalesItem.objects.create(
+            SalesItem.objects.get_or_create(
                 sales=sales,
                 item=cart_item.item,
-                quantity=cart_item.quantity,
-                price=cart_item.item.price
+                defaults={'quantity': cart_item.quantity, 'price': cart_item.item.price}
             )
 
             subtotal = cart_item.item.price * cart_item.quantity
             DispensingLog.objects.create(
                 user=request.user,
                 name=cart_item.item.name,
-                brand=cart_item.item.brand,
                 unit=cart_item.item.unit,
                 quantity=cart_item.quantity,
                 amount=subtotal,
@@ -495,10 +617,12 @@ def receipt(request):
         }
         request.session['receipt_id'] = str(receipt.receipt_id)
 
-        # Clear the cart items for this user.
         cart_items.delete()
 
-        # Fetch updated sales data.
+        # Clear wholesale_customer_id from session after receipt is created
+        if 'customer_id' in request.session:
+            del request.session['customer_id']
+
         daily_sales_data = get_daily_sales()
         monthly_sales_data = get_monthly_sales_with_expenses()
 
@@ -507,6 +631,28 @@ def receipt(request):
         payment_methods = ["Cash", "Wallet", "Transfer"]
         statuses = ["Paid", "Unpaid"]
 
+        # Double-check the receipt values one more time before rendering
+        receipt.refresh_from_db()
+        print(f"\n==== FINAL RECEIPT VALUES BEFORE RENDERING =====")
+        print(f"Receipt ID: {receipt.receipt_id}")
+        print(f"Payment Method: {receipt.payment_method}")
+        print(f"Status: {receipt.status}\n")
+
+        # Force the payment method and status one last time if needed
+        if has_customer:
+            if receipt.payment_method != 'Wallet':
+                print(f"Forcing payment method to Wallet for customer {receipt.customer.name}")
+                receipt.payment_method = 'Wallet'
+                receipt.save()
+
+            if receipt.status != 'Paid':
+                print(f"Forcing status to Paid for customer {receipt.customer.name}")
+                receipt.status = 'Paid'
+                receipt.save()
+
+            receipt.refresh_from_db()
+
+        # Render to the receipt template
         return render(request, 'store/receipt.html', {
             'receipt': receipt,
             'sales_items': sales_items,
@@ -523,25 +669,60 @@ def receipt(request):
         return redirect('store:index')
 
 
+
 @login_required
 def receipt_detail(request, receipt_id):
-    receipt = get_object_or_404(Receipt, receipt_id=receipt_id)
-    sales_items = SalesItem.objects.filter(receipt=receipt)
-    
-    if request.method == 'POST':
-        # Only update buyer_name if there's no customer associated
-        if not receipt.customer:
-            receipt.buyer_name = request.POST.get('buyer_name', '').strip() or 'WALK-IN CUSTOMER'
-        receipt.buyer_address = request.POST.get('buyer_address', '')
-        receipt.payment_method = request.POST.get('payment_method', '')
+    if request.user.is_authenticated:
+        # Retrieve the existing receipt
+        receipt = get_object_or_404(Receipt, receipt_id=receipt_id)
+
+        # If the form is submitted, update buyer details only
+        if request.method == 'POST':
+            # Only update buyer_name if there's no customer associated
+            if not receipt.customer:
+                buyer_name = request.POST.get('buyer_name', '').strip() or 'WALK-IN CUSTOMER'
+                receipt.buyer_name = buyer_name
+
+            buyer_address = request.POST.get('buyer_address')
+            if buyer_address:
+                receipt.buyer_address = buyer_address
+
+            # Save the updated receipt
+            receipt.save()
+
+            # Redirect to the same page to reflect updated details
+            return redirect('store:receipt_detail', receipt_id=receipt.receipt_id)
+
+        # Retrieve sales and sales items linked to the receipt
+        sales = receipt.sales
+        sales_items = sales.sales_items.all() if sales else []
+
+        # Calculate totals for the receipt
+        total_price = sum(item.subtotal for item in sales_items)
+        total_discount = Decimal('0.0')  # Modify if a discount amount is present in `Receipt`
+        total_discounted_price = total_price - total_discount
+
+        # Update and save the receipt with calculated totals
+        receipt.total_amount = total_discounted_price
         receipt.save()
-    
-    context = {
-        'receipt': receipt,
-        'sales_items': sales_items,
-        'user': request.user,
-    }
-    return render(request, 'partials/receipt_detail.html', context)
+
+        # Define available payment methods and statuses
+        payment_methods = ["Cash", "Wallet", "Transfer"]
+        statuses = ["Paid", "Unpaid"]
+
+        # Render the receipt details template
+        return render(request, 'partials/receipt_detail.html', {
+            'receipt': receipt,
+            'sales_items': sales_items,
+            'total_price': total_price,
+            'total_discount': total_discount,
+            'total_discounted_price': total_discounted_price,
+            'user': request.user,
+            'payment_methods': payment_methods,
+            'statuses': statuses,
+        })
+    else:
+        return redirect('store:index')
 
 
 @login_required
@@ -553,7 +734,7 @@ def return_item(request, pk):
             form = ReturnItemForm(request.POST)
             if form.is_valid():
                 return_quantity = form.cleaned_data.get('return_item_quantity')
-                
+
                 try:
                     with transaction.atomic():
                         # Update item stock
@@ -578,6 +759,14 @@ def return_item(request, pk):
                         sales = sales_item.sales
                         sales.total_amount -= refund_amount
                         sales.save()
+
+                        # Get payment method and status for the receipt
+                        payment_method = request.POST.get('payment_method', 'Cash')
+                        status = request.POST.get('status', 'Paid')
+
+                        # Store in session for later use in receipt generation
+                        request.session['payment_method'] = payment_method
+                        request.session['payment_status'] = status
 
                         # Handle customer wallet refund if applicable
                         if sales.customer:
@@ -657,20 +846,97 @@ def get_daily_sales():
         )
     )
 
+    # Get retail sales by payment method - using TruncDay to match the day format from sales queries
+    payment_method_sales = (
+        Receipt.objects
+        .filter(Q(status='Paid') | Q(status='Unpaid'))  # Include both paid and unpaid receipts
+        .annotate(day=TruncDay('date'))
+        .values('day', 'payment_method')
+        .annotate(
+            total_amount=Sum('total_amount')
+        )
+        .order_by('day', 'payment_method')
+    )
+
+    # Get wholesale sales by payment method - using TruncDay to match the day format
+    wholesale_payment_method_sales = (
+        WholesaleReceipt.objects
+        .filter(Q(status='Paid') | Q(status='Unpaid'))  # Include both paid and unpaid receipts
+        .annotate(day=TruncDay('date'))
+        .values('day', 'payment_method')
+        .annotate(
+            total_amount=Sum('total_amount')
+        )
+        .order_by('day', 'payment_method')
+    )
+
     # Combine results
-    combined_sales = defaultdict(lambda: {'total_sales': 0, 'total_cost': 0, 'total_profit': 0})
+    combined_sales = defaultdict(lambda: {
+        'total_sales': Decimal('0.00'),
+        'total_cost': Decimal('0.00'),
+        'total_profit': Decimal('0.00'),
+        'payment_methods': {
+            'Cash': Decimal('0.00'),
+            'Wallet': Decimal('0.00'),
+            'Transfer': Decimal('0.00')
+        }
+    })
 
+    # Helper function to normalize dates to date objects (not datetime)
+    def normalize_date(date_obj):
+        if hasattr(date_obj, 'date'):
+            # If it's a datetime object, convert to date
+            return date_obj.date()
+        return date_obj
+
+    # Add regular sales data
     for sale in regular_sales:
-        day = sale['day']
-        combined_sales[day]['total_sales'] += sale['total_sales']
-        combined_sales[day]['total_cost'] += sale['total_cost']
-        combined_sales[day]['total_profit'] += sale['total_profit']
+        day = normalize_date(sale['day'])
+        combined_sales[day]['total_sales'] += sale['total_sales'] or Decimal('0.00')
+        combined_sales[day]['total_cost'] += sale['total_cost'] or Decimal('0.00')
+        combined_sales[day]['total_profit'] += sale['total_profit'] or Decimal('0.00')
 
+    # Add wholesale sales data
     for sale in wholesale_sales:
-        day = sale['day']
-        combined_sales[day]['total_sales'] += sale['total_sales']
-        combined_sales[day]['total_cost'] += sale['total_cost']
-        combined_sales[day]['total_profit'] += sale['total_profit']
+        day = normalize_date(sale['day'])
+        combined_sales[day]['total_sales'] += sale['total_sales'] or Decimal('0.00')
+        combined_sales[day]['total_cost'] += sale['total_cost'] or Decimal('0.00')
+        combined_sales[day]['total_profit'] += sale['total_profit'] or Decimal('0.00')
+
+    # Add retail payment method data
+    for sale in payment_method_sales:
+        day = normalize_date(sale['day'])
+        payment_method = sale['payment_method']
+        if payment_method in combined_sales[day]['payment_methods']:
+            combined_sales[day]['payment_methods'][payment_method] += sale['total_amount'] or Decimal('0.00')
+
+    # Add wholesale payment method data
+    for sale in wholesale_payment_method_sales:
+        day = normalize_date(sale['day'])
+        payment_method = sale['payment_method']
+        if payment_method in combined_sales[day]['payment_methods']:
+            combined_sales[day]['payment_methods'][payment_method] += sale['total_amount'] or Decimal('0.00')
+
+    # Verify payment method totals match overall sales totals and adjust if needed
+    for day, data in combined_sales.items():
+        payment_total = sum(data['payment_methods'].values())
+        sales_total = data['total_sales']
+
+        # If there's a significant discrepancy, adjust the payment methods
+        if abs(payment_total - sales_total) > Decimal('0.01'):
+            logger.info(f"Adjusting payment methods for {day}: Payment total ({payment_total}) vs Sales total ({sales_total})")
+
+            if payment_total == 0 and sales_total > 0:
+                # If no payment methods are recorded but we have sales, assign to Cash by default
+                data['payment_methods']['Cash'] = sales_total
+            elif payment_total > 0 and sales_total == 0:
+                # If we have payment methods but no sales, adjust sales to match payments
+                data['total_sales'] = payment_total
+            elif payment_total > 0 and sales_total > 0:
+                # If both are non-zero but different, proportionally adjust payment methods
+                adjustment_factor = sales_total / payment_total
+                for method in data['payment_methods']:
+                    data['payment_methods'][method] = data['payment_methods'][method] * adjustment_factor
 
     # Convert combined sales to a sorted list by date in descending order
     sorted_combined_sales = sorted(combined_sales.items(), key=lambda x: x[0], reverse=True)
@@ -726,19 +992,19 @@ def get_monthly_sales_with_expenses():
 
     # Combine the two types of sales into one dict
     combined_sales = defaultdict(lambda: {'total_sales': 0, 'total_cost': 0, 'total_profit': 0})
-    
+
     for sale in regular_sales:
         month = sale['month']
         combined_sales[month]['total_sales'] += sale['total_sales']
         combined_sales[month]['total_cost'] += sale['total_cost']
         combined_sales[month]['total_profit'] += sale['total_profit']
-    
+
     for sale in wholesale_sales:
         month = sale['month']
         combined_sales[month]['total_sales'] += sale['total_sales']
         combined_sales[month]['total_cost'] += sale['total_cost']
         combined_sales[month]['total_profit'] += sale['total_profit']
-    
+
     # Add expense data and calculate net profit for each month
     for month, data in combined_sales.items():
         data['total_expense'] = monthly_expenses.get(month, 0)
@@ -817,7 +1083,7 @@ def monthly_sales(request):
     if request.user.is_authenticated:
         # Get the full monthly sales data with expenses deducted
         sales_data = get_monthly_sales_with_expenses()
-        
+
         # Read selected month from GET parameters (in YYYY-MM format)
         selected_month_str = request.GET.get('month')
         filtered_sales = sales_data  # default: show all months
@@ -898,7 +1164,7 @@ def sales_by_user(request):
 
         # Fetch sales data
         user_sales = get_sales_by_user(date_from=date_from, date_to=date_to)
-        
+
 
         context = {
             'user_sales': user_sales,
@@ -962,7 +1228,7 @@ def add_funds(request, pk):
     if request.user.is_authenticated:
         customer = get_object_or_404(Customer, pk=pk)
         wallet = customer.wallet
-        
+
         if request.method == 'POST':
             form = AddFundsForm(request.POST)
             if form.is_valid():
@@ -1019,11 +1285,15 @@ def edit_customer(request, pk):
     else:
         return redirect('store:index')
 
+
+
 @transaction.atomic
 @login_required
 def select_items(request, pk):
     if request.user.is_authenticated:
         customer = get_object_or_404(Customer, id=pk)
+        # Store wholesale customer ID in session for later use
+        request.session['customer_id'] = customer.id
         items = Item.objects.all().order_by('name')
 
         # Fetch wallet balance
@@ -1037,7 +1307,7 @@ def select_items(request, pk):
             action = request.POST.get('action', 'purchase')  # Default to purchase
             item_ids = request.POST.getlist('item_ids', [])
             quantities = request.POST.getlist('quantities', [])
-            discount_amounts = request.POST.getlist('discount_amounts', [])
+            # discount_amounts = request.POST.getlist('discount_amounts', [])
             units = request.POST.getlist('units', [])
 
             if len(item_ids) != len(quantities):
@@ -1046,32 +1316,47 @@ def select_items(request, pk):
 
             total_cost = Decimal('0.0')
 
-            # Fetch or create a Sales record
-            sales, created = Sales.objects.get_or_create(
+            # Create a new Sales record for this transaction
+            # Instead of get_or_create, we always create a new record to avoid the MultipleObjectsReturned error
+            sales = Sales.objects.create(
                 user=request.user,
                 customer=customer,
-                defaults={'total_amount': Decimal('0.0')}
+                total_amount=Decimal('0.0')
             )
 
             # Fetch or create a Receipt
             receipt = Receipt.objects.filter(customer=customer, sales=sales).first()
 
             if not receipt:
+                # Generate a unique receipt ID using uuid
+                import uuid
+                receipt_id = str(uuid.uuid4())[:5]  # Use first 5 characters of a UUID
+
+                # Get payment method and status from form
+                payment_method = request.POST.get('payment_method', 'Cash')
+                status = request.POST.get('status', 'Paid')
+
+                # Store in session for later use in receipt generation
+                request.session['payment_method'] = payment_method
+                request.session['payment_status'] = status
+
                 receipt = Receipt.objects.create(
-                    customer=customer,
+                    wholesale_customer=customer,
                     sales=sales,
+                    receipt_id=receipt_id,
                     total_amount=Decimal('0.0'),
                     buyer_name=customer.name,
                     buyer_address=customer.address,
                     date=datetime.now(),
-                    printed=False,
+                    payment_method=payment_method,
+                    status=status
                 )
 
 
             for i, item_id in enumerate(item_ids):
                 try:
                     item = Item.objects.get(id=item_id)
-                    quantity = int(quantities[i])
+                    quantity = Decimal(quantities[i])
                     # discount = Decimal(discount_amounts[i]) if i < len(discount_amounts) else Decimal('0.0')
                     unit = units[i] if i < len(units) else item.unit
 
@@ -1079,28 +1364,31 @@ def select_items(request, pk):
                         # Check stock and update inventory
                         if quantity > item.stock:
                             messages.warning(request, f'Not enough stock for {item.name}.')
-                            return redirect('store:select_items', pk=pk)
+                            return redirect('wholesale:select_wholesale_items', pk=pk)
 
                         item.stock -= quantity
                         item.save()
 
-                        # Update or create a CartItem
+                        # Update or create a WholesaleCartItem
                         cart_item, created = Cart.objects.get_or_create(
-                            user=request.user,   # Associate the cart item with the current user
+                            user=request.user,
                             item=item,
-                            defaults={'quantity': quantity, 'unit': unit}
+                            defaults={'quantity': quantity, 'unit': unit, 'price': item.price}
                         )
                         if not created:
                             cart_item.quantity += quantity
                             # cart_item.discount_amount += discount
                             cart_item.unit = unit
+
+                        # Always update the price to match the current item price
+                        cart_item.price = item.price
                         cart_item.save()
 
-                        # Calculate subtotal
+                        # Calculate subtotal and log dispensing
                         subtotal = (item.price * quantity)
                         total_cost += subtotal
 
-                        # Update or create SalesItem
+                        # Update or create WholesaleSalesItem
                         sales_item, created = SalesItem.objects.get_or_create(
                             sales=sales,
                             item=item,
@@ -1134,7 +1422,7 @@ def select_items(request, pk):
 
                             if sales_item.quantity < quantity:
                                 messages.warning(request, f"Cannot return more {item.name} than purchased.")
-                                return redirect('store:customer_list')
+                                return redirect('store:customers')
 
                             sales_item.quantity -= quantity
                             if sales_item.quantity == 0:
@@ -1143,19 +1431,16 @@ def select_items(request, pk):
                                 sales_item.save()
 
                             refund_amount = (item.price * quantity)
-
-                            # Update sales total
                             sales.total_amount -= refund_amount
                             sales.save()
 
-                            # Log dispensing action
                             DispensingLog.objects.create(
                                 user=request.user,
                                 name=item.name,
                                 unit=unit,
                                 quantity=quantity,
                                 amount=refund_amount,
-                                status='Partially Returned' if sales_item.quantity > 0 else 'Returned'
+                                status='Partially Returned' if sales_item.quantity > 0 else 'Returned'  # Status based on remaining quantity
                             )
 
                             # **Log Item Selection History (Return)**
@@ -1166,7 +1451,6 @@ def select_items(request, pk):
                                 quantity=quantity,
                                 action=action,
                                 unit_price=item.price,
-                                # subtotal=quantity * item.price,
                             )
 
                             total_cost -= refund_amount
@@ -1195,6 +1479,12 @@ def select_items(request, pk):
                 messages.warning(request, 'Customer does not have a wallet.')
                 return redirect('store:select_items', pk=pk)
 
+            # Store payment method and status in session for receipt generation
+            payment_method = request.POST.get('payment_method', 'Cash')
+            status = request.POST.get('status', 'Paid')
+            request.session['payment_method'] = payment_method
+            request.session['payment_status'] = status
+
             action_message = 'added to cart' if action == 'purchase' else 'returned successfully'
             messages.success(request, f'Action completed: Items {action_message}.')
             return redirect('store:cart')
@@ -1208,6 +1498,7 @@ def select_items(request, pk):
         return redirect('store:index')
 
 
+
 @login_required
 def dispensing_log(request):
     if request.user.is_authenticated:
@@ -1219,16 +1510,18 @@ def dispensing_log(request):
             selected_date = parse_date(date_filter)
             if selected_date:
                 logs = logs.filter(created_at__date=selected_date)
-                return render(request, 'partials/partials_dispensing_log.html', {'logs': logs})
 
         # Filter logs by status if provided
         if status_filter := request.GET.get('status'):
             logs = logs.filter(status=status_filter)
 
+        # Check if this is an HTMX request
+        if request.headers.get('HX-Request'):
+            # Return only the partial template with filtered logs
             return render(request, 'partials/partials_dispensing_log.html', {'logs': logs})
-
-        # Render the full template for non-HTMX requests
-        return render(request, 'store/dispensing_log.html', {'logs': logs})
+        else:
+            # Render the full template for non-HTMX requests
+            return render(request, 'store/dispensing_log.html', {'logs': logs})
     else:
         return redirect('store:index')
 
@@ -1269,75 +1562,24 @@ def search_receipts(request):
         return redirect('store:index')
 
 
-@login_required
-def receipt_detail(request, receipt_id):
-    if request.user.is_authenticated:
-        # Retrieve the existing receipt
-        receipt = get_object_or_404(Receipt, receipt_id=receipt_id)
 
-        # If the form is submitted, update buyer details and other fields
-        if request.method == 'POST':
-            buyer_name = request.POST.get('buyer_name')
-            buyer_address = request.POST.get('buyer_address')
-            payment_method = request.POST.get('payment_method')
-            payment_status = request.POST.get('payment_status')  # New: Capture payment status
-
-            # Update receipt buyer info if provided
-            if buyer_name:
-                receipt.buyer_name = buyer_name
-            if buyer_address:
-                receipt.buyer_address = buyer_address
-            if payment_method:
-                receipt.payment_method = payment_method
-            if payment_status:
-                receipt.paid = (payment_status == 'Paid')  # Update Paid/Unpaid status
-
-            # Save the updated receipt
-            receipt.save()
-
-            # Redirect to the same page to reflect updated details
-            return redirect('store:receipt_detail', receipt_id=receipt.receipt_id)
-
-        # Retrieve sales and sales items linked to the receipt
-        sales = receipt.sales
-        sales_items = sales.sales_items.all() if sales else []
-
-        # Calculate totals for the receipt
-        total_price = sum(item.subtotal for item in sales_items)
-        total_discount = Decimal('0.0')  # Modify if a discount amount is present in `Receipt`
-        total_discounted_price = total_price - total_discount
-
-        # Update and save the receipt with calculated totals
-        receipt.total_amount = total_discounted_price
-        receipt.save()
-
-        # Render the receipt details template
-        return render(request, 'partials/receipt_detail.html', {
-            'receipt': receipt,
-            'sales_items': sales_items,
-            'total_price': total_price,
-            'total_discount': total_discount,
-            'total_discounted_price': total_discounted_price,
-        })
-    else:
-        return redirect('store:index')
 
 @login_required
 def exp_date_alert(request):
     if request.user.is_authenticated:
         alert_threshold = datetime.now() + timedelta(days=90)
-        
+
         expiring_items = Item.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=datetime.now())
-        
+
         expired_items = Item.objects.filter(exp_date__lt=datetime.now())
-        
+
         for expired_item in expired_items:
-            
+
             if expired_item.stock > 0:
-                
+
                 expired_item.stock = 0
                 expired_item.save()
-                
+
         return render(request, 'partials/exp_date_alert.html', {
             'expired_items': expired_items,
             'expiring_items': expiring_items,
@@ -1350,7 +1592,7 @@ def exp_date_alert(request):
 def customer_history(request, customer_id):
     if request.user.is_authenticated:
         customer = get_object_or_404(Customer, id=customer_id)
-        
+
         histories = SalesItem.objects.filter(
             sales__customer=customer
         ).select_related(
@@ -1362,20 +1604,20 @@ def customer_history(request, customer_id):
         for history in histories:
             year = history.sales.date.year
             month = history.sales.date.strftime('%B')  # Full month name
-            
+
             if year not in history_data:
                 history_data[year] = {'total': Decimal('0'), 'months': {}}
-            
+
             if month not in history_data[year]['months']:
                 history_data[year]['months'][month] = {'total': Decimal('0'), 'items': []}
-            
+
             # Calculate subtotal
             calculated_subtotal = history.quantity * history.price
-            
+
             # Update totals
             history_data[year]['total'] += calculated_subtotal
             history_data[year]['months'][month]['total'] += calculated_subtotal
-            
+
             # Add the history item to the month's items list
             history_data[year]['months'][month]['items'].append({
                 'date': history.sales.date,
@@ -1388,7 +1630,7 @@ def customer_history(request, customer_id):
             'customer': customer,
             'history_data': history_data,
         }
-        
+
         return render(request, 'partials/customer_history.html', context)
     return redirect('store:index')
 
@@ -1400,7 +1642,8 @@ def register_supplier_view(request):
             form = SupplierRegistrationForm(request.POST)
             if form.is_valid():
                 form.save()
-                return redirect('partials/supplier_list.html')
+                messages.success(request, 'Supplier successfully registered')
+                return redirect('store:supplier_list')
         else:
             form = SupplierRegistrationForm()
         return render(request, 'partials/supplier_reg_form.html', {'form': form})
@@ -1417,8 +1660,41 @@ def supplier_list_partial(request):
 @login_required
 def list_suppliers_view(request):
     if request.user.is_authenticated:
-        suppliers = Supplier.objects.all()  # Get all suppliers
+        suppliers = Supplier.objects.all().order_by('name')  # Get all suppliers ordered by name
         return render(request, 'partials/supplier_list.html', {'suppliers': suppliers})
+    else:
+        return redirect('store:index')
+
+@login_required
+def edit_supplier(request, pk):
+    if request.user.is_authenticated:
+        supplier = get_object_or_404(Supplier, id=pk)
+        if request.method == 'POST':
+            form = SupplierRegistrationForm(request.POST, instance=supplier)
+            if form.is_valid():
+                form.save()
+                messages.success(request, f'{supplier.name} edited successfully.')
+                return redirect('store:supplier_list')
+            else:
+                messages.warning(request, f'{supplier.name} failed to edit, please try again')
+        else:
+            form = SupplierRegistrationForm(instance=supplier)
+        if request.headers.get('HX-Request'):
+            return render(request, 'partials/edit_supplier_modal.html', {'form': form, 'supplier': supplier})
+        else:
+            return render(request, 'partials/supplier_list.html')
+    else:
+        return redirect('store:index')
+
+@login_required
+@user_passes_test(is_admin)
+def delete_supplier(request, pk):
+    if request.user.is_authenticated:
+        supplier = get_object_or_404(Supplier, id=pk)
+        supplier_name = supplier.name
+        supplier.delete()
+        messages.success(request, f'{supplier_name} deleted successfully.')
+        return redirect('store:supplier_list')
     else:
         return redirect('store:index')
 
@@ -1438,10 +1714,18 @@ def add_procurement(request):
         if request.method == 'POST':
             procurement_form = ProcurementForm(request.POST)
             formset = ProcurementItemFormSet(request.POST, queryset=ProcurementItem.objects.none())
+            action = request.POST.get('action', 'save')
 
             if procurement_form.is_valid() and formset.is_valid():
                 procurement = procurement_form.save(commit=False)
                 procurement.created_by = request.user  # Assuming the user is authenticated
+
+                # Set status based on action
+                if action == 'pause':
+                    procurement.status = 'draft'
+                else:
+                    procurement.status = 'completed'
+
                 procurement.save()
 
                 for form in formset:
@@ -1450,13 +1734,32 @@ def add_procurement(request):
                         procurement_item.procurement = procurement
                         procurement_item.save()
 
-                messages.success(request, "Procurement and items added successfully!")
-                return redirect('store:procurement_list')  # Replace with your actual URL name
+                # Calculate and update the total
+                procurement.calculate_total()
+
+                if action == 'pause':
+                    messages.success(request, "Procurement saved as draft. You can continue later.")
+                    return redirect('store:procurement_list')  # Replace with your actual URL name
+                else:
+                    messages.success(request, "Procurement and items added successfully!")
+                    return redirect('store:procurement_list')  # Replace with your actual URL name
             else:
                 messages.error(request, "Please correct the errors below.")
         else:
-            procurement_form = ProcurementForm()
-            formset = ProcurementItemFormSet(queryset=ProcurementItem.objects.none())
+            # Check if we're continuing a draft procurement
+            draft_id = request.GET.get('draft_id')
+            if draft_id:
+                try:
+                    draft_procurement = Procurement.objects.get(id=draft_id, status='draft')
+                    procurement_form = ProcurementForm(instance=draft_procurement)
+                    formset = ProcurementItemFormSet(queryset=draft_procurement.items.all())
+                except Procurement.DoesNotExist:
+                    messages.error(request, "Draft procurement not found.")
+                    procurement_form = ProcurementForm()
+                    formset = ProcurementItemFormSet(queryset=ProcurementItem.objects.none())
+            else:
+                procurement_form = ProcurementForm()
+                formset = ProcurementItemFormSet(queryset=ProcurementItem.objects.none())
 
         return render(
             request,
@@ -1517,7 +1820,7 @@ def search_procurement(request):
             'procurements': procurements,
         })
     else:
-        return redirect('store:index')        
+        return redirect('store:index')
 
 @login_required
 def procurement_detail(request, procurement_id):
@@ -1546,30 +1849,41 @@ def transfer_multiple_store_items(request):
                 store_items = StoreItem.objects.filter(name__icontains=search_query)
             else:
                 store_items = StoreItem.objects.all()
-            
+
+            # Get unit choices from the UNIT constant
+            unit_choices = UNIT
+
             # If this is an HTMX request triggered by search, return only the table body
             if request.headers.get("HX-Request") and "search" in request.GET:
-                return render(request, "partials/_store_items_table.html", {"store_items": store_items})
-            
-            return render(request, "store/transfer_multiple_store_items.html", {"store_items": store_items})
-        
+                return render(request, "partials/_store_items_table.html", {
+                    "store_items": store_items,
+                    "unit_choices": unit_choices
+                })
+
+            return render(request, "store/transfer_multiple_store_items.html", {
+                "store_items": store_items,
+                "unit_choices": unit_choices
+            })
+
         elif request.method == "POST":
             processed_items = []
             errors = []
             store_items = list(StoreItem.objects.all())  # materialize the queryset
-            
+
             for item in store_items:
                 # Process only items that have been selected.
                 if request.POST.get(f'select_{item.id}') == 'on':
                     try:
                         qty = int(request.POST.get(f'quantity_{item.id}', 0))
                         markup = float(request.POST.get(f'markup_{item.id}', 0))
+                        transfer_unit = request.POST.get(f'transfer_unit_{item.id}', item.unit)
+                        unit_conversion = float(request.POST.get(f'unit_conversion_{item.id}', 1))
                     except (ValueError, TypeError):
                         errors.append(f"Invalid input for {item.name}.")
                         continue
-                    
+
                     destination = request.POST.get(f'destination_{item.id}', '')
-                    
+
                     if qty <= 0:
                         errors.append(f"Quantity must be positive for {item.name}.")
                         continue
@@ -1579,17 +1893,23 @@ def transfer_multiple_store_items(request):
                     if destination not in ['retail', 'wholesale']:
                         errors.append(f"Invalid destination for {item.name}.")
                         continue
-                    
+                    if transfer_unit not in [unit[0] for unit in UNIT]:
+                        errors.append(f"Invalid unit for {item.name}.")
+                        continue
+                    if unit_conversion <= 0:
+                        errors.append(f"Unit conversion must be positive for {item.name}.")
+                        continue
+
                     # Calculate the new selling price using the markup.
                     cost = item.cost_price
                     new_price = cost + (cost * Decimal(markup) / Decimal(100))
-                    
+
                     # Process transfer for this item.
                     if destination == "retail":
                         dest_item, created = Item.objects.get_or_create(
                             name=item.name,
                             brand=item.brand,
-                            unit=item.unit,
+                            unit=transfer_unit,  # Use the selected transfer unit
                             defaults={
                                 "dosage_form": item.dosage_form,
                                 "cost": cost,
@@ -1603,7 +1923,7 @@ def transfer_multiple_store_items(request):
                         dest_item, created = WholesaleItem.objects.get_or_create(
                             name=item.name,
                             brand=item.brand,
-                            unit=item.unit,
+                            unit=transfer_unit,  # Use the selected transfer unit
                             defaults={
                                 "dosage_form": item.dosage_form,
                                 "cost": cost,
@@ -1613,41 +1933,53 @@ def transfer_multiple_store_items(request):
                                 "exp_date": item.expiry_date,
                             }
                         )
-                    
+
+                    # Calculate the destination quantity using the unit conversion
+                    dest_qty = qty * Decimal(str(unit_conversion))
+
                     # Update the destination item's stock and key fields.
-                    dest_item.stock += qty
+                    dest_item.stock += dest_qty
                     dest_item.cost = cost
                     dest_item.markup = markup
                     dest_item.price = new_price
                     dest_item.save()
-                    
+
                     # Deduct the transferred quantity from the store item.
                     item.stock -= qty
                     item.save()
-                    
+
                     # Remove the store item if its stock is zero or less.
                     if item.stock <= 0:
                         item.delete()
                         processed_items.append(
-                            f"Transferred {qty} of {item.name} to {destination} and removed {item.name} from the store (stock reached zero)."
+                            f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit} and removed {item.name} from the store (stock reached zero)."
                         )
                     else:
-                        processed_items.append(f"Transferred {qty} of {item.name} to {destination}.")
-            
+                        processed_items.append(f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit}.")
+
             # Use Django's messages framework to show errors/success messages.
             for error in errors:
                 messages.error(request, error)
             for msg in processed_items:
                 messages.success(request, msg)
-            
+
             # Refresh the store items after processing.
             store_items = StoreItem.objects.all()
-            
+
+            # Get unit choices from the UNIT constant
+            unit_choices = UNIT
+
             if request.headers.get('HX-request'):
-                return render(request, "partials/_transfer_multiple_store_items.html", {"store_items": store_items})
+                return render(request, "partials/_transfer_multiple_store_items.html", {
+                    "store_items": store_items,
+                    "unit_choices": unit_choices
+                })
             else:
-                return render(request, "store/transfer_multiple_store_items.html", {"store_items": store_items})
-        
+                return render(request, "store/transfer_multiple_store_items.html", {
+                    "store_items": store_items,
+                    "unit_choices": unit_choices
+                })
+
         return JsonResponse({"success": False, "message": "Invalid request method."}, status=400)
     else:
         return redirect('store:index')
@@ -1662,22 +1994,40 @@ logger = logging.getLogger(__name__)
 def create_stock_check(request):
     if request.user.is_authenticated:
         if request.method == "POST":
-            items = Item.objects.all()
+            # Get the zero_empty_items flag from the form
+            zero_empty_items = request.POST.get('zero_empty_items', 'true').lower() == 'true'
+
+            # Get selected items if any
+            selected_items_str = request.POST.get('selected_items', '')
+
+            if selected_items_str:
+                # Filter items based on selection
+                selected_item_ids = [int(id) for id in selected_items_str.split(',') if id]
+                items = Item.objects.filter(id__in=selected_item_ids)
+            else:
+                # Get all items
+                items = Item.objects.all()
+
             if not items.exists():
                 messages.error(request, "No items found to check stock.")
                 return redirect('store:store')
 
             stock_check = StockCheck.objects.create(created_by=request.user, status='in_progress')
 
-            stock_check_items = [
-                StockCheckItem(
-                    stock_check=stock_check,
-                    item=item,
-                    expected_quantity=item.stock,
-                    actual_quantity=0,
-                    status='pending'
-                ) for item in items
-            ]
+            stock_check_items = []
+            for item in items:
+                # Skip items with zero stock if zero_empty_items is True
+                if not zero_empty_items or item.stock > 0:
+                    stock_check_items.append(
+                        StockCheckItem(
+                            stock_check=stock_check,
+                            item=item,
+                            expected_quantity=item.stock,
+                            actual_quantity=0,
+                            status='pending'
+                        )
+                    )
+
             StockCheckItem.objects.bulk_create(stock_check_items)
 
             messages.success(request, "Stock check created successfully.")
@@ -1686,9 +2036,45 @@ def create_stock_check(request):
         return render(request, 'store/create_stock_check.html')
     else:
         return redirect('store:index')
-    
-    
-    
+
+
+@user_passes_test(is_admin)
+@login_required
+def update_stock_check(request, stock_check_id):
+    if request.user.is_authenticated:
+        stock_check = get_object_or_404(StockCheck, id=stock_check_id)
+        if stock_check.status not in ['in_progress', 'completed']:
+            messages.error(request, "Stock check status is invalid for updates.")
+            return redirect('store:store')
+
+        if request.method == "POST":
+            # Get the zero_empty_items flag from the form
+            zero_empty_items = request.POST.get('zero_empty_items', 'false').lower() == 'true'
+
+            stock_items = []
+            for item_id, actual_qty in request.POST.items():
+                if item_id.startswith("item_"):
+                    item_id = int(item_id.replace("item_", ""))
+                    stock_item = StockCheckItem.objects.get(stock_check=stock_check, item_id=item_id)
+
+                    # If zero_empty_items is True and both expected and actual are 0, set to 0
+                    if zero_empty_items and stock_item.expected_quantity == 0 and int(actual_qty) == 0:
+                        stock_item.actual_quantity = 0
+                    else:
+                        stock_item.actual_quantity = int(actual_qty)
+
+                    stock_items.append(stock_item)
+
+            StockCheckItem.objects.bulk_update(stock_items, ['actual_quantity'])
+            messages.success(request, "Stock check updated successfully.")
+            return redirect('store:stock_check_report', stock_check.id)
+
+        return render(request, 'store/update_stock_check.html', {'stock_check': stock_check})
+    else:
+        return redirect('store:index')
+
+
+
 @user_passes_test(is_admin)
 @login_required
 def update_stock_check(request, stock_check_id):
@@ -1712,9 +2098,9 @@ def update_stock_check(request, stock_check_id):
         return render(request, 'store/update_stock_check.html', {'stock_check': stock_check})
     else:
         return redirect('store:index')
-    
-    
-    
+
+
+
 @user_passes_test(is_admin)
 @login_required
 def approve_stock_check(request, stock_check_id):
@@ -1778,6 +2164,53 @@ def bulk_adjust_stock(request, stock_check_id):
 
 @user_passes_test(is_admin)
 @login_required
+def adjust_stock(request, stock_item_id):
+    """Handle individual stock check item adjustments"""
+    stock_item = get_object_or_404(StockCheckItem, id=stock_item_id)
+
+    if request.method == 'POST':
+        try:
+            # Check if zero_item is checked
+            zero_item = request.POST.get('zero_item', 'off') == 'on'
+
+            if zero_item:
+                # If zero_item is checked, set adjusted_quantity to 0
+                adjusted_quantity = 0
+            else:
+                # Otherwise, get the adjusted_quantity from the form
+                adjusted_quantity = int(request.POST.get('adjusted_quantity', 0))
+
+            # Update the item's stock
+            item = stock_item.item
+            old_stock = item.stock
+
+            # Calculate the adjustment needed
+            adjustment = adjusted_quantity - stock_item.actual_quantity
+
+            # Update the stock check item
+            stock_item.actual_quantity = adjusted_quantity
+            stock_item.status = 'adjusted'
+            stock_item.save()
+
+            # Update the item's stock
+            item.stock += adjustment
+            item.save()
+
+            messages.success(
+                request,
+                f'Stock for {item.name} adjusted from {old_stock} to {item.stock}'
+            )
+
+            return redirect('store:stock_check_report', stock_item.stock_check.id)
+
+        except ValueError:
+            messages.error(request, 'Invalid quantity value provided')
+
+    return render(request, 'store/adjust_stock.html', {'stock_item': stock_item})
+
+
+@user_passes_test(is_admin)
+@login_required
 def stock_check_report(request, stock_check_id):
     stock_check = get_object_or_404(StockCheck, id=stock_check_id)
     total_cost_difference = 0
@@ -1820,7 +2253,7 @@ def create_transfer_request_wholesale(request):
             # Render form for a wholesale user to request items from retail
             retail_items = Item.objects.all().order_by('name')
             return render(request, "wholesale/wholesale_transfer_request.html", {"retail_items": retail_items})
-        
+
         elif request.method == "POST":
             try:
                 requested_quantity = int(request.POST.get("requested_quantity", 0))
@@ -1831,7 +2264,7 @@ def create_transfer_request_wholesale(request):
                     return JsonResponse({"success": False, "message": "Invalid input provided."}, status=400)
 
                 source_item = get_object_or_404(Item, id=item_id)
-                
+
                 transfer = TransferRequest.objects.create(
                     retail_item=source_item,
                     requested_quantity=requested_quantity,
@@ -1839,54 +2272,16 @@ def create_transfer_request_wholesale(request):
                     status="pending",
                     created_at=timezone.now()
                 )
-                
+
                 messages.success(request, "Transfer request created successfully.")
                 return JsonResponse({"success": True, "message": "Transfer request created successfully."})
-                
+
             except (TypeError, ValueError) as e:
                 return JsonResponse({"success": False, "message": str(e)}, status=400)
             except Exception as e:
                 return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
-    
+
     return redirect('store:index')
-
-
-# @login_required
-# def create_transfer_request_wholesale(request):
-#     if request.user.is_authenticated:
-#         if request.method == "GET":
-#             # Render form for a retail user to request items from wholesale
-#             wholesale_items = WholesaleItem.objects.all().order_by('name')
-#             return render(request, "store/retail_transfer_request.html", {"wholesale_items": wholesale_items})
-        
-#         elif request.method == "POST":
-#             try:
-#                 requested_quantity = int(request.POST.get("requested_quantity", 0))
-#                 item_id = request.POST.get("item_id")
-#                 from_wholesale = request.POST.get("from_wholesale", "false").lower() == "true"
-
-#                 if not item_id or requested_quantity <= 0:
-#                     return JsonResponse({"success": False, "message": "Invalid input provided."}, status=400)
-
-#                 source_item = get_object_or_404(WholesaleItem, id=item_id)
-                
-#                 transfer = TransferRequest.objects.create(
-#                     wholesale_item=source_item,
-#                     requested_quantity=requested_quantity,
-#                     from_wholesale=False,
-#                     status="pending",
-#                     created_at=timezone.now()
-#                 )
-                
-#                 messages.success(request, "Transfer request created successfully.")
-#                 return JsonResponse({"success": True, "message": "Transfer request created successfully."})
-                
-#             except (TypeError, ValueError) as e:
-#                 return JsonResponse({"success": False, "message": str(e)}, status=400)
-#             except Exception as e:
-#                 return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
-    
-#     return redirect('store:index')
 
 
 
@@ -1907,7 +2302,7 @@ def approve_transfer(request, transfer_id):
         if request.method == "POST":
             try:
                 transfer = get_object_or_404(TransferRequest, id=transfer_id)
-                
+
                 # Determine approved quantity
                 approved_qty_param = request.POST.get("approved_quantity")
                 try:
@@ -1969,10 +2364,10 @@ def approve_transfer(request, transfer_id):
                         transfer.save()
 
                     messages.success(
-                        request, 
+                        request,
                         f"Transfer approved: {approved_qty} {source_item.name} moved from retail to wholesale."
                     )
-                    
+
                     return JsonResponse({
                         "success": True,
                         "message": f"Transfer approved with quantity {approved_qty}.",
@@ -2023,7 +2418,7 @@ def transfer_request_list(request):
         # Get the date filter from GET parameters.
         date_str = request.GET.get("date")
         transfers = TransferRequest.objects.all().order_by("-created_at")
-        
+
         if date_str:
             try:
                 # Parse the string into a date object.
@@ -2032,7 +2427,7 @@ def transfer_request_list(request):
             except ValueError:
                 # If date parsing fails, ignore the filter.
                 logger.warning("Invalid date format provided: %s", date_str)
-        
+
         context = {
             "transfers": transfers,
             "search_date": date_str or ""
@@ -2047,7 +2442,7 @@ def transfer_request_list(request):
 def generate_monthly_report(request):
     # Get selected month from request, default to current month
     selected_month_str = request.GET.get('month')
-    
+
     if selected_month_str:
         try:
             selected_date = datetime.strptime(selected_month_str, '%Y-%m')
@@ -2055,20 +2450,20 @@ def generate_monthly_report(request):
             selected_date = datetime.now()
     else:
         selected_date = datetime.now()
-    
+
     # Filter expenses for the selected month
     expenses = Expense.objects.filter(
-        date__month=selected_date.month, 
+        date__month=selected_date.month,
         date__year=selected_date.year
     ).order_by('-date')
-    
+
     total_expenses = expenses.aggregate(Sum('amount'))['amount__sum'] or 0
-    
+
     # Group expenses by category
     expenses_by_category = defaultdict(Decimal)
     for expense in expenses:
         expenses_by_category[expense.category.name] += expense.amount
-    
+
     context = {
         'expenses': expenses,
         'total_expenses': total_expenses,
@@ -2076,7 +2471,7 @@ def generate_monthly_report(request):
         'month': selected_date.strftime('%B %Y'),
         'selected_month': selected_month_str or selected_date.strftime('%Y-%m')
     }
-    
+
     return render(request, 'store/expense_report.html', context)
 
 
@@ -2087,7 +2482,7 @@ def generate_monthly_report(request):
 #         """Display all expenses."""
 #         expenses = Expense.objects.all().order_by('-date')
 #         return render(request, 'store/expense_list.html', {'expenses': expenses})
-#     else:  
+#     else:
 #         return redirect('store:index')
 
 def expense_list(request):
@@ -2098,7 +2493,7 @@ def expense_list(request):
             'expenses': expenses,
             'expense_categories': expense_categories,
         })
-    else:  
+    else:
         return redirect('store:index')
 
 
@@ -2111,7 +2506,7 @@ def add_expense_form(request):
         return render(request, 'partials/_expense_form.html', {'form': form})
     else:
         return redirect('store:index')
-    
+
 
 @user_passes_test(is_admin)
 @login_required
@@ -2122,10 +2517,10 @@ def add_expense(request):
             form = ExpenseForm(request.POST)
             if form.is_valid():
                 form.save()
-                return render(request, 'partials/_expense_list.html', {'expenses': Expense.objects.all()})  
+                return render(request, 'partials/_expense_list.html', {'expenses': Expense.objects.all()})
         else:
             form = ExpenseForm()
-        
+
         return render(request, 'partials/_expense_form.html', {'form': form})
     else:
         return redirect('store:index')
@@ -2179,6 +2574,32 @@ def search_for_adjustment(request):
         items = Item.objects.all().order_by('name')
     return render(request, 'store/search_for_adjustment.html', {'items': items})
 
+
+@login_required
+def search_items(request):
+    """API endpoint for searching items for stock check"""
+    query = request.GET.get('q', '')
+    if query:
+        items = Item.objects.filter(
+            Q(name__icontains=query) |
+            Q(brand__icontains=query) |
+            Q(dosage_form__icontains=query)
+        ).order_by('name')
+    else:
+        items = Item.objects.all().order_by('name')[:20]  # Limit to 20 items if no query
+
+    # Convert items to JSON-serializable format
+    items_data = [{
+        'id': item.id,
+        'name': item.name,
+        'brand': item.brand,
+        'dosage_form': item.dosage_form,
+        'unit': item.unit,
+        'stock': item.stock
+    } for item in items]
+
+    return JsonResponse({'items': items_data})
+
 @user_passes_test(lambda u: u.is_superuser)
 @login_required
 def adjust_stock_level(request, item_id):
@@ -2188,20 +2609,25 @@ def adjust_stock_level(request, item_id):
         try:
             new_stock = int(request.POST.get(f'new-stock-{item_id}', 0))
             old_stock = item.stock
+
+            # Log the stock adjustment (without using the new model fields yet)
+            logger.info(f"Manual stock adjustment for {item.name} (ID: {item.id}) by {request.user.username}: {old_stock} -> {new_stock}")
+
+            # Update the item stock
             item.stock = new_stock
             item.save()
-            
+
             messages.success(
-                request, 
+                request,
                 f'Stock for {item.name} updated from {old_stock} to {new_stock}'
             )
-            
+
             return render(request, 'store/search_for_adjustment.html', {'items': [item]})
-            
+
         except ValueError:
             messages.error(request, 'Invalid stock value provided')
             return HttpResponse(status=400)
-            
+
     return HttpResponse(status=405)  # Method not allowed
 
 @user_passes_test(is_admin)
@@ -2259,7 +2685,7 @@ def update_marquee(request):
 def complete_customer_history(request, customer_id):
     if request.user.is_authenticated:
         customer = get_object_or_404(Customer, id=customer_id)
-        
+
         # Get all selection history (includes both purchases and returns)
         selection_history = ItemSelectionHistory.objects.filter(
             customer=customer
@@ -2269,20 +2695,20 @@ def complete_customer_history(request, customer_id):
 
         # Combine and process all history
         history_data = {}
-        
+
         # Process selection history
         for entry in selection_history:
             year = entry.date.year  # Changed from created_at to date
             month = entry.date.strftime('%B')
-            
+
             if year not in history_data:
                 history_data[year] = {'total': Decimal('0'), 'months': {}}
-            
+
             if month not in history_data[year]['months']:
                 history_data[year]['months'][month] = {'total': Decimal('0'), 'items': []}
-            
+
             subtotal = entry.quantity * entry.unit_price
-            
+
             # Update totals (subtract for returns, add for purchases)
             if entry.action == 'return':
                 history_data[year]['total'] -= subtotal
@@ -2290,7 +2716,7 @@ def complete_customer_history(request, customer_id):
             else:
                 history_data[year]['total'] += subtotal
                 history_data[year]['months'][month]['total'] += subtotal
-            
+
             history_data[year]['months'][month]['items'].append({
                 'date': entry.date,  # Changed from created_at to date
                 'item': entry.item,
@@ -2305,6 +2731,6 @@ def complete_customer_history(request, customer_id):
             'customer': customer,
             'history_data': history_data,
         }
-        
+
         return render(request, 'store/complete_customer_history.html', context)
     return redirect('store:index')

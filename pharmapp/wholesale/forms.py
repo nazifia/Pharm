@@ -14,8 +14,10 @@ class addWholesaleForm(forms.ModelForm):
             ('Capsule', 'Capsule'),
             ('Consumable', 'Consumable'),
             ('Cream', 'Cream'),
+            ('Galenical', 'Galenical'),
             ('Syrup', 'Syrup'),
             ('Suspension', 'Suspension'),
+            ('Solution', 'Solution'),
             ('Eye-drop', 'Eye-drop'),
             ('Ear-drop', 'Ear-drop'),
             ('Eye-ointment', 'Eye-ointment'),
@@ -30,14 +32,15 @@ class addWholesaleForm(forms.ModelForm):
     )
     brand = forms.CharField(max_length=100)
     cost = forms.DecimalField(max_digits=10, decimal_places=2)
+    price = forms.DecimalField(max_digits=10, decimal_places=2, required=False)
     stock = forms.IntegerField()
     exp_date = forms.DateField()
-    markup = models.IntegerField()
+    markup = forms.DecimalField(max_digits=6, decimal_places=2)
     unit = forms.CharField(max_length=200)
 
     class Meta:
         model = WholesaleItem
-        fields = ('name', 'dosage_form', 'brand', 'unit', 'cost', 'markup',  'stock', 'exp_date')
+        fields = ('name', 'dosage_form', 'brand', 'unit', 'cost', 'markup', 'price', 'stock', 'exp_date')
 
 
 

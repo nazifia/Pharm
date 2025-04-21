@@ -15,3 +15,8 @@ def multiply(value, arg):
         return value * arg
     except (ValueError, TypeError):
         return value
+
+@register.filter
+def split(value, arg):
+    """Split a string into a list on the specified delimiter"""
+    return value.split(arg)

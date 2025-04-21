@@ -23,6 +23,9 @@ from django.http import HttpResponse
 from django.contrib import messages
 from django.db.models import Q
 from store.models import WholesaleItem  # Updated import path
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Add this at the top of your views.py if not already present
 def is_superuser(user):
@@ -52,6 +55,32 @@ def search_wholesale_for_adjustment(request):
         items = WholesaleItem.objects.all().order_by('name')
     return render(request, 'wholesale/search_wholesale_for_adjustment.html', {'items': items})
 
+
+@login_required
+def search_wholesale_items(request):
+    """API endpoint for searching wholesale items for stock check"""
+    query = request.GET.get('q', '')
+    if query:
+        items = WholesaleItem.objects.filter(
+            Q(name__icontains=query) |
+            Q(brand__icontains=query) |
+            Q(dosage_form__icontains=query)
+        ).order_by('name')
+    else:
+        items = WholesaleItem.objects.all().order_by('name')[:20]  # Limit to 20 items if no query
+
+    # Convert items to JSON-serializable format
+    items_data = [{
+        'id': item.id,
+        'name': item.name,
+        'brand': item.brand,
+        'dosage_form': item.dosage_form,
+        'unit': item.unit,
+        'stock': item.stock
+    } for item in items]
+
+    return JsonResponse({'items': items_data})
+
 @login_required
 @user_passes_test(is_superuser)
 def adjust_wholesale_stock_level(request, item_id):
@@ -60,6 +89,11 @@ def adjust_wholesale_stock_level(request, item_id):
         try:
             new_stock = int(request.POST.get(f'new-stock-{item_id}', 0))
             old_stock = item.stock
+
+            # Log the stock adjustment (without using the new model fields yet)
+            logger.info(f"Manual wholesale stock adjustment for {item.name} (ID: {item.id}) by {request.user.username}: {old_stock} -> {new_stock}")
+
+            # Update the item stock
             item.stock = new_stock
             item.save()
 
@@ -219,12 +253,22 @@ def edit_wholesale_item(request, pk):
         if request.method == 'POST':
             form = addWholesaleForm(request.POST, instance=item)
             if form.is_valid():
+                # Check if manual price override is enabled
+                manual_price_override = request.POST.get('manual_price_override') == 'on'
+
                 # Convert markup_percentage to Decimal to ensure compatible types
                 markup = Decimal(form.cleaned_data.get("markup", 0))
                 item.markup = markup
 
-                # Calculate and update the price
-                item.price = item.cost + (item.cost * markup / Decimal(100))
+                # Get the price from the form
+                submitted_price = Decimal(form.cleaned_data.get("price", 0))
+
+                if not manual_price_override:
+                    # Calculate price based on the cost and markup percentage
+                    item.price = item.cost + (item.cost * markup / Decimal(100))
+                else:
+                    # Use the manually entered price
+                    item.price = submitted_price
 
                 # Save the form with updated fields
                 form.save()
@@ -461,11 +505,14 @@ def add_to_wholesale_cart(request, item_id):
         cart_item, created = WholesaleCart.objects.get_or_create(
             item=item,
             unit=unit,
-            defaults={'quantity': quantity}
+            defaults={'quantity': quantity, 'price': item.price}
         )
         if not created:
             cart_item.quantity += quantity
-            cart_item.save()
+
+        # Always update the price to match the current item price
+        cart_item.price = item.price
+        cart_item.save()
 
         # Update stock quantity in the wholesale inventory
         item.stock -= quantity
@@ -547,6 +594,8 @@ def wholesale_customer_history(request, customer_id):
 def select_wholesale_items(request, pk):
     if request.user.is_authenticated:
         customer = get_object_or_404(WholesaleCustomer, id=pk)
+        # Store wholesale customer ID in session for later use
+        request.session['wholesale_customer_id'] = customer.id
         items = WholesaleItem.objects.all().order_by('name')
 
         # Fetch wallet balance
@@ -569,25 +618,40 @@ def select_wholesale_items(request, pk):
 
             total_cost = Decimal('0.0')
 
-            # Fetch or create a Sales record
-            sales, created = Sales.objects.get_or_create(
+            # Create a new Sales record for this transaction
+            # Instead of get_or_create, we always create a new record to avoid the MultipleObjectsReturned error
+            sales = Sales.objects.create(
                 user=request.user,
                 wholesale_customer=customer,
-                defaults={'total_amount': Decimal('0.0')}
+                total_amount=Decimal('0.0')
             )
 
             # Fetch or create a Receipt
             receipt = WholesaleReceipt.objects.filter(wholesale_customer=customer, sales=sales).first()
 
             if not receipt:
+                # Generate a unique receipt ID using uuid
+                import uuid
+                receipt_id = str(uuid.uuid4())[:5]  # Use first 5 characters of a UUID
+
+                # Get payment method and status from form
+                payment_method = request.POST.get('payment_method', 'Cash')
+                status = request.POST.get('status', 'Paid')
+
+                # Store in session for later use in receipt generation
+                request.session['payment_method'] = payment_method
+                request.session['payment_status'] = status
+
                 receipt = WholesaleReceipt.objects.create(
                     wholesale_customer=customer,
                     sales=sales,
+                    receipt_id=receipt_id,
                     total_amount=Decimal('0.0'),
                     buyer_name=customer.name,
                     buyer_address=customer.address,
                     date=datetime.now(),
-
+                    payment_method=payment_method,
+                    status=status
                 )
 
 
@@ -611,12 +675,15 @@ def select_wholesale_items(request, pk):
                         cart_item, created = WholesaleCart.objects.get_or_create(
                             user=request.user,
                             item=item,
-                            defaults={'quantity': quantity, 'unit': unit}
+                            defaults={'quantity': quantity, 'unit': unit, 'price': item.price}
                         )
                         if not created:
                             cart_item.quantity += quantity
                             # cart_item.discount_amount += discount
                             cart_item.unit = unit
+
+                        # Always update the price to match the current item price
+                        cart_item.price = item.price
                         cart_item.save()
 
                         # Calculate subtotal and log dispensing
@@ -714,6 +781,12 @@ def select_wholesale_items(request, pk):
                 messages.warning(request, 'Customer does not have a wallet.')
                 return redirect('wholesale:select_wholesale_items', pk=pk)
 
+            # Store payment method and status in session for receipt generation
+            payment_method = request.POST.get('payment_method', 'Cash')
+            status = request.POST.get('status', 'Paid')
+            request.session['payment_method'] = payment_method
+            request.session['payment_status'] = status
+
             action_message = 'added to cart' if action == 'purchase' else 'returned successfully'
             messages.success(request, f'Action completed: Items {action_message}.')
             return redirect('wholesale:wholesale_cart')
@@ -746,7 +819,13 @@ def wholesale_cart(request):
 
         # Calculate totals
         for cart_item in cart_items:
-            cart_item.subtotal = cart_item.item.price * cart_item.quantity
+            # Update the price field to match the item's current price
+            if cart_item.price != cart_item.item.price:
+                cart_item.price = cart_item.item.price
+                # This will trigger the save method which recalculates subtotal
+                cart_item.save()
+
+            # Add to total price
             total_price += cart_item.subtotal
             # total_discount += cart_item.discount_amount
 
@@ -881,6 +960,17 @@ def clear_wholesale_cart(request):
 @login_required
 def wholesale_receipt(request):
     if request.user.is_authenticated:
+        # IMPORTANT: Get payment method and status from POST data
+        # These are the values selected by the user in the payment modal
+        payment_method = request.POST.get('payment_method')
+        status = request.POST.get('status')
+
+        # Dump all POST data for debugging
+        print("\n\n==== ALL POST DATA: =====")
+        for key, value in request.POST.items():
+            print(f"  {key}: {value}")
+        print(f"\nDirect access - Payment Method: {payment_method}, Status: {status}\n")
+
         buyer_name = request.POST.get('buyer_name', '')
         buyer_address = request.POST.get('buyer_address', '')
 
@@ -899,27 +989,82 @@ def wholesale_receipt(request):
         total_discounted_price = total_price - total_discount
         final_total = total_discounted_price if total_discount > 0 else total_price
 
-        # Get or create a Sales instance
-        sales_queryset = Sales.objects.filter(user=request.user, total_amount=final_total)
-        sales = sales_queryset.first()  # Use the first matching sales record, if exists
+        # Get wholesale customer ID from session if it exists
+        wholesale_customer_id = request.session.get('wholesale_customer_id')
+        wholesale_customer = None
+        if wholesale_customer_id:
+            try:
+                wholesale_customer = WholesaleCustomer.objects.get(id=wholesale_customer_id)
+            except WholesaleCustomer.DoesNotExist:
+                pass
 
-        if not sales:
-            sales = Sales.objects.create(user=request.user, total_amount=final_total)
+        # Always create a new Sales instance to avoid conflicts
+        sales = Sales.objects.create(
+            user=request.user,
+            wholesale_customer=wholesale_customer,
+            total_amount=final_total
+        )
 
         try:
             receipt = WholesaleReceipt.objects.filter(sales=sales).first()
             if not receipt:
-                payment_method = request.POST.get('payment_method', 'Cash')
-                status = request.POST.get('status', 'Paid')
+                # Set default values based on customer presence if not provided
+                if not payment_method:
+                    # Default payment method is Wallet for registered customers, Cash for walk-in
+                    if sales.wholesale_customer:  # If this is a registered customer
+                        payment_method = "Wallet"  # Default for registered customers
+                    else:  # For walk-in customers
+                        payment_method = "Cash"  # Default for walk-in customers
+
+                if not status:
+                    # Default status is "Paid" for all customers
+                    status = "Paid"
+
+                print(f"After initial defaults - Payment Method: {payment_method}, Status: {status}")
+
+                # Ensure payment_method and status have valid values
+                if payment_method not in ["Cash", "Wallet", "Transfer"]:
+                    if sales.wholesale_customer:
+                        payment_method = "Wallet"  # Default for registered customers
+                    else:
+                        payment_method = "Cash"  # Default for walk-in customers
+
+                if status not in ["Paid", "Unpaid"]:
+                    status = "Paid"  # Default status
+
+                # Force the values for debugging purposes
+                print(f"\n==== FORCING VALUES FOR RECEIPT =====")
+                print(f"Customer: {sales.wholesale_customer}")
+                print(f"Payment Method: {payment_method}")
+                print(f"Status: {status}\n")
+
+                # Generate a unique receipt ID using uuid
+                import uuid
+                receipt_id = str(uuid.uuid4())[:5]  # Use first 5 characters of a UUID
+
+                # Create the receipt WITHOUT payment method and status first
                 receipt = WholesaleReceipt.objects.create(
                     sales=sales,
+                    receipt_id=receipt_id,
                     total_amount=final_total,
-                    buyer_name=buyer_name if not sales.customer else None,
-                    buyer_address=buyer_address,
-                    date=datetime.now(),
-                    payment_method=payment_method,
-                    status=status
+                    wholesale_customer=sales.wholesale_customer,
+                    buyer_name=buyer_name if not sales.wholesale_customer else sales.wholesale_customer.name,
+                    buyer_address=buyer_address if not sales.wholesale_customer else sales.wholesale_customer.address,
+                    date=datetime.now()
                 )
+
+                # Now explicitly set the payment method and status
+                receipt.payment_method = payment_method
+                receipt.status = status
+                receipt.save()
+
+                # Double-check that the payment method and status were set correctly
+                # Refresh from database to ensure we see the actual saved values
+                receipt.refresh_from_db()
+                print(f"\n==== CREATED RECEIPT =====")
+                print(f"Receipt ID: {receipt.receipt_id}")
+                print(f"Payment Method: {receipt.payment_method}")
+                print(f"Status: {receipt.status}\n")
         except Exception as e:
             print(f"Error processing receipt: {e}")
             messages.error(request, "An error occurred while processing the receipt.")
@@ -951,6 +1096,10 @@ def wholesale_receipt(request):
 
         cart_items.delete()
 
+        # Clear wholesale_customer_id from session after receipt is created
+        if 'wholesale_customer_id' in request.session:
+            del request.session['wholesale_customer_id']
+
         daily_sales_data = get_daily_sales()
         monthly_sales_data = get_monthly_sales_with_expenses()
 
@@ -958,6 +1107,29 @@ def wholesale_receipt(request):
 
         payment_methods = ["Cash", "Wallet", "Transfer"]
         statuses = ["Paid", "Unpaid"]
+
+        # Double-check the receipt values one more time before rendering
+        receipt.refresh_from_db()
+        print(f"\n==== FINAL RECEIPT VALUES BEFORE RENDERING =====")
+        print(f"Receipt ID: {receipt.receipt_id}")
+        print(f"Payment Method: {receipt.payment_method}")
+        print(f"Status: {receipt.status}\n")
+
+        # Force the payment method and status one last time if needed
+        has_customer = sales.wholesale_customer is not None
+        if has_customer:
+            if receipt.payment_method != 'Wallet':
+                print(f"Forcing payment method to Wallet for customer {receipt.wholesale_customer.name}")
+                receipt.payment_method = 'Wallet'
+                receipt.save()
+
+            # Status is always "Paid" for all customers
+            if receipt.status != 'Paid':
+                print(f"Forcing status to Paid for customer {receipt.wholesale_customer.name}")
+                receipt.status = 'Paid'
+                receipt.save()
+
+            receipt.refresh_from_db()
 
         # Render to the wholesale_receipt template
         return render(request, 'wholesale/wholesale_receipt.html', {
@@ -1005,17 +1177,26 @@ def return_wholesale_items_for_customer(request, pk):
 
             total_refund = Decimal('0.0')
 
-            # Fetch or create a Sales record
-            sales, created = Sales.objects.get_or_create(
+            # Create a new Sales record for this transaction
+            # Instead of get_or_create, we always create a new record to avoid the MultipleObjectsReturned error
+            sales = Sales.objects.create(
                 user=request.user,
                 wholesale_customer=customer,
-                defaults={'total_amount': Decimal('0.0')}
+                total_amount=Decimal('0.0')
             )
 
             # Fetch or create a Receipt
             receipt = WholesaleReceipt.objects.filter(wholesale_customer=customer, sales=sales).first()
 
             if not receipt:
+                # Get payment method and status from form
+                payment_method = request.POST.get('payment_method', 'Cash')
+                status = request.POST.get('status', 'Paid')
+
+                # Store in session for later use in receipt generation
+                request.session['payment_method'] = payment_method
+                request.session['payment_status'] = status
+
                 receipt = WholesaleReceipt.objects.create(
                     wholesale_customer=customer,
                     sales=sales,
@@ -1023,6 +1204,8 @@ def return_wholesale_items_for_customer(request, pk):
                     buyer_name=customer.name,
                     buyer_address=customer.address,
                     date=datetime.now(),
+                    payment_method=payment_method,
+                    status=status
                 )
 
             for i, item_id in enumerate(item_ids):
@@ -1084,6 +1267,19 @@ def return_wholesale_items_for_customer(request, pk):
                 except WholesaleItem.DoesNotExist:
                     messages.warning(request, 'One of the selected items does not exist.')
                     return redirect('wholesale:select_wholesale_items', pk=pk)
+
+            # Get payment method and status from form
+            payment_method = request.POST.get('payment_method', 'Cash')
+            status = request.POST.get('status', 'Paid')
+
+            # Store in session for later use in receipt generation
+            request.session['payment_method'] = payment_method
+            request.session['payment_status'] = status
+
+            # Update receipt with payment method and status
+            receipt.payment_method = payment_method
+            receipt.status = status
+            receipt.save()
 
             # Update customer's wallet balance
             try:
@@ -1147,18 +1343,23 @@ def wholesale_receipt_detail(request, receipt_id):
 
         # If the form is submitted, update buyer details
         if request.method == 'POST':
-            buyer_name = request.POST.get('buyer_name')
-            buyer_address = request.POST.get('buyer_address')
-
-            # Update receipt buyer info if provided
-            if buyer_name:
+            # Only update buyer_name if there's no wholesale_customer associated
+            if not receipt.wholesale_customer:
+                buyer_name = request.POST.get('buyer_name', '').strip() or 'WALK-IN CUSTOMER'
                 receipt.buyer_name = buyer_name
+
+            buyer_address = request.POST.get('buyer_address')
             if buyer_address:
                 receipt.buyer_address = buyer_address
 
             payment_method = request.POST.get('payment_method')
             if payment_method:
                 receipt.payment_method = payment_method
+
+            status = request.POST.get('status')
+            if status:
+                receipt.status = status
+
             receipt.save()
 
             # Redirect to the same page to reflect updated details
@@ -1178,12 +1379,18 @@ def wholesale_receipt_detail(request, receipt_id):
         receipt.total_discount = total_discount
         receipt.save()
 
+        payment_methods = ["Cash", "Wallet", "Transfer"]
+        statuses = ["Paid", "Unpaid"]
+
         return render(request, 'partials/wholesale_receipt_detail.html', {
             'receipt': receipt,
             'sales_items': sales_items,
             'total_price': total_price,
             'total_discount': total_discount,
             'total_discounted_price': total_discounted_price,
+            'payment_methods': payment_methods,
+            'statuses': statuses,
+            'user': request.user,
         })
     else:
         return redirect('store:index')
@@ -1434,10 +1641,18 @@ def add_wholesale_procurement(request):
         if request.method == 'POST':
             procurement_form = WholesaleProcurementForm(request.POST)
             formset = ProcurementItemFormSet(request.POST, queryset=WholesaleProcurementItem.objects.none())
+            action = request.POST.get('action', 'save')
 
             if procurement_form.is_valid() and formset.is_valid():
                 procurement = procurement_form.save(commit=False)
                 procurement.created_by = request.user  # Assuming the user is authenticated
+
+                # Set status based on action
+                if action == 'pause':
+                    procurement.status = 'draft'
+                else:
+                    procurement.status = 'completed'
+
                 procurement.save()
 
                 for form in formset:
@@ -1446,13 +1661,32 @@ def add_wholesale_procurement(request):
                         procurement_item.procurement = procurement
                         procurement_item.save()
 
-                messages.success(request, "Procurement and items added successfully!")
-                return redirect('wholesale:wholesale_procurement_list')  # Replace with your actual URL name
+                # Calculate and update the total
+                procurement.calculate_total()
+
+                if action == 'pause':
+                    messages.success(request, "Procurement saved as draft. You can continue later.")
+                    return redirect('wholesale:wholesale_procurement_list')  # Replace with your actual URL name
+                else:
+                    messages.success(request, "Procurement and items added successfully!")
+                    return redirect('wholesale:wholesale_procurement_list')  # Replace with your actual URL name
             else:
                 messages.error(request, "Please correct the errors below.")
         else:
-            procurement_form = WholesaleProcurementForm()
-            formset = ProcurementItemFormSet(queryset=WholesaleProcurementItem.objects.none())
+            # Check if we're continuing a draft procurement
+            draft_id = request.GET.get('draft_id')
+            if draft_id:
+                try:
+                    draft_procurement = WholesaleProcurement.objects.get(id=draft_id, status='draft')
+                    procurement_form = WholesaleProcurementForm(instance=draft_procurement)
+                    formset = ProcurementItemFormSet(queryset=draft_procurement.items.all())
+                except WholesaleProcurement.DoesNotExist:
+                    messages.error(request, "Draft procurement not found.")
+                    procurement_form = WholesaleProcurementForm()
+                    formset = ProcurementItemFormSet(queryset=WholesaleProcurementItem.objects.none())
+            else:
+                procurement_form = WholesaleProcurementForm()
+                formset = ProcurementItemFormSet(queryset=WholesaleProcurementItem.objects.none())
 
         return render(
             request,
@@ -1534,69 +1768,87 @@ def wholesale_procurement_detail(request, procurement_id):
 
 
 
-# import logging
-
-
-# logger = logging.getLogger(__name__)
-
-# @user_passes_test(is_admin)
-# @login_required
-# def create_wholesale_stock_check(request):
-#     if request.user.is_authenticated:
-#         if request.method == "POST":
-#             items = WholesaleItem.objects.all()
-#             if not items.exists():
-#                 messages.error(request, "No items found to check stock.")
-#                 return redirect('wholesale:wholesales')
-
-#             stock_check = WholesaleStockCheck.objects.create(created_by=request.user, status='in_progress')
-
-#             stock_check_items = [
-#                 WholesaleStockCheckItem(
-#                     stock_check=stock_check,
-#                     item=item,
-#                     expected_quantity=item.stock,
-#                     actual_quantity=0,
-#                     status='pending'
-#                 ) for item in items
-#             ]
-#             WholesaleStockCheckItem.objects.bulk_create(stock_check_items)
-
-#             messages.success(request, "Stock check created successfully.")
-#             return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
-
-#         return render(request, 'wholesale/create_wholesale_stock_check.html')
-#     else:
-#         return redirect('store:index')
-
-
 @user_passes_test(is_admin)
 @login_required
 def create_wholesale_stock_check(request):
     if request.user.is_authenticated:
         if request.method == "POST":
-            items = WholesaleItem.objects.all()
+            # Get the zero_empty_items flag from the form
+            zero_empty_items = request.POST.get('zero_empty_items', 'true').lower() == 'true'
+
+            # Get selected items if any
+            selected_items_str = request.POST.get('selected_items', '')
+
+            if selected_items_str:
+                # Filter items based on selection
+                selected_item_ids = [int(id) for id in selected_items_str.split(',') if id]
+                items = WholesaleItem.objects.filter(id__in=selected_item_ids)
+            else:
+                # Get all items
+                items = WholesaleItem.objects.all()
+
             if not items.exists():
                 messages.error(request, "No items found to check stock.")
                 return redirect('wholesale:wholesales')
 
             stock_check = WholesaleStockCheck.objects.create(created_by=request.user, status='in_progress')
 
-            stock_check_items = [
-                WholesaleStockCheckItem(
-                    stock_check=stock_check,
-                    item=item,
-                    expected_quantity=item.stock,
-                    actual_quantity=0,
-                    status='pending'
-                ) for item in items
-            ]
+            stock_check_items = []
+            for item in items:
+                # Skip items with zero stock if zero_empty_items is True
+                if not zero_empty_items or item.stock > 0:
+                    stock_check_items.append(
+                        WholesaleStockCheckItem(
+                            stock_check=stock_check,
+                            item=item,
+                            expected_quantity=item.stock,
+                            actual_quantity=0,
+                            status='pending'
+                        )
+                    )
+
             WholesaleStockCheckItem.objects.bulk_create(stock_check_items)
 
             messages.success(request, "Stock check created successfully.")
             return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
 
         return render(request, 'wholesale/create_wholesale_stock_check.html')
+    else:
+        return redirect('store:index')
+
+
+@user_passes_test(is_admin)
+@login_required
+def update_wholesale_stock_check(request, stock_check_id):
+    if request.user.is_authenticated:
+        stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
+        if stock_check.status not in ['in_progress', 'completed']:
+            messages.error(request, "Stock check status is invalid for updates.")
+            return redirect('wholesale:wholesales')
+
+        if request.method == "POST":
+            # Get the zero_empty_items flag from the form
+            zero_empty_items = request.POST.get('zero_empty_items', 'false').lower() == 'true'
+
+            stock_items = []
+            for item_id, actual_qty in request.POST.items():
+                if item_id.startswith("item_"):
+                    item_id = int(item_id.replace("item_", ""))
+                    stock_item = WholesaleStockCheckItem.objects.get(stock_check=stock_check, item_id=item_id)
+
+                    # If zero_empty_items is True and both expected and actual are 0, set to 0
+                    if zero_empty_items and stock_item.expected_quantity == 0 and int(actual_qty) == 0:
+                        stock_item.actual_quantity = 0
+                    else:
+                        stock_item.actual_quantity = int(actual_qty)
+
+                    stock_items.append(stock_item)
+
+            WholesaleStockCheckItem.objects.bulk_update(stock_items, ['actual_quantity'])
+            messages.success(request, "Stock check updated successfully.")
+            return redirect('wholesale:wholesale_stock_check_report', stock_check.id)
+
+        return render(request, 'wholesale/update_wholesale_stock_check.html', {'stock_check': stock_check})
     else:
         return redirect('store:index')
 
@@ -1758,7 +2010,7 @@ def wholesale_bulk_adjust_stock(request, stock_check_id):
             selected_items = request.POST.getlist('item')
             if not selected_items:
                 messages.error(request, "Please select at least one item to adjust.")
-                return redirect('store:update_stock_check', stock_check.id)
+                return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
 
             stock_items = WholesaleStockCheckItem.objects.filter(id__in=selected_items, stock_check=stock_check)
             for item in stock_items:
@@ -1772,9 +2024,52 @@ def wholesale_bulk_adjust_stock(request, stock_check_id):
             messages.success(request, f"Stock adjusted for {stock_items.count()} items.")
             return redirect('wholesale:wholesales')
 
-        return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
-    else:
-        return redirect('store:index')
+
+@user_passes_test(is_admin)
+@login_required
+def adjust_wholesale_stock(request, stock_item_id):
+    """Handle individual wholesale stock check item adjustments"""
+    stock_item = get_object_or_404(WholesaleStockCheckItem, id=stock_item_id)
+
+    if request.method == 'POST':
+        try:
+            # Check if zero_item is checked
+            zero_item = request.POST.get('zero_item', 'off') == 'on'
+
+            if zero_item:
+                # If zero_item is checked, set adjusted_quantity to 0
+                adjusted_quantity = 0
+            else:
+                # Otherwise, get the adjusted_quantity from the form
+                adjusted_quantity = int(request.POST.get('adjusted_quantity', 0))
+
+            # Update the item's stock
+            item = stock_item.item
+            old_stock = item.stock
+
+            # Calculate the adjustment needed
+            adjustment = adjusted_quantity - stock_item.actual_quantity
+
+            # Update the stock check item
+            stock_item.actual_quantity = adjusted_quantity
+            stock_item.status = 'adjusted'
+            stock_item.save()
+
+            # Update the item's stock
+            item.stock += adjustment
+            item.save()
+
+            messages.success(
+                request,
+                f'Stock for {item.name} adjusted from {old_stock} to {item.stock}'
+            )
+
+            return redirect('wholesale:wholesale_stock_check_report', stock_item.stock_check.id)
+
+        except ValueError:
+            messages.error(request, 'Invalid quantity value provided')
+
+    return render(request, 'wholesale/adjust_wholesale_stock.html', {'stock_item': stock_item})
 
 
 

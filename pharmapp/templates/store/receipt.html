@@ -28,6 +28,10 @@
                 <p>Receipt Type: <strong>Retail</strong></p>
                 <p>Receipt ID: {{ receipt.receipt_id }}</p>
                 <p>Sales Person: {{ user.username }}</p>
+                <p style="font-size: 1.1em; margin-top: 5px;">Payment Method: <strong style="color: #0066cc;">{{ receipt.payment_method|default:'Cash' }}</strong></p>
+                <p style="font-size: 1.1em; margin-top: 5px;">Payment Status: <strong style="color: {% if receipt.status == 'Paid' %}#28a745{% else %}#dc3545{% endif %};">{{ receipt.status|default:'Paid' }}</strong></p>
+                <!-- Debug info -->
+                <p style="display: none;">Debug - Payment Method: {{ receipt.payment_method }}, Status: {{ receipt.status }}</p>
             </div>
         </header>
 
@@ -39,23 +43,14 @@
                 value="{% if receipt.customer %}{{ receipt.customer.name|upper }}{% elif receipt.buyer_name %}{{ receipt.buyer_name|upper }}{% else %}WALK-IN CUSTOMER{% endif %}"
                 {% if receipt.customer %}readonly{% endif %}
                 placeholder="WALK-IN CUSTOMER"
-                style="border: none; border-bottom:1px solid grey; margin-bottom: 3px;">
+                style="border: none; border-bottom:1px solid grey; margin-bottom: 3px; {% if receipt.customer %}background-color: #f0f0f0;{% endif %}">
             <div class="box">
                 <label for="buyer_address">Buyer's Address:</label>
                 <input type="text" id="buyer_address" name="buyer_address" value="{{ receipt.buyer_address|default:'' }}"
                     placeholder="Customer Address" style="border: none; border-bottom:1px solid grey;">
             </div>
 
-            <button type="button" id="paymentMethodButton" class="btn btn-outline-primary btn-sm mt-2"
-                data-toggle="modal" data-target="#paymentMethodModal">
-                {% if receipt.payment_method %}
-                Payment Method: {{ receipt.payment_method }}
-                {% else %}
-                Select Payment Method
-                {% endif %}
-            </button>
 
-            <input type="hidden" name="payment_method" id="paymentMethodInput" value="{{ receipt.payment_method }}">
         </form>
 
         {% if sales_items %}
@@ -105,28 +100,7 @@
         </footer>
     </div>
 
-    <!-- Payment Method Modal -->
-    <div class="modal fade" id="paymentMethodModal" tabindex="-1" aria-labelledby="paymentMethodModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="paymentMethodModalLabel">Select Payment Method</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">x</button>
-                </div>
-                <div class="modal-body">
-                    <ul class="list-group">
-                        {% for method in payment_methods %}
-                        <li class="list-group-item list-group-item-action {% if receipt.payment_method == method %}active{% endif %}"
-                            onclick="selectPaymentMethod('{{ method }}')">
-                            {{ method }}
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
+
 
     <div class="action-buttons no-print">
         <button class="btn btn-primary btn-sm" onclick="printReceipt('thermal')">
@@ -141,23 +115,26 @@
         <button class="btn btn-info btn-sm" onclick="submitFormAndPrint()">
             <i class="fas fa-save"></i> Save & Print
         </button>
+        <a href="{{ request.META.HTTP_REFERER }}" class="btn btn-outline-dark btn-sm">Back</a>
     </div>
 
     <script>
         function submitFormAndPrint() {
-            document.getElementById('buyer-info-form').submit();
+            // Log form values before submission
+            const form = document.getElementById('buyer-info-form');
+            console.log('Submitting form with buyer info');
+
+            // Submit the form
+            form.submit();
+
+            // Wait for form submission to complete before printing
             setTimeout(function () {
                 printReceipt('thermal');
                 window.location.href = "{% url 'store:view_cart' %}";
             }, 500);
         }
 
-        function selectPaymentMethod(method) {
-            document.getElementById('paymentMethodInput').value = method;
-            document.getElementById('paymentMethodButton').textContent = `Payment Method: ${method}`;
-            var modal = bootstrap.Modal.getInstance(document.getElementById('paymentMethodModal'));
-            modal.hide();
-        }
+
 
         function printReceipt(format) {
             const receipt = document.getElementById('receipt');

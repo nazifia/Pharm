@@ -1,9 +1,94 @@
 {% extends 'partials/base.html' %}
 
 {% block content %}
-<h2>Start Retail Stock Check</h2>
-<form method="post">
-    {% csrf_token %}
-    <button class="btn btn-primary" type="submit">Create Stock Check</button>
-</form>
+<div class="container mt-4">
+    <h2>Start Retail Stock Check</h2>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Stock Check Options</h5>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="zeroItems" name="zeroItems" checked>
+                <label class="form-check-label" for="zeroItems">
+                    Zero items with neither expected nor actual quantity
+                </label>
+            </div>
+
+            <div class="mb-3">
+                <label for="itemSearch" class="form-label">Search for specific items (optional):</label>
+                <input type="text" class="form-control" id="itemSearch" placeholder="Enter item name, brand, or dosage form">
+                <div id="searchResults" class="mt-2"></div>
+            </div>
+
+            <form method="post" id="stockCheckForm">
+                {% csrf_token %}
+                <input type="hidden" name="selected_items" id="selectedItems" value="">
+                <input type="hidden" name="zero_empty_items" id="zeroEmptyItems" value="true">
+                <button class="btn btn-primary" type="submit">Create Stock Check</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Update hidden field when checkbox changes
+    document.getElementById('zeroItems').addEventListener('change', function() {
+        document.getElementById('zeroEmptyItems').value = this.checked.toString();
+    });
+
+    // Item search functionality
+    const searchInput = document.getElementById('itemSearch');
+    const searchResults = document.getElementById('searchResults');
+    const selectedItemsInput = document.getElementById('selectedItems');
+    const selectedItems = new Set();
+
+    searchInput.addEventListener('keyup', function() {
+        const query = this.value.trim();
+        if (query.length < 2) {
+            searchResults.innerHTML = '';
+            return;
+        }
+
+        // Fetch items matching the search query
+        fetch(`/store/search_items?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                searchResults.innerHTML = '';
+                if (data.items.length === 0) {
+                    searchResults.innerHTML = '<p>No items found</p>';
+                    return;
+                }
+
+                const ul = document.createElement('ul');
+                ul.className = 'list-group';
+
+                data.items.forEach(item => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.innerHTML = `
+                        <span>${item.name} - ${item.dosage_form} (${item.brand})</span>
+                        <button type="button" class="btn btn-sm btn-primary add-item" data-id="${item.id}">Add</button>
+                    `;
+                    ul.appendChild(li);
+                });
+
+                searchResults.appendChild(ul);
+
+                // Add event listeners to the Add buttons
+                document.querySelectorAll('.add-item').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const itemId = this.getAttribute('data-id');
+                        selectedItems.add(itemId);
+                        selectedItemsInput.value = Array.from(selectedItems).join(',');
+                        this.disabled = true;
+                        this.textContent = 'Added';
+                    });
+                });
+            })
+            .catch(error => {
+                console.error('Error searching items:', error);
+                searchResults.innerHTML = '<p>Error searching items</p>';
+            });
+    });
+</script>
 {% endblock %}

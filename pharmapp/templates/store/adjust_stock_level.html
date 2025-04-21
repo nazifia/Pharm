@@ -3,12 +3,16 @@
 {% block content %}
 <div class="container mt-4">
     <h2>Adjust Stock Levels</h2>
-    
+
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+
     <!-- Search Field -->
     <div class="mb-3">
-        <input type="text" 
-               class="form-control" 
-               style="width: 300px; background-color: lightblue;" 
+        <input type="text"
+               class="form-control"
+               style="width: 300px; background-color: lightblue;"
                placeholder="Search Items..."
                hx-get="{% url 'store:search_for_adjustment' %}"
                hx-target="#items-table"
@@ -37,10 +41,11 @@
                     <td>{{ item.unit }}</td>
                     <td>{{ item.stock }}</td>
                     <td>
-                        <input type="number" 
-                               class="form-control" 
+                        <input type="number"
+                               class="form-control"
                                style="width: 120px;"
                                id="new-stock-{{ item.id }}"
+                               name="new-stock-{{ item.id }}"
                                value="{{ item.stock }}"
                                min="0">
                     </td>

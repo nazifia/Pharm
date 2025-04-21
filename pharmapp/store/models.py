@@ -18,11 +18,13 @@ DOSAGE_FORM = [
     ('Capsule', 'Capsule'),
     ('Cream', 'Cream'),
     ('Consumable', 'Consumable'),
+    ('Galenical', 'Galenical'),
     ('Injection', 'Injection'),
     ('Infusion', 'Infusion'),
     ('Inhaler', 'Inhaler'),
     ('Suspension', 'Suspension'),
     ('Syrup', 'Syrup'),
+    ('Solution', 'Solution'),
     ('Eye-drop', 'Eye-drop'),
     ('Ear-drop', 'Ear-drop'),
     ('Eye-ointment', 'Eye-ointment'),
@@ -175,6 +177,7 @@ class Cart(models.Model):
         return self.price * self.quantity
 
     def save(self, *args, **kwargs):
+        # Always recalculate subtotal before saving
         self.subtotal = self.calculate_subtotal
         super().save(*args, **kwargs)
 
@@ -200,6 +203,7 @@ class WholesaleCart(models.Model):
         return self.price * self.quantity
 
     def save(self, *args, **kwargs):
+        # Always recalculate subtotal before saving
         self.subtotal = self.calculate_subtotal
         super().save(*args, **kwargs)
 
@@ -242,19 +246,13 @@ class Sales(models.Model):
                 amount=self.total_amount,
                 description='Items purchased'
             )
-            # Check if a Receipt already exists for this sale
+            # Create a Receipt only if one doesn't exist for this sale
             if not Receipt.objects.filter(sales=self).exists():
                 Receipt.objects.create(
                     customer=self.customer,
                     sales=self,
                     total_amount=self.total_amount
                 )
-
-        Receipt.objects.create(
-            customer=self.customer,
-            sales=self,
-            total_amount=self.total_amount
-        )
 
     def calculate_total_amount(self):
         self.total_amount = sum(item.price * item.quantity for item in self.sales_items.all())
@@ -475,17 +473,29 @@ import logging
 logger = logging.getLogger(__name__)
 
 class StockAdjustment(models.Model):
-    stock_check_item = models.OneToOneField(StockCheckItem, on_delete=models.CASCADE)
-    adjusted_quantity = models.PositiveIntegerField()
+    ADJUSTMENT_TYPES = [
+        ('manual', 'Manual Adjustment'),
+        ('stock_check', 'Stock Check Adjustment'),
+        ('transfer', 'Transfer Adjustment'),
+        ('other', 'Other'),
+    ]
+
+    # Make item field nullable to allow for migration
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='stock_adjustments', null=True, blank=True)
+    stock_check_item = models.OneToOneField(StockCheckItem, on_delete=models.CASCADE, null=True, blank=True)
+    old_quantity = models.PositiveIntegerField(default=0)
+    new_quantity = models.PositiveIntegerField(default=0)
     adjusted_by = models.ForeignKey(User, on_delete=models.CASCADE)
     adjusted_at = models.DateTimeField(auto_now_add=True)
+    adjustment_type = models.CharField(max_length=20, choices=ADJUSTMENT_TYPES, default='manual')
+    notes = models.TextField(blank=True, null=True)
 
     def apply_adjustment(self):
         """Update item stock based on the adjustment"""
-        item = self.stock_check_item.item  # Ensure this relationship exists
-        logger.info(f"Applying adjustment: {self.adjusted_quantity} for item {item.name} (ID: {item.id})")
-        item.stock = self.adjusted_quantity  # Ensure field name is correct
-        item.save(update_fields=['stock'])  # Explicitly save updated field
+        item = self.item
+        logger.info(f"Applying adjustment: {self.new_quantity} for item {item.name} (ID: {item.id})")
+        item.stock = self.new_quantity
+        item.save(update_fields=['stock'])
         logger.info(f"Stock updated: New stock quantity = {item.stock}")
 
 
@@ -541,17 +551,29 @@ import logging
 logger = logging.getLogger(__name__)
 
 class WholesaleStockAdjustment(models.Model):
-    stock_check_item = models.OneToOneField(WholesaleStockCheckItem, on_delete=models.CASCADE)
-    adjusted_quantity = models.PositiveIntegerField()
+    ADJUSTMENT_TYPES = [
+        ('manual', 'Manual Adjustment'),
+        ('stock_check', 'Stock Check Adjustment'),
+        ('transfer', 'Transfer Adjustment'),
+        ('other', 'Other'),
+    ]
+
+    # Make item field nullable to allow for migration
+    item = models.ForeignKey(WholesaleItem, on_delete=models.CASCADE, related_name='stock_adjustments', null=True, blank=True)
+    stock_check_item = models.OneToOneField(WholesaleStockCheckItem, on_delete=models.CASCADE, null=True, blank=True)
+    old_quantity = models.PositiveIntegerField(default=0)
+    new_quantity = models.PositiveIntegerField(default=0)
     adjusted_by = models.ForeignKey(User, on_delete=models.CASCADE)
     adjusted_at = models.DateTimeField(auto_now_add=True)
+    adjustment_type = models.CharField(max_length=20, choices=ADJUSTMENT_TYPES, default='manual')
+    notes = models.TextField(blank=True, null=True)
 
     def apply_adjustment(self):
         """Update item stock based on the adjustment"""
-        item = self.stock_check_item.item  # Ensure this relationship exists
-        logger.info(f"Applying adjustment: {self.adjusted_quantity} for item {item.name} (ID: {item.id})")
-        item.stock = self.adjusted_quantity  # Ensure field name is correct
-        item.save(update_fields=['stock'])  # Explicitly save updated field
+        item = self.item
+        logger.info(f"Applying adjustment: {self.new_quantity} for item {item.name} (ID: {item.id})")
+        item.stock = self.new_quantity
+        item.save(update_fields=['stock'])
         logger.info(f"Stock updated: New stock quantity = {item.stock}")
 
 

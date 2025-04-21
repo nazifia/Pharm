@@ -104,21 +104,27 @@ class Supplier(models.Model):
 
 
 class Procurement(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('completed', 'Completed'),
+    ]
+
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     date = models.DateField(default=timezone.now)
     total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
 
     def __str__(self):
         return f'Procurement {self.supplier.name}'
-    
-    
+
+
 
     def calculate_total(self):
         """Calculate and update the total cost of the procurement."""
         self.total = sum(item.subtotal for item in self.items.all())
         self.save(update_fields=['total'])
-    
+
 
 
 class ProcurementItem(models.Model):
@@ -176,10 +182,16 @@ class ProcurementItem(models.Model):
 
 # Wholesale Procurement Models (Same logic as above)
 class WholesaleProcurement(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('completed', 'Completed'),
+    ]
+
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     date = models.DateField(default=timezone.now)
     total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
 
     def __str__(self):
         return f'Procurement {self.supplier.name}'

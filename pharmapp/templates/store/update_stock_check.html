@@ -1,60 +1,148 @@
 {% extends "partials/base.html" %}
 {% block content %}
-<h2>Update Stock Check: {{ stock_check.id }}</h2>
-{% for message in messages %}
-<div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
-{% endfor %}
-<form method="post">
-    {% csrf_token %}
-<div class="table-responsive">
-    <table class="table table-hover shadow">
-        <thead>
-            <tr>
-                <th><input type="checkbox" id="selectall"></th>
-                <th>SN</th>
-                <th>Item</th>
-                <th>D/form</th>
-                <th>Brand</th>
-                <th>Exptd Qty</th>
-                <th>Actual Qty</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in stock_check.stockcheckitem_set.all %}
-            <tr>
-                <td><input type="checkbox" name="item" value="{{ item.id }}" class="select-item"></td>
-                <td>{{ forloop.counter }}</td>
-                <td>{{ item.item.name }}</td>
-                <td>{{ item.item.dosage_form }}</td>
-                <td>{{ item.item.brand }}</td>
-                <td>{{ item.expected_quantity }}</td>
-                <td><input type="number" name="item_{{ item.item.id }}" value="{{ item.actual_quantity }}"
-                        style="width: 100px;"></td>
-                <td>
-                    <span class="badge badge-{{ item.status|lower|slice:':7' }}">
-                        {{ item.get_status_display }}
-                    </span>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-    <div class="btn-toolbar">
-        <button class="btn btn-sm btn-primary" type="submit">Save Actual Qty</button>
-        <button class="btn btn-sm btn-success mx-1" onclick="approveSelected()">Approve Selected</button>
-        <button class="btn btn-sm btn-warning" onclick="adjustSelected()">Adjust Selected</button>
+<div class="container-fluid mt-4">
+    <h2>Update Stock Check: {{ stock_check.id }}</h2>
+    {% for message in messages %}
+    <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="zeroItems" name="zeroItems">
+                        <label class="form-check-label" for="zeroItems">
+                            Zero items with neither expected nor actual quantity
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="itemSearch" placeholder="Search items...">
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" id="clearSearch">Clear</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" id="stockCheckForm">
+                {% csrf_token %}
+                <input type="hidden" name="zero_empty_items" id="zeroEmptyItems" value="false">
+                <div class="table-responsive">
+                    <table class="table table-hover shadow" id="stockItemsTable">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectall"></th>
+                                <th>SN</th>
+                                <th>Item</th>
+                                <th>D/form</th>
+                                <th>Brand</th>
+                                <th>Exptd Qty</th>
+                                <th>Actual Qty</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in stock_check.stockcheckitem_set.all %}
+                            <tr class="stock-item-row" data-item-name="{{ item.item.name|lower }}" data-brand="{{ item.item.brand|lower }}" data-dosage="{{ item.item.dosage_form|lower }}">
+                                <td><input type="checkbox" name="item" value="{{ item.id }}" class="select-item"></td>
+                                <td>{{ forloop.counter }}</td>
+                                <td>{{ item.item.name }}</td>
+                                <td>{{ item.item.dosage_form }}</td>
+                                <td>{{ item.item.brand }}</td>
+                                <td>{{ item.expected_quantity }}</td>
+                                <td><input type="number" name="item_{{ item.item.id }}" value="{{ item.actual_quantity }}" class="form-control actual-qty" style="width: 100px;"></td>
+                                <td>
+                                    <span class="badge badge-{{ item.status|lower|slice:':7' }}">
+                                        {{ item.get_status_display }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="btn-toolbar mt-3">
+                    <button class="btn btn-primary" type="submit">Save Actual Qty</button>
+                    <button class="btn btn-success mx-1" type="button" onclick="approveSelected()">Approve Selected</button>
+                    <button class="btn btn-warning" type="button" onclick="adjustSelected()">Adjust Selected</button>
+                </div>
+            </form>
+        </div>
     </div>
-</form>
+</div>
 
 <script>
-    document.getElementById('selectall').addEventListener('change', function () {
+    // Select all checkbox functionality
+    document.getElementById('selectall').addEventListener('change', function() {
         var checkboxes = document.getElementsByClassName('select-item');
         for (var i = 0; i < checkboxes.length; i++) {
             checkboxes[i].checked = this.checked;
         }
     });
+
+    // Update hidden field when zero items checkbox changes
+    document.getElementById('zeroItems').addEventListener('change', function() {
+        document.getElementById('zeroEmptyItems').value = this.checked.toString();
+
+        // Apply zeroing to visible rows if checked
+        if (this.checked) {
+            var rows = document.querySelectorAll('#stockItemsTable tbody tr:not([style*="display: none"])');
+            rows.forEach(function(row) {
+                var expectedQty = parseInt(row.cells[5].textContent) || 0;
+                var actualQtyInput = row.querySelector('input.actual-qty');
+
+                if (expectedQty === 0 && (parseInt(actualQtyInput.value) || 0) === 0) {
+                    actualQtyInput.value = '0';
+                }
+            });
+        }
+    });
+
+    // Item search functionality
+    const searchInput = document.getElementById('itemSearch');
+    const clearButton = document.getElementById('clearSearch');
+
+    searchInput.addEventListener('keyup', function() {
+        const query = this.value.trim().toLowerCase();
+        filterItems(query);
+    });
+
+    clearButton.addEventListener('click', function() {
+        searchInput.value = '';
+        filterItems('');
+    });
+
+    function filterItems(query) {
+        const rows = document.querySelectorAll('.stock-item-row');
+
+        rows.forEach(function(row) {
+            const itemName = row.getAttribute('data-item-name');
+            const brand = row.getAttribute('data-brand');
+            const dosage = row.getAttribute('data-dosage');
+
+            if (query === '' ||
+                itemName.includes(query) ||
+                brand.includes(query) ||
+                dosage.includes(query)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Update row numbers for visible rows
+        updateRowNumbers();
+    }
+
+    function updateRowNumbers() {
+        const visibleRows = document.querySelectorAll('#stockItemsTable tbody tr:not([style*="display: none"])');
+        visibleRows.forEach(function(row, index) {
+            row.cells[1].textContent = index + 1;
+        });
+    }
 
     function approveSelected() {
         if (confirm('Are you sure you want to approve these items?')) {

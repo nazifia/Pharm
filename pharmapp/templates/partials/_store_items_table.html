@@ -13,6 +13,20 @@
         <input type="number" name="quantity_{{ item.id }}" style="width:100px;" class="form-control" min="0" value="0">
       </td>
       <td>
+        <select name="transfer_unit_{{ item.id }}" style="width:130px;" class="form-control unit-select" data-item-id="{{ item.id }}">
+          <option value="{{ item.unit }}" selected>{{ item.unit }}</option>
+          {% for unit_value, unit_display in unit_choices %}
+            {% if unit_value != item.unit %}
+              <option value="{{ unit_value }}">{{ unit_display }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </td>
+      <td>
+        <input type="number" name="unit_conversion_{{ item.id }}" style="width:100px;" class="form-control unit-conversion" min="1" value="1" step="0.01">
+        <small class="text-muted conversion-label">1 {{ item.unit }} = <span class="conversion-value">1</span> <span class="target-unit">{{ item.unit }}</span></small>
+      </td>
+      <td>
         <select name="markup_{{ item.id }}" style="width:150px;" class="form-control">
           <option value="0">Select Markup</option>
           <option value="2.5">2.5% markup</option>

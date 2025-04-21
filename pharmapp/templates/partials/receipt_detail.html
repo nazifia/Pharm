@@ -44,6 +44,22 @@
         </p>
         <p><strong>Date:</strong> {{ receipt.date|date:"F j, Y. H:i" }}</p>
         <p><strong>Sales Person:</strong> {{ user.username }}</p>
+        <p><strong>Payment Method:</strong> {{ receipt.payment_method|default:'Cash' }}</p>
+        <p><strong>Payment Status:</strong> {{ receipt.status|default:'Paid' }}</p>
+        <form id="buyer-form" method="POST" action="{% url 'store:receipt_detail' receipt.receipt_id %}">
+            {% csrf_token %}
+            {% if not receipt.customer %}
+            <div class="form-group">
+                <label for="buyer_name"><strong>Buyer's Name:</strong></label>
+                <input type="text" id="buyer_name" name="buyer_name" class="form-control" value="{{ receipt.buyer_name }}">
+            </div>
+            {% endif %}
+            <div class="form-group">
+                <label for="buyer_address"><strong>Buyer's Address:</strong></label>
+                <input type="text" id="buyer_address" name="buyer_address" class="form-control" value="{{ receipt.buyer_address }}">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Update Buyer Info</button>
+        </form>
 
     <div class="table-responsive mt-3">
         <table class="table">
@@ -77,7 +93,6 @@
     </div>
 
         <p style="text-align: end;"><strong>Total Amount: ₦{{ receipt.total_amount|floatformat:2|intcomma }}</strong></p>
-        <p style="text-align: end;"><strong>Payment Method: {{ receipt.payment_method }}</strong></p>
 
         {% if receipt.has_returns %}
         <div class="returns-section mt-4">
@@ -106,6 +121,7 @@
         <button class="btn btn-info btn-sm" onclick="window.location.reload()">
             <i class="fas fa-redo"></i> Reset
         </button>
+        <a href="{{ request.META.HTTP_REFERER }}" class="btn btn-outline-dark btn-sm">Back</a>
     </div>
 
     <script>

@@ -150,6 +150,7 @@
                 <th>Supplier</th>
                 <th>Total Amount</th>
                 <th>Date</th>
+                <th>Status</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -167,13 +168,22 @@
                 <td>{{ procurement.calculated_total|floatformat:2 }}</td>
                 <td>{{ procurement.date }}</td>
                 <td>
-                    <a href="{% url 'wholesale:wholesale_procurement_detail' procurement.id %}">View
-                        Details</a>
+                    {% if procurement.status == 'draft' %}
+                    <span class="badge badge-warning">Draft</span>
+                    {% else %}
+                    <span class="badge badge-success">Completed</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'wholesale:wholesale_procurement_detail' procurement.id %}" class="btn btn-sm btn-info">View Details</a>
+                    {% if procurement.status == 'draft' %}
+                    <a href="{% url 'wholesale:add_wholesale_procurement' %}?draft_id={{ procurement.id }}" class="btn btn-sm btn-warning">Continue</a>
+                    {% endif %}
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="5" style="text-align: center;">No Procurement recorded</td>
+                <td colspan="6" style="text-align: center;">No Procurement recorded</td>
             </tr>
             {% endfor %}
         </tbody>

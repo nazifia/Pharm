@@ -6,10 +6,11 @@
     <td>{{ item.unit }}</td>
     <td>{{ item.stock }}</td>
     <td>
-        <input type="number" 
-               class="form-control" 
+        <input type="number"
+               class="form-control"
                style="width: 120px;"
                id="new-stock-{{ item.id }}"
+               name="new-stock-{{ item.id }}"
                value="{{ item.stock }}"
                min="0">
     </td>

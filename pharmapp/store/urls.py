@@ -8,7 +8,7 @@ urlpatterns = [
     path('index/', views.login_view, name='index'),
     path('offline/', views.offline_view, name='offline'),
     path('sync-offline-actions/', views.sync_offline_actions, name='sync_offline_actions'),
-    
+
     path('', views.index, name='index'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('logout_user/', views.logout_user, name='logout_user'),
@@ -45,13 +45,15 @@ urlpatterns = [
     path('customer_history/<int:customer_id>/', views.customer_history, name='customer_history'),
     path('register_supplier_view/', views.register_supplier_view, name='register_supplier_view'),
     path('list_suppliers_view/', views.list_suppliers_view, name='supplier_list'),
+    path('edit_supplier/<int:pk>/', views.edit_supplier, name='edit_supplier'),
+    path('delete_supplier/<int:pk>/', views.delete_supplier, name='delete_supplier'),
     path('procurement_list/', views.procurement_list, name='procurement_list'),
     path('add_procurement/', views.add_procurement, name='add_procurement'),
     path('search_procurement/', views.search_procurement, name='search_procurement'),
     path('procurement_detail/<int:procurement_id>/', views.procurement_detail, name='procurement_detail'),
-    path('suppliers/', views.list_suppliers_view, name='list_suppliers'), 
-    path('register_supplier_view/partials/supplier_list.html', views.supplier_list_partial),  
-    
+    path('suppliers/', views.list_suppliers_view, name='list_suppliers'),
+    path('register_supplier_view/partials/supplier_list.html', views.supplier_list_partial),
+
     # Stock Check URLs
     path('create/', views.create_stock_check, name='create_stock_check'),
     path('<int:stock_check_id>/update/', views.update_stock_check, name='update_stock_check'),
@@ -59,6 +61,8 @@ urlpatterns = [
     path('stock-check/<int:stock_check_id>/approve/', views.approve_stock_check, name='approve_stock_check'),
     path('stock-check/<int:stock_check_id>/bulk-adjust/', views.bulk_adjust_stock, name='bulk_adjust_stock'),
     path('list/', views.list_stock_checks, name='list_stock_checks'),
+    path('adjust-stock/<int:stock_item_id>/', views.adjust_stock, name='adjust_stock'),
+    path('search-items/', views.search_items, name='search_items'),
 
     # Transfer Request URLs
     path("transfer/create/", views.create_transfer_request_wholesale, name="create_transfer_request_wholesale"),
@@ -67,7 +71,7 @@ urlpatterns = [
     path("transfer/reject/<int:transfer_id>/", views.reject_transfer, name="reject_transfer"),
     path("transfer_request_list/", views.transfer_request_list, name="transfer_request_list"),
     path("transfer/multiple/", views.transfer_multiple_store_items, name="transfer_multiple_store_items"),
-    
+
     # Expense URLs
     path('expenses/', views.expense_list, name='expense_list'),
     path('expenses/add/form/', views.add_expense_form, name='add_expense_form'),
