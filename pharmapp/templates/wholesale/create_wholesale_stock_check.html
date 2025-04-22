@@ -16,7 +16,15 @@
 
             <div class="mb-3">
                 <label for="itemSearch" class="form-label">Search for specific items (optional):</label>
-                <input type="text" class="form-control" id="itemSearch" placeholder="Enter item name, brand, or dosage form">
+                <input type="text" class="form-control" id="itemSearch" name="q" placeholder="Enter item name, brand, or dosage form"
+                    hx-get="{% url 'wholesale:search_wholesale_items' %}" hx-trigger="keyup changed delay:300ms"
+                    hx-target="#searchResults" hx-indicator=".htmx-indicator">
+                <div class="htmx-indicator" style="display:none">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <small>Searching...</small>
+                </div>
                 <div id="searchResults" class="mt-2"></div>
             </div>
 
@@ -37,58 +45,60 @@
     });
 
     // Item search functionality
-    const searchInput = document.getElementById('itemSearch');
-    const searchResults = document.getElementById('searchResults');
     const selectedItemsInput = document.getElementById('selectedItems');
     const selectedItems = new Set();
 
-    searchInput.addEventListener('keyup', function() {
-        const query = this.value.trim();
-        if (query.length < 2) {
-            searchResults.innerHTML = '';
-            return;
-        }
+    // Set up HTMX event listener for search results
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.id === 'searchResults') {
+            // Format the search results as a list
+            const results = event.detail.target;
 
-        // Fetch items matching the search query
-        fetch(`/wholesale/search_wholesale_items?q=${encodeURIComponent(query)}`)
-            .then(response => response.json())
-            .then(data => {
-                searchResults.innerHTML = '';
-                if (data.items.length === 0) {
-                    searchResults.innerHTML = '<p>No items found</p>';
-                    return;
-                }
+            // If there are no items in the response, show a message
+            if (!results.querySelector('tr')) {
+                results.innerHTML = '<p>No items found</p>';
+                return;
+            }
 
-                const ul = document.createElement('ul');
-                ul.className = 'list-group';
+            // Create a list from the items
+            const items = Array.from(results.querySelectorAll('tr')).map(row => {
+                const itemId = row.querySelector('input[type="checkbox"]')?.value;
+                const itemName = row.querySelector('td:nth-child(2)')?.textContent;
+                const dosageForm = row.querySelector('td:nth-child(3)')?.textContent;
 
-                data.items.forEach(item => {
-                    const li = document.createElement('li');
-                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
-                    li.innerHTML = `
-                        <span>${item.name} - ${item.dosage_form} (${item.brand})</span>
-                        <button type="button" class="btn btn-sm btn-primary add-item" data-id="${item.id}">Add</button>
-                    `;
-                    ul.appendChild(li);
-                });
+                if (!itemId || !itemName) return null;
 
-                searchResults.appendChild(ul);
+                return { id: itemId, name: itemName, dosageForm: dosageForm };
+            }).filter(item => item !== null);
 
-                // Add event listeners to the Add buttons
-                document.querySelectorAll('.add-item').forEach(button => {
-                    button.addEventListener('click', function() {
-                        const itemId = this.getAttribute('data-id');
-                        selectedItems.add(itemId);
-                        selectedItemsInput.value = Array.from(selectedItems).join(',');
-                        this.disabled = true;
-                        this.textContent = 'Added';
-                    });
-                });
-            })
-            .catch(error => {
-                console.error('Error searching items:', error);
-                searchResults.innerHTML = '<p>Error searching items</p>';
+            // Create a list to display the items
+            const ul = document.createElement('ul');
+            ul.className = 'list-group';
+
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                li.innerHTML = `
+                    <span>${item.name} - ${item.dosageForm}</span>
+                    <button type="button" class="btn btn-sm btn-primary add-item" data-id="${item.id}">Add</button>
+                `;
+                ul.appendChild(li);
             });
+
+            results.innerHTML = '';
+            results.appendChild(ul);
+
+            // Add event listeners to the Add buttons
+            document.querySelectorAll('.add-item').forEach(button => {
+                button.addEventListener('click', function() {
+                    const itemId = this.getAttribute('data-id');
+                    selectedItems.add(itemId);
+                    selectedItemsInput.value = Array.from(selectedItems).join(',');
+                    this.disabled = true;
+                    this.textContent = 'Added';
+                });
+            });
+        }
     });
 </script>
 {% endblock %}

@@ -231,7 +231,7 @@
                     <th scope="col">ACTION</th>
                     <th scope="col">GENERIC</th>
                     <th scope="col">D/FORM</th>
-                    <th scope="col">BRAND</th>
+                    <th scope="col">BRAND/GEN</th>
                     <th scope="col">UNIT</th>
                     {% if user.is_superuser or is_staff %}
                     <th scope="col">COST</th>
@@ -246,7 +246,7 @@
                     <th scope="col">ACTION</th>
                     <th scope="col">GENERIC</th>
                     <th scope="col">D/FORM</th>
-                    <th scope="col">BRAND</th>
+                    <th scope="col">BRAND/GEN</th>
                     <th scope="col">UNIT</th>
                     {% if user.is_superuser %}
                     <th scope="col">COST</th>
@@ -271,9 +271,9 @@
                             onclick="return confirm('Are you sure you want to delete {{item.name|title}} from  Store?')"
                             class="btn btn-sm btn-danger">x</a>
                     </td>
-                    <td>{{item.name|title}}</td>
+                    <td>{{item.name}}</td>
                     <td>{{item.dosage_form|title}}</td>
-                    <td>{{item.brand|title}}</td>
+                    <td>{{item.brand}}</td>
                     <td>{{item.unit}}</td>
                     {% if user.is_superuser %}
                     <td>{{item.cost|intcomma }}</td>

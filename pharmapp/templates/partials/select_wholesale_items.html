@@ -103,8 +103,19 @@
         </select>
     </div>
 
-
-
+    <!-- Search field to filter items -->
+    <div class="mb-3">
+        <input type="text" class="form-control" id="wholesale-item-search" name="q" placeholder="Search for items..."
+            hx-get="{% url 'wholesale:search_wholesale_items' %}" hx-trigger="keyup changed delay:300ms"
+            hx-target="#for-customer" hx-swap="innerHTML" hx-indicator=".htmx-indicator"
+            style="background-color: rgb(210, 247, 253);">
+        <div class="htmx-indicator" style="display:none">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <small>Searching...</small>
+        </div>
+    </div>
 
 
     <form method="post" action="{% url 'wholesale:select_wholesale_items' customer.id %}" id="item-form">
@@ -176,12 +187,24 @@
     </form>
 </div>
 <script>
-    // Enable quantity input only when the item is selected
-    document.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
-        checkbox.addEventListener('change', function () {
-            const quantityInput = this.closest('tr').querySelector('input[type="number"]');
-            quantityInput.disabled = !this.checked;
+    // Function to enable quantity input when checkbox is selected
+    function setupCheckboxListeners() {
+        document.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+            checkbox.addEventListener('change', function () {
+                const quantityInput = this.closest('tr').querySelector('input[type="number"]');
+                quantityInput.disabled = !this.checked;
+            });
         });
+    }
+
+    // Call the function on page load
+    setupCheckboxListeners();
+
+    // Set up HTMX event listener to reinitialize checkbox listeners after search results load
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.id === 'for-customer') {
+            setupCheckboxListeners();
+        }
     });
 
     // Update form action dynamically based on selected action

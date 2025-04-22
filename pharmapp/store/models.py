@@ -30,6 +30,15 @@ DOSAGE_FORM = [
     ('Eye-ointment', 'Eye-ointment'),
     ('Rectal', 'Rectal'),
     ('Vaginal', 'Vaginal'),
+    ('Detergent', 'Detergent'),
+    ('Drinks', 'Drinks'),
+    ('Paste', 'Paste'),
+    ('Table-water', 'Table-water'),
+    ('Food-item', 'Food-item'),
+    ('Sweets', 'Sweets'),
+    ('Soaps', 'Soaps'),
+    ('Biscuits', 'Biscuits'),
+    
 ]
 
 
@@ -42,6 +51,7 @@ UNIT = [
     ('Card', 'Card'),
     ('Carton', 'Carton'),
     ('Pack', 'Pack'),
+    ('Sachets', 'Sachets'),
     ('Pcs', 'Pcs'),
     ('Roll', 'Roll'),
     ('Vail', 'Vail'),

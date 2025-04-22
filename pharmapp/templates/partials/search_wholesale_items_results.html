@@ -1,0 +1,17 @@
+{% for item in items %}
+<tr>
+    <td>
+        <input type="checkbox" name="item_ids" value="{{ item.id }}">
+    </td>
+    <td>{{ item.name|title }}</td>
+    <td>{{ item.dosage_form|title }}</td>
+    <td>{{ item.brand|title }}</td>
+    <td>{{ item.unit }}</td>
+    <td>{{ item.price }}</td>
+    <td>{{ item.stock }}</td>
+    <td>
+        <input type="number" name="quantities" min="1" max="{{ item.stock_quantity }}" value="1"
+            class="form-control input-sm" disabled>
+    </td>
+</tr>
+{% endfor %}

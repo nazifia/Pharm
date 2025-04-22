@@ -20,6 +20,15 @@
             <option value="Ear-drop">Ear-drop</option>
             <option value="Eye-ointment">Eye-ointment</option>
             <option value="Galenical">Galenical</option>
+            <option value="Detergents">Detergents</option>
+            <option value="Soaps">Soaps</option>
+            <option value="Drinks">Drinks</option>
+            <option value="Biscuit">Biscuit</option>
+            <option value="BiscuitSweets">BiscuitSweets</option>
+            <option value="Paste">Paste</option>
+            <option value="Paste">Paste</option>
+            <option value="Table-water">Table-water</option>
+            <option value="Food-item">Food-item</option>
             <option value="Nasal">Nasal</option>
             <option value="Injection">Injection</option>
             <option value="Infusion">Infusion</option>
@@ -33,8 +42,10 @@
             <option value="Unit">Select Unit</option>
             <option value="Pcs">Pieces</option>
             <option value="Pack">Packets</option>
+            <option value="Plastic">Plastic</option>
             <option value="Tab">Tablets</option>
             <option value="Tin">Tins</option>
+            <option value="can">Can</option>
             <option value="Caps">Capsules</option>
             <option value="Carton">Cartons</option>
             <option value="Card">Cards</option>
@@ -92,11 +103,60 @@
             <option value="100">100% markup</option>
         </select>
 
-        <!-- Automatically calculated price -->
-        <input type="number" name="price" step="0.01" id="price" placeholder="ITEM PRICE" class="form-control mt-3"
-            readonly>
+        <!-- Selling price field -->
+        <input type="number" name="price" step="0.01" id="price" placeholder="ITEM PRICE" class="form-control mt-3">
+
+        <!-- Manual price override checkbox -->
+        <div class="form-check mt-2 mb-3">
+            <input class="form-check-input" type="checkbox" id="manualPriceOverride" name="manual_price_override">
+            <label class="form-check-label" for="manualPriceOverride">
+                Manually override selling price
+            </label>
+        </div>
         <input type="number" name="stock" placeholder="STOCK QUANTITY" class="form-control mt-3" required>
         <input type="date" name="exp_date" class="form-control mt-3" required>
         <input type="submit" class="btn btn-success btn-sm mt-3" value="Save">
     </form>
 </div>
+
+<script>
+    // Get references to the elements
+    const costInput = document.getElementById("cost");
+    const markupSelect = document.getElementById("markup");
+    const priceInput = document.getElementById("price");
+    const manualOverrideCheckbox = document.getElementById("manualPriceOverride");
+
+    // Initialize manual override flag
+    let manualPriceOverride = false;
+
+    // Function to calculate price based on cost and markup
+    function calculatePrice() {
+        if (manualPriceOverride) return; // Skip calculation if manual override is enabled
+
+        const cost = parseFloat(costInput.value) || 0;
+        const markupPercentage = parseFloat(markupSelect.value) || 0;
+
+        // Calculate price based on the cost and markup percentage
+        const price = cost + (cost * markupPercentage / 100);
+
+        // Set the calculated price in the price input field
+        priceInput.value = price.toFixed(2);
+    }
+
+    // Add event listener for the manual override checkbox
+    manualOverrideCheckbox.addEventListener('change', function() {
+        manualPriceOverride = this.checked;
+
+        // If manual override is disabled, recalculate the price
+        if (!manualPriceOverride) {
+            calculatePrice();
+        }
+    });
+
+    // Add event listeners for cost and markup changes
+    costInput.addEventListener('input', calculatePrice);
+    markupSelect.addEventListener('change', calculatePrice);
+
+    // Calculate initial price
+    calculatePrice();
+</script>

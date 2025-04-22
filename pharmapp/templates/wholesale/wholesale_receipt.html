@@ -117,6 +117,7 @@
         <button class="btn btn-success btn-sm" onclick="downloadPDF()">
             <i class="fas fa-download"></i> Download PDF
         </button>
+        <a href="{{ request.META.HTTP_REFERER }}" class="btn btn-outline-dark btn-sm">Back</a>
         {% endif %}
     </div>
 

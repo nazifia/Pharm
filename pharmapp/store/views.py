@@ -182,6 +182,24 @@ def add_item(request):
             form = addItemForm(request.POST)
             if form.is_valid():
                 item = form.save(commit=False)
+
+                # Check if manual price override is enabled
+                manual_price_override = request.POST.get('manual_price_override') == 'on'
+
+                # Convert markup_percentage to Decimal to ensure compatible types
+                markup = Decimal(form.cleaned_data.get("markup", 0))
+                item.markup = markup
+
+                # Get the price from the form
+                submitted_price = Decimal(form.cleaned_data.get("price", 0))
+
+                if not manual_price_override:
+                    # Calculate price based on the cost and markup percentage
+                    item.price = item.cost + (item.cost * markup / Decimal(100))
+                else:
+                    # Use the manually entered price
+                    item.price = submitted_price
+
                 item.save()
                 messages.success(request, 'Item added successfully')
                 return redirect('store:store')
@@ -2588,17 +2606,24 @@ def search_items(request):
     else:
         items = Item.objects.all().order_by('name')[:20]  # Limit to 20 items if no query
 
-    # Convert items to JSON-serializable format
-    items_data = [{
-        'id': item.id,
-        'name': item.name,
-        'brand': item.brand,
-        'dosage_form': item.dosage_form,
-        'unit': item.unit,
-        'stock': item.stock
-    } for item in items]
-
-    return JsonResponse({'items': items_data})
+    # Check if this is an HTMX request
+    if request.headers.get('HX-Request'):
+        # Log for debugging
+        print(f"HTMX request received for search_items with query: {query}")
+        print(f"Found {len(items)} items matching the query")
+        # Return the search results template
+        return render(request, 'partials/search_items_results.html', {'items': items})
+    else:
+        # Return JSON response for other cases (like stock check)
+        items_data = [{
+            'id': item.id,
+            'name': item.name,
+            'brand': item.brand,
+            'dosage_form': item.dosage_form,
+            'unit': item.unit,
+            'stock': item.stock
+        } for item in items]
+        return JsonResponse({'items': items_data})
 
 @user_passes_test(lambda u: u.is_superuser)
 @login_required
