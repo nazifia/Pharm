@@ -1,194 +1,139 @@
 {% extends "partials/base.html" %}
 {% block content %}
-
 <style>
-    /* receipts.css */
-
-    body {
-        font-family: Arial, sans-serif;
-        background-color: #f9f9f9;
-        color: #333;
+    .procurement-list {
+        margin-top: 20px;
     }
 
-    .receipt-container {
-        max-width: 800px;
-        margin: 40px auto;
-        padding: 20px;
-        background-color: #fff;
-        border: 1px solid #ddd;
-        border-radius: 5px;
-        box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-    }
-
-    h2 {
-        color: #333;
-        text-align: center;
-        font-size: 28px;
-        margin-bottom: 20px;
-    }
-
-    table {
+    .procurement-list table {
         width: 100%;
         border-collapse: collapse;
-        margin-bottom: 20px;
     }
 
-    table th,
-    table td {
-        padding: 12px 15px;
+    .procurement-list th,
+    .procurement-list td {
+        padding: 10px;
         border: 1px solid #ddd;
         text-align: left;
-        font-size: 13px;
     }
 
-    table thead th {
+    .procurement-list th {
         background-color: #f2f2f2;
-        color: #555;
         font-weight: bold;
-        text-transform: uppercase;
-        font-size: 15px;
     }
 
-    table tbody tr:nth-child(even) {
+    .procurement-list tr:nth-child(even) {
         background-color: #f9f9f9;
     }
 
-    table tbody tr:hover {
+    .procurement-list tr:hover {
         background-color: #f1f1f1;
     }
 
-    .wholesale-row {
-        background-color: #e8f6e8;
-        /* Light green to highlight wholesale */
+    .procurement-list .btn {
+        margin-right: 5px;
     }
 
-    a {
-        color: #3498db;
-        text-decoration: none;
+    .search-form {
+        margin-bottom: 20px;
     }
 
-    a:hover {
-        text-decoration: underline;
-        color: #2c3e50;
+    .search-form input {
+        padding: 8px;
+        width: 300px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
     }
 
-    /* Responsive Design */
-    @media (max-width: 768px) {
-        h2 {
-            font-size: 20px;
-        }
-
-        table th,
-        table td {
-            font-size: 11px;
-            padding: 8px;
-        }
-
-        table {
-            margin-bottom: 10px;
-        }
-
-        .col-md-10 {
-            padding: 10px;
-        }
+    .search-form button {
+        padding: 8px 15px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
     }
 
-    @media (max-width: 480px) {
-        h2 {
-            font-size: 15px;
-        }
+    .search-form button:hover {
+        background-color: #0056b3;
+    }
 
-        table thead th {
-            background-color: #f2f2f2;
-            color: #555;
-            font-weight: bold;
-            text-transform: uppercase;
-            font-size: 10px;
+    .status-draft {
+        color: #ff9800;
+        font-weight: bold;
+    }
 
-        }
-
-        table th,
-        table td {
-            font-size: 9px;
-            padding: 4px;
-        }
-
-        table {
-            margin-bottom: 7px;
-        }
-
-        .col-md-10 {
-            padding: 7px;
-        }
+    .status-completed {
+        color: #4caf50;
+        font-weight: bold;
     }
 </style>
 
-
-<div class="col-15">
-    <h2>Retail Procurement List</h2>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Retail Procurement List</h2>
+        <div>
+            <a href="{% url 'store:add_procurement' %}" class="btn btn-primary btn-sm">New Procurement</a>
+            <a href="{% url 'store:transfer_multiple_store_items' %}" class="btn btn-warning btn-sm">Transfer Items</a>
+            <a href="{% url 'store:dashboard' %}" class="btn btn-secondary btn-sm">Dashboard</a>
+        </div>
+    </div>
 
     {% for message in messages %}
-    <div style="text-align:center" class="alert alert-{{message.tags}}">{{ message }}</div>
+    <div class="alert alert-{{message.tags}} text-center">{{ message }}</div>
     {% endfor %}
 
-    <!-- Search Form -->
-    <form method="get" action="" class="mb-3">
-        <div class="form-row">
-            <div class="col-md-4">
-                <input type="text" name="name" class="form-control" style="background-color: rgb(212, 248, 159);"
-                    hx-get="{% url 'store:search_procurement' %}" hx-target="#display"
-                    hx-trigger="keyup changed delay:300ms" placeholder="Search by supplier name"
-                    value="{{ request.GET.name }}">
+    <div class="search-form">
+        <form hx-get="{% url 'store:search_procurement' %}" hx-target="#procurement-list" hx-trigger="submit">
+            <div class="input-group mb-3">
+                <input type="text" name="name" class="form-control" placeholder="Search by supplier name...">
+                <button class="btn btn-primary" type="submit">Search</button>
             </div>
+        </form>
+    </div>
 
+    <div id="procurement-list" class="procurement-list">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-bordered">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Supplier</th>
+                        <th>Date</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for procurement in procurements %}
+                    <tr>
+                        <td>{{ procurement.id }}</td>
+                        <td>
+                            {% if procurement.supplier %}
+                            {{ procurement.supplier.name|upper }}
+                            {% else %}
+                            OTHERS
+                            {% endif %}
+                        </td>
+                        <td>{{ procurement.date }}</td>
+                        <td>₦{{ procurement.calculated_total|default:procurement.total|floatformat:2 }}</td>
+                        <td class="status-{{ procurement.status }}">{{ procurement.status|title }}</td>
+                        <td>
+                            <a href="{% url 'store:procurement_detail' procurement.id %}" class="btn btn-info btn-sm">View</a>
+                            {% if procurement.status == 'draft' %}
+                            <a href="{% url 'store:add_procurement' %}?draft_id={{ procurement.id }}" class="btn btn-warning btn-sm">Continue</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center">No procurements found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-    </form>
-
-    <table>
-        <thead>
-            <tr>
-                <th>S/NO</th>
-                <th>Supplier</th>
-                <th>Total Amount</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="display">
-            {% for procurement in procurements %}
-            <tr>
-                <td>{{ forloop.counter }}</td>
-                <td>
-                    {% if procurement.supplier %}
-                    {{ procurement.supplier.name|upper }}
-                    {% else %}
-                    OTHERS
-                    {% endif %}
-                </td>
-                <td>{{ procurement.calculated_total|floatformat:2 }}</td>
-                <td>{{ procurement.date }}</td>
-                <td>
-                    {% if procurement.status == 'draft' %}
-                    <span class="badge badge-warning">Draft</span>
-                    {% else %}
-                    <span class="badge badge-success">Completed</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <a href="{% url 'store:procurement_detail' procurement.id %}" class="btn btn-sm btn-info">View Details</a>
-                    {% if procurement.status == 'draft' %}
-                    <a href="{% url 'store:add_procurement' %}?draft_id={{ procurement.id }}" class="btn btn-sm btn-warning">Continue</a>
-                    {% endif %}
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="6" style="text-align: center;">No Procurement recorded</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    </div>
 </div>
-
 {% endblock %}

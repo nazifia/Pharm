@@ -44,6 +44,25 @@
         </p>
         <p><strong>Date:</strong> {{ receipt.date|date:"F j, Y" }}</p>
         <p><strong>Sales Person:</strong> {{ user.username }}</p>
+
+        {% if receipt.payment_method == 'Split' %}
+        <div style="border: 1px solid #ddd; padding: 12px; margin: 10px 0; border-radius: 5px; background-color: #f8f9fa;">
+            <p style="font-weight: bold; margin-bottom: 8px;">Payment Method: Split Payment</p>
+            <div style="margin-left: 10px;">
+                {% if wholesale_receipt_payments %}
+                    {% for payment in wholesale_receipt_payments %}
+                    <p style="margin: 4px 0; font-weight: 500;">
+                        <span style="display: inline-block; width: 80px;">{{ payment.payment_method }}:</span>
+                        <span style="color: #0066cc; font-weight: bold;">₦{{ payment.amount|floatformat:2|intcomma }}</span>
+                    </p>
+                    {% endfor %}
+                {% else %}
+                    <p style="color: #dc3545; font-style: italic;">Split payment details not available</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
         <form id="payment-form" method="POST" action="{% url 'wholesale:wholesale_receipt_detail' receipt.receipt_id %}">
             {% csrf_token %}
             <div class="form-group">

@@ -103,7 +103,7 @@
                         {% for month, sale in monthly_sales %}
                         <tr>
                             <td>{{ month }}</td>
-                            <td>{{ sale.total_sales }}</td>
+                            <td>{{ sale.total_sales|floatformat:2 }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -128,16 +128,16 @@
                         {% for month, data in monthly_sales %}
                         <tr>
                             <td>{{ month|date:"F Y" }}</td>
-                            <td>{{ data.total_sales }}</td>
-                            <td>{{ data.total_cost }}</td>
-                            <td>{{ data.total_profit }}</td>
+                            <td>{{ data.total_sales|floatformat:2 }}</td>
+                            <td>{{ data.total_cost|floatformat:2 }}</td>
+                            <td>{{ data.total_profit|floatformat:2 }}</td>
                             <td class="text-danger">
-                                {{ data.total_expense }}
+                                {{ data.total_expense|floatformat:2 }}
                             </td>
                             <td
                                 class="fw-bold {% if data.net_profit < 0 %}text-danger{% else %}text-success{% endif %}"
                             >
-                                {{ data.net_profit }}
+                                {{ data.net_profit|floatformat:2 }}
                             </td>
                         </tr>
                         {% endfor %}
@@ -159,7 +159,7 @@
                             labels: [{% for month, sale in monthly_sales %}'{{ month }}', {% endfor %}],
                     datasets: [{
                         label: 'Total Sales',
-                        data: [{% for month, sale in monthly_sales %}{{ sale.total_sales }}, {% endfor %}],
+                        data: [{% for month, sale in monthly_sales %}{{ sale.total_sales|floatformat:2 }}, {% endfor %}],
                         backgroundColor: [
                             'rgba(255, 99, 132, 0.6)',
                             'rgba(54, 162, 235, 0.6)',

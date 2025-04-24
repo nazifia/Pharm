@@ -41,6 +41,16 @@
         font-size: 14px;
     }
 
+    .status-draft {
+        color: #ff9800;
+        font-weight: bold;
+    }
+
+    .status-completed {
+        color: #4caf50;
+        font-weight: bold;
+    }
+
     @media (max-width: 768px) {
         .receipt-container {
             margin: 10px;
@@ -95,11 +105,11 @@
         body * {
             visibility: hidden;
         }
-        
+
         #receipt, #receipt * {
             visibility: visible;
         }
-        
+
         #receipt {
             position: absolute;
             left: 0;
@@ -138,6 +148,15 @@
     }
 </style>
 
+<div class="d-flex justify-content-between align-items-center mb-3 no-print">
+    <h2>Wholesale Procurement Details</h2>
+    <div>
+        <a href="{% url 'wholesale:wholesale_procurement_list' %}" class="btn btn-secondary btn-sm">Back to List</a>
+        <a href="{% url 'store:transfer_multiple_store_items' %}" class="btn btn-warning btn-sm">Transfer Items</a>
+        <a href="{% url 'store:dashboard' %}" class="btn btn-secondary btn-sm">Dashboard</a>
+    </div>
+</div>
+
 <div class="receipt-container" id="receipt">
     <header>
         <div class="receipt-head">
@@ -148,8 +167,9 @@
     </header>
 
     <h2>Wholesale Procurement Details</h2>
-    <p style="text-align: end;"><strong>Supplier:</strong> {{ procurement.supplier }}</p>
+    <p style="text-align: end;"><strong>Supplier:</strong> {{ procurement.supplier.name }}</p>
     <p style="text-align: end;"><strong>Date:</strong> {{ procurement.date|date:"F j, Y" }}</p>
+    <p style="text-align: end;"><strong>Status:</strong> <span class="status-{{ procurement.status }}">{{ procurement.status|title }}</span></p>
 
     <div class="table-responsive">
         <table class="table table-hover table-bordered mt-3">
@@ -177,6 +197,10 @@
                     <td>{{ item.quantity }}</td>
                     <td>₦{{ item.subtotal|floatformat:2 }}</td>
                 </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center">No items found.</td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -191,7 +215,7 @@
     </footer>
 </div>
 
-<div class="action-buttons no-print">
+<div class="action-buttons no-print mt-3">
     <button onclick="window.print()" class="btn btn-sm btn-primary">
         <i class="fas fa-print"></i> Print
     </button>
@@ -201,6 +225,12 @@
     <button class="btn btn-info btn-sm" onclick="window.location.reload()">
         <i class="fas fa-redo"></i> Reset
     </button>
+
+    {% if procurement.status == 'draft' %}
+    <a href="{% url 'wholesale:add_wholesale_procurement' %}?draft_id={{ procurement.id }}" class="btn btn-warning btn-sm">
+        <i class="fas fa-edit"></i> Continue Editing
+    </a>
+    {% endif %}
 </div>
 
 <script>

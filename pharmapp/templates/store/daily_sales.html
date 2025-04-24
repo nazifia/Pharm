@@ -99,12 +99,12 @@
                     {% for day, sale in daily_sales %}
                     <tr>
                         <td>{{ day }}</td>
-                        <td>{{ sale.total_sales }}</td>
-                        <td>{{ sale.total_cost }}</td>
-                        <td>{{ sale.total_profit }}</td>
-                        <td>{{ sale.payment_methods.Cash }}</td>
-                        <td>{{ sale.payment_methods.Wallet }}</td>
-                        <td>{{ sale.payment_methods.Transfer }}</td>
+                        <td>{{ sale.total_sales|floatformat:2 }}</td>
+                        <td>{{ sale.total_cost|floatformat:2 }}</td>
+                        <td>{{ sale.total_profit|floatformat:2 }}</td>
+                        <td>{{ sale.payment_methods.Cash|floatformat:2 }}</td>
+                        <td>{{ sale.payment_methods.Wallet|floatformat:2 }}</td>
+                        <td>{{ sale.payment_methods.Transfer|floatformat:2 }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -143,7 +143,7 @@
             borderWidth: 1,
             data: [
                 {% for day, sale in daily_sales %}
-        {{ sale.total_sales }},
+        {{ sale.total_sales|floatformat:2 }},
         {% endfor %}
         ]
             }]
@@ -181,7 +181,7 @@
                     borderWidth: 1,
                     data: [
                         {% for day, sale in daily_sales %}
-                {{ sale.payment_methods.Cash }},
+                {{ sale.payment_methods.Cash|floatformat:2 }},
                         {% endfor %}
                     ]
                 },
@@ -192,7 +192,7 @@
                     borderWidth: 1,
                     data: [
                         {% for day, sale in daily_sales %}
-                {{ sale.payment_methods.Wallet }},
+                {{ sale.payment_methods.Wallet|floatformat:2 }},
                         {% endfor %}
                     ]
                 },
@@ -203,7 +203,7 @@
                     borderWidth: 1,
                     data: [
                         {% for day, sale in daily_sales %}
-                {{ sale.payment_methods.Transfer }},
+                {{ sale.payment_methods.Transfer|floatformat:2 }},
                         {% endfor %}
                     ]
                 }

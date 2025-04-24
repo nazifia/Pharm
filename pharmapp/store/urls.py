@@ -63,6 +63,7 @@ urlpatterns = [
     path('list/', views.list_stock_checks, name='list_stock_checks'),
     path('adjust-stock/<int:stock_item_id>/', views.adjust_stock, name='adjust_stock'),
     path('search-items/', views.search_items, name='search_items'),
+    path('search-store-items/', views.search_store_items, name='search_store_items'),
 
     # Transfer Request URLs
     path("transfer/create/", views.create_transfer_request_wholesale, name="create_transfer_request_wholesale"),

@@ -1,31 +1,41 @@
-{% for procurement in procurements %}
-<tr>
-    <td>{{ forloop.counter }}</td>
-    <td>
-        {% if procurement.supplier %}
-        {{ procurement.supplier.name|upper }}
-        {% else %}
-        OTHERS
-        {% endif %}
-    </td>
-    <td>{{ procurement.calculated_total|floatformat:2 }}</td>
-    <td>{{ procurement.date }}</td>
-    <td>
-        {% if procurement.status == 'draft' %}
-        <span class="badge badge-warning">Draft</span>
-        {% else %}
-        <span class="badge badge-success">Completed</span>
-        {% endif %}
-    </td>
-    <td>
-        <a href="{% url 'store:procurement_detail' procurement.id %}" class="btn btn-sm btn-info">View Details</a>
-        {% if procurement.status == 'draft' %}
-        <a href="{% url 'store:add_procurement' %}?draft_id={{ procurement.id }}" class="btn btn-sm btn-warning">Continue</a>
-        {% endif %}
-    </td>
-</tr>
-{% empty %}
-<tr>
-    <td colspan="6" style="text-align: center;">No Procurement recorded</td>
-</tr>
-{% endfor %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover table-bordered">
+        <thead class="table-light">
+            <tr>
+                <th>ID</th>
+                <th>Supplier</th>
+                <th>Date</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for procurement in procurements %}
+            <tr>
+                <td>{{ procurement.id }}</td>
+                <td>
+                    {% if procurement.supplier %}
+                    {{ procurement.supplier.name|upper }}
+                    {% else %}
+                    OTHERS
+                    {% endif %}
+                </td>
+                <td>{{ procurement.date }}</td>
+                <td>₦{{ procurement.calculated_total|default:procurement.total|floatformat:2 }}</td>
+                <td class="status-{{ procurement.status }}">{{ procurement.status|title }}</td>
+                <td>
+                    <a href="{% url 'store:procurement_detail' procurement.id %}" class="btn btn-info btn-sm">View</a>
+                    {% if procurement.status == 'draft' %}
+                    <a href="{% url 'store:add_procurement' %}?draft_id={{ procurement.id }}" class="btn btn-warning btn-sm">Continue</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center">No procurements found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

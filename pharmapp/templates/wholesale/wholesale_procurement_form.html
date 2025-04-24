@@ -1,0 +1,16 @@
+<!-- This template is used to render a single form row for the procurement item formset -->
+<tr class="form-row">
+    <td>{{ form.item_name }}</td>
+    <td>{{ form.dosage_form }}</td>
+    <td>{{ form.brand }}</td>
+    <td>{{ form.unit }}</td>
+    <td>{{ form.quantity }}</td>
+    <td>{{ form.cost_price }}</td>
+    <td class="subtotal">0.00</td>
+    <td>{{ form.expiry_date }}</td>
+    <!-- Hidden fields -->
+    {{ form.markup.as_hidden }}
+    <td>
+        <button type="button" id="remove" class="btn btn-danger btn-sm remove-item" onclick="removeRow(this)">Remove</button>
+    </td>
+</tr>

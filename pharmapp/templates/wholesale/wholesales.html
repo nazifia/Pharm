@@ -39,17 +39,17 @@
 
     /* Print styles */
     @media print {
-        .btn, 
+        .btn,
         .form-control,
         .alert-container,
         .action-buttons,
         .navbar,
-        .sidebar { 
-            display: none !important; 
+        .sidebar {
+            display: none !important;
         }
-        .container { 
-            width: 100% !important; 
-            max-width: none !important; 
+        .container {
+            width: 100% !important;
+            max-width: none !important;
         }
         .table {
             font-size: 14px !important; /* Adjusted print font size */
@@ -139,7 +139,6 @@
         class="fa fa-plus "></i> Add New Item</a>
 
 <a class="btn btn-success btn-sm" href="{% url 'wholesale:wholesale_cart' %}" type="button">Dispense Wholesale</a>
-{% comment %} <a class="btn btn-secondary btn-sm" href="{{request.META.HTTP_REFERER}}">Back</a> {% endcomment %}
 
 <a class="btn btn-warning btn-sm float-right mx-1" href="{% url 'wholesale:wholesale_transfer_request_list' %}">Requests History</a>
 <a class="btn btn-info btn-sm float-right" href="{% url 'wholesale:pending_wholesale_transfer_requests' %}">Pending Requests</a>
@@ -177,7 +176,11 @@
         <strong>Restocking Alert:</strong> The following items are running low on stock:
         <ul>
             {% for item in low_stock_items %}
-            <li>{{ item.name|title }} (Stock: {{ item.stock }})</li>
+            <li>
+                <strong>{{ item.name|title }}</strong>
+                {% if item.brand %} - {{ item.brand|title }}{% endif %}
+                (Stock: {{ item.stock }} {{ item.unit }})
+            </li>
             {% endfor %}
         </ul>
     </div>
@@ -306,13 +309,13 @@
     function printContent(format) {
         const originalTitle = document.title;
         const content = document.querySelector('.col-15');
-        
+
         // Hide elements we don't want to print
         const elementsToHide = document.querySelectorAll('.btn, .form-control, .alert-container, .action-buttons');
         elementsToHide.forEach(el => el.classList.add('d-none'));
-        
+
         window.print();
-        
+
         // Restore hidden elements
         elementsToHide.forEach(el => el.classList.remove('d-none'));
         document.title = originalTitle;
@@ -329,12 +332,12 @@
             margin: [0.3, 0.3],
             filename: 'Wholesale_Inventory.pdf',
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { 
+            html2canvas: {
                 scale: 2,
                 logging: true,
                 letterRendering: true
             },
-            jsPDF: { 
+            jsPDF: {
                 unit: 'in',
                 format: 'a4',
                 orientation: 'landscape'

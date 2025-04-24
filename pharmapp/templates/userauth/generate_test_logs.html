@@ -1,0 +1,46 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">Generate Test Activity Logs</h2>
+                </div>
+                <div class="card-body">
+                    <p class="lead">This tool will generate random activity logs for testing purposes.</p>
+                    
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <form method="POST" action="{% url 'userauth:generate_test_logs' %}">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="num_logs">Number of Logs to Generate:</label>
+                            <input type="number" class="form-control" id="num_logs" name="num_logs" min="1" max="1000" value="50">
+                            <small class="form-text text-muted">Choose how many random activity logs to generate (max 1000).</small>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <i class="fa fa-exclamation-triangle"></i> Warning: This will add the specified number of random activity logs to the database. Use only for testing purposes.
+                        </div>
+                        
+                        <div class="form-group text-center mt-4">
+                            <button type="submit" class="btn btn-primary">Generate Logs</button>
+                            <a href="{% url 'userauth:activity_dashboard' %}" class="btn btn-secondary ml-2">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

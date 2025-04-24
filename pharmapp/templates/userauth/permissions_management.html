@@ -1,0 +1,233 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="text-center">User Permissions Management</h1>
+            <p class="text-center text-muted">Manage role-based permissions for different user types</p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card shadow mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Role-Based Permissions</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Permission</th>
+                            <th>Admin</th>
+                            <th>Manager</th>
+                            <th>Pharmacist</th>
+                            <th>Pharm-Tech</th>
+                            <th>Salesperson</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- User Management -->
+                        <tr class="table-secondary">
+                            <td colspan="6"><strong>User Management</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Create Users</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Edit Users</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>View Activity Logs</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+
+                        <!-- Inventory Management -->
+                        <tr class="table-secondary">
+                            <td colspan="6"><strong>Inventory Management</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Add Inventory</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Transfer Stock</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Adjust Stock Levels</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+
+                        <!-- Financial Management -->
+                        <tr class="table-secondary">
+                            <td colspan="6"><strong>Financial Management</strong></td>
+                        </tr>
+                        <tr>
+                            <td>View Financial Reports</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Manage Expenses</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Adjust Prices</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+
+                        <!-- Sales & Dispensing -->
+                        <tr class="table-secondary">
+                            <td colspan="6"><strong>Sales & Dispensing</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Process Sales</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Dispense Medication</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Process Returns</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Approve Returns</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+
+                        <!-- Procurement & Suppliers -->
+                        <tr class="table-secondary">
+                            <td colspan="6"><strong>Procurement & Suppliers</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Manage Suppliers</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Create Procurement</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Approve Procurement</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+
+                        <!-- Customer Management -->
+                        <tr class="table-secondary">
+                            <td colspan="6"><strong>Customer Management</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Register Customers</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Set Credit Limits</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>View Customer History</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-info">
+        <h5><i class="fas fa-info-circle"></i> About Role-Based Permissions</h5>
+        <p>This system implements role-based access control (RBAC) to ensure that users can only access features appropriate for their role. The permissions shown above are enforced throughout the application.</p>
+        <p>If you need to modify these permissions, please contact the system administrator.</p>
+    </div>
+</div>
+{% endblock %}

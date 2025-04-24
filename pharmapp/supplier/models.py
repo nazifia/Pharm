@@ -16,28 +16,42 @@ DOSAGE_FORM = [
     ('Capsule', 'Capsule'),
     ('Cream', 'Cream'),
     ('Consumable', 'Consumable'),
+    ('Galenical', 'Galenical'),
     ('Injection', 'Injection'),
     ('Infusion', 'Infusion'),
     ('Inhaler', 'Inhaler'),
     ('Suspension', 'Suspension'),
     ('Syrup', 'Syrup'),
+    ('Drops', 'Drops'),
+    ('Solution', 'Solution'),
     ('Eye-drop', 'Eye-drop'),
     ('Ear-drop', 'Ear-drop'),
     ('Eye-ointment', 'Eye-ointment'),
     ('Rectal', 'Rectal'),
     ('Vaginal', 'Vaginal'),
+    ('Detergent', 'Detergent'),
+    ('Drinks', 'Drinks'),
+    ('Paste', 'Paste'),
+    ('Table-water', 'Table-water'),
+    ('Food-item', 'Food-item'),
+    ('Sweets', 'Sweets'),
+    ('Soaps', 'Soaps'),
+    ('Biscuits', 'Biscuits'),
 ]
 
 
 UNIT = [
     ('Amp', 'Amp'),
     ('Bottle', 'Bottle'),
+    ('Drops', 'Drops'),
     ('Tab', 'Tab'),
     ('Tin', 'Tin'),
+    ('Can', 'Can'),
     ('Caps', 'Caps'),
     ('Card', 'Card'),
     ('Carton', 'Carton'),
     ('Pack', 'Pack'),
+    ('Sachets', 'Sachets'),
     ('Pcs', 'Pcs'),
     ('Roll', 'Roll'),
     ('Vail', 'Vail'),
@@ -140,38 +154,62 @@ class ProcurementItem(models.Model):
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
 
     def save(self, *args, **kwargs):
+        # Set default values for empty fields
+        if not self.brand:
+            self.brand = 'None'
+
         if self.cost_price is None or self.quantity is None:
             raise ValueError("Both cost_price and quantity must be provided to calculate subtotal.")
 
         # Calculate subtotal
         self.subtotal = self.cost_price * self.quantity
-        super().save(*args, **kwargs)
 
-        # Move item to store after procurement is completed
-        self.move_to_store()
+        # Check if we should move to store
+        move_to_store = kwargs.pop('move_to_store', True) if 'move_to_store' in kwargs else True
+        commit = kwargs.pop('commit', True) if 'commit' in kwargs else True
+
+        if commit:
+            super().save(*args, **kwargs)
+
+            # Move item to store after procurement is completed if requested
+            if move_to_store and self.procurement and self.procurement.status == 'completed':
+                self.move_to_store()
 
     def move_to_store(self):
-        """Move the procured item to the wholesale store after procurement."""
-        selling_price = self.cost_price * (Decimal(1) + (Decimal(self.markup) / Decimal(100)))
+        """Move the procured item to the store after procurement."""
+        # Calculate subtotal for the store item
+        subtotal = self.cost_price * self.quantity
 
-        store_item, created = StoreItem.objects.get_or_create(
+        # Check if the item already exists in the store
+        existing_items = StoreItem.objects.filter(
             name=self.item_name,
             brand=self.brand,
             dosage_form=self.dosage_form,
-            unit=self.unit,
-            defaults={
-                "stock": self.quantity,
-                "cost_price": self.cost_price,
-                # "selling_price": selling_price,
-                "expiry_date": self.expiry_date
-            }
+            unit=self.unit
         )
 
-        if not created:
+        if existing_items.exists():
+            # Use the existing item
+            store_item = existing_items.first()
             store_item.stock += self.quantity
-            store_item.selling_price = selling_price
-            store_item.expiry_date = self.expiry_date
+
+            # Only update expiry date if the new one is later than the existing one
+            if self.expiry_date and (not store_item.expiry_date or self.expiry_date > store_item.expiry_date):
+                store_item.expiry_date = self.expiry_date
+
             store_item.save()
+        else:
+            # Create a new item
+            StoreItem.objects.create(
+                name=self.item_name,
+                brand=self.brand,
+                dosage_form=self.dosage_form,
+                unit=self.unit,
+                stock=self.quantity,
+                cost_price=self.cost_price,
+                subtotal=subtotal,
+                expiry_date=self.expiry_date
+            )
 
     def __str__(self):
         return f'{self.item_name} - {self.procurement.id}'
@@ -180,7 +218,7 @@ class ProcurementItem(models.Model):
 
 
 
-# Wholesale Procurement Models (Same logic as above)
+# Wholesale Procurement Models
 class WholesaleProcurement(models.Model):
     STATUS_CHOICES = [
         ('draft', 'Draft'),
@@ -215,38 +253,69 @@ class WholesaleProcurementItem(models.Model):
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
 
     def save(self, *args, **kwargs):
+        # Set default values for empty fields
+        if not self.brand:
+            self.brand = 'None'
+
         if self.cost_price is None or self.quantity is None:
             raise ValueError("Both cost_price and quantity must be provided to calculate subtotal.")
 
         # Calculate subtotal
         self.subtotal = self.cost_price * self.quantity
-        super().save(*args, **kwargs)
 
-        # Move item to store after procurement is completed
-        self.move_to_store()
+        # Check if we should move to store
+        move_to_store = kwargs.pop('move_to_store', True) if 'move_to_store' in kwargs else True
+        commit = kwargs.pop('commit', True) if 'commit' in kwargs else True
+
+        if commit:
+            super().save(*args, **kwargs)
+
+            # Move item to store after procurement is completed if requested
+            if move_to_store and self.procurement and self.procurement.status == 'completed':
+                self.move_to_store()
 
     def move_to_store(self):
-        """Move the procured item to the wholesale store after procurement."""
-        selling_price = self.cost_price * (Decimal(1) + (Decimal(self.markup) / Decimal(100)))
+        """Move the procured item to the store after procurement."""
+        # Calculate subtotal for the store item
+        subtotal = self.cost_price * self.quantity
 
-        store_item, created = StoreItem.objects.get_or_create(
+        # Check if the item already exists in the store
+        existing_items = StoreItem.objects.filter(
             name=self.item_name,
             brand=self.brand,
             dosage_form=self.dosage_form,
-            unit=self.unit,
-            defaults={
-                "stock": self.quantity,
-                "cost_price": self.cost_price,
-                # "selling_price": selling_price,
-                "expiry_date": self.expiry_date
-            }
+            unit=self.unit
         )
 
-        if not created:
+        if existing_items.exists():
+            # Use the existing item
+            store_item = existing_items.first()
             store_item.stock += self.quantity
-            store_item.selling_price = selling_price
-            store_item.expiry_date = self.expiry_date
+
+            # Only update expiry date if the new one is later than the existing one
+            if self.expiry_date and (not store_item.expiry_date or self.expiry_date > store_item.expiry_date):
+                store_item.expiry_date = self.expiry_date
+
             store_item.save()
+            print(f"Successfully updated store item: {self.item_name}, new stock: {store_item.stock}")
+        else:
+            # Create a new item
+            try:
+                # Create the store item
+                store_item = StoreItem.objects.create(
+                    name=self.item_name,
+                    brand=self.brand,
+                    dosage_form=self.dosage_form,
+                    unit=self.unit,
+                    stock=self.quantity,
+                    cost_price=self.cost_price,
+                    subtotal=subtotal,
+                    expiry_date=self.expiry_date,
+                    supplier=self.procurement.supplier if hasattr(self.procurement, 'supplier') else None
+                )
+                print(f"Successfully created store item: {self.item_name}, stock: {store_item.stock}")
+            except Exception as e:
+                print(f"Error creating store item: {e}")
 
     def __str__(self):
         return f'{self.item_name} - {self.procurement.id}'
@@ -261,10 +330,11 @@ def update_procurement_total(sender, instance, created, **kwargs):
 def update_procurement_total_on_delete(sender, instance, **kwargs):
     instance.procurement.calculate_total()
 
+# Wholesale Procurement signal handlers
 @receiver(post_save, sender=WholesaleProcurementItem)
-def update_procurement_total(sender, instance, created, **kwargs):
+def update_wholesale_procurement_total(sender, instance, created, **kwargs):
     instance.procurement.calculate_total()
 
 @receiver(pre_delete, sender=WholesaleProcurementItem)
-def update_procurement_total_on_delete(sender, instance, **kwargs):
+def update_wholesale_procurement_total_on_delete(sender, instance, **kwargs):
     instance.procurement.calculate_total()

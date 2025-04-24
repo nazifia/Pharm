@@ -47,17 +47,17 @@
             flex-direction: column;
             gap: 10px;
         }
-        
+
         #connection-status .badge {
             padding: 8px 12px;
             border-radius: 4px;
             font-weight: bold;
         }
-        
+
         #sync-button {
             display: none;
         }
-        
+
         .offline-indicator {
             background-color: #dc3545;
             color: white;
@@ -100,7 +100,7 @@
             <li class="nav-item active">
                 <a class="nav-link" href="{% url 'store:dashboard' %}">
                     <i class="fas fa-fw fa-tachometer-alt"></i>
-                    <span>Dashboard</span></a>                    
+                    <span>Dashboard</span></a>
             </li>
 
             <!-- Divider -->
@@ -214,24 +214,22 @@
                         <a class="collapse-item" href="{% url 'store:register_supplier_view' %}">Register Supplier</a>
                         <a class="collapse-item" href="{% url 'store:supplier_list' %}">Supplier List</a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Retail:</h6>
-                        <a class="collapse-item" href="{% url 'store:add_procurement' %}">New R-Procurement</a>
-                        <a class="collapse-item" href="{% url 'store:procurement_list' %}">R-Procurement List</a>
-                        
-                        <div class="collapse-divider"></div>
+                        <h6 class="collapse-header">Procurement:</h6>
+                        <a class="collapse-item" href="{% url 'store:add_procurement' %}">New Procurement</a>
+                        <a class="collapse-item" href="{% url 'store:procurement_list' %}">Procurement List</a>
+
+                        {% comment %} <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Wholesale:</h6>
-                        <a class="collapse-item" href="{% url 'wholesale:add_wholesale_procurement' %}">New
-                            W-Procurement</a>
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_procurement_list' %}">W-Procurement
-                            List</a>
-                    
+                        <a class="collapse-item" href="{% url 'wholesale:add_wholesale_procurement' %}">New W-Procurement</a>
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_procurement_list' %}">W-Procurement List</a> {% endcomment %}
+
                         <h6 class="collapse-header">Move items:</h6>
                         <a class="collapse-item" href="{% url 'store:transfer_multiple_store_items' %}">Transfer Store Item</a>
                     </div>
                 </div>
             </li>
 
-            
+
 
             <!-- Divider -->
             <hr class="sidebar-divider">
@@ -255,6 +253,10 @@
                             <span>Admin-page</span></a>
                         <a class="collapse-item" href="{% url 'userauth:register' %}">
                             <i class="fas fa-fw fa-user-plus"></i> <span>User Registration</span></a>
+                        <a class="collapse-item" href="{% url 'userauth:activity_dashboard' %}">
+                            <i class="fas fa-fw fa-list"></i> <span>Activity Logs</span></a>
+                        <a class="collapse-item" href="{% url 'userauth:permissions_management' %}">
+                            <i class="fas fa-fw fa-lock"></i> <span>User Permissions</span></a>
                             <h6 class="collapse-header">Stock Check:</h6>
                         <a class="collapse-item" href="{% url 'store:create_stock_check' %}">
                             <i class="fas fa-fw fa-search"></i> Stock Check</a>
@@ -267,7 +269,7 @@
                         <a class="collapse-item" href="{% url 'wholesale:list_wholesale_stock_checks' %}">
                             <i class="fas fa-fw fa-list"></i> Wholesale Stock reports
                         </a>
-                        
+
                     </div>
                 </div>
             </li>
@@ -308,15 +310,15 @@
                                     <marquee id="dynamic-marquee" behavior="" direction="">
                                         <h4 class="marquee-text">{% if marquee_text %}{{ marquee_text }}{% else %}WELCOME TO NAZZ PHARMACY{% endif %}</h4>
                                     </marquee>
-                                    
+
                                 </div>
                                 <div id="marquee-edit" style="display: none;" class="d-flex align-items-center">
-                                    <input type="text" 
-                                           id="marquee-input" 
-                                           class="form-control form-control-sm me-2" 
+                                    <input type="text"
+                                           id="marquee-input"
+                                           class="form-control form-control-sm me-2"
                                            value="{% if marquee_text %}{{ marquee_text }}{% else %}WELCOME TO NAZZ PHARMACY{% endif %}">
                                            {% if user.is_superuser %}
-                                           <button class="btn btn-sm btn-primary ms-2 mx-5" 
+                                           <button class="btn btn-sm btn-primary ms-2 mx-5"
                                                    onclick="toggleMarqueeEdit()"
                                                    style="position: absolute; right: 10px; z-index: 1000;">
                                                <i class="fas fa-edit"></i>
@@ -477,7 +479,7 @@
                                     <i class="fas fa-cogs fa-sm fa-fw mr-2 text-gray-400"></i>
                                     Settings
                                 </a>
-                                <a class="dropdown-item" href="#">
+                                <a class="dropdown-item" href="{% url 'userauth:activity_dashboard' %}">
                                     <i class="fas fa-list fa-sm fa-fw mr-2 text-gray-400"></i>
                                     Activity Log
                                 </a>
@@ -745,7 +747,7 @@
             event.detail.headers["X-CSRFToken"] = "{{ csrf_token }}";
         });
     </script>
-    
+
 
 
 
@@ -850,7 +852,7 @@
         function toggleMarqueeEdit() {
             const wrapper = document.getElementById('marquee-wrapper');
             const edit = document.getElementById('marquee-edit');
-            
+
             if (wrapper.style.display !== 'none') {
                 wrapper.style.display = 'none';
                 edit.style.display = 'flex';
@@ -897,12 +899,12 @@
             })
             .then(html => {
                 // Update the marquee content
-                document.getElementById('dynamic-marquee').innerHTML = 
+                document.getElementById('dynamic-marquee').innerHTML =
                     `<h4 class="marquee-text">${newText}</h4>`;
-                
+
                 // Switch back to display mode
                 toggleMarqueeEdit();
-                
+
                 // Show success message
                 showToast('Marquee updated successfully!');
             })

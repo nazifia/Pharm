@@ -403,40 +403,124 @@
             <div class="modal-body">
                 <form method="POST" action="{% url 'store:receipt' %}" id="paymentForm" enctype="multipart/form-data">
                     {% csrf_token %}
+
                     <div class="form-group">
-                        <label for="payment_method"><strong>Payment Method:</strong></label>
-                        <select name="payment_method" id="payment_method" class="form-control" required data-original-name="payment_method">
-                            {% if payment_methods %}
-                                {% for method in payment_methods %}
-                                    <option value="{{ method }}" {% if customer and method == 'Wallet' %}selected{% elif not customer and method == 'Cash' %}selected{% endif %}>{{ method }}</option>
-                                {% endfor %}
-                            {% else %}
-                                <option value="Cash" {% if not customer %}selected{% endif %}>Cash</option>
-                                <option value="Transfer">Bank Transfer</option>
-                                <option value="Wallet" {% if customer %}selected{% endif %}>Customer Wallet</option>
-                            {% endif %}
+                        <label for="payment_type"><strong>Payment Type:</strong></label>
+                        <select name="payment_type" id="payment_type" class="form-control" onchange="togglePaymentOptions()">
+                            <option value="single">Single Payment Method</option>
+                            <option value="split">Split Payment</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label for="status"><strong>Payment Status:</strong></label>
-                        <select name="status" id="status" class="form-control" required data-original-name="status">
-                            {% if statuses %}
-                                {% for status_option in statuses %}
-                                    <option value="{{ status_option }}" {% if status_option == 'Paid' %}selected{% endif %}>{{ status_option }}</option>
-                                {% endfor %}
-                            {% else %}
-                                <option value="Paid" selected>Paid</option>
-                                <option value="Unpaid">Unpaid</option>
-                            {% endif %}
-                        </select>
+
+                    <!-- Single Payment Method Options -->
+                    <div id="single_payment_options">
+                        <div class="form-group">
+                            <label for="payment_method"><strong>Payment Method:</strong></label>
+                            <select name="payment_method" id="payment_method" class="form-control" required data-original-name="payment_method">
+                                {% if payment_methods %}
+                                    {% for method in payment_methods %}
+                                        <option value="{{ method }}" {% if customer and method == 'Wallet' %}selected{% elif not customer and method == 'Cash' %}selected{% endif %}>{{ method }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="Cash" {% if not customer %}selected{% endif %}>Cash</option>
+                                    <option value="Transfer">Bank Transfer</option>
+                                    <option value="Wallet" {% if customer %}selected{% endif %}>Customer Wallet</option>
+                                {% endif %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="status"><strong>Payment Status:</strong></label>
+                            <select name="status" id="status" class="form-control" required data-original-name="status">
+                                {% if statuses %}
+                                    {% for status_option in statuses %}
+                                        <option value="{{ status_option }}" {% if status_option == 'Paid' %}selected{% endif %}>{{ status_option }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="Paid" selected>Paid</option>
+                                    <option value="Unpaid">Unpaid</option>
+                                {% endif %}
+                            </select>
+                        </div>
                     </div>
+
+                    <!-- Split Payment Options -->
+                    <div id="split_payment_options" style="display: none;">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                First Payment
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="payment_method_1"><strong>Payment Method:</strong></label>
+                                    <select name="payment_method_1" id="payment_method_1" class="form-control">
+                                        {% if payment_methods %}
+                                            {% for method in payment_methods %}
+                                                <option value="{{ method }}">{{ method }}</option>
+                                            {% endfor %}
+                                        {% else %}
+                                            <option value="Cash">Cash</option>
+                                            <option value="Transfer">Bank Transfer</option>
+                                            <option value="Wallet">Customer Wallet</option>
+                                        {% endif %}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="payment_amount_1"><strong>Amount:</strong></label>
+                                    <input type="number" step="0.01" class="form-control" id="payment_amount_1" name="payment_amount_1" placeholder="Enter amount" onchange="updateRemainingAmount()">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                Second Payment
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="payment_method_2"><strong>Payment Method:</strong></label>
+                                    <select name="payment_method_2" id="payment_method_2" class="form-control">
+                                        {% if payment_methods %}
+                                            {% for method in payment_methods %}
+                                                <option value="{{ method }}">{{ method }}</option>
+                                            {% endfor %}
+                                        {% else %}
+                                            <option value="Cash">Cash</option>
+                                            <option value="Transfer">Bank Transfer</option>
+                                            <option value="Wallet">Customer Wallet</option>
+                                        {% endif %}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="payment_amount_2"><strong>Amount (Remaining: <span id="remaining_amount">{{ total_price }}</span>):</strong></label>
+                                    <input type="number" step="0.01" class="form-control" id="payment_amount_2" name="payment_amount_2" readonly>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="split_status"><strong>Overall Payment Status:</strong></label>
+                            <select name="split_status" id="split_status" class="form-control">
+                                {% if statuses %}
+                                    {% for status_option in statuses %}
+                                        <option value="{{ status_option }}" {% if status_option == 'Paid' %}selected{% endif %}>{{ status_option }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="Paid" selected>Paid</option>
+                                    <option value="Unpaid">Unpaid</option>
+                                {% endif %}
+                            </select>
+                        </div>
+                    </div>
+
                     <input type="hidden" name="selected_payment_method" id="selected_payment_method_hidden">
                     <input type="hidden" name="selected_status" id="selected_status_hidden">
+
                     <!-- Debug info -->
                     <div class="alert alert-info" style="display: none;">
                         <p>Selected Payment Method: <span id="selected_payment_method">Cash</span></p>
                         <p>Selected Payment Status: <span id="selected_status">Paid</span></p>
                     </div>
+
                     <div class="form-group">
                         <label for="buyer_name"><strong>Buyer's Name:</strong></label>
                         <input type="text" name="buyer_name" id="buyer_name" class="form-control"
@@ -456,6 +540,34 @@
                     </div>
                 </form>
             </div>
+
+            <script>
+                function togglePaymentOptions() {
+                    var paymentType = document.getElementById('payment_type').value;
+                    if (paymentType === 'single') {
+                        document.getElementById('single_payment_options').style.display = 'block';
+                        document.getElementById('split_payment_options').style.display = 'none';
+                    } else {
+                        document.getElementById('single_payment_options').style.display = 'none';
+                        document.getElementById('split_payment_options').style.display = 'block';
+                        // Initialize the remaining amount
+                        var totalPrice = parseFloat('{{ total_price }}');
+                        document.getElementById('remaining_amount').textContent = totalPrice.toFixed(2);
+                    }
+                }
+
+                function updateRemainingAmount() {
+                    var totalPrice = parseFloat('{{ total_price }}');
+                    var firstPayment = parseFloat(document.getElementById('payment_amount_1').value) || 0;
+                    var remaining = totalPrice - firstPayment;
+
+                    // Update the remaining amount display
+                    document.getElementById('remaining_amount').textContent = remaining.toFixed(2);
+
+                    // Update the second payment amount
+                    document.getElementById('payment_amount_2').value = remaining.toFixed(2);
+                }
+            </script>
         </div>
     </div>
 </div>

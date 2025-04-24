@@ -12,10 +12,9 @@ class ProcurementItemAdmin(admin.ModelAdmin):
     list_filter = ('item_name', 'unit', 'quantity', 'cost_price', 'subtotal')
 
 
-class WholesaleProcurementItemAdmin(admin.ModelAdmin):
-    list_display = ('item_name', 'unit', 'quantity', 'expiry_date')
-    search_fields = ('item_name', 'supplier__name')
-    list_filter = ('item_name', 'unit', 'quantity', 'cost_price', 'subtotal')
+class WholesaleProcurementItemInline(admin.TabularInline):
+    model = WholesaleProcurementItem
+    extra = 0
 
 class ProcurementAdmin(admin.ModelAdmin):
     list_display = ('supplier', 'date', 'total')
@@ -30,9 +29,10 @@ class ProcurementAdmin(admin.ModelAdmin):
 
 
 class WholesaleProcurementAdmin(admin.ModelAdmin):
-    list_display = ('supplier', 'date', 'total')
+    list_display = ('supplier', 'date', 'total', 'status')
     search_fields = ('supplier__name', 'date')
-    list_filter = ('supplier__name', 'date')
+    list_filter = ('supplier__name', 'date', 'status')
+    inlines = [WholesaleProcurementItemInline]
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
@@ -63,7 +63,8 @@ class StoreItemAdmin(admin.ModelAdmin):
 
 admin.site.register(Supplier, SupplierAdmin)
 admin.site.register(ProcurementItem, ProcurementItemAdmin)
-admin.site.register(WholesaleProcurementItem, WholesaleProcurementItemAdmin)
 admin.site.register(Procurement, ProcurementAdmin)
-admin.site.register(WholesaleProcurement, WholesaleProcurementAdmin)
 admin.site.register(StoreItem, StoreItemAdmin)
+
+admin.site.register(WholesaleProcurement, WholesaleProcurementAdmin)
+admin.site.register(WholesaleProcurementItem)

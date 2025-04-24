@@ -1,0 +1,179 @@
+{% block content %}
+<div class="container mt-4" id="transfer-messages">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Transfer Wholesale Items</h2>
+    <div>
+      <a href="#" class="btn btn-primary btn-sm">New Wholesale Procurement</a>
+      <a href="#" class="btn btn-info btn-sm">Procurement List</a>
+      <a href="#" class="btn btn-secondary btn-sm">Wholesale Items</a>
+      <a href="#" class="btn btn-secondary btn-sm">Dashboard</a>
+    </div>
+  </div>
+  <div class="mt-3">
+    {% for message in messages %}
+      <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  <form id="transfer-form" method="post"
+        hx-post="{% url 'wholesale:transfer_multiple_wholesale_items' %}"
+        hx-target="#transfer-messages"
+        hx-swap="outerHTML">
+    {% csrf_token %}
+    <table class="table shadow table-hover table-responsive">
+      <thead class="table-secondary">
+        <tr>
+          <th>Select</th>
+          <th>Item Name</th>
+          <th>D/form</th>
+          <th>Brand</th>
+          <th>Unit</th>
+          <th>Stock Qty</th>
+          <th>Qty to Transfer</th>
+          <th>Transfer Unit</th>
+          <th>Unit Conversion</th>
+          <th>Markup (%)</th>
+          <th>Destination</th>
+        </tr>
+      </thead>
+      <tbody id="wholesale-items">
+        {% for item in wholesale_items %}
+        <tr id="wholesale-item-{{ item.id }}">
+          <td>
+            <input type="checkbox" name="select_{{ item.id }}">
+          </td>
+          <td>{{ item.name|upper }}</td>
+          <td>{{ item.dosage_form }}</td>
+          <td>{{ item.brand }}</td>
+          <td>{{ item.unit }}</td>
+          <td>{{ item.stock }}</td>
+          <td>
+            <input type="number" name="quantity_{{ item.id }}" style="width:100px;" class="form-control" min="0" value="0">
+          </td>
+          <td>
+            <select name="transfer_unit_{{ item.id }}" style="width:130px;" class="form-control unit-select" data-item-id="{{ item.id }}">
+              <option value="{{ item.unit }}" selected>{{ item.unit }}</option>
+              {% for unit_value, unit_display in unit_choices %}
+                {% if unit_value != item.unit %}
+                  <option value="{{ unit_value }}">{{ unit_display }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <input type="number" name="unit_conversion_{{ item.id }}" style="width:100px;" class="form-control unit-conversion" min="1" value="1" step="0.01">
+            <small class="text-muted conversion-label">1 {{ item.unit }} = <span class="conversion-value">1</span> <span class="target-unit">{{ item.unit }}</span></small>
+          </td>
+          <td>
+            <select name="markup_{{ item.id }}" style="width:150px;" class="form-control">
+              <option value="0">Select Markup</option>
+              <option value="2.5">2.5% markup</option>
+              <option value="5">5% markup</option>
+              <option value="7.5">7.5% markup</option>
+              <option value="10">10% markup</option>
+              <option value="12.5">12.5% markup</option>
+              <option value="15">15% markup</option>
+              <option value="17.5">17.5% markup</option>
+              <option value="20">20% markup</option>
+              <option value="22.5">22.5% markup</option>
+              <option value="25">25% markup</option>
+              <option value="27.5">27.5% markup</option>
+              <option value="30">30% markup</option>
+              <option value="32.5">32.5% markup</option>
+              <option value="35">35% markup</option>
+              <option value="37.5">37.5% markup</option>
+              <option value="40">40% markup</option>
+              <option value="42.5">42.5% markup</option>
+              <option value="45">45% markup</option>
+              <option value="47.5">47.5% markup</option>
+              <option value="50">50% markup</option>
+              <option value="52.5">52.5% markup</option>
+              <option value="55">55% markup</option>
+              <option value="57.5">57.5% markup</option>
+              <option value="60">60% markup</option>
+              <option value="62.5">62.5% markup</option>
+              <option value="65">65% markup</option>
+              <option value="67.5">67.5% markup</option>
+              <option value="70">70% markup</option>
+              <option value="72.5">72.5% markup</option>
+              <option value="75">75% markup</option>
+              <option value="77.5">77.5% markup</option>
+              <option value="80">80% markup</option>
+              <option value="82.5">82.5% markup</option>
+              <option value="85">85% markup</option>
+              <option value="87.5">87.5% markup</option>
+              <option value="90">90% markup</option>
+              <option value="92.5">92.5% markup</option>
+              <option value="95">95% markup</option>
+              <option value="97.5">97.5% markup</option>
+              <option value="100">100% markup</option>
+            </select>
+          </td>
+          <td>
+            <select name="destination_{{ item.id }}" class="form-control" style="width:130px;">
+              <option value="">Select</option>
+              <option value="retail">Retail</option>
+              <option value="store">Store</option>
+            </select>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit" class="btn btn-sm btn-primary">Process Transfers</button>
+  </form>
+</div>
+
+<script>
+  document.getElementById("transfer-form").addEventListener("submit", function(e) {
+    const checkboxes = document.querySelectorAll("input[type='checkbox'][name^='select_']");
+    checkboxes.forEach(function(checkbox) {
+      if (!checkbox.checked) {
+        const row = checkbox.closest("tr");
+        if (row) {
+          row.querySelectorAll("input, select").forEach(function(el) {
+            el.disabled = true;
+          });
+        }
+      }
+    });
+  });
+
+  // Update the conversion label when the unit or conversion value changes
+  document.addEventListener('DOMContentLoaded', function() {
+    // Handle unit selection change
+    const unitSelects = document.querySelectorAll('.unit-select');
+    unitSelects.forEach(function(select) {
+      select.addEventListener('change', updateConversionLabel);
+    });
+
+    // Handle conversion value change
+    const conversionInputs = document.querySelectorAll('.unit-conversion');
+    conversionInputs.forEach(function(input) {
+      input.addEventListener('input', updateConversionLabel);
+    });
+
+    // Initial update of all conversion labels
+    unitSelects.forEach(updateConversionLabel);
+
+    function updateConversionLabel() {
+      const itemId = this.getAttribute('data-item-id');
+      const row = this.closest('tr');
+
+      // If called directly on page load, we need to get the itemId differently
+      const actualItemId = itemId || this.querySelector('.unit-select').getAttribute('data-item-id');
+
+      const sourceUnit = row.querySelector('td:nth-child(5)').textContent.trim();
+      const targetUnit = row.querySelector('.unit-select').value;
+      const conversionValue = row.querySelector('.unit-conversion').value;
+
+      const conversionLabel = row.querySelector('.conversion-label');
+      const conversionValueSpan = row.querySelector('.conversion-value');
+      const targetUnitSpan = row.querySelector('.target-unit');
+
+      conversionValueSpan.textContent = conversionValue;
+      targetUnitSpan.textContent = targetUnit;
+      conversionLabel.innerHTML = `1 ${sourceUnit} = <span class="conversion-value">${conversionValue}</span> <span class="target-unit">${targetUnit}</span>`;
+    }
+  });
+</script>
+{% endblock %}

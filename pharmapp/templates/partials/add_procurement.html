@@ -91,6 +91,37 @@
         background-color: green;
     }
 
+    /* Dashboard Button Styling */
+    .dashboard-btn {
+        background-color: #4e73df;
+        color: white;
+        font-weight: bold;
+        border: none;
+        border-radius: 5px;
+        padding: 8px 15px;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+    }
+
+    .dashboard-btn i {
+        margin-right: 5px;
+    }
+
+    .dashboard-btn:hover {
+        background-color: #2e59d9;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        color: white;
+    }
+
+    .dashboard-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
     /* Table Styling */
     #item-formset {
         width: 100%;
@@ -133,9 +164,19 @@
         }
     }
 </style>
-<h3 style="text-align: center;"><strong>Retail Procurement Form</strong></h3>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 style="text-align: center;"><strong>Procurement Form</strong></h3>
+    <a href="{% url 'store:dashboard' %}" class="dashboard-btn"><i class="fas fa-tachometer-alt mr-2"></i>Dashboard</a>
+</div>
+{% if request.GET.draft_id %}
+<form method="post" action="{% url 'store:add_procurement' %}?draft_id={{ request.GET.draft_id }}">  <!-- Include draft_id in form action -->
+{% else %}
 <form method="post" action="{% url 'store:add_procurement' %}">
+{% endif %}
     {% csrf_token %}
+    {% if request.GET.draft_id %}
+    <input type="hidden" name="draft_id" value="{{ request.GET.draft_id }}">  <!-- Preserve draft_id in form -->
+    {% endif %}
 
     <!-- Procurement Form -->
     <div>
@@ -170,6 +211,7 @@
         </thead>
         <tbody>
             {{ formset.management_form }}
+            <!-- Using form prefix for all form fields -->
             {% for form in formset %}
             <tr class="form-row">
                 <td>{{ form.item_name }}</td>
@@ -180,6 +222,11 @@
                 <td>{{ form.cost_price }}</td>
                 <td class="subtotal">0.00</td>
                 <td>{{ form.expiry_date }}</td>
+                <!-- Hidden fields -->
+                {{ form.markup.as_hidden }}
+                {% if form.instance.pk %}
+                <input type="hidden" name="{{ form.prefix }}-id" value="{{ form.instance.pk }}">
+                {% endif %}
                 <td>
                     {% if form.instance.pk %}
                     <input type="checkbox" name="{{ form.DELETE.name }}" id="{{ form.DELETE.id }}">
@@ -228,6 +275,126 @@
         document.getElementById('grand-total').textContent = grandTotal.toFixed(2);
     }
 
+    // Function to search for items as user types
+    function setupItemSearch(row) {
+        const itemNameInput = row.querySelector('input[name$="-item_name"]');
+        const dosageFormSelect = row.querySelector('select[name$="-dosage_form"]');
+        const brandInput = row.querySelector('input[name$="-brand"]');
+        const unitSelect = row.querySelector('select[name$="-unit"]');
+        const costPriceInput = row.querySelector('input[name$="-cost_price"]');
+        const expiryDateInput = row.querySelector('input[name$="-expiry_date"]');
+
+        if (!itemNameInput) return;
+
+        // Create a dropdown for search results
+        const searchResultsDiv = document.createElement('div');
+        searchResultsDiv.className = 'search-results';
+        searchResultsDiv.style.display = 'none';
+        searchResultsDiv.style.position = 'absolute';
+        searchResultsDiv.style.zIndex = '1000';
+        searchResultsDiv.style.backgroundColor = 'white';
+        searchResultsDiv.style.border = '1px solid #ddd';
+        searchResultsDiv.style.maxHeight = '200px';
+        searchResultsDiv.style.overflowY = 'auto';
+        searchResultsDiv.style.width = '100%';
+        itemNameInput.parentNode.style.position = 'relative';
+        itemNameInput.parentNode.appendChild(searchResultsDiv);
+
+        // Add event listener for input changes
+        itemNameInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            if (query.length >= 2) {
+                // Fetch items from API
+                fetch(`/search-store-items/?q=${encodeURIComponent(query)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        searchResultsDiv.innerHTML = '';
+                        if (data.results.length > 0) {
+                            searchResultsDiv.style.display = 'block';
+                            data.results.forEach(item => {
+                                const resultItem = document.createElement('div');
+                                resultItem.className = 'search-result-item';
+                                resultItem.style.padding = '8px';
+                                resultItem.style.cursor = 'pointer';
+                                resultItem.style.borderBottom = '1px solid #eee';
+                                resultItem.innerHTML = `<strong>${item.name}</strong> - ${item.dosage_form} (${item.brand})`;
+
+                                // Add hover effect
+                                resultItem.addEventListener('mouseover', function() {
+                                    this.style.backgroundColor = '#f0f0f0';
+                                });
+                                resultItem.addEventListener('mouseout', function() {
+                                    this.style.backgroundColor = 'white';
+                                });
+
+                                // Add click handler to select item
+                                resultItem.addEventListener('click', function() {
+                                    itemNameInput.value = item.name;
+                                    if (dosageFormSelect) {
+                                        // Find and select the matching option
+                                        Array.from(dosageFormSelect.options).forEach(option => {
+                                            if (option.value === item.dosage_form) {
+                                                option.selected = true;
+                                            }
+                                        });
+                                    }
+                                    if (brandInput) brandInput.value = item.brand;
+                                    if (unitSelect) {
+                                        // Find and select the matching option
+                                        Array.from(unitSelect.options).forEach(option => {
+                                            if (option.value === item.unit) {
+                                                option.selected = true;
+                                            }
+                                        });
+                                    }
+                                    if (costPriceInput) costPriceInput.value = item.cost_price;
+                                    if (expiryDateInput && item.expiry_date) expiryDateInput.value = item.expiry_date.split('T')[0];
+
+                                    // Hide search results
+                                    searchResultsDiv.style.display = 'none';
+
+                                    // Calculate subtotal and grand total
+                                    calculateSubtotal(row);
+                                    calculateGrandTotal();
+                                });
+
+                                searchResultsDiv.appendChild(resultItem);
+                            });
+
+                            // Add option to add new item if not found
+                            const addNewItem = document.createElement('div');
+                            addNewItem.className = 'add-new-item';
+                            addNewItem.style.padding = '8px';
+                            addNewItem.style.cursor = 'pointer';
+                            addNewItem.style.backgroundColor = '#e7f3ff';
+                            addNewItem.style.textAlign = 'center';
+                            addNewItem.innerHTML = '<strong>+ Add New Item</strong>';
+
+                            addNewItem.addEventListener('click', function() {
+                                window.open('{% url "store:add_item" %}', '_blank');
+                            });
+
+                            searchResultsDiv.appendChild(addNewItem);
+                        } else {
+                            searchResultsDiv.style.display = 'none';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching items:', error);
+                    });
+            } else {
+                searchResultsDiv.style.display = 'none';
+            }
+        });
+
+        // Hide search results when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!itemNameInput.contains(event.target) && !searchResultsDiv.contains(event.target)) {
+                searchResultsDiv.style.display = 'none';
+            }
+        });
+    }
+
     // Add event listeners to quantity and cost price inputs
     function addCalculationListeners(row) {
         const quantityInput = row.querySelector('input[name$="-quantity"]');
@@ -258,7 +425,11 @@
 
     document.getElementById('add-item').addEventListener('click', function () {
         const tableBody = document.querySelector('#item-formset tbody');
-        const totalForms = document.querySelector('input[name="form-TOTAL_FORMS"]');
+        const totalForms = document.querySelector('input[name="form-TOTAL_FORMS"]');  // Using the form prefix
+        if (!totalForms) {
+            console.error('Could not find the management form input. Check the form prefix.');
+            return;
+        }
         const formIdx = parseInt(totalForms.value);
 
         // Clone the last form row to create a new one
@@ -271,7 +442,22 @@
             input.name = nameAttr;
             input.id = idAttr;
 
-            if (input.type !== 'hidden') input.value = ''; // Clear input values for new row
+            if (input.type !== 'hidden') {
+                input.value = ''; // Clear input values for new row
+
+                // Clear any validation errors
+                input.classList.remove('is-invalid');
+                const errorDiv = input.parentNode.querySelector('.invalid-feedback');
+                if (errorDiv) {
+                    errorDiv.remove();
+                }
+            } else if (input.name.includes('markup')) {
+                // Set default value for markup field
+                input.value = '0';
+            } else if (input.name.includes('DELETE')) {
+                // Ensure DELETE checkbox is unchecked for new rows
+                input.checked = false;
+            }
         });
 
         // Reset subtotal
@@ -283,14 +469,19 @@
         // Add the new row to the table body
         tableBody.appendChild(newRow);
 
-        // Add calculation listeners to the new row
+        // Add calculation listeners and search to the new row
         addCalculationListeners(newRow);
+        setupItemSearch(newRow);
     });
 
     // Remove a dynamically added row
     function removeRow(button) {
         const row = button.closest('tr');
-        const totalForms = document.querySelector('input[name="form-TOTAL_FORMS"]');
+        const totalForms = document.querySelector('input[name="form-TOTAL_FORMS"]');  // Using the form prefix
+        if (!totalForms) {
+            console.error('Could not find the management form input. Check the form prefix.');
+            return;
+        }
 
         // Update the management form total only if the row is successfully removed
         if (row) {
@@ -310,5 +501,13 @@
             calculateGrandTotal();
         }
     }
+
+    // Initialize calculations and search for existing rows
+    document.querySelectorAll('#item-formset tbody tr').forEach(row => {
+        addCalculationListeners(row);
+        setupItemSearch(row);
+        calculateSubtotal(row);
+    });
+    calculateGrandTotal();
 </script>
 {% endblock %}

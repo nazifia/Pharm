@@ -179,7 +179,40 @@ def store(request):
 def add_item(request):
     if request.user.is_authenticated:
         if request.method == 'POST':
-            form = addItemForm(request.POST)
+            # Check if custom dosage form is selected
+            if 'dosage_form_select' in request.POST and request.POST.get('custom_dosage_form'):
+                # Use the custom dosage form value
+                custom_dosage_form = request.POST.get('custom_dosage_form')
+                # Create a copy of POST data to modify
+                post_data = request.POST.copy()
+                post_data['dosage_form'] = custom_dosage_form
+                # Remove the custom field to avoid form validation errors
+                post_data.pop('dosage_form_select', None)
+                form = addItemForm(post_data)
+            # Check if custom unit is selected
+            elif 'unit_select' in request.POST and request.POST.get('custom_unit'):
+                # Use the custom unit value
+                custom_unit = request.POST.get('custom_unit')
+                # Create a copy of POST data to modify
+                post_data = request.POST.copy()
+                post_data['unit'] = custom_unit
+                # Remove the custom field to avoid form validation errors
+                post_data.pop('unit_select', None)
+                form = addItemForm(post_data)
+            # Handle both custom dosage form and custom unit
+            elif ('dosage_form_select' in request.POST and request.POST.get('custom_dosage_form') and
+                  'unit_select' in request.POST and request.POST.get('custom_unit')):
+                # Create a copy of POST data to modify
+                post_data = request.POST.copy()
+                post_data['dosage_form'] = request.POST.get('custom_dosage_form')
+                post_data['unit'] = request.POST.get('custom_unit')
+                # Remove the custom fields to avoid form validation errors
+                post_data.pop('dosage_form_select', None)
+                post_data.pop('unit_select', None)
+                form = addItemForm(post_data)
+            else:
+                form = addItemForm(request.POST)
+
             if form.is_valid():
                 item = form.save(commit=False)
 
@@ -487,16 +520,43 @@ def receipt(request):
         buyer_name = request.POST.get('buyer_name', '')
         buyer_address = request.POST.get('buyer_address', '')
 
-        # IMPORTANT: Get payment method and status from POST data
-        # These are the values selected by the user in the payment modal
-        payment_method = request.POST.get('payment_method')
-        status = request.POST.get('status')
+        # Check if this is a split payment
+        payment_type = request.POST.get('payment_type', 'single')
+
+        if payment_type == 'split':
+            # This is a split payment
+            payment_method = 'Split'
+            payment_method_1 = request.POST.get('payment_method_1')
+            payment_method_2 = request.POST.get('payment_method_2')
+            payment_amount_1 = Decimal(request.POST.get('payment_amount_1', '0'))
+            payment_amount_2 = Decimal(request.POST.get('payment_amount_2', '0'))
+            status = request.POST.get('split_status', 'Paid')
+
+            # Validate the payment methods and amounts
+            if not payment_method_1 or not payment_method_2:
+                messages.error(request, "Please select both payment methods for split payment.")
+                return redirect('store:cart')
+
+            if payment_amount_1 <= 0:
+                messages.error(request, "First payment amount must be greater than zero.")
+                return redirect('store:cart')
+        else:
+            # This is a single payment
+            payment_method = request.POST.get('payment_method')
+            status = request.POST.get('status')
+            payment_method_1 = None
+            payment_method_2 = None
+            payment_amount_1 = Decimal('0')
+            payment_amount_2 = Decimal('0')
 
         # Dump all POST data for debugging
         print("\n\n==== ALL POST DATA: =====")
         for key, value in request.POST.items():
             print(f"  {key}: {value}")
-        print(f"\nDirect access - Payment Method: {payment_method}, Status: {status}\n")
+        print(f"\nDirect access - Payment Type: {payment_type}, Payment Method: {payment_method}, Status: {status}\n")
+        if payment_type == 'split':
+            print(f"Split Payment - Method 1: {payment_method_1}, Amount 1: {payment_amount_1}")
+            print(f"Split Payment - Method 2: {payment_method_2}, Amount 2: {payment_amount_2}")
 
         # Get customer ID from session if it exists
         customer_id = request.session.get('customer_id')
@@ -509,7 +569,7 @@ def receipt(request):
                 pass
 
         # Set default values based on customer presence if not provided
-        if not payment_method:
+        if not payment_method and payment_type != 'split':
             if has_customer:  # If this is a registered customer
                 payment_method = "Wallet"  # Default for registered customers
             else:  # For walk-in customers
@@ -519,7 +579,7 @@ def receipt(request):
             # Default status is "Paid" for all customers (both registered and walk-in)
             status = "Paid"
 
-        print(f"After initial defaults - Payment Method: {payment_method}, Status: {status}")
+        print(f"After initial defaults - Payment Type: {payment_type}, Payment Method: {payment_method}, Status: {status}")
 
         cart_items = Cart.objects.all()
         if not cart_items.exists():
@@ -559,7 +619,7 @@ def receipt(request):
                 # This ensures we use the values selected by the user
 
                 # Ensure payment_method and status have valid values
-                if payment_method not in ["Cash", "Wallet", "Transfer"]:
+                if payment_method not in ["Cash", "Wallet", "Transfer", "Split"]:
                     if sales.customer:
                         payment_method = "Wallet"  # Default for registered customers
                     else:
@@ -598,6 +658,30 @@ def receipt(request):
                 receipt.payment_method = payment_method
                 receipt.status = status
                 receipt.save()
+
+                # If this is a split payment, create the payment records
+                if payment_type == 'split':
+                    # Create the first payment
+                    ReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=payment_amount_1,
+                        payment_method=payment_method_1,
+                        status=status,
+                        date=datetime.now()
+                    )
+
+                    # Create the second payment
+                    ReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=payment_amount_2,
+                        payment_method=payment_method_2,
+                        status=status,
+                        date=datetime.now()
+                    )
+
+                    print(f"\n==== CREATED SPLIT PAYMENTS =====")
+                    print(f"Payment 1: {payment_method_1} - {payment_amount_1}")
+                    print(f"Payment 2: {payment_method_2} - {payment_amount_2}")
 
                 # Double-check that the payment method and status were set correctly
                 # Refresh from database to ensure we see the actual saved values
@@ -657,7 +741,7 @@ def receipt(request):
         print(f"Status: {receipt.status}\n")
 
         # Force the payment method and status one last time if needed
-        if has_customer:
+        if has_customer and payment_type != 'split':
             if receipt.payment_method != 'Wallet':
                 print(f"Forcing payment method to Wallet for customer {receipt.customer.name}")
                 receipt.payment_method = 'Wallet'
@@ -669,6 +753,19 @@ def receipt(request):
                 receipt.save()
 
             receipt.refresh_from_db()
+
+        # Get split payment details if this is a split payment
+        split_payment_details = None
+        if payment_type == 'split':
+            split_payment_details = {
+                'payment_method_1': payment_method_1,
+                'payment_method_2': payment_method_2,
+                'payment_amount_1': payment_amount_1,
+                'payment_amount_2': payment_amount_2,
+            }
+
+        # Fetch receipt payments directly
+        receipt_payments = receipt.receipt_payments.all() if receipt.payment_method == 'Split' else None
 
         # Render to the receipt template
         return render(request, 'store/receipt.html', {
@@ -682,6 +779,9 @@ def receipt(request):
             'logs': DispensingLog.objects.filter(user=request.user),
             'payment_methods': payment_methods,
             'statuses': statuses,
+            'split_payment_details': split_payment_details,
+            'receipt_payments': receipt_payments,
+            'payment_type': payment_type,
         })
     else:
         return redirect('store:index')
@@ -728,6 +828,9 @@ def receipt_detail(request, receipt_id):
         payment_methods = ["Cash", "Wallet", "Transfer"]
         statuses = ["Paid", "Unpaid"]
 
+        # Fetch receipt payments directly
+        receipt_payments = receipt.receipt_payments.all() if receipt.payment_method == 'Split' else None
+
         # Render the receipt details template
         return render(request, 'partials/receipt_detail.html', {
             'receipt': receipt,
@@ -738,6 +841,8 @@ def receipt_detail(request, receipt_id):
             'user': request.user,
             'payment_methods': payment_methods,
             'statuses': statuses,
+            'receipt_payments': receipt_payments,
+            'payment_type': 'split' if receipt.payment_method == 'Split' else 'single',
         })
     else:
         return redirect('store:index')
@@ -865,9 +970,11 @@ def get_daily_sales():
     )
 
     # Get retail sales by payment method - using TruncDay to match the day format from sales queries
+    # First, get regular payment methods from receipts that aren't split payments
     payment_method_sales = (
         Receipt.objects
         .filter(Q(status='Paid') | Q(status='Unpaid'))  # Include both paid and unpaid receipts
+        .exclude(payment_method='Split')  # Exclude split payments, we'll handle them separately
         .annotate(day=TruncDay('date'))
         .values('day', 'payment_method')
         .annotate(
@@ -876,14 +983,40 @@ def get_daily_sales():
         .order_by('day', 'payment_method')
     )
 
+    # Now get the split payments from ReceiptPayment records
+    split_payment_sales = (
+        ReceiptPayment.objects
+        .filter(Q(receipt__status='Paid') | Q(receipt__status='Unpaid'))
+        .annotate(day=TruncDay('date'))
+        .values('day', 'payment_method')
+        .annotate(
+            total_amount=Sum('amount')
+        )
+        .order_by('day', 'payment_method')
+    )
+
     # Get wholesale sales by payment method - using TruncDay to match the day format
+    # First, get regular payment methods from receipts that aren't split payments
     wholesale_payment_method_sales = (
         WholesaleReceipt.objects
         .filter(Q(status='Paid') | Q(status='Unpaid'))  # Include both paid and unpaid receipts
+        .exclude(payment_method='Split')  # Exclude split payments, we'll handle them separately
         .annotate(day=TruncDay('date'))
         .values('day', 'payment_method')
         .annotate(
             total_amount=Sum('total_amount')
+        )
+        .order_by('day', 'payment_method')
+    )
+
+    # Now get the split payments from WholesaleReceiptPayment records
+    wholesale_split_payment_sales = (
+        WholesaleReceiptPayment.objects
+        .filter(Q(receipt__status='Paid') | Q(receipt__status='Unpaid'))
+        .annotate(day=TruncDay('date'))
+        .values('day', 'payment_method')
+        .annotate(
+            total_amount=Sum('amount')
         )
         .order_by('day', 'payment_method')
     )
@@ -921,15 +1054,29 @@ def get_daily_sales():
         combined_sales[day]['total_cost'] += sale['total_cost'] or Decimal('0.00')
         combined_sales[day]['total_profit'] += sale['total_profit'] or Decimal('0.00')
 
-    # Add retail payment method data
+    # Add retail payment method data (non-split payments)
     for sale in payment_method_sales:
         day = normalize_date(sale['day'])
         payment_method = sale['payment_method']
         if payment_method in combined_sales[day]['payment_methods']:
             combined_sales[day]['payment_methods'][payment_method] += sale['total_amount'] or Decimal('0.00')
 
-    # Add wholesale payment method data
+    # Add retail split payment data
+    for sale in split_payment_sales:
+        day = normalize_date(sale['day'])
+        payment_method = sale['payment_method']
+        if payment_method in combined_sales[day]['payment_methods']:
+            combined_sales[day]['payment_methods'][payment_method] += sale['total_amount'] or Decimal('0.00')
+
+    # Add wholesale payment method data (non-split payments)
     for sale in wholesale_payment_method_sales:
+        day = normalize_date(sale['day'])
+        payment_method = sale['payment_method']
+        if payment_method in combined_sales[day]['payment_methods']:
+            combined_sales[day]['payment_methods'][payment_method] += sale['total_amount'] or Decimal('0.00')
+
+    # Add wholesale split payment data
+    for sale in wholesale_split_payment_sales:
         day = normalize_date(sale['day'])
         payment_method = sale['payment_method']
         if payment_method in combined_sales[day]['payment_methods']:
@@ -1722,35 +1869,119 @@ def delete_supplier(request, pk):
 @login_required
 def add_procurement(request):
     if request.user.is_authenticated:
-        ProcurementItemFormSet = modelformset_factory(
-            ProcurementItem,
-            form=ProcurementItemForm,
-            extra=1,  # Allow at least one empty form to be displayed
-            can_delete=True  # Allow deleting items dynamically
-        )
+        # Use the predefined formset from forms.py
+        from .forms import ProcurementItemFormSet
 
         if request.method == 'POST':
-            procurement_form = ProcurementForm(request.POST)
-            formset = ProcurementItemFormSet(request.POST, queryset=ProcurementItem.objects.none())
+            # Check if we're continuing a draft procurement
+            draft_id = request.GET.get('draft_id') or request.POST.get('draft_id')
+
+            if draft_id:
+                try:
+                    draft_procurement = Procurement.objects.get(id=draft_id, status='draft')
+                    procurement_form = ProcurementForm(request.POST, instance=draft_procurement)
+
+                    # When continuing a draft, we need to handle the formset differently
+                    # First, get the existing items
+                    existing_items = draft_procurement.items.all()
+
+                    # Create the formset with the POST data
+                    formset = ProcurementItemFormSet(request.POST, prefix='form')
+
+                    # We'll handle the items manually in the save section
+                except Procurement.DoesNotExist:
+                    messages.error(request, "Draft procurement not found.")
+                    procurement_form = ProcurementForm(request.POST)
+                    formset = ProcurementItemFormSet(request.POST, queryset=ProcurementItem.objects.none(), prefix='form')
+            else:
+                procurement_form = ProcurementForm(request.POST)
+                formset = ProcurementItemFormSet(request.POST, queryset=ProcurementItem.objects.none(), prefix='form')
+
             action = request.POST.get('action', 'save')
 
-            if procurement_form.is_valid() and formset.is_valid():
-                procurement = procurement_form.save(commit=False)
-                procurement.created_by = request.user  # Assuming the user is authenticated
+            # Check if the formset is valid
+            # We'll handle empty forms specially
+            formset_valid = formset.is_valid()
+
+            # If there are validation errors for empty forms, ignore them
+            if not formset_valid:
+                # Check if the only errors are for empty forms
+                empty_form_errors_only = True
+                for form in formset:
+                    if hasattr(form, 'errors') and form.errors:
+                        # If the form has item_name and it's empty, this is an empty form
+                        if 'item_name' in form.errors and not form.data.get(f'{form.prefix}-item_name', ''):
+                            # This is an empty form with errors, which is expected
+                            continue
+                        # If we get here, there's a real error
+                        empty_form_errors_only = False
+                        break
+
+                # If the only errors are for empty forms, consider the formset valid
+                if empty_form_errors_only:
+                    formset_valid = True
+
+            if procurement_form.is_valid() and formset_valid:
+                # Check if we're continuing a draft procurement
+                draft_id = request.GET.get('draft_id') or request.POST.get('draft_id')
+
+                if draft_id:
+                    try:
+                        procurement = Procurement.objects.get(id=draft_id, status='draft')
+                        # Update the procurement with the form data
+                        procurement.supplier = procurement_form.cleaned_data['supplier']
+                        procurement.date = procurement_form.cleaned_data['date']
+
+                        # Delete existing items to avoid duplicates
+                        procurement.items.all().delete()
+                    except Procurement.DoesNotExist:
+                        # Create a new procurement if draft not found
+                        procurement = procurement_form.save(commit=False)
+                        procurement.created_by = request.user
+                else:
+                    # Create a new procurement
+                    procurement = procurement_form.save(commit=False)
+                    procurement.created_by = request.user
 
                 # Set status based on action
                 if action == 'pause':
                     procurement.status = 'draft'
+                    # For pause, we just save the items without moving them to store
+                    procurement.save()
+
+                    for form in formset:
+                        # Skip forms that are marked for deletion or don't have cleaned_data
+                        if not hasattr(form, 'cleaned_data') or form.cleaned_data.get('DELETE'):
+                            continue
+
+                        # Save only forms with an item_name
+                        if form.cleaned_data.get('item_name'):
+                            procurement_item = form.save(commit=False)
+                            procurement_item.procurement = procurement
+                            # Ensure markup has a default value
+                            if not hasattr(procurement_item, 'markup') or procurement_item.markup is None:
+                                procurement_item.markup = 0
+                            # Don't move to store yet, just save the procurement item
+                            procurement_item.save(commit=True, move_to_store=False)
                 else:
+                    # For save, we complete the procurement and move items to store
                     procurement.status = 'completed'
+                    procurement.save()
 
-                procurement.save()
+                    for form in formset:
+                        # Skip forms that are marked for deletion or don't have cleaned_data
+                        if not hasattr(form, 'cleaned_data') or form.cleaned_data.get('DELETE'):
+                            continue
 
-                for form in formset:
-                    if form.cleaned_data.get('item_name'):  # Save only valid items
-                        procurement_item = form.save(commit=False)
-                        procurement_item.procurement = procurement
-                        procurement_item.save()
+                        # Save only forms with an item_name
+                        if form.cleaned_data.get('item_name'):  # Save only valid items
+                            procurement_item = form.save(commit=False)
+                            procurement_item.procurement = procurement
+                            # Ensure markup has a default value
+                            if not hasattr(procurement_item, 'markup') or procurement_item.markup is None:
+                                procurement_item.markup = 0
+                            # Move to store when saving as completed
+                            procurement_item.save(commit=True, move_to_store=True)
 
                 # Calculate and update the total
                 procurement.calculate_total()
@@ -1762,6 +1993,22 @@ def add_procurement(request):
                     messages.success(request, "Procurement and items added successfully!")
                     return redirect('store:procurement_list')  # Replace with your actual URL name
             else:
+                # Print form errors for debugging
+                if not procurement_form.is_valid():
+                    for field, errors in procurement_form.errors.items():
+                        for error in errors:
+                            messages.error(request, f"{field}: {error}")
+
+                if not formset.is_valid():
+                    for i, form in enumerate(formset):
+                        # Skip errors for empty forms
+                        if 'item_name' in form.errors and not form.data.get(f'{form.prefix}-item_name', ''):
+                            continue
+
+                        for field, errors in form.errors.items():
+                            for error in errors:
+                                messages.error(request, f"Item {i+1} - {field}: {error}")
+
                 messages.error(request, "Please correct the errors below.")
         else:
             # Check if we're continuing a draft procurement
@@ -1770,14 +2017,15 @@ def add_procurement(request):
                 try:
                     draft_procurement = Procurement.objects.get(id=draft_id, status='draft')
                     procurement_form = ProcurementForm(instance=draft_procurement)
-                    formset = ProcurementItemFormSet(queryset=draft_procurement.items.all())
+                    # Use prefix to match the formset in the template
+                    formset = ProcurementItemFormSet(queryset=draft_procurement.items.all(), prefix='form')
                 except Procurement.DoesNotExist:
                     messages.error(request, "Draft procurement not found.")
                     procurement_form = ProcurementForm()
-                    formset = ProcurementItemFormSet(queryset=ProcurementItem.objects.none())
+                    formset = ProcurementItemFormSet(queryset=ProcurementItem.objects.none(), prefix='form')
             else:
                 procurement_form = ProcurementForm()
-                formset = ProcurementItemFormSet(queryset=ProcurementItem.objects.none())
+                formset = ProcurementItemFormSet(queryset=ProcurementItem.objects.none(), prefix='form')
 
         return render(
             request,
@@ -1803,6 +2051,57 @@ def procurement_form(request):
         return render(request, 'partials/procurement_form.html', {'form': new_form})
     else:
         return redirect('store:index')
+
+@login_required
+def search_store_items(request):
+    """API endpoint for searching store items for procurement"""
+    query = request.GET.get('q', '')
+    if query and len(query) >= 2:
+        # Search for items in both Item and StoreItem models
+        store_items = StoreItem.objects.filter(
+            Q(name__icontains=query) |
+            Q(brand__icontains=query) |
+            Q(dosage_form__icontains=query)
+        ).order_by('name')[:10]
+
+        items = Item.objects.filter(
+            Q(name__icontains=query) |
+            Q(brand__icontains=query) |
+            Q(dosage_form__icontains=query)
+        ).order_by('name')[:10]
+
+        # Combine results
+        results = []
+
+        # Add StoreItem results
+        for item in store_items:
+            results.append({
+                'id': f'store_{item.id}',
+                'name': item.name,
+                'brand': item.brand or '',
+                'dosage_form': item.dosage_form or '',
+                'unit': item.unit,
+                'cost_price': float(item.cost_price),
+                'expiry_date': item.expiry_date.isoformat() if item.expiry_date else '',
+                'source': 'store'
+            })
+
+        # Add Item results
+        for item in items:
+            results.append({
+                'id': f'item_{item.id}',
+                'name': item.name,
+                'brand': item.brand or '',
+                'dosage_form': item.dosage_form or '',
+                'unit': item.unit,
+                'cost_price': float(item.cost),
+                'expiry_date': item.exp_date.isoformat() if item.exp_date else '',
+                'source': 'item'
+            })
+
+        return JsonResponse({'results': results})
+    else:
+        return JsonResponse({'results': []})
 
 @login_required
 def procurement_list(request):
@@ -1868,6 +2167,10 @@ def transfer_multiple_store_items(request):
             else:
                 store_items = StoreItem.objects.all()
 
+            # Check if there are any items to display
+            if not store_items.exists():
+                messages.info(request, "No items found in the store. Please add items to the store through procurement or direct entry first.")
+
             # Get unit choices from the UNIT constant
             unit_choices = UNIT
 
@@ -1892,7 +2195,7 @@ def transfer_multiple_store_items(request):
                 # Process only items that have been selected.
                 if request.POST.get(f'select_{item.id}') == 'on':
                     try:
-                        qty = int(request.POST.get(f'quantity_{item.id}', 0))
+                        qty = float(request.POST.get(f'quantity_{item.id}', 0))
                         markup = float(request.POST.get(f'markup_{item.id}', 0))
                         transfer_unit = request.POST.get(f'transfer_unit_{item.id}', item.unit)
                         unit_conversion = float(request.POST.get(f'unit_conversion_{item.id}', 1))
@@ -1918,62 +2221,145 @@ def transfer_multiple_store_items(request):
                         errors.append(f"Unit conversion must be positive for {item.name}.")
                         continue
 
-                    # Calculate the new selling price using the markup.
-                    cost = item.cost_price
+                    # Get the original cost
+                    original_cost = item.cost_price
+
+                    # Calculate the destination quantity using the unit conversion
+                    # Convert both values to Decimal to avoid type errors
+                    dest_qty_per_source = Decimal(str(unit_conversion))
+
+                    # Adjust the cost based on the unit conversion
+                    # If converting from higher to lower unit (e.g., box to tablet), divide cost by conversion factor
+                    # If converting from lower to higher unit (e.g., tablet to box), multiply cost by conversion factor
+                    # The cost per unit should remain consistent
+                    if dest_qty_per_source > 1:  # Converting from higher to lower unit
+                        # For example: 1 box = 100 tablets, so cost per tablet = box_cost / 100
+                        adjusted_cost = original_cost / dest_qty_per_source
+                    else:  # Converting from lower to higher unit or same unit
+                        # For example: 100 tablets = 1 box, so cost per box = tablet_cost * 100
+                        adjusted_cost = original_cost * (Decimal('1') / dest_qty_per_source) if dest_qty_per_source > 0 else original_cost
+
+                    # Use the adjusted cost for price calculations
+                    cost = adjusted_cost
                     new_price = cost + (cost * Decimal(markup) / Decimal(100))
 
                     # Process transfer for this item.
                     if destination == "retail":
-                        dest_item, created = Item.objects.get_or_create(
+                        # First, try to find an exact match (same name, brand, and unit)
+                        exact_matches = Item.objects.filter(
                             name=item.name,
                             brand=item.brand,
-                            unit=transfer_unit,  # Use the selected transfer unit
-                            defaults={
-                                "dosage_form": item.dosage_form,
-                                "cost": cost,
-                                "price": new_price,
-                                "markup": markup,
-                                "stock": 0,
-                                "exp_date": item.expiry_date,
-                            }
-                        )
-                    else:  # destination == "wholesale"
-                        dest_item, created = WholesaleItem.objects.get_or_create(
-                            name=item.name,
-                            brand=item.brand,
-                            unit=transfer_unit,  # Use the selected transfer unit
-                            defaults={
-                                "dosage_form": item.dosage_form,
-                                "cost": cost,
-                                "price": new_price,
-                                "markup": markup,
-                                "stock": 0,
-                                "exp_date": item.expiry_date,
-                            }
+                            unit=transfer_unit
                         )
 
-                    # Calculate the destination quantity using the unit conversion
-                    dest_qty = qty * Decimal(str(unit_conversion))
+                        if exact_matches.exists():
+                            # Use the existing item with exact match
+                            dest_item = exact_matches.first()
+                            created = False
+                        else:
+                            # If no exact match, look for items with same name but different unit
+                            similar_items = Item.objects.filter(
+                                name=item.name,
+                                brand=item.brand
+                            )
+
+                            if similar_items.exists():
+                                # Use the first similar item but update its unit
+                                dest_item = similar_items.first()
+                                dest_item.unit = transfer_unit
+                                created = False
+                            else:
+                                # Create a new item if no match found
+                                dest_item = Item.objects.create(
+                                    name=item.name,
+                                    brand=item.brand,
+                                    unit=transfer_unit,
+                                    dosage_form=item.dosage_form,
+                                    cost=cost,
+                                    price=new_price,
+                                    markup=markup,
+                                    stock=0,
+                                    exp_date=item.expiry_date
+                                )
+                                created = True
+                    else:  # destination == "wholesale"
+                        # First, try to find an exact match (same name, brand, and unit)
+                        exact_matches = WholesaleItem.objects.filter(
+                            name=item.name,
+                            brand=item.brand,
+                            unit=transfer_unit
+                        )
+
+                        if exact_matches.exists():
+                            # Use the existing item with exact match
+                            dest_item = exact_matches.first()
+                            created = False
+                        else:
+                            # If no exact match, look for items with same name but different unit
+                            similar_items = WholesaleItem.objects.filter(
+                                name=item.name,
+                                brand=item.brand
+                            )
+
+                            if similar_items.exists():
+                                # Use the first similar item but update its unit
+                                dest_item = similar_items.first()
+                                dest_item.unit = transfer_unit
+                                created = False
+                            else:
+                                # Create a new item if no match found
+                                dest_item = WholesaleItem.objects.create(
+                                    name=item.name,
+                                    brand=item.brand,
+                                    unit=transfer_unit,
+                                    dosage_form=item.dosage_form,
+                                    cost=cost,
+                                    price=new_price,
+                                    markup=markup,
+                                    stock=0,
+                                    exp_date=item.expiry_date
+                                )
+                                created = True
+
+                    # Calculate the final destination quantity (source quantity * conversion factor)
+                    dest_qty = Decimal(str(qty)) * dest_qty_per_source
 
                     # Update the destination item's stock and key fields.
                     dest_item.stock += dest_qty
+
+                    # Always update the cost price
                     dest_item.cost = cost
-                    dest_item.markup = markup
-                    dest_item.price = new_price
+
+                    # Only update markup and price if explicitly requested or if it's a new item
+                    if markup > 0:
+                        dest_item.markup = markup
+                        dest_item.price = new_price
+
+                    # Update expiry date if the source item has a later expiry date
+                    if item.expiry_date and (not hasattr(dest_item, 'exp_date') or not dest_item.exp_date or item.expiry_date > dest_item.exp_date):
+                        dest_item.exp_date = item.expiry_date
+
                     dest_item.save()
 
                     # Deduct the transferred quantity from the store item.
-                    item.stock -= qty
+                    # Convert qty to Decimal to avoid type mismatch with item.stock
+                    item.stock -= Decimal(str(qty))
                     item.save()
 
                     # Remove the store item if its stock is zero or less.
-                    if item.stock <= 0:
+                    if item.stock <= Decimal('0'):
                         item.delete()
                         processed_items.append(
-                            f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit} and removed {item.name} from the store (stock reached zero)."
+                            f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit} and removed {item.name} from the store (stock reached zero). "
+                            f"Item was {'created' if created else 'updated'} in {destination}. "
+                            f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}."
                         )
                     else:
-                        processed_items.append(f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit}.")
+                        processed_items.append(
+                            f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit}. "
+                            f"Item was {'created' if created else 'updated'} in {destination}. "
+                            f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}."
+                        )
 
             # Use Django's messages framework to show errors/success messages.
             for error in errors:

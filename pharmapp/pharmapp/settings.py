@@ -30,7 +30,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     'whitenoise.runserver_nostatic',
     'django.contrib.humanize',
     'django_htmx',
@@ -55,6 +55,9 @@ MIDDLEWARE = [
     'pharmapp.middleware.ConnectionDetectionMiddleware',
     'pharmapp.middleware.SyncMiddleware',
     'pharmapp.middleware.OfflineMiddleware',
+    'userauth.middleware.ActivityMiddleware',  # Add ActivityMiddleware to log user actions
+    'userauth.middleware.RoleBasedAccessMiddleware',  # Add role-based access control
+    'userauth.middleware.AutoLogoutMiddleware',  # Add auto-logout functionality
 ]
 
 # CORS settings
@@ -89,6 +92,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'store.context_processors.marquee_context',
+                'userauth.context_processors.user_roles',
             ],
         },
     },
@@ -200,6 +204,9 @@ MESSAGE_TAGS = {
 # Set session to expire after 10 minutes (300 seconds) of inactivity
 SESSION_COOKIE_AGE = 1200  # 10 minutes in seconds
 SESSION_SAVE_EVERY_REQUEST = True  # Reset the session expiration time on each request
+
+# Auto logout settings
+AUTO_LOGOUT_DELAY = 20  # Auto logout after 20 minutes of inactivity
 
 
 

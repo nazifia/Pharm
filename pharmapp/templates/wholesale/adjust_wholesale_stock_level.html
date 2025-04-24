@@ -3,15 +3,17 @@
 {% block content %}
 <div class="container mt-4">
     <h2>{{ title }}</h2>
-    
+
     <div class="mb-3">
-        <input type="text" 
-               class="form-control" 
-               style="width: 300px; background-color: lightblue;" 
+        <input type="text"
+               class="form-control"
+               style="width: 300px; background-color: lightblue;"
                placeholder="Search Items..."
+               name="q"
                hx-get="{% url 'wholesale:search_wholesale_for_adjustment' %}"
                hx-target="#items-table"
-               hx-trigger="keyup changed delay:500ms">
+               hx-trigger="keyup changed delay:500ms"
+               hx-include="this">
     </div>
 
     <div class="table-responsive">

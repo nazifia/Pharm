@@ -32,16 +32,26 @@ class DispensingLogAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
 
-class ReceiptAdmin(admin.ModelAdmin):
-    list_display = ('sales', 'total_amount', 'date', 'receipt_id',)
-    list_filter = ('date',)
-    search_fields = ('customer__name', 'receipt_id',)
+class ReceiptPaymentInline(admin.TabularInline):
+    model = ReceiptPayment
+    extra = 1
 
+class ReceiptAdmin(admin.ModelAdmin):
+    list_display = ('sales', 'total_amount', 'date', 'receipt_id', 'payment_method', 'status')
+    list_filter = ('date', 'payment_method', 'status')
+    search_fields = ('customer__name', 'receipt_id')
+    inlines = [ReceiptPaymentInline]
+
+
+class WholesaleReceiptPaymentInline(admin.TabularInline):
+    model = WholesaleReceiptPayment
+    extra = 1
 
 class WholesaleReceiptAdmin(admin.ModelAdmin):
-    list_display = ( 'sales', 'total_amount', 'date', 'receipt_id',)
-    list_filter = ('date',)
-    search_fields = ( 'wholesale_customer__name', 'receipt_id',)
+    list_display = ('sales', 'total_amount', 'date', 'receipt_id', 'payment_method', 'status')
+    list_filter = ('date', 'payment_method', 'status')
+    search_fields = ('wholesale_customer__name', 'receipt_id')
+    inlines = [WholesaleReceiptPaymentInline]
 
 
 class StockCheckItemInline(admin.TabularInline):
@@ -73,6 +83,8 @@ admin.site.register(WholesaleCart, WholesaleCartAdmin)
 admin.site.register(DispensingLog, DispensingLogAdmin)
 admin.site.register(Receipt, ReceiptAdmin)
 admin.site.register(WholesaleReceipt, WholesaleReceiptAdmin)
+admin.site.register(ReceiptPayment)
+admin.site.register(WholesaleReceiptPayment)
 admin.site.register(StockCheckItem)
 admin.site.register(ExpenseCategory, ExpenseCategoryAdmin)
 admin.site.register(Expense, ExpenseAdmin)

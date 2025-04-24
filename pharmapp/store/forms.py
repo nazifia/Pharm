@@ -9,12 +9,15 @@ from django.forms import modelformset_factory
 UNIT = [
     ('Amp', 'Amp'),
     ('Bottle', 'Bottle'),
+    ('Drops', 'Drops'),
     ('Tab', 'Tab'),
     ('Tin', 'Tin'),
+    ('Can', 'Can'),
     ('Caps', 'Caps'),
     ('Card', 'Card'),
     ('Carton', 'Carton'),
     ('Pack', 'Pack'),
+    ('Sachets', 'Sachets'),
     ('Pcs', 'Pcs'),
     ('Roll', 'Roll'),
     ('Vail', 'Vail'),
@@ -88,6 +91,7 @@ class addItemForm(forms.ModelForm):
             ('Galenical', 'Galenical'),
             ('Solution', 'Solution'),
             ('Syrup', 'Syrup'),
+            ('Drops', 'Drops'),
             ('Suspension', 'Suspension'),
             ('Eye-drop', 'Eye-drop'),
             ('Ear-drop', 'Ear-drop'),
@@ -181,10 +185,14 @@ class ProcurementForm(forms.ModelForm):
 
 
 class ProcurementItemForm(forms.ModelForm):
+    # Add a hidden field for markup with a default value
+    markup = forms.FloatField(initial=0, required=False, widget=forms.HiddenInput())
+
     class Meta:
         model = ProcurementItem
         # Added 'expiry_date' so that it can be input via the form
-        fields = ['item_name', 'dosage_form', 'brand', 'unit', 'quantity', 'cost_price', 'expiry_date']
+        fields = ['item_name', 'dosage_form', 'brand', 'unit', 'quantity', 'cost_price', 'markup', 'expiry_date']
+        exclude = ['id', 'procurement', 'subtotal']
         widgets = {
             'item_name': forms.TextInput(attrs={'placeholder': 'Enter item name'}),
             'dosage_form': forms.Select(attrs={'placeholder': 'Dosage form'}),
@@ -193,7 +201,9 @@ class ProcurementItemForm(forms.ModelForm):
             'quantity': forms.NumberInput(attrs={'placeholder': 'Enter quantity'}),
             'cost_price': forms.NumberInput(attrs={'placeholder': 'Enter cost price'}),
             # Using a date input widget for the expiry_date field
-            'expiry_date': forms.DateInput(attrs={'placeholder': 'Select expiry date', 'type': 'date'}),
+            'expiry_date': forms.DateInput(attrs={'placeholder': 'Select expiry date', 'type': 'date', 'required': False}),
+            # Override the markup field to use a hidden input with a default value
+            'markup': forms.HiddenInput(),
         }
         labels = {
             'item_name': 'Item Name',
@@ -205,13 +215,67 @@ class ProcurementItemForm(forms.ModelForm):
             'expiry_date': 'Expiry Date',
         }
 
+    def clean(self):
+        cleaned_data = super().clean()
+        # If the form is empty (no item_name), don't validate other fields
+        if not cleaned_data.get('item_name'):
+            return cleaned_data
+
+        # Validate required fields only if item_name is provided
+        required_fields = ['dosage_form', 'unit', 'quantity', 'cost_price']
+        for field in required_fields:
+            if not cleaned_data.get(field):
+                self.add_error(field, f'{field} is required when adding an item')
+
+        # Validate quantity and cost_price are positive
+        quantity = cleaned_data.get('quantity')
+        if quantity is not None and quantity <= 0:
+            self.add_error('quantity', 'Quantity must be greater than zero')
+
+        cost_price = cleaned_data.get('cost_price')
+        if cost_price is not None and cost_price <= 0:
+            self.add_error('cost_price', 'Cost price must be greater than zero')
+
+        # Set default value for markup if not provided
+        if 'markup' not in cleaned_data or cleaned_data.get('markup') is None:
+            cleaned_data['markup'] = 0
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Ensure markup has a default value
+        if not hasattr(instance, 'markup') or instance.markup is None:
+            instance.markup = 0
+        if commit:
+            instance.save()
+        return instance
+
+
+# Create a custom formset that validates only non-empty forms
+class BaseProcurementItemFormSet(forms.BaseModelFormSet):
+    def clean(self):
+        super().clean()
+        # Check that at least one form is filled
+        if not any(form.cleaned_data.get('item_name') for form in self.forms if hasattr(form, 'cleaned_data')):
+            raise forms.ValidationError('At least one item must be added to the procurement.')
+
+    def _should_delete_form(self, form):
+        # Override to consider empty forms as to be deleted
+        if not form.has_changed() and not form.cleaned_data.get('item_name'):
+            return True
+        return super()._should_delete_form(form)
 
 # Ensure that the formset provides an extra form if needed and supports deletion.
 ProcurementItemFormSet = modelformset_factory(
     ProcurementItem,
     form=ProcurementItemForm,
+    formset=BaseProcurementItemFormSet,
     extra=1,         # Allows one blank form for new entries
-    can_delete=True  # Allows deletion of items dynamically
+    can_delete=True,  # Allows deletion of items dynamically
+    fields=['item_name', 'dosage_form', 'brand', 'unit', 'quantity', 'cost_price', 'markup', 'expiry_date'],
+    exclude=['id', 'procurement', 'subtotal'],  # Explicitly exclude these fields
+    validate_min=False  # Don't validate minimum number of forms
 )
 
 

@@ -1,0 +1,125 @@
+"""
+Permission utility functions for the pharmacy management system.
+These functions define role-based access control for different user types.
+"""
+
+from django.contrib.auth.decorators import user_passes_test
+from django.http import HttpResponseForbidden
+from django.shortcuts import redirect
+from django.contrib import messages
+from functools import wraps
+
+def is_admin(user):
+    """Check if user is an Admin"""
+    return user.is_authenticated and user.profile.user_type == 'Admin'
+
+def is_manager(user):
+    """Check if user is a Manager"""
+    return user.is_authenticated and user.profile.user_type == 'Manager'
+
+def is_pharmacist(user):
+    """Check if user is a Pharmacist"""
+    return user.is_authenticated and user.profile.user_type == 'Pharmacist'
+
+def is_pharm_tech(user):
+    """Check if user is a Pharmacy Technician"""
+    return user.is_authenticated and user.profile.user_type == 'Pharm-Tech'
+
+def is_salesperson(user):
+    """Check if user is a Salesperson"""
+    return user.is_authenticated and user.profile.user_type == 'Salesperson'
+
+# Combined role checks
+def is_admin_or_manager(user):
+    """Check if user is an Admin or Manager"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+def is_admin_or_pharmacist(user):
+    """Check if user is an Admin or Pharmacist"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Pharmacist']
+
+def is_pharmacist_or_pharm_tech(user):
+    """Check if user is a Pharmacist or Pharmacy Technician"""
+    return user.is_authenticated and user.profile.user_type in ['Pharmacist', 'Pharm-Tech']
+
+def is_admin_or_manager_or_pharmacist(user):
+    """Check if user is an Admin, Manager, or Pharmacist"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist']
+
+def can_dispense_medication(user):
+    """Check if user can dispense medication"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Pharmacist']
+
+def can_manage_inventory(user):
+    """Check if user can manage inventory"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharm-Tech']
+
+def can_process_sales(user):
+    """Check if user can process sales"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Pharm-Tech', 'Salesperson']
+
+def can_view_reports(user):
+    """Check if user can view reports"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+def can_manage_users(user):
+    """Check if user can manage users"""
+    return user.is_authenticated and user.profile.user_type == 'Admin'
+
+def can_approve_procurement(user):
+    """Check if user can approve procurement"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+def can_manage_customers(user):
+    """Check if user can manage customers"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist']
+
+def can_manage_suppliers(user):
+    """Check if user can manage suppliers"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+def can_manage_expenses(user):
+    """Check if user can manage expenses"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+def can_adjust_prices(user):
+    """Check if user can adjust prices"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+def can_process_returns(user):
+    """Check if user can process returns"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist']
+
+def can_approve_returns(user):
+    """Check if user can approve returns"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+def can_transfer_stock(user):
+    """Check if user can transfer stock"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharm-Tech']
+
+def can_view_activity_logs(user):
+    """Check if user can view activity logs"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+
+# Role-based access control decorator
+def role_required(allowed_roles):
+    """
+    Decorator for views that checks whether a user has a particular role.
+    Usage: @role_required(['Admin', 'Manager'])
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def _wrapped_view(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                messages.error(request, "Please log in to access this page.")
+                return redirect('store:index')
+
+            if request.user.profile.user_type in allowed_roles:
+                return view_func(request, *args, **kwargs)
+            else:
+                messages.error(request, f"Access denied. You need to be a {', '.join(allowed_roles)} to access this page.")
+                return redirect('store:dashboard')
+        return _wrapped_view
+    return decorator

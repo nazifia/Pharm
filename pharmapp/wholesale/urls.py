@@ -40,11 +40,12 @@ urlpatterns = [
 
     # Procurement URLs
     path('add_wholesale_procurement/', views.add_wholesale_procurement, name='add_wholesale_procurement'),
-    path('wholesale_procurement_list/', views.wholesale_procurement_list, name='wholesale_procurement_list'),
     path('wholesales_by_user/', views.wholesales_by_user, name='wholesales_by_user'),
-    path('wholesales_by_user/', views.wholesales_by_user, name='wholesales_by_user_table'),
+    path('wholesale_procurement_list/', views.wholesale_procurement_list, name='wholesale_procurement_list'),
     path('search_wholesale_procurement/', views.search_wholesale_procurement, name='search_wholesale_procurement'),
     path('wholesale_procurement_detail/<int:procurement_id>/', views.wholesale_procurement_detail, name='wholesale_procurement_detail'),
+    path('wholesale_procurement_form/', views.wholesale_procurement_form, name='wholesale_procurement_form'),
+    path('search_wholesale_items_for_procurement/', views.search_wholesale_items_for_procurement, name='search_wholesale_items_for_procurement'),
 
 
     # Stock Check URLs
@@ -56,6 +57,7 @@ urlpatterns = [
     path('wholesale_list/', views.list_wholesale_stock_checks, name='list_wholesale_stock_checks'),
     path('adjust-wholesale-stock/<int:stock_item_id>/', views.adjust_wholesale_stock, name='adjust_wholesale_stock'),
     path('search-wholesale-items/', views.search_wholesale_items, name='search_wholesale_items'),
+    # Search wholesale items for procurement URL has been removed
 
 
     # Request Transfer URLs
@@ -72,4 +74,7 @@ urlpatterns = [
 
     # Customer return items URL
     path('wholesale/return_items/<int:pk>/', views.return_wholesale_items_for_customer, name='return_wholesale_items_for_customer'),
+
+    # Wholesale Transfer URL
+    path('transfer/multiple/', views.transfer_multiple_wholesale_items, name='transfer_multiple_wholesale_items'),
 ]

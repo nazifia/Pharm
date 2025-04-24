@@ -24,6 +24,7 @@ DOSAGE_FORM = [
     ('Inhaler', 'Inhaler'),
     ('Suspension', 'Suspension'),
     ('Syrup', 'Syrup'),
+    ('Drops', 'Drops'),
     ('Solution', 'Solution'),
     ('Eye-drop', 'Eye-drop'),
     ('Ear-drop', 'Ear-drop'),
@@ -38,7 +39,7 @@ DOSAGE_FORM = [
     ('Sweets', 'Sweets'),
     ('Soaps', 'Soaps'),
     ('Biscuits', 'Biscuits'),
-    
+
 ]
 
 
@@ -46,7 +47,9 @@ UNIT = [
     ('Amp', 'Amp'),
     ('Bottle', 'Bottle'),
     ('Tab', 'Tab'),
+    ('Drops', 'Drops'),
     ('Tin', 'Tin'),
+    ('Can', 'Can'),
     ('Caps', 'Caps'),
     ('Card', 'Card'),
     ('Carton', 'Carton'),
@@ -271,6 +274,26 @@ class Sales(models.Model):
 
 
 
+# Payment model for tracking individual payments
+class Payment(models.Model):
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_method = models.CharField(max_length=20, choices=[
+        ('Cash', 'Cash'),
+        ('Wallet', 'Wallet'),
+        ('Transfer', 'Transfer'),
+    ])
+    status = models.CharField(max_length=20, choices=[
+        ('Paid', 'Paid'),
+        ('Unpaid', 'Unpaid'),
+    ], default='Paid')
+    date = models.DateTimeField(default=datetime.now)
+
+    class Meta:
+        abstract = True
+
+    def __str__(self):
+        return f"{self.payment_method} payment of {self.amount} ({self.status})"
+
 # Create your models here.
 class Receipt(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)
@@ -285,9 +308,11 @@ class Receipt(models.Model):
         ('Cash', 'Cash'),
         ('Wallet', 'Wallet'),
         ('Transfer', 'Transfer'),
+        ('Split', 'Split Payment'),
     ], default='Cash')
     status = models.CharField(max_length=20, choices=[
         ('Paid', 'Paid'),
+        ('Partially Paid', 'Partially Paid'),
         ('Unpaid', 'Unpaid'),
     ], default='Unpaid')
 
@@ -295,6 +320,18 @@ class Receipt(models.Model):
         name = self.customer.name if self.customer else "WALK-IN CUSTOMER"
         return f"Receipt {self.receipt_id} - {name} - {self.total_amount} on {self.date}"
 
+    @property
+    def is_split_payment(self):
+        return self.payment_method == 'Split' and hasattr(self, 'receipt_payments') and self.receipt_payments.exists()
+
+
+# Concrete implementation of Payment for retail receipts
+class ReceiptPayment(Payment):
+    receipt = models.ForeignKey('Receipt', on_delete=models.CASCADE, related_name='receipt_payments')
+
+    class Meta:
+        verbose_name = 'Receipt Payment'
+        verbose_name_plural = 'Receipt Payments'
 
 class WholesaleReceipt(models.Model):
     wholesale_customer = models.ForeignKey(WholesaleCustomer, on_delete=models.CASCADE, null=True, blank=True)
@@ -309,15 +346,29 @@ class WholesaleReceipt(models.Model):
         ('Cash', 'Cash'),
         ('Wallet', 'Wallet'),
         ('Transfer', 'Transfer'),
+        ('Split', 'Split Payment'),
     ], default='Cash')
     status = models.CharField(max_length=20, choices=[
         ('Paid', 'Paid'),
+        ('Partially Paid', 'Partially Paid'),
         ('Unpaid', 'Unpaid'),
     ], default='Unpaid')
 
     def __str__(self):
         name = self.wholesale_customer.name if self.wholesale_customer else "WALK-IN CUSTOMER"
         return f"WholesaleReceipt {self.receipt_id} - {name} - {self.total_amount} on {self.date}"
+
+    @property
+    def is_split_payment(self):
+        return self.payment_method == 'Split' and hasattr(self, 'wholesale_receipt_payments') and self.wholesale_receipt_payments.exists()
+
+# Concrete implementation of Payment for wholesale receipts
+class WholesaleReceiptPayment(Payment):
+    receipt = models.ForeignKey(WholesaleReceipt, on_delete=models.CASCADE, related_name='wholesale_receipt_payments')
+
+    class Meta:
+        verbose_name = 'Wholesale Receipt Payment'
+        verbose_name_plural = 'Wholesale Receipt Payments'
 
 
 
@@ -406,7 +457,7 @@ class StoreItem(models.Model):
     brand = models.CharField(max_length=255, null=True, blank=True, default='None')
     dosage_form = models.CharField(max_length=255, choices=DOSAGE_FORM, default='dosage_form')
     unit = models.CharField(max_length=100, choices=UNIT)
-    stock = models.PositiveIntegerField(default=0)
+    stock = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     cost_price = models.DecimalField(max_digits=10, decimal_places=2)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False, default=0)
     expiry_date = models.DateField(null=True, blank=True)

@@ -6,14 +6,15 @@
     <form action="{% url 'wholesale:add_to_wholesale' %}" method="post">
         {% csrf_token %}
         <input type="text" name="name" placeholder=" ENTER ITEM GENERIC NAME" class="form-control mt-3" required>
-        <!-- Unit Selection Dropdown -->
-        <select name="dosage_form" class="form-control mt-3" required>
-            <option value="Unit">Dosage form</option>
+        <!-- Dosage Form Selection Dropdown -->
+        <select name="dosage_form" id="dosage_form_select" class="form-control mt-3" onchange="toggleCustomDosageForm()">
+            <option value="">Select Dosage Form</option>
             <option value="Tablet">Tablet</option>
             <option value="Capsule">Capsule</option>
             <option value="Consumable">Consumable</option>
             <option value="Cream">Cream</option>
             <option value="Syrup">Syrup</option>
+            <option value="Drops">Drops</option>
             <option value="Solution">Solution</option>
             <option value="Suspension">Suspension</option>
             <option value="Eye-drop">Eye-drop</option>
@@ -26,7 +27,6 @@
             <option value="Biscuit">Biscuit</option>
             <option value="BiscuitSweets">BiscuitSweets</option>
             <option value="Paste">Paste</option>
-            <option value="Paste">Paste</option>
             <option value="Table-water">Table-water</option>
             <option value="Food-item">Food-item</option>
             <option value="Nasal">Nasal</option>
@@ -35,15 +35,21 @@
             <option value="Inhaler">Inhaler</option>
             <option value="Vaginal">Vaginal</option>
             <option value="Rectal">Rectal</option>
+            <option value="custom">Other (specify)</option>
         </select>
+
+        <!-- Custom Dosage Form input (hidden by default) -->
+        <input type="text" name="custom_dosage_form" id="custom_dosage_form" placeholder="Enter custom dosage form"
+               class="form-control mt-2" style="display: none;">
         <input type="text" name="brand" placeholder="BRAND NAME" class="form-control mt-3">
         <!-- Unit Selection Dropdown -->
-        <select name="unit" class="form-control mt-3" required>
-            <option value="Unit">Select Unit</option>
+        <select name="unit" id="unit_select" class="form-control mt-3" onchange="toggleCustomUnit()">
+            <option value="">Select Unit</option>
             <option value="Pcs">Pieces</option>
             <option value="Pack">Packets</option>
             <option value="Plastic">Plastic</option>
             <option value="Tab">Tablets</option>
+            <option value="Drops">Drops</option>
             <option value="Tin">Tins</option>
             <option value="Caps">Capsules</option>
             <option value="Carton">Cartons</option>
@@ -52,7 +58,12 @@
             <option value="Roll">Rolls</option>
             <option value="Vail">Vail</option>
             <option value="Amp">Ample</option>
+            <option value="custom">Other (specify)</option>
         </select>
+
+        <!-- Custom Unit input (hidden by default) -->
+        <input type="text" name="custom_unit" id="custom_unit" placeholder="Enter custom unit"
+               class="form-control mt-2" style="display: none;">
 
         <input type="number" name="cost" id="cost" step="0.01" placeholder="COST PRICE" class="form-control mt-3"
             oninput="calculatePrice()" required>
@@ -124,9 +135,39 @@
     const markupSelect = document.getElementById("markup");
     const priceInput = document.getElementById("price");
     const manualOverrideCheckbox = document.getElementById("manualPriceOverride");
+    const dosageFormSelect = document.getElementById("dosage_form_select");
+    const customDosageFormInput = document.getElementById("custom_dosage_form");
+    const unitSelect = document.getElementById("unit_select");
+    const customUnitInput = document.getElementById("custom_unit");
 
     // Initialize manual override flag
     let manualPriceOverride = false;
+
+    // Function to toggle custom dosage form input visibility
+    function toggleCustomDosageForm() {
+        if (dosageFormSelect.value === "custom") {
+            customDosageFormInput.style.display = "block";
+            customDosageFormInput.required = true;
+            dosageFormSelect.name = "dosage_form_select"; // Change the name so we use the custom value instead
+        } else {
+            customDosageFormInput.style.display = "none";
+            customDosageFormInput.required = false;
+            dosageFormSelect.name = "dosage_form"; // Restore original name
+        }
+    }
+
+    // Function to toggle custom unit input visibility
+    function toggleCustomUnit() {
+        if (unitSelect.value === "custom") {
+            customUnitInput.style.display = "block";
+            customUnitInput.required = true;
+            unitSelect.name = "unit_select"; // Change the name so we use the custom value instead
+        } else {
+            customUnitInput.style.display = "none";
+            customUnitInput.required = false;
+            unitSelect.name = "unit"; // Restore original name
+        }
+    }
 
     // Function to calculate price based on cost and markup
     function calculatePrice() {
@@ -158,4 +199,8 @@
 
     // Calculate initial price
     calculatePrice();
+
+    // Initialize the custom field visibility
+    toggleCustomDosageForm();
+    toggleCustomUnit();
 </script>
