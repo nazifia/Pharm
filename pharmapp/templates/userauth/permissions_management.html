@@ -58,9 +58,33 @@
                             <td><i class="fas fa-times text-danger"></i></td>
                         </tr>
                         <tr>
+                            <td>Delete Users</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
                             <td>View Activity Logs</td>
                             <td><i class="fas fa-check text-success"></i></td>
                             <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Access Admin Panel</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Manage System Settings</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
                             <td><i class="fas fa-times text-danger"></i></td>
                             <td><i class="fas fa-times text-danger"></i></td>
                             <td><i class="fas fa-times text-danger"></i></td>
@@ -137,6 +161,30 @@
                             <td><i class="fas fa-check text-success"></i></td>
                         </tr>
                         <tr>
+                            <td>Process Split Payments</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Override Payment Status</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Manage Payment Methods</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
                             <td>Dispense Medication</td>
                             <td><i class="fas fa-check text-success"></i></td>
                             <td><i class="fas fa-times text-danger"></i></td>
@@ -159,6 +207,14 @@
                             <td><i class="fas fa-times text-danger"></i></td>
                             <td><i class="fas fa-times text-danger"></i></td>
                             <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>View Sales History</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
                         </tr>
 
                         <!-- Procurement & Suppliers -->
@@ -187,6 +243,22 @@
                             <td><i class="fas fa-check text-success"></i></td>
                             <td><i class="fas fa-times text-danger"></i></td>
                             <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>Pause/Resume Procurement</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-times text-danger"></i></td>
+                        </tr>
+                        <tr>
+                            <td>View Procurement History</td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
+                            <td><i class="fas fa-check text-success"></i></td>
                             <td><i class="fas fa-times text-danger"></i></td>
                         </tr>
 
@@ -227,6 +299,14 @@
     <div class="alert alert-info">
         <h5><i class="fas fa-info-circle"></i> About Role-Based Permissions</h5>
         <p>This system implements role-based access control (RBAC) to ensure that users can only access features appropriate for their role. The permissions shown above are enforced throughout the application.</p>
+        <p>Each user type has specific permissions designed to match their responsibilities:</p>
+        <ul>
+            <li><strong>Admin:</strong> Full access to all system features, including user management, system settings, and administrative functions.</li>
+            <li><strong>Manager:</strong> Access to financial reports, inventory management, and operational oversight, but limited access to system administration.</li>
+            <li><strong>Pharmacist:</strong> Specialized access for medication dispensing, customer management, and sales processing with a focus on pharmaceutical operations.</li>
+            <li><strong>Pharm-Tech:</strong> Access to inventory management, procurement, and sales processing to support pharmacists and daily operations.</li>
+            <li><strong>Salesperson:</strong> Limited access focused on sales processing, customer registration, and basic customer service functions.</li>
+        </ul>
         <p>If you need to modify these permissions, please contact the system administrator.</p>
     </div>
 </div>

@@ -102,6 +102,54 @@ def can_view_activity_logs(user):
     """Check if user can view activity logs"""
     return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
 
+def can_perform_stock_check(user):
+    """Check if user can perform stock checks"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharm-Tech']
+
+def can_view_financial_reports(user):
+    """Check if user can view financial reports"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+def can_edit_user_profiles(user):
+    """Check if user can edit user profiles"""
+    return user.is_authenticated and user.profile.user_type == 'Admin'
+
+def can_access_admin_panel(user):
+    """Check if user can access the admin panel"""
+    return user.is_authenticated and user.profile.user_type == 'Admin'
+
+def can_manage_system_settings(user):
+    """Check if user can manage system settings"""
+    return user.is_authenticated and user.profile.user_type == 'Admin'
+
+def can_view_sales_history(user):
+    """Check if user can view sales history"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Pharm-Tech', 'Salesperson']
+
+def can_view_procurement_history(user):
+    """Check if user can view procurement history"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharm-Tech']
+
+def can_manage_payment_methods(user):
+    """Check if user can manage payment methods"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+def can_process_split_payments(user):
+    """Check if user can process split payments"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Pharm-Tech', 'Salesperson']
+
+def can_override_payment_status(user):
+    """Check if user can override payment status"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+def can_pause_resume_procurement(user):
+    """Check if user can pause or resume procurement"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharm-Tech']
+
+def can_search_items(user):
+    """Check if user can search items"""
+    return user.is_authenticated
+
 
 # Role-based access control decorator
 def role_required(allowed_roles):

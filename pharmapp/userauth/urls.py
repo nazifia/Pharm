@@ -9,4 +9,10 @@ urlpatterns = [
     path('activity/', views.activity_dashboard, name='activity_dashboard'),
     path('activity/generate-test-logs/', views.generate_test_logs, name='generate_test_logs'),
     path('permissions/', views.permissions_management, name='permissions_management'),
+
+    # User management URLs
+    path('users/', views.user_list, name='user_list'),
+    path('users/edit/<int:user_id>/', views.edit_user, name='edit_user'),
+    path('users/delete/<int:user_id>/', views.delete_user, name='delete_user'),
+    path('users/toggle-status/<int:user_id>/', views.toggle_user_status, name='toggle_user_status'),
 ]

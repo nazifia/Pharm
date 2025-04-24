@@ -57,16 +57,51 @@ class ProfileAdmin(admin.ModelAdmin):
     list_display = ('full_name',)
     search_fields = ('full_name',)
 
+class ActionTypeFilter(admin.SimpleListFilter):
+    title = 'action type'
+    parameter_name = 'action_type'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('LOGIN', 'Login'),
+            ('LOGOUT', 'Logout'),
+            ('CREATE', 'Create'),
+            ('UPDATE', 'Update'),
+            ('DELETE', 'Delete'),
+            ('VIEW', 'View'),
+            ('EXPORT', 'Export'),
+            ('IMPORT', 'Import'),
+            ('TRANSFER', 'Transfer'),
+            ('PAYMENT', 'Payment'),
+            ('OTHER', 'Other'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(action_type=self.value())
+        return queryset
+
 class ActivityLogAdmin(admin.ModelAdmin):
-    list_display = ('user', 'user_type', 'action', 'timestamp', 'formatted_timestamp')
-    list_filter = (TimePeriodFilter, 'user__profile__user_type', 'timestamp')
-    search_fields = ('user__username', 'user__mobile', 'action')
+    list_display = ('user', 'user_type', 'action_type', 'action', 'target_model', 'target_id', 'ip_address', 'timestamp', 'formatted_timestamp')
+    list_filter = (TimePeriodFilter, ActionTypeFilter, 'user__profile__user_type', 'target_model', 'timestamp')
+    search_fields = ('user__username', 'user__mobile', 'action', 'target_model', 'target_id', 'ip_address')
     date_hierarchy = 'timestamp'
     list_per_page = 50
-    readonly_fields = ('user', 'action', 'timestamp')
+    readonly_fields = ('user', 'action', 'action_type', 'target_model', 'target_id', 'ip_address', 'user_agent', 'timestamp')
     change_list_template = 'admin/userauth/activitylog/change_list.html'
     actions = ['export_as_csv']
     ordering = ('-timestamp',)
+    fieldsets = (
+        ('User Information', {
+            'fields': ('user', 'user_type')
+        }),
+        ('Action Details', {
+            'fields': ('action', 'action_type', 'target_model', 'target_id')
+        }),
+        ('Technical Details', {
+            'fields': ('ip_address', 'user_agent', 'timestamp')
+        }),
+    )
 
     def user_type(self, obj):
         try:
@@ -92,7 +127,12 @@ class ActivityLogAdmin(admin.ModelAdmin):
         writer.writerow([
             smart_str('User'),
             smart_str('User Type'),
+            smart_str('Action Type'),
             smart_str('Action'),
+            smart_str('Target Model'),
+            smart_str('Target ID'),
+            smart_str('IP Address'),
+            smart_str('User Agent'),
             smart_str('Timestamp'),
         ])
 
@@ -106,7 +146,12 @@ class ActivityLogAdmin(admin.ModelAdmin):
             writer.writerow([
                 smart_str(obj.user.username),
                 smart_str(user_type),
+                smart_str(obj.action_type),
                 smart_str(obj.action),
+                smart_str(obj.target_model or 'N/A'),
+                smart_str(obj.target_id or 'N/A'),
+                smart_str(obj.ip_address or 'N/A'),
+                smart_str(obj.user_agent[:100] if obj.user_agent else 'N/A'),  # Truncate user agent to avoid CSV issues
                 smart_str(obj.timestamp.strftime('%Y-%m-%d %H:%M:%S')),
             ])
 
@@ -126,7 +171,7 @@ class ActivityLogAdmin(admin.ModelAdmin):
 
         # Get active users count (users with activity in the last 7 days)
         last_week = today - datetime.timedelta(days=7)
-        active_users = User.objects.filter(activitylog__timestamp__gte=last_week).distinct().count()
+        active_users = User.objects.filter(activities__timestamp__gte=last_week).distinct().count()
 
         # Add to context
         extra_context = extra_context or {}

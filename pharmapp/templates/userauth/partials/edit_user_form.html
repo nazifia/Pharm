@@ -1,0 +1,86 @@
+<div class="modal-header">
+    <h5 class="modal-title" id="editUserModalLabel">Edit User: {{ user_to_edit.username }}</h5>
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+    </button>
+</div>
+<div class="modal-body">
+    <form id="editUserForm" method="POST" action="{% url 'userauth:edit_user' user_to_edit.id %}" hx-post="{% url 'userauth:edit_user' user_to_edit.id %}" hx-target="#user-row-{{ user_to_edit.id }}" hx-swap="outerHTML">
+        {% csrf_token %}
+        
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="id_full_name">Full Name</label>
+                {{ form.full_name }}
+                {% if form.full_name.errors %}
+                    <div class="invalid-feedback d-block">
+                        {{ form.full_name.errors|join:", " }}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+                <label for="id_username">Username</label>
+                {{ form.username }}
+                {% if form.username.errors %}
+                    <div class="invalid-feedback d-block">
+                        {{ form.username.errors|join:", " }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="id_mobile">Mobile Number</label>
+                {{ form.mobile }}
+                {% if form.mobile.errors %}
+                    <div class="invalid-feedback d-block">
+                        {{ form.mobile.errors|join:", " }}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+                <label for="id_email">Email (Optional)</label>
+                {{ form.email }}
+                {% if form.email.errors %}
+                    <div class="invalid-feedback d-block">
+                        {{ form.email.errors|join:", " }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="id_user_type">User Type</label>
+                {{ form.user_type }}
+                {% if form.user_type.errors %}
+                    <div class="invalid-feedback d-block">
+                        {{ form.user_type.errors|join:", " }}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+                <div class="form-check mt-4">
+                    {{ form.is_active }}
+                    <label class="form-check-label" for="id_is_active">
+                        Active Account
+                    </label>
+                    {% if form.is_active.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.is_active.errors|join:", " }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+    </form>
+</div>

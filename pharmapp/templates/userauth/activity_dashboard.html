@@ -62,7 +62,9 @@
                                 <tr>
                                     <th>User</th>
                                     <th>User Type</th>
+                                    <th>Action Type</th>
                                     <th>Action</th>
+                                    <th>Target</th>
                                     <th>Timestamp</th>
                                 </tr>
                             </thead>
@@ -72,17 +74,54 @@
                                     <td>{{ log.user.username }}</td>
                                     <td>
                                         {% if log.user.profile.user_type %}
-                                            {{ log.user.profile.user_type }}
+                                            <span class="badge badge-primary">{{ log.user.profile.user_type }}</span>
                                         {% else %}
-                                            N/A
+                                            <span class="badge badge-secondary">N/A</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ log.action }}</td>
+                                    <td>
+                                        {% if log.action_type == 'LOGIN' %}
+                                            <span class="badge badge-success">Login</span>
+                                        {% elif log.action_type == 'LOGOUT' %}
+                                            <span class="badge badge-warning">Logout</span>
+                                        {% elif log.action_type == 'CREATE' %}
+                                            <span class="badge badge-info">Create</span>
+                                        {% elif log.action_type == 'UPDATE' %}
+                                            <span class="badge badge-primary">Update</span>
+                                        {% elif log.action_type == 'DELETE' %}
+                                            <span class="badge badge-danger">Delete</span>
+                                        {% elif log.action_type == 'VIEW' %}
+                                            <span class="badge badge-secondary">View</span>
+                                        {% elif log.action_type == 'EXPORT' %}
+                                            <span class="badge badge-dark">Export</span>
+                                        {% elif log.action_type == 'IMPORT' %}
+                                            <span class="badge badge-light">Import</span>
+                                        {% elif log.action_type == 'TRANSFER' %}
+                                            <span class="badge badge-info">Transfer</span>
+                                        {% elif log.action_type == 'PAYMENT' %}
+                                            <span class="badge badge-success">Payment</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">{{ log.action_type }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small>{{ log.action|truncatechars:50 }}</small>
+                                    </td>
+                                    <td>
+                                        {% if log.target_model %}
+                                            <span class="badge badge-info">{{ log.target_model }}</span>
+                                            {% if log.target_id %}
+                                                <small class="text-muted">#{{ log.target_id }}</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <small class="text-muted">N/A</small>
+                                        {% endif %}
+                                    </td>
                                     <td>{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center">No activity logs found.</td>
+                                    <td colspan="6" class="text-center">No activity logs found.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
