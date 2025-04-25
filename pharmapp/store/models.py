@@ -34,6 +34,7 @@ DOSAGE_FORM = [
     ('Detergent', 'Detergent'),
     ('Drinks', 'Drinks'),
     ('Paste', 'Paste'),
+    ('Patch', 'Patch'),
     ('Table-water', 'Table-water'),
     ('Food-item', 'Food-item'),
     ('Sweets', 'Sweets'),
@@ -121,9 +122,9 @@ class Formulation(models.Model):
 
 class Item(models.Model):
     name = models.CharField(max_length=200)
-    dosage_form = models.CharField(max_length=200, choices=DOSAGE_FORM, blank=True, null=True)
+    dosage_form = models.CharField(max_length=200, blank=True, null=True)  # Removed choices to allow any value
     brand = models.CharField(max_length=200, blank=True, null=True)
-    unit = models.CharField(max_length=200, choices=UNIT, blank=True, null=True)
+    unit = models.CharField(max_length=200, blank=True, null=True)  # Removed choices to allow any value
     cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     markup = models.DecimalField(max_digits=6, decimal_places=2, default=0, choices=MARKUP_CHOICES)
@@ -148,9 +149,9 @@ class Item(models.Model):
 
 class WholesaleItem(models.Model):
     name = models.CharField(max_length=200)
-    dosage_form = models.CharField(max_length=200, choices=DOSAGE_FORM, blank=True, null=True)
+    dosage_form = models.CharField(max_length=200, blank=True, null=True)  # Removed choices to allow any value
     brand = models.CharField(max_length=200, blank=True, null=True)
-    unit = models.CharField(max_length=200, choices=UNIT, blank=True, null=True)
+    unit = models.CharField(max_length=200, blank=True, null=True)  # Removed choices to allow any value
     cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     markup = models.DecimalField(max_digits=6, decimal_places=2, default=0, choices=MARKUP_CHOICES)
@@ -455,8 +456,8 @@ class Supplier(models.Model):
 class StoreItem(models.Model):
     name = models.CharField(max_length=255)
     brand = models.CharField(max_length=255, null=True, blank=True, default='None')
-    dosage_form = models.CharField(max_length=255, choices=DOSAGE_FORM, default='dosage_form')
-    unit = models.CharField(max_length=100, choices=UNIT)
+    dosage_form = models.CharField(max_length=255, default='dosage_form')  # Removed choices to allow any value
+    unit = models.CharField(max_length=100)  # Removed choices to allow any value
     stock = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     cost_price = models.DecimalField(max_digits=10, decimal_places=2)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False, default=0)

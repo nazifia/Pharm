@@ -32,6 +32,7 @@ DOSAGE_FORM = [
     ('Detergent', 'Detergent'),
     ('Drinks', 'Drinks'),
     ('Paste', 'Paste'),
+    ('Patch', 'Patch'),
     ('Table-water', 'Table-water'),
     ('Food-item', 'Food-item'),
     ('Sweets', 'Sweets'),

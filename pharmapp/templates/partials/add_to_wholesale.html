@@ -6,13 +6,16 @@
     <form action="{% url 'wholesale:add_to_wholesale' %}" method="post">
         {% csrf_token %}
         <input type="text" name="name" placeholder=" ENTER ITEM GENERIC NAME" class="form-control mt-3" required>
+        <!-- Hidden input for dosage_form that will be set by the dropdown or custom input -->
+        <input type="hidden" name="dosage_form" id="dosage_form_hidden">
         <!-- Dosage Form Selection Dropdown -->
-        <select name="dosage_form" id="dosage_form_select" class="form-control mt-3" onchange="toggleCustomDosageForm()">
+        <select name="dosage_form_select" id="dosage_form_select" class="form-control mt-3" onchange="toggleCustomDosageForm()">
             <option value="">Select Dosage Form</option>
             <option value="Tablet">Tablet</option>
             <option value="Capsule">Capsule</option>
             <option value="Consumable">Consumable</option>
             <option value="Cream">Cream</option>
+            <option value="Patch">Patch</option>
             <option value="Syrup">Syrup</option>
             <option value="Drops">Drops</option>
             <option value="Solution">Solution</option>
@@ -42,8 +45,10 @@
         <input type="text" name="custom_dosage_form" id="custom_dosage_form" placeholder="Enter custom dosage form"
                class="form-control mt-2" style="display: none;">
         <input type="text" name="brand" placeholder="BRAND NAME" class="form-control mt-3">
+        <!-- Hidden input for unit that will be set by the dropdown or custom input -->
+        <input type="hidden" name="unit" id="unit_hidden">
         <!-- Unit Selection Dropdown -->
-        <select name="unit" id="unit_select" class="form-control mt-3" onchange="toggleCustomUnit()">
+        <select name="unit_select" id="unit_select" class="form-control mt-3" onchange="toggleCustomUnit()">
             <option value="">Select Unit</option>
             <option value="Pcs">Pieces</option>
             <option value="Pack">Packets</option>
@@ -145,27 +150,45 @@
 
     // Function to toggle custom dosage form input visibility
     function toggleCustomDosageForm() {
+        const dosageFormHidden = document.getElementById('dosage_form_hidden');
+
         if (dosageFormSelect.value === "custom") {
             customDosageFormInput.style.display = "block";
             customDosageFormInput.required = true;
-            dosageFormSelect.name = "dosage_form_select"; // Change the name so we use the custom value instead
+            // Set focus on the custom input field for better UX
+            setTimeout(() => customDosageFormInput.focus(), 100);
+
+            // Update hidden field when custom input changes
+            customDosageFormInput.addEventListener('input', function() {
+                dosageFormHidden.value = this.value;
+            });
         } else {
             customDosageFormInput.style.display = "none";
             customDosageFormInput.required = false;
-            dosageFormSelect.name = "dosage_form"; // Restore original name
+            // Set the hidden dosage_form value to the selected option
+            dosageFormHidden.value = dosageFormSelect.value;
         }
     }
 
     // Function to toggle custom unit input visibility
     function toggleCustomUnit() {
+        const unitHidden = document.getElementById('unit_hidden');
+
         if (unitSelect.value === "custom") {
             customUnitInput.style.display = "block";
             customUnitInput.required = true;
-            unitSelect.name = "unit_select"; // Change the name so we use the custom value instead
+            // Set focus on the custom input field for better UX
+            setTimeout(() => customUnitInput.focus(), 100);
+
+            // Update hidden field when custom input changes
+            customUnitInput.addEventListener('input', function() {
+                unitHidden.value = this.value;
+            });
         } else {
             customUnitInput.style.display = "none";
             customUnitInput.required = false;
-            unitSelect.name = "unit"; // Restore original name
+            // Set the hidden unit value to the selected option
+            unitHidden.value = unitSelect.value;
         }
     }
 
@@ -200,7 +223,11 @@
     // Calculate initial price
     calculatePrice();
 
-    // Initialize the custom field visibility
+    // Initialize the custom field visibility and set initial values
     toggleCustomDosageForm();
     toggleCustomUnit();
+
+    // Set initial values for hidden fields
+    document.getElementById('dosage_form_hidden').value = dosageFormSelect.value !== 'custom' ? dosageFormSelect.value : '';
+    document.getElementById('unit_hidden').value = unitSelect.value !== 'custom' ? unitSelect.value : '';
 </script>

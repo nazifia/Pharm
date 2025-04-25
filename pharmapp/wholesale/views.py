@@ -232,39 +232,9 @@ def search_wholesale_item(request):
 def add_to_wholesale(request):
     if request.user.is_authenticated:
         if request.method == 'POST':
-            # Check if custom dosage form is selected
-            if 'dosage_form_select' in request.POST and request.POST.get('custom_dosage_form'):
-                # Use the custom dosage form value
-                custom_dosage_form = request.POST.get('custom_dosage_form')
-                # Create a copy of POST data to modify
-                post_data = request.POST.copy()
-                post_data['dosage_form'] = custom_dosage_form
-                # Remove the custom field to avoid form validation errors
-                post_data.pop('dosage_form_select', None)
-                form = addWholesaleForm(post_data)
-            # Check if custom unit is selected
-            elif 'unit_select' in request.POST and request.POST.get('custom_unit'):
-                # Use the custom unit value
-                custom_unit = request.POST.get('custom_unit')
-                # Create a copy of POST data to modify
-                post_data = request.POST.copy()
-                post_data['unit'] = custom_unit
-                # Remove the custom field to avoid form validation errors
-                post_data.pop('unit_select', None)
-                form = addWholesaleForm(post_data)
-            # Handle both custom dosage form and custom unit
-            elif ('dosage_form_select' in request.POST and request.POST.get('custom_dosage_form') and
-                  'unit_select' in request.POST and request.POST.get('custom_unit')):
-                # Create a copy of POST data to modify
-                post_data = request.POST.copy()
-                post_data['dosage_form'] = request.POST.get('custom_dosage_form')
-                post_data['unit'] = request.POST.get('custom_unit')
-                # Remove the custom fields to avoid form validation errors
-                post_data.pop('dosage_form_select', None)
-                post_data.pop('unit_select', None)
-                form = addWholesaleForm(post_data)
-            else:
-                form = addWholesaleForm(request.POST)
+            # The form now uses hidden fields for dosage_form and unit
+            # which are set by JavaScript, so we can use the form directly
+            form = addWholesaleForm(request.POST)
 
             if form.is_valid():
                 item = form.save(commit=False)

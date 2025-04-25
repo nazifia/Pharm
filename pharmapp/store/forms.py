@@ -81,32 +81,9 @@ class EditUserProfileForm(UserChangeForm):
 
 class addItemForm(forms.ModelForm):
     name = forms.CharField(max_length=200)
-    dosage_form = forms.ChoiceField(
-        choices=[
-            ('Unit', 'Dosage form'),
-            ('Tablet', 'Tablet'),
-            ('Capsule', 'Capsule'),
-            ('Consumable', 'Consumable'),
-            ('Cream', 'Cream'),
-            ('Galenical', 'Galenical'),
-            ('Solution', 'Solution'),
-            ('Syrup', 'Syrup'),
-            ('Drops', 'Drops'),
-            ('Suspension', 'Suspension'),
-            ('Eye-drop', 'Eye-drop'),
-            ('Ear-drop', 'Ear-drop'),
-            ('Eye-ointment', 'Eye-ointment'),
-            ('Nasal', 'Nasal'),
-            ('Injection', 'Injection'),
-            ('Infusion', 'Infusion'),
-            ('Inhaler', 'Inhaler'),
-            ('Vaginal', 'Vaginal'),
-            ('Rectal', 'Rectal'),
-        ],
-        widget=forms.Select(attrs={'class': 'form-control mt-3'}),
-    )
+    dosage_form = forms.CharField(max_length=200)  # Changed to CharField to allow any value
     brand = forms.CharField(max_length=200)
-    unit = forms.CharField(max_length=200)
+    unit = forms.CharField(max_length=200)  # Already a CharField
     cost = forms.DecimalField(max_digits=12, decimal_places=2)
     markup = forms.DecimalField(max_digits=6, decimal_places=2)
     price = forms.DecimalField(max_digits=12, decimal_places=2, required=False)
