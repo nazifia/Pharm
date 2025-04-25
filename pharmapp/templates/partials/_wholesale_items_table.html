@@ -1,7 +1,7 @@
 {% for item in wholesale_items %}
 <tr id="wholesale-item-{{ item.id }}">
   <td>
-    <input type="checkbox" name="select_{{ item.id }}">
+    <input type="checkbox" name="select_{{ item.id }}" class="item-checkbox">
   </td>
   <td>{{ item.name|upper }}</td>
   <td>{{ item.dosage_form }}</td>
@@ -79,3 +79,40 @@
   </td>
 </tr>
 {% endfor %}
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Update the select-all checkbox state based on the loaded items
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    const itemCheckboxes = document.querySelectorAll('.item-checkbox');
+
+    if (selectAllCheckbox) {
+      // Add event listener to the "Select All" checkbox
+      selectAllCheckbox.addEventListener('change', function() {
+        const isChecked = this.checked;
+
+        // Update all item checkboxes
+        itemCheckboxes.forEach(function(checkbox) {
+          checkbox.checked = isChecked;
+        });
+      });
+
+      // Add event listeners to individual checkboxes to update "Select All" state
+      itemCheckboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', updateSelectAllCheckbox);
+      });
+
+      // Initial update of the select-all checkbox state
+      updateSelectAllCheckbox();
+    }
+
+    // Function to update the "Select All" checkbox based on individual checkboxes
+    function updateSelectAllCheckbox() {
+      const allChecked = Array.from(itemCheckboxes).every(checkbox => checkbox.checked);
+      const someChecked = Array.from(itemCheckboxes).some(checkbox => checkbox.checked);
+
+      selectAllCheckbox.checked = allChecked;
+      selectAllCheckbox.indeterminate = someChecked && !allChecked;
+    }
+  });
+</script>

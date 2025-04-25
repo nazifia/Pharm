@@ -1,4 +1,5 @@
 {% extends "partials/base.html" %}
+{% load humanize %}
 {% block content %}
 <style>
     .procurement-list {
@@ -117,7 +118,7 @@
                             {% endif %}
                         </td>
                         <td>{{ procurement.date }}</td>
-                        <td>₦{{ procurement.calculated_total|default:procurement.total|floatformat:2 }}</td>
+                        <td>₦{{ procurement.calculated_total|default:procurement.total|floatformat:2|intcomma }}</td>
                         <td class="status-{{ procurement.status }}">{{ procurement.status|title }}</td>
                         <td>
                             <a href="{% url 'store:procurement_detail' procurement.id %}" class="btn btn-info btn-sm">View</a>

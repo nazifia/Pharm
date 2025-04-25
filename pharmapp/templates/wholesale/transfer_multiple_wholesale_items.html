@@ -28,7 +28,10 @@
     <table class="table table-bordered shadow table-hover table-responsive">
       <thead class="table-secondary">
         <tr>
-          <th>Select</th>
+          <th>
+            <input type="checkbox" id="select-all-checkbox" title="Select All">
+            <label for="select-all-checkbox" class="ml-1">Select All</label>
+          </th>
           <th>Item Name</th>
           <th>D/form</th>
           <th>Brand</th>
@@ -46,7 +49,7 @@
         {% for item in wholesale_items %}
         <tr id="wholesale-item-{{ item.id }}">
           <td>
-            <input type="checkbox" name="select_{{ item.id }}">
+            <input type="checkbox" name="select_{{ item.id }}" class="item-checkbox">
           </td>
           <td>{{ item.name|upper }}</td>
           <td>{{ item.dosage_form }}</td>
@@ -131,23 +134,50 @@
 </div>
 
 <script>
-  // When the form is submitted, disable inputs/selects in rows that are NOT selected
-  document.getElementById("transfer-form").addEventListener("submit", function(e) {
-    const checkboxes = document.querySelectorAll("input[type='checkbox'][name^='select_']");
-    checkboxes.forEach(function(checkbox) {
-      if (!checkbox.checked) {
-        const row = checkbox.closest("tr");
-        if (row) {
-          row.querySelectorAll("input, select").forEach(function(el) {
-            el.disabled = true;
-          });
-        }
-      }
-    });
-  });
-
-  // Update the conversion label when the unit or conversion value changes
   document.addEventListener('DOMContentLoaded', function() {
+    // Select All checkbox functionality
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    const itemCheckboxes = document.querySelectorAll('.item-checkbox');
+
+    // Add event listener to the "Select All" checkbox
+    selectAllCheckbox.addEventListener('change', function() {
+      const isChecked = this.checked;
+
+      // Update all item checkboxes
+      itemCheckboxes.forEach(function(checkbox) {
+        checkbox.checked = isChecked;
+      });
+    });
+
+    // Add event listeners to individual checkboxes to update "Select All" state
+    itemCheckboxes.forEach(function(checkbox) {
+      checkbox.addEventListener('change', updateSelectAllCheckbox);
+    });
+
+    // Function to update the "Select All" checkbox based on individual checkboxes
+    function updateSelectAllCheckbox() {
+      const allChecked = Array.from(itemCheckboxes).every(checkbox => checkbox.checked);
+      const someChecked = Array.from(itemCheckboxes).some(checkbox => checkbox.checked);
+
+      selectAllCheckbox.checked = allChecked;
+      selectAllCheckbox.indeterminate = someChecked && !allChecked;
+    }
+
+    // Form submission handler
+    document.getElementById("transfer-form").addEventListener("submit", function(e) {
+      const checkboxes = document.querySelectorAll("input[type='checkbox'][name^='select_']");
+      checkboxes.forEach(function(checkbox) {
+        if (!checkbox.checked) {
+          const row = checkbox.closest("tr");
+          if (row) {
+            row.querySelectorAll("input, select").forEach(function(el) {
+              el.disabled = true;
+            });
+          }
+        }
+      });
+    });
+
     // Handle unit selection change
     const unitSelects = document.querySelectorAll('.unit-select');
     unitSelects.forEach(function(select) {
@@ -168,7 +198,7 @@
       const row = this.closest('tr');
 
       // If called directly on page load, we need to get the itemId differently
-      const actualItemId = itemId || this.querySelector('.unit-select').getAttribute('data-item-id');
+      const actualItemId = itemId || this.querySelector('.unit-select')?.getAttribute('data-item-id');
 
       const sourceUnit = row.querySelector('td:nth-child(5)').textContent.trim();
       const targetUnit = row.querySelector('.unit-select').value;
