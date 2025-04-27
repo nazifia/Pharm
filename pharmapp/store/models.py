@@ -260,13 +260,7 @@ class Sales(models.Model):
                 amount=self.total_amount,
                 description='Items purchased'
             )
-            # Create a Receipt only if one doesn't exist for this sale
-            if not Receipt.objects.filter(sales=self).exists():
-                Receipt.objects.create(
-                    customer=self.customer,
-                    sales=self,
-                    total_amount=self.total_amount
-                )
+            # Removed automatic receipt creation to prevent double receipts
 
     def calculate_total_amount(self):
         self.total_amount = sum(item.price * item.quantity for item in self.sales_items.all())
@@ -315,7 +309,7 @@ class Receipt(models.Model):
         ('Paid', 'Paid'),
         ('Partially Paid', 'Partially Paid'),
         ('Unpaid', 'Unpaid'),
-    ], default='Unpaid')
+    ], default='Paid')
 
     def __str__(self):
         name = self.customer.name if self.customer else "WALK-IN CUSTOMER"
@@ -353,7 +347,7 @@ class WholesaleReceipt(models.Model):
         ('Paid', 'Paid'),
         ('Partially Paid', 'Partially Paid'),
         ('Unpaid', 'Unpaid'),
-    ], default='Unpaid')
+    ], default='Paid')
 
     def __str__(self):
         name = self.wholesale_customer.name if self.wholesale_customer else "WALK-IN CUSTOMER"

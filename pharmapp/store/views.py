@@ -14,7 +14,7 @@ from .models import *
 from .forms import *
 from django.contrib import messages
 from django.db import transaction
-from datetime import datetime,  timedelta
+from datetime import datetime, timedelta
 from django.views.decorators.http import require_POST
 from django.db.models import Q, F, ExpressionWrapper, Sum, DecimalField
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -487,8 +487,15 @@ def clear_cart(request):
 @login_required
 def receipt(request):
     if request.user.is_authenticated:
+        print("\n==== RECEIPT GENERATION DEBUG =====")
+        print(f"Request method: {request.method}")
+        print(f"POST data: {request.POST}")
+
         buyer_name = request.POST.get('buyer_name', '')
         buyer_address = request.POST.get('buyer_address', '')
+
+        print(f"Buyer name: {buyer_name}")
+        print(f"Buyer address: {buyer_address}")
 
         # Check if this is a split payment
         payment_type = request.POST.get('payment_type', 'single')
@@ -498,9 +505,23 @@ def receipt(request):
             payment_method = 'Split'
             payment_method_1 = request.POST.get('payment_method_1')
             payment_method_2 = request.POST.get('payment_method_2')
-            payment_amount_1 = Decimal(request.POST.get('payment_amount_1', '0'))
-            payment_amount_2 = Decimal(request.POST.get('payment_amount_2', '0'))
+
+            print(f"Split payment detected")
+            print(f"Payment method 1: {payment_method_1}")
+            print(f"Payment method 2: {payment_method_2}")
+
+            try:
+                payment_amount_1 = Decimal(request.POST.get('payment_amount_1', '0'))
+                payment_amount_2 = Decimal(request.POST.get('payment_amount_2', '0'))
+                print(f"Payment amount 1: {payment_amount_1}")
+                print(f"Payment amount 2: {payment_amount_2}")
+            except Exception as e:
+                print(f"Error converting payment amounts: {e}")
+                payment_amount_1 = Decimal('0')
+                payment_amount_2 = Decimal('0')
+
             status = request.POST.get('split_status', 'Paid')
+            print(f"Split payment status: {status}")
 
             # Validate the payment methods and amounts
             if not payment_method_1 or not payment_method_2:
@@ -513,7 +534,7 @@ def receipt(request):
         else:
             # This is a single payment
             payment_method = request.POST.get('payment_method')
-            status = request.POST.get('status')
+            status = request.POST.get('status', 'Paid')  # Default to 'Paid' if not provided
             payment_method_1 = None
             payment_method_2 = None
             payment_amount_1 = Decimal('0')
@@ -631,23 +652,89 @@ def receipt(request):
 
                 # If this is a split payment, create the payment records
                 if payment_type == 'split':
-                    # Create the first payment
-                    ReceiptPayment.objects.create(
-                        receipt=receipt,
-                        amount=payment_amount_1,
-                        payment_method=payment_method_1,
-                        status=status,
-                        date=datetime.now()
-                    )
+                    # Handle wallet payments for registered customers
+                    if has_customer:
+                        # Only deduct the amount specified for wallet payment method
+                        wallet_amount = Decimal('0.00')
+                        if payment_method_1 == 'Wallet':
+                            wallet_amount = Decimal(str(payment_amount_1))
+                            # Deduct from customer's wallet
+                            try:
+                                wallet = Wallet.objects.get(customer=sales.customer)
+                                # Allow negative balance
+                                wallet.balance -= wallet_amount
+                                wallet.save()
 
-                    # Create the second payment
-                    ReceiptPayment.objects.create(
-                        receipt=receipt,
-                        amount=payment_amount_2,
-                        payment_method=payment_method_2,
-                        status=status,
-                        date=datetime.now()
-                    )
+                                # Create transaction history
+                                TransactionHistory.objects.create(
+                                    customer=sales.customer,
+                                    transaction_type='purchase',
+                                    amount=wallet_amount,
+                                    description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                                )
+
+                                print(f"Deducted {wallet_amount} from customer {sales.customer.name}'s wallet for first payment")
+                                # Inform if balance is negative
+                                if wallet.balance < 0:
+                                    print(f"Info: Customer {sales.customer.name} now has a negative wallet balance of {wallet.balance}")
+                                    messages.info(request, f"Customer {sales.customer.name} now has a negative wallet balance of {wallet.balance}")
+                            except Wallet.DoesNotExist:
+                                print(f"Error: Wallet not found for customer {sales.customer.name}")
+                                messages.error(request, f"Error: Wallet not found for customer {sales.customer.name}")
+
+                        if payment_method_2 == 'Wallet':
+                            wallet_amount = Decimal(str(payment_amount_2))
+                            # Deduct from customer's wallet
+                            try:
+                                wallet = Wallet.objects.get(customer=sales.customer)
+                                # Allow negative balance
+                                wallet.balance -= wallet_amount
+                                wallet.save()
+
+                                # Create transaction history
+                                TransactionHistory.objects.create(
+                                    customer=sales.customer,
+                                    transaction_type='purchase',
+                                    amount=wallet_amount,
+                                    description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                                )
+
+                                print(f"Deducted {wallet_amount} from customer {sales.customer.name}'s wallet for second payment")
+                                # Inform if balance is negative
+                                if wallet.balance < 0:
+                                    print(f"Info: Customer {sales.customer.name} now has a negative wallet balance of {wallet.balance}")
+                                    messages.info(request, f"Customer {sales.customer.name} now has a negative wallet balance of {wallet.balance}")
+                            except Wallet.DoesNotExist:
+                                print(f"Error: Wallet not found for customer {sales.customer.name}")
+                                messages.error(request, f"Error: Wallet not found for customer {sales.customer.name}")
+
+                    # Create the first payment
+                    try:
+                        print(f"\n==== CREATING RECEIPT PAYMENT RECORDS =====")
+                        print(f"Receipt ID: {receipt.receipt_id}")
+                        print(f"Payment method 1: {payment_method_1}, Amount 1: {payment_amount_1}")
+                        print(f"Payment method 2: {payment_method_2}, Amount 2: {payment_amount_2}")
+
+                        payment1 = ReceiptPayment.objects.create(
+                            receipt=receipt,
+                            amount=payment_amount_1,
+                            payment_method=payment_method_1,
+                            status=status,
+                            date=datetime.now()
+                        )
+                        print(f"Created first payment record: {payment1.id}")
+
+                        # Create the second payment
+                        payment2 = ReceiptPayment.objects.create(
+                            receipt=receipt,
+                            amount=payment_amount_2,
+                            payment_method=payment_method_2,
+                            status=status,
+                            date=datetime.now()
+                        )
+                        print(f"Created second payment record: {payment2.id}")
+                    except Exception as e:
+                        print(f"Error creating payment records: {e}")
 
                     print(f"\n==== CREATED SPLIT PAYMENTS =====")
                     print(f"Payment 1: {payment_method_1} - {payment_amount_1}")
@@ -710,7 +797,8 @@ def receipt(request):
         print(f"Payment Method: {receipt.payment_method}")
         print(f"Status: {receipt.status}\n")
 
-        # Force the payment method and status one last time if needed
+        # Force payment method for registered customers with single payment
+        # For split payments, respect the user's selection
         if has_customer and payment_type != 'split':
             if receipt.payment_method != 'Wallet':
                 print(f"Forcing payment method to Wallet for customer {receipt.customer.name}")
@@ -723,6 +811,20 @@ def receipt(request):
                 receipt.save()
 
             receipt.refresh_from_db()
+        elif has_customer and payment_type == 'split':
+            # For split payments with registered customers, ensure the payment method is 'Split'
+            if receipt.payment_method != 'Split':
+                print(f"Setting payment method to Split for customer {receipt.customer.name}")
+                receipt.payment_method = 'Split'
+                receipt.save()
+                receipt.refresh_from_db()
+        else:
+            # For walk-in customers (non-registered), ensure status is 'Paid'
+            if receipt.status != 'Paid':
+                print(f"Forcing status to Paid for walk-in customer")
+                receipt.status = 'Paid'
+                receipt.save()
+                receipt.refresh_from_db()
 
         # Get split payment details if this is a split payment
         split_payment_details = None
@@ -730,9 +832,13 @@ def receipt(request):
             split_payment_details = {
                 'payment_method_1': payment_method_1,
                 'payment_method_2': payment_method_2,
-                'payment_amount_1': payment_amount_1,
-                'payment_amount_2': payment_amount_2,
+                'payment_amount_1': float(payment_amount_1),
+                'payment_amount_2': float(payment_amount_2),
             }
+
+            # Store the split payment details in the session for later use
+            request.session['split_payment_details'] = split_payment_details
+            request.session['split_payment_receipt_id'] = receipt.receipt_id
 
         # Fetch receipt payments directly
         receipt_payments = receipt.receipt_payments.all() if receipt.payment_method == 'Split' else None
@@ -764,22 +870,11 @@ def receipt_detail(request, receipt_id):
         # Retrieve the existing receipt
         receipt = get_object_or_404(Receipt, receipt_id=receipt_id)
 
-        # If the form is submitted, update buyer details only
-        if request.method == 'POST':
-            # Only update buyer_name if there's no customer associated
-            if not receipt.customer:
-                buyer_name = request.POST.get('buyer_name', '').strip() or 'WALK-IN CUSTOMER'
-                receipt.buyer_name = buyer_name
-
-            buyer_address = request.POST.get('buyer_address')
-            if buyer_address:
-                receipt.buyer_address = buyer_address
-
-            # Save the updated receipt
+        # Always ensure the status is set to "Paid"
+        if receipt.status != 'Paid':
+            receipt.status = 'Paid'
             receipt.save()
-
-            # Redirect to the same page to reflect updated details
-            return redirect('store:receipt_detail', receipt_id=receipt.receipt_id)
+            print(f"Forcing status to Paid for receipt {receipt.receipt_id}")
 
         # Retrieve sales and sales items linked to the receipt
         sales = receipt.sales
@@ -794,12 +889,124 @@ def receipt_detail(request, receipt_id):
         receipt.total_amount = total_discounted_price
         receipt.save()
 
+        # If this is a split payment receipt but has no payment records, create them
+        if receipt.payment_method == 'Split' and not receipt.receipt_payments.exists():
+            print(f"Creating payment records for split payment receipt {receipt.receipt_id}")
+
+            # Check if we have stored split payment details for this receipt
+            stored_details = None
+            if request.session.get('split_payment_receipt_id') == receipt.receipt_id:
+                stored_details = request.session.get('split_payment_details')
+                print(f"Found stored split payment details: {stored_details}")
+
+            if stored_details:
+                # Use the stored payment details
+                payment_method_1 = stored_details.get('payment_method_1')
+                payment_method_2 = stored_details.get('payment_method_2')
+                payment_amount_1 = Decimal(str(stored_details.get('payment_amount_1', 0)))
+                payment_amount_2 = Decimal(str(stored_details.get('payment_amount_2', 0)))
+
+                # Create the payment records using the stored details
+                ReceiptPayment.objects.create(
+                    receipt=receipt,
+                    amount=payment_amount_1,
+                    payment_method=payment_method_1,
+                    status='Paid',
+                    date=receipt.date
+                )
+                ReceiptPayment.objects.create(
+                    receipt=receipt,
+                    amount=payment_amount_2,
+                    payment_method=payment_method_2,
+                    status='Paid',
+                    date=receipt.date
+                )
+                print(f"Created payment records using stored details: {payment_method_1}: {payment_amount_1}, {payment_method_2}: {payment_amount_2}")
+            else:
+                # No stored details, use reasonable defaults based on customer type
+                if receipt.customer:
+                    # For registered customers, it's more likely they used their wallet
+                    # Assume 70% wallet, 30% cash or transfer as a reasonable default
+                    wallet_amount = receipt.total_amount * Decimal('0.7')
+                    cash_amount = receipt.total_amount - wallet_amount
+
+                    # Create the payment records
+                    ReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=wallet_amount,
+                        payment_method='Wallet',
+                        status='Paid',
+                        date=receipt.date
+                    )
+                    ReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=cash_amount,
+                        payment_method='Cash',
+                        status='Paid',
+                        date=receipt.date
+                    )
+                    print(f"Created payment records for registered customer: Wallet: {wallet_amount}, Cash: {cash_amount}")
+                else:
+                    # For walk-in customers, it's more likely they used cash and transfer
+                    # Assume 70% cash, 30% transfer as a reasonable default
+                    cash_amount = receipt.total_amount * Decimal('0.7')
+                    transfer_amount = receipt.total_amount - cash_amount
+
+                    # Create the payment records
+                    ReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=cash_amount,
+                        payment_method='Cash',
+                        status='Paid',
+                        date=receipt.date
+                    )
+                    ReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=transfer_amount,
+                        payment_method='Transfer',
+                        status='Paid',
+                        date=receipt.date
+                    )
+                    print(f"Created payment records for walk-in customer: Cash: {cash_amount}, Transfer: {transfer_amount}")
+
         # Define available payment methods and statuses
         payment_methods = ["Cash", "Wallet", "Transfer"]
         statuses = ["Paid", "Unpaid"]
 
         # Fetch receipt payments directly
         receipt_payments = receipt.receipt_payments.all() if receipt.payment_method == 'Split' else None
+
+        # Debug information
+        print(f"\n==== RECEIPT DETAIL DEBUG =====")
+        print(f"Receipt ID: {receipt.receipt_id}")
+        print(f"Payment Method: {receipt.payment_method}")
+        print(f"Has receipt_payments: {receipt_payments is not None}")
+        if receipt_payments:
+            print(f"Number of receipt_payments: {receipt_payments.count()}")
+            for i, payment in enumerate(receipt_payments):
+                print(f"Payment {i+1}: {payment.payment_method} - {payment.amount}")
+
+        # Create split payment details if receipt payments exist
+        split_payment_details = None
+        if receipt_payments and receipt_payments.count() > 0:
+            payments = list(receipt_payments)
+            if receipt_payments.count() == 2:
+                split_payment_details = {
+                    'payment_method_1': payments[0].payment_method,
+                    'payment_amount_1': payments[0].amount,
+                    'payment_method_2': payments[1].payment_method,
+                    'payment_amount_2': payments[1].amount,
+                }
+            elif receipt_payments.count() == 1:
+                # Handle case with only one payment record
+                split_payment_details = {
+                    'payment_method_1': payments[0].payment_method,
+                    'payment_amount_1': payments[0].amount,
+                    'payment_method_2': 'Unknown',
+                    'payment_amount_2': receipt.total_amount - payments[0].amount,
+                }
+
+            print(f"Created split_payment_details: {split_payment_details}")
 
         # Render the receipt details template
         return render(request, 'partials/receipt_detail.html', {
@@ -812,6 +1019,7 @@ def receipt_detail(request, receipt_id):
             'payment_methods': payment_methods,
             'statuses': statuses,
             'receipt_payments': receipt_payments,
+            'split_payment_details': split_payment_details,
             'payment_type': 'split' if receipt.payment_method == 'Split' else 'single',
         })
     else:
@@ -954,6 +1162,7 @@ def get_daily_sales():
     )
 
     # Now get the split payments from ReceiptPayment records
+    # This includes split payments for both walk-in and registered customers
     split_payment_sales = (
         ReceiptPayment.objects
         .filter(Q(receipt__status='Paid') | Q(receipt__status='Unpaid'))
@@ -980,6 +1189,7 @@ def get_daily_sales():
     )
 
     # Now get the split payments from WholesaleReceiptPayment records
+    # This includes split payments for both walk-in and registered customers
     wholesale_split_payment_sales = (
         WholesaleReceiptPayment.objects
         .filter(Q(receipt__status='Paid') | Q(receipt__status='Unpaid'))
@@ -1122,23 +1332,110 @@ def get_monthly_sales_with_expenses():
         )
     )
 
+    # Get monthly payment method data for retail (non-split payments)
+    monthly_payment_method_sales = (
+        Receipt.objects
+        .filter(Q(status='Paid') | Q(status='Unpaid'))
+        .exclude(payment_method='Split')
+        .annotate(month=TruncMonth('date'))
+        .values('month', 'payment_method')
+        .annotate(
+            total_amount=Sum('total_amount')
+        )
+        .order_by('month', 'payment_method')
+    )
+
+    # Get monthly split payment data for retail
+    monthly_split_payment_sales = (
+        ReceiptPayment.objects
+        .filter(Q(receipt__status='Paid') | Q(receipt__status='Unpaid'))
+        .annotate(month=TruncMonth('date'))
+        .values('month', 'payment_method')
+        .annotate(
+            total_amount=Sum('amount')
+        )
+        .order_by('month', 'payment_method')
+    )
+
+    # Get monthly payment method data for wholesale (non-split payments)
+    monthly_wholesale_payment_method_sales = (
+        WholesaleReceipt.objects
+        .filter(Q(status='Paid') | Q(status='Unpaid'))
+        .exclude(payment_method='Split')
+        .annotate(month=TruncMonth('date'))
+        .values('month', 'payment_method')
+        .annotate(
+            total_amount=Sum('total_amount')
+        )
+        .order_by('month', 'payment_method')
+    )
+
+    # Get monthly split payment data for wholesale
+    monthly_wholesale_split_payment_sales = (
+        WholesaleReceiptPayment.objects
+        .filter(Q(receipt__status='Paid') | Q(receipt__status='Unpaid'))
+        .annotate(month=TruncMonth('date'))
+        .values('month', 'payment_method')
+        .annotate(
+            total_amount=Sum('amount')
+        )
+        .order_by('month', 'payment_method')
+    )
+
     # Get monthly expenses as a dictionary: {month_date: total_expense}
     monthly_expenses = get_monthly_expenses()
 
     # Combine the two types of sales into one dict
-    combined_sales = defaultdict(lambda: {'total_sales': 0, 'total_cost': 0, 'total_profit': 0})
+    combined_sales = defaultdict(lambda: {
+        'total_sales': Decimal('0.00'),
+        'total_cost': Decimal('0.00'),
+        'total_profit': Decimal('0.00'),
+        'payment_methods': {
+            'Cash': Decimal('0.00'),
+            'Wallet': Decimal('0.00'),
+            'Transfer': Decimal('0.00')
+        }
+    })
 
     for sale in regular_sales:
         month = sale['month']
-        combined_sales[month]['total_sales'] += sale['total_sales']
-        combined_sales[month]['total_cost'] += sale['total_cost']
-        combined_sales[month]['total_profit'] += sale['total_profit']
+        combined_sales[month]['total_sales'] += sale['total_sales'] or Decimal('0.00')
+        combined_sales[month]['total_cost'] += sale['total_cost'] or Decimal('0.00')
+        combined_sales[month]['total_profit'] += sale['total_profit'] or Decimal('0.00')
 
     for sale in wholesale_sales:
         month = sale['month']
-        combined_sales[month]['total_sales'] += sale['total_sales']
-        combined_sales[month]['total_cost'] += sale['total_cost']
-        combined_sales[month]['total_profit'] += sale['total_profit']
+        combined_sales[month]['total_sales'] += sale['total_sales'] or Decimal('0.00')
+        combined_sales[month]['total_cost'] += sale['total_cost'] or Decimal('0.00')
+        combined_sales[month]['total_profit'] += sale['total_profit'] or Decimal('0.00')
+
+    # Add retail payment method data (non-split payments)
+    for sale in monthly_payment_method_sales:
+        month = sale['month']
+        payment_method = sale['payment_method']
+        if payment_method in combined_sales[month]['payment_methods']:
+            combined_sales[month]['payment_methods'][payment_method] += sale['total_amount'] or Decimal('0.00')
+
+    # Add retail split payment data
+    for sale in monthly_split_payment_sales:
+        month = sale['month']
+        payment_method = sale['payment_method']
+        if payment_method in combined_sales[month]['payment_methods']:
+            combined_sales[month]['payment_methods'][payment_method] += sale['total_amount'] or Decimal('0.00')
+
+    # Add wholesale payment method data (non-split payments)
+    for sale in monthly_wholesale_payment_method_sales:
+        month = sale['month']
+        payment_method = sale['payment_method']
+        if payment_method in combined_sales[month]['payment_methods']:
+            combined_sales[month]['payment_methods'][payment_method] += sale['total_amount'] or Decimal('0.00')
+
+    # Add wholesale split payment data
+    for sale in monthly_wholesale_split_payment_sales:
+        month = sale['month']
+        payment_method = sale['payment_method']
+        if payment_method in combined_sales[month]['payment_methods']:
+            combined_sales[month]['payment_methods'][payment_method] += sale['total_amount'] or Decimal('0.00')
 
     # Add expense data and calculate net profit for each month
     for month, data in combined_sales.items():
@@ -1146,7 +1443,15 @@ def get_monthly_sales_with_expenses():
         data['net_profit'] = data['total_profit'] - data['total_expense']
 
     # Sort results by month (descending)
-    sorted_sales = sorted(combined_sales.items(), key=lambda x: x[0], reverse=True)
+    # Convert datetime objects to date objects to ensure consistent comparison
+    def get_sort_key(item):
+        key = item[0]
+        # Check if it's a datetime object
+        if hasattr(key, 'date') and callable(getattr(key, 'date')):
+            return key.date()
+        return key
+
+    sorted_sales = sorted(combined_sales.items(), key=get_sort_key, reverse=True)
     return sorted_sales
 
 
@@ -1226,7 +1531,7 @@ def monthly_sales(request):
         if selected_month_str:
             try:
                 # Convert string to a date representing the first day of that month
-                selected_month = datetime.datetime.strptime(selected_month_str, '%Y-%m').date()
+                selected_month = datetime.strptime(selected_month_str, '%Y-%m').date()
                 # Filter for the selected month only
                 filtered_sales = [entry for entry in sales_data if entry[0] == selected_month]
             except ValueError:
@@ -1459,33 +1764,13 @@ def select_items(request, pk):
                 total_amount=Decimal('0.0')
             )
 
-            # Fetch or create a Receipt
-            receipt = Receipt.objects.filter(customer=customer, sales=sales).first()
+            # Store payment method and status in session for later use in receipt generation
+            payment_method = request.POST.get('payment_method', 'Cash')
+            status = request.POST.get('status', 'Paid')
+            request.session['payment_method'] = payment_method
+            request.session['payment_status'] = status
 
-            if not receipt:
-                # Generate a unique receipt ID using uuid
-                import uuid
-                receipt_id = str(uuid.uuid4())[:5]  # Use first 5 characters of a UUID
-
-                # Get payment method and status from form
-                payment_method = request.POST.get('payment_method', 'Cash')
-                status = request.POST.get('status', 'Paid')
-
-                # Store in session for later use in receipt generation
-                request.session['payment_method'] = payment_method
-                request.session['payment_status'] = status
-
-                receipt = Receipt.objects.create(
-                    wholesale_customer=customer,
-                    sales=sales,
-                    receipt_id=receipt_id,
-                    total_amount=Decimal('0.0'),
-                    buyer_name=customer.name,
-                    buyer_address=customer.address,
-                    date=datetime.now(),
-                    payment_method=payment_method,
-                    status=status
-                )
+            # Don't create a receipt here - it will be created in the receipt view
 
 
             for i, item_id in enumerate(item_ids):
@@ -1533,9 +1818,9 @@ def select_items(request, pk):
                             sales_item.quantity += quantity
                             sales_item.save()
 
-                        # Update the receipt
-                        receipt.total_amount += subtotal
-                        receipt.save()
+                        # Update the sales total amount instead of receipt
+                        sales.total_amount += subtotal
+                        sales.save()
 
                         # **Log Item Selection History (Purchase)**
                         ItemSelectionHistory.objects.create(
@@ -1590,9 +1875,7 @@ def select_items(request, pk):
 
                             total_cost -= refund_amount
 
-                            # Update the receipt
-                            receipt.total_amount -= refund_amount
-                            receipt.save()
+                            # No need to update receipt here as it will be created later
 
                         except SalesItem.DoesNotExist:
                             messages.warning(request, f"Item {item.name} is not part of the sales.")
@@ -1607,6 +1890,9 @@ def select_items(request, pk):
                 wallet = customer.wallet
                 if action == 'purchase':
                     wallet.balance -= total_cost
+                    # Allow negative balance but inform the user
+                    if wallet.balance < 0:
+                        messages.info(request, f'Customer {customer.name} now has a negative wallet balance of {wallet.balance}')
                 elif action == 'return':
                     wallet.balance += abs(total_cost)
                 wallet.save()

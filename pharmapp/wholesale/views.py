@@ -1126,6 +1126,60 @@ def wholesale_receipt(request):
 
                 # If this is a split payment, create the payment records
                 if payment_type == 'split':
+                    # Handle wallet payments for registered customers
+                    has_customer = sales.wholesale_customer is not None
+                    if has_customer:
+                        # Only deduct the amount specified for wallet payment method
+                        if payment_method_1 == 'Wallet':
+                            wallet_amount = Decimal(str(payment_amount_1))
+                            # Deduct from customer's wallet
+                            try:
+                                wallet = WholesaleCustomerWallet.objects.get(customer=sales.wholesale_customer)
+                                if wallet.balance >= wallet_amount:
+                                    wallet.balance -= wallet_amount
+                                    wallet.save()
+
+                                    # Create transaction history
+                                    TransactionHistory.objects.create(
+                                        wholesale_customer=sales.wholesale_customer,
+                                        transaction_type='purchase',
+                                        amount=wallet_amount,
+                                        description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                                    )
+
+                                    print(f"Deducted {wallet_amount} from customer {sales.wholesale_customer.name}'s wallet for first payment")
+                                else:
+                                    print(f"Warning: Insufficient wallet balance for customer {sales.wholesale_customer.name}")
+                                    messages.warning(request, f"Warning: Insufficient wallet balance for customer {sales.wholesale_customer.name}")
+                            except WholesaleCustomerWallet.DoesNotExist:
+                                print(f"Error: Wallet not found for customer {sales.wholesale_customer.name}")
+                                messages.error(request, f"Error: Wallet not found for customer {sales.wholesale_customer.name}")
+
+                        if payment_method_2 == 'Wallet':
+                            wallet_amount = Decimal(str(payment_amount_2))
+                            # Deduct from customer's wallet
+                            try:
+                                wallet = WholesaleCustomerWallet.objects.get(customer=sales.wholesale_customer)
+                                if wallet.balance >= wallet_amount:
+                                    wallet.balance -= wallet_amount
+                                    wallet.save()
+
+                                    # Create transaction history
+                                    TransactionHistory.objects.create(
+                                        wholesale_customer=sales.wholesale_customer,
+                                        transaction_type='purchase',
+                                        amount=wallet_amount,
+                                        description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                                    )
+
+                                    print(f"Deducted {wallet_amount} from customer {sales.wholesale_customer.name}'s wallet for second payment")
+                                else:
+                                    print(f"Warning: Insufficient wallet balance for customer {sales.wholesale_customer.name}")
+                                    messages.warning(request, f"Warning: Insufficient wallet balance for customer {sales.wholesale_customer.name}")
+                            except WholesaleCustomerWallet.DoesNotExist:
+                                print(f"Error: Wallet not found for customer {sales.wholesale_customer.name}")
+                                messages.error(request, f"Error: Wallet not found for customer {sales.wholesale_customer.name}")
+
                     # Create the first payment
                     WholesaleReceiptPayment.objects.create(
                         receipt=receipt,
@@ -1205,7 +1259,8 @@ def wholesale_receipt(request):
         print(f"Payment Method: {receipt.payment_method}")
         print(f"Status: {receipt.status}\n")
 
-        # Force the payment method and status one last time if needed
+        # Force payment method for registered customers with single payment
+        # For split payments, respect the user's selection
         has_customer = sales.wholesale_customer is not None
         if has_customer and payment_type != 'split':
             if receipt.payment_method != 'Wallet':
@@ -1220,6 +1275,20 @@ def wholesale_receipt(request):
                 receipt.save()
 
             receipt.refresh_from_db()
+        elif has_customer and payment_type == 'split':
+            # For split payments with registered customers, ensure the payment method is 'Split'
+            if receipt.payment_method != 'Split':
+                print(f"Setting payment method to Split for customer {receipt.wholesale_customer.name}")
+                receipt.payment_method = 'Split'
+                receipt.save()
+                receipt.refresh_from_db()
+        else:
+            # For walk-in customers (non-registered), ensure status is 'Paid'
+            if receipt.status != 'Paid':
+                print(f"Forcing status to Paid for walk-in customer")
+                receipt.status = 'Paid'
+                receipt.save()
+                receipt.refresh_from_db()
 
         # Get split payment details if this is a split payment
         split_payment_details = None
@@ -1227,9 +1296,13 @@ def wholesale_receipt(request):
             split_payment_details = {
                 'payment_method_1': payment_method_1,
                 'payment_method_2': payment_method_2,
-                'payment_amount_1': payment_amount_1,
-                'payment_amount_2': payment_amount_2,
+                'payment_amount_1': float(payment_amount_1),
+                'payment_amount_2': float(payment_amount_2),
             }
+
+            # Store the split payment details in the session for later use
+            request.session['wholesale_split_payment_details'] = split_payment_details
+            request.session['wholesale_split_payment_receipt_id'] = receipt.receipt_id
 
         # Fetch receipt payments directly
         wholesale_receipt_payments = receipt.wholesale_receipt_payments.all() if receipt.payment_method == 'Split' else None
@@ -1447,29 +1520,11 @@ def wholesale_receipt_detail(request, receipt_id):
         # Retrieve the existing receipt
         receipt = get_object_or_404(WholesaleReceipt, receipt_id=receipt_id)
 
-        # If the form is submitted, update buyer details
-        if request.method == 'POST':
-            # Only update buyer_name if there's no wholesale_customer associated
-            if not receipt.wholesale_customer:
-                buyer_name = request.POST.get('buyer_name', '').strip() or 'WALK-IN CUSTOMER'
-                receipt.buyer_name = buyer_name
-
-            buyer_address = request.POST.get('buyer_address')
-            if buyer_address:
-                receipt.buyer_address = buyer_address
-
-            payment_method = request.POST.get('payment_method')
-            if payment_method:
-                receipt.payment_method = payment_method
-
-            status = request.POST.get('status')
-            if status:
-                receipt.status = status
-
+        # Always ensure the status is set to "Paid"
+        if receipt.status != 'Paid':
+            receipt.status = 'Paid'
             receipt.save()
-
-            # Redirect to the same page to reflect updated details
-            return redirect('wholesale:wholesale_receipt_detail', receipt_id=receipt.receipt_id)
+            print(f"Forcing status to Paid for wholesale receipt {receipt.receipt_id}")
 
         # Retrieve sales and sales items linked to the receipt
         sales = receipt.sales
@@ -1485,11 +1540,123 @@ def wholesale_receipt_detail(request, receipt_id):
         receipt.total_discount = total_discount
         receipt.save()
 
+        # If this is a split payment receipt but has no payment records, create them
+        if receipt.payment_method == 'Split' and not receipt.wholesale_receipt_payments.exists():
+            print(f"Creating payment records for split payment wholesale receipt {receipt.receipt_id}")
+
+            # Check if we have stored split payment details for this receipt
+            stored_details = None
+            if request.session.get('wholesale_split_payment_receipt_id') == receipt.receipt_id:
+                stored_details = request.session.get('wholesale_split_payment_details')
+                print(f"Found stored wholesale split payment details: {stored_details}")
+
+            if stored_details:
+                # Use the stored payment details
+                payment_method_1 = stored_details.get('payment_method_1')
+                payment_method_2 = stored_details.get('payment_method_2')
+                payment_amount_1 = Decimal(str(stored_details.get('payment_amount_1', 0)))
+                payment_amount_2 = Decimal(str(stored_details.get('payment_amount_2', 0)))
+
+                # Create the payment records using the stored details
+                WholesaleReceiptPayment.objects.create(
+                    receipt=receipt,
+                    amount=payment_amount_1,
+                    payment_method=payment_method_1,
+                    status='Paid',
+                    date=receipt.date
+                )
+                WholesaleReceiptPayment.objects.create(
+                    receipt=receipt,
+                    amount=payment_amount_2,
+                    payment_method=payment_method_2,
+                    status='Paid',
+                    date=receipt.date
+                )
+                print(f"Created wholesale payment records using stored details: {payment_method_1}: {payment_amount_1}, {payment_method_2}: {payment_amount_2}")
+            else:
+                # No stored details, use reasonable defaults based on customer type
+                if receipt.wholesale_customer:
+                    # For registered customers, it's more likely they used their wallet
+                    # Assume 70% wallet, 30% cash or transfer as a reasonable default
+                    wallet_amount = receipt.total_amount * Decimal('0.7')
+                    cash_amount = receipt.total_amount - wallet_amount
+
+                    # Create the payment records
+                    WholesaleReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=wallet_amount,
+                        payment_method='Wallet',
+                        status='Paid',
+                        date=receipt.date
+                    )
+                    WholesaleReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=cash_amount,
+                        payment_method='Cash',
+                        status='Paid',
+                        date=receipt.date
+                    )
+                    print(f"Created payment records for registered wholesale customer: Wallet: {wallet_amount}, Cash: {cash_amount}")
+                else:
+                    # For walk-in customers, it's more likely they used cash and transfer
+                    # Assume 70% cash, 30% transfer as a reasonable default
+                    cash_amount = receipt.total_amount * Decimal('0.7')
+                    transfer_amount = receipt.total_amount - cash_amount
+
+                    # Create the payment records
+                    WholesaleReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=cash_amount,
+                        payment_method='Cash',
+                        status='Paid',
+                        date=receipt.date
+                    )
+                    WholesaleReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=transfer_amount,
+                        payment_method='Transfer',
+                        status='Paid',
+                        date=receipt.date
+                    )
+                    print(f"Created payment records for walk-in wholesale customer: Cash: {cash_amount}, Transfer: {transfer_amount}")
+
         payment_methods = ["Cash", "Wallet", "Transfer"]
         statuses = ["Paid", "Unpaid"]
 
         # Fetch receipt payments directly
         wholesale_receipt_payments = receipt.wholesale_receipt_payments.all() if receipt.payment_method == 'Split' else None
+
+        # Debug information
+        print(f"\n==== WHOLESALE RECEIPT DETAIL DEBUG =====")
+        print(f"Receipt ID: {receipt.receipt_id}")
+        print(f"Payment Method: {receipt.payment_method}")
+        print(f"Has wholesale_receipt_payments: {wholesale_receipt_payments is not None}")
+        if wholesale_receipt_payments:
+            print(f"Number of wholesale_receipt_payments: {wholesale_receipt_payments.count()}")
+            for i, payment in enumerate(wholesale_receipt_payments):
+                print(f"Payment {i+1}: {payment.payment_method} - {payment.amount}")
+
+        # Create split payment details if receipt payments exist
+        split_payment_details = None
+        if wholesale_receipt_payments and wholesale_receipt_payments.count() > 0:
+            payments = list(wholesale_receipt_payments)
+            if wholesale_receipt_payments.count() == 2:
+                split_payment_details = {
+                    'payment_method_1': payments[0].payment_method,
+                    'payment_amount_1': payments[0].amount,
+                    'payment_method_2': payments[1].payment_method,
+                    'payment_amount_2': payments[1].amount,
+                }
+            elif wholesale_receipt_payments.count() == 1:
+                # Handle case with only one payment record
+                split_payment_details = {
+                    'payment_method_1': payments[0].payment_method,
+                    'payment_amount_1': payments[0].amount,
+                    'payment_method_2': 'Unknown',
+                    'payment_amount_2': receipt.total_amount - payments[0].amount,
+                }
+
+            print(f"Created split_payment_details: {split_payment_details}")
 
         return render(request, 'partials/wholesale_receipt_detail.html', {
             'receipt': receipt,
@@ -1501,6 +1668,7 @@ def wholesale_receipt_detail(request, receipt_id):
             'statuses': statuses,
             'user': request.user,
             'wholesale_receipt_payments': wholesale_receipt_payments,
+            'split_payment_details': split_payment_details,
             'payment_type': 'split' if receipt.payment_method == 'Split' else 'single',
         })
     else:

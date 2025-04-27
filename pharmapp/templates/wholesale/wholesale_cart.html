@@ -467,10 +467,10 @@
                             <div class="card-body">
                                 <div class="form-group">
                                     <label for="payment_method_1"><strong>Payment Method:</strong></label>
-                                    <select name="payment_method_1" id="payment_method_1" class="form-control">
+                                    <select name="payment_method_1" id="payment_method_1" class="form-control" onchange="validateWalletPayment()">
                                         <option value="Cash">Cash</option>
                                         <option value="Transfer">Bank Transfer</option>
-                                        <option value="Wallet" {% if wholesale_customer %}selected{% endif %}>Customer Wallet</option>
+                                        <option value="Wallet" {% if wholesale_customer %}selected{% endif %}>Customer Wallet {% if wholesale_customer %}(Balance: ₦{{ wholesale_customer.wholesale_customer_wallet.balance|floatformat:2 }}){% endif %}</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -487,10 +487,10 @@
                             <div class="card-body">
                                 <div class="form-group">
                                     <label for="payment_method_2"><strong>Payment Method:</strong></label>
-                                    <select name="payment_method_2" id="payment_method_2" class="form-control">
+                                    <select name="payment_method_2" id="payment_method_2" class="form-control" onchange="validateWalletPayment()">
                                         <option value="Cash">Cash</option>
                                         <option value="Transfer">Bank Transfer</option>
-                                        <option value="Wallet" {% if wholesale_customer %}selected{% endif %}>Customer Wallet</option>
+                                        <option value="Wallet" {% if wholesale_customer %}selected{% endif %}>Customer Wallet {% if wholesale_customer %}(Balance: ₦{{ wholesale_customer.wholesale_customer_wallet.balance|floatformat:2 }}){% endif %}</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -549,6 +549,45 @@
 
                     // Update the second payment amount
                     document.getElementById('payment_amount_2').value = remaining.toFixed(2);
+
+                    // Validate wallet payment if customer is registered
+                    validateWalletPayment();
+                }
+
+                function validateWalletPayment() {
+                    {% if wholesale_customer %}
+                    var walletBalance = parseFloat('{{ wholesale_customer.wholesale_customer_wallet.balance }}');
+                    var payment1Method = document.getElementById('payment_method_1').value;
+                    var payment2Method = document.getElementById('payment_method_2').value;
+                    var payment1Amount = parseFloat(document.getElementById('payment_amount_1').value) || 0;
+                    var payment2Amount = parseFloat(document.getElementById('payment_amount_2').value) || 0;
+
+                    var walletErrorMsg = document.getElementById('wallet-error-msg');
+                    if (!walletErrorMsg) {
+                        walletErrorMsg = document.createElement('div');
+                        walletErrorMsg.id = 'wallet-error-msg';
+                        walletErrorMsg.className = 'alert alert-danger mt-2';
+                        walletErrorMsg.style.display = 'none';
+                        document.getElementById('split_payment_options').appendChild(walletErrorMsg);
+                    }
+
+                    var totalWalletAmount = 0;
+                    if (payment1Method === 'Wallet') {
+                        totalWalletAmount += payment1Amount;
+                    }
+                    if (payment2Method === 'Wallet') {
+                        totalWalletAmount += payment2Amount;
+                    }
+
+                    if (totalWalletAmount > walletBalance) {
+                        walletErrorMsg.textContent = 'Warning: Total wallet payment (₦' + totalWalletAmount.toFixed(2) + ') exceeds available balance (₦' + walletBalance.toFixed(2) + ')';
+                        walletErrorMsg.style.display = 'block';
+                        document.querySelector('button[type="submit"]').disabled = true;
+                    } else {
+                        walletErrorMsg.style.display = 'none';
+                        document.querySelector('button[type="submit"]').disabled = false;
+                    }
+                    {% endif %}
                 }
             </script>
         </div>

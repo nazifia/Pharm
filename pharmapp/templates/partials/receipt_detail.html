@@ -55,6 +55,15 @@
                     <span style="color: #0066cc; font-weight: bold;">₦{{ payment.amount|floatformat:2|intcomma }}</span>
                 </p>
                 {% endfor %}
+            {% elif split_payment_details %}
+                <p style="margin: 4px 0; font-weight: 500;">
+                    <span style="display: inline-block; width: 80px;">{{ split_payment_details.payment_method_1 }}:</span>
+                    <span style="color: #0066cc; font-weight: bold;">₦{{ split_payment_details.payment_amount_1|floatformat:2|intcomma }}</span>
+                </p>
+                <p style="margin: 4px 0; font-weight: 500;">
+                    <span style="display: inline-block; width: 80px;">{{ split_payment_details.payment_method_2 }}:</span>
+                    <span style="color: #0066cc; font-weight: bold;">₦{{ split_payment_details.payment_amount_2|floatformat:2|intcomma }}</span>
+                </p>
             {% else %}
                 <p style="color: #dc3545; font-style: italic;">Split payment details not available</p>
             {% endif %}
@@ -64,20 +73,6 @@
         {% endif %}
 
         <p><strong>Payment Status:</strong> {{ receipt.status|default:'Paid' }}</p>
-        <form id="buyer-form" method="POST" action="{% url 'store:receipt_detail' receipt.receipt_id %}">
-            {% csrf_token %}
-            {% if not receipt.customer %}
-            <div class="form-group">
-                <label for="buyer_name"><strong>Buyer's Name:</strong></label>
-                <input type="text" id="buyer_name" name="buyer_name" class="form-control" value="{{ receipt.buyer_name }}">
-            </div>
-            {% endif %}
-            <div class="form-group">
-                <label for="buyer_address"><strong>Buyer's Address:</strong></label>
-                <input type="text" id="buyer_address" name="buyer_address" class="form-control" value="{{ receipt.buyer_address }}">
-            </div>
-            <button type="submit" class="btn btn-primary btn-sm">Update Buyer Info</button>
-        </form>
 
     <div class="table-responsive mt-3">
         <table class="table">

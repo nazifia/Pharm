@@ -56,6 +56,15 @@
                         <span style="color: #0066cc; font-weight: bold;">₦{{ payment.amount|floatformat:2|intcomma }}</span>
                     </p>
                     {% endfor %}
+                {% elif split_payment_details %}
+                    <p style="margin: 4px 0; font-weight: 500;">
+                        <span style="display: inline-block; width: 80px;">{{ split_payment_details.payment_method_1 }}:</span>
+                        <span style="color: #0066cc; font-weight: bold;">₦{{ split_payment_details.payment_amount_1|floatformat:2|intcomma }}</span>
+                    </p>
+                    <p style="margin: 4px 0; font-weight: 500;">
+                        <span style="display: inline-block; width: 80px;">{{ split_payment_details.payment_method_2 }}:</span>
+                        <span style="color: #0066cc; font-weight: bold;">₦{{ split_payment_details.payment_amount_2|floatformat:2|intcomma }}</span>
+                    </p>
                 {% else %}
                     <p style="color: #dc3545; font-style: italic;">Split payment details not available</p>
                 {% endif %}
@@ -63,26 +72,8 @@
         </div>
         {% endif %}
 
-        <form id="payment-form" method="POST" action="{% url 'wholesale:wholesale_receipt_detail' receipt.receipt_id %}">
-            {% csrf_token %}
-            <div class="form-group">
-                <label for="payment_method"><strong>Payment Method:</strong></label>
-                <select id="payment_method" name="payment_method" class="form-control">
-                    {% for method in payment_methods %}
-                    <option value="{{ method }}" {% if receipt.payment_method == method %}selected{% endif %}>{{ method }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="status"><strong>Payment Status:</strong></label>
-                <select id="status" name="status" class="form-control">
-                    {% for status_option in statuses %}
-                    <option value="{{ status_option }}" {% if receipt.status == status_option %}selected{% endif %}>{{ status_option }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <button type="submit" class="btn btn-primary btn-sm">Update Payment Info</button>
-        </form>
+        <p><strong>Payment Method:</strong> {{ receipt.payment_method }}</p>
+        <p><strong>Payment Status:</strong> {{ receipt.status }}</p>
 
         <div class="table-responsive mt-3">
             <table class="table">
