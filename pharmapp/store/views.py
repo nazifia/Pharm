@@ -2455,6 +2455,8 @@ def transfer_multiple_store_items(request):
                         markup = float(request.POST.get(f'markup_{item.id}', 0))
                         transfer_unit = request.POST.get(f'transfer_unit_{item.id}', item.unit)
                         unit_conversion = float(request.POST.get(f'unit_conversion_{item.id}', 1))
+                        price_override = request.POST.get(f'price_override_{item.id}') == 'on'
+                        manual_price = float(request.POST.get(f'manual_price_{item.id}', 0)) if price_override else 0
                     except (ValueError, TypeError):
                         errors.append(f"Invalid input for {item.name}.")
                         continue
@@ -2497,7 +2499,12 @@ def transfer_multiple_store_items(request):
 
                     # Use the adjusted cost for price calculations
                     cost = adjusted_cost
-                    new_price = cost + (cost * Decimal(markup) / Decimal(100))
+                    if price_override:
+                        # Use the manually entered price
+                        new_price = Decimal(str(manual_price))
+                    else:
+                        # Calculate price based on cost and markup
+                        new_price = cost + (cost * Decimal(markup) / Decimal(100))
 
                     # Process transfer for this item.
                     if destination == "retail":
@@ -2586,8 +2593,12 @@ def transfer_multiple_store_items(request):
                     # Always update the cost price
                     dest_item.cost = cost
 
-                    # Only update markup and price if explicitly requested or if it's a new item
-                    if markup > 0:
+                    # Update price based on override or markup
+                    if price_override:
+                        # Use the manually entered price
+                        dest_item.price = new_price
+                    elif markup > 0:
+                        # Only update markup and price if explicitly requested or if it's a new item
                         dest_item.markup = markup
                         dest_item.price = new_price
 
@@ -2605,16 +2616,18 @@ def transfer_multiple_store_items(request):
                     # Remove the store item if its stock is zero or less.
                     if item.stock <= Decimal('0'):
                         item.delete()
+                        price_info = f"Price manually set to {new_price:.2f}" if price_override else f"Price calculated as {new_price:.2f} ({markup}% markup)"
                         processed_items.append(
                             f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit} and removed {item.name} from the store (stock reached zero). "
                             f"Item was {'created' if created else 'updated'} in {destination}. "
-                            f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}."
+                            f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}. {price_info}"
                         )
                     else:
+                        price_info = f"Price manually set to {new_price:.2f}" if price_override else f"Price calculated as {new_price:.2f} ({markup}% markup)"
                         processed_items.append(
                             f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit}. "
                             f"Item was {'created' if created else 'updated'} in {destination}. "
-                            f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}."
+                            f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}. {price_info}"
                         )
 
             # Use Django's messages framework to show errors/success messages.
