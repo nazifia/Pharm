@@ -21,6 +21,20 @@ from .permissions import (
     can_pause_resume_procurement, can_search_items
 )
 
+try:
+    from .decorators import get_user_permissions_context
+except ImportError:
+    # Fallback if decorators module is not available
+    def get_user_permissions_context(user):
+        return {
+            'user_permissions': [],
+            'user_role': getattr(user.profile, 'user_type', None) if hasattr(user, 'profile') else None,
+            'is_admin': False,
+            'is_manager': False,
+            'is_pharmacist': False,
+            'is_staff': False
+        }
+
 def user_roles(request):
     """
     Add user role information to the template context.
@@ -73,7 +87,15 @@ def user_roles(request):
             'can_search_items': can_search_items(user),
 
             # User role for display
-            'user_role': user.profile.user_type,
+            'user_role': user.profile.user_type if hasattr(user, 'profile') else None,
         })
+
+        # Add new permission system context
+        try:
+            new_permissions_context = get_user_permissions_context(user)
+            context.update(new_permissions_context)
+        except:
+            # Fallback if new permission system is not available
+            pass
 
     return context

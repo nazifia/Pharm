@@ -1,0 +1,470 @@
+{% extends 'notebook/base_notebook.html' %}
+{% load static %}
+
+{% block notebook_title %}Notebook Dashboard{% endblock %}
+{% block notebook_subtitle %}Overview of your notes and reminders{% endblock %}
+
+{% block notebook_content %}
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Total Notes</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_notes }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-sticky-note fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Pinned Notes</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ pinned_notes }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-thumbtack fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Archived Notes</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ archived_notes }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-archive fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-danger shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                            Overdue Reminders</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ overdue_reminders|length }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Additional Statistics Row -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            High Priority</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ high_priority_notes }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-flag fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-danger shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                            Urgent Priority</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ urgent_priority_notes }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-exclamation fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Categories Used</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ categories_with_counts|length }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-tags fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Upcoming Reminders</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ upcoming_reminders|length }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-bell fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Notes Indicators Row -->
+<div class="row mb-4">
+    <div class="col-xl-6 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            New Notes (24h)
+                            {% if new_notes_count > 0 %}
+                                <span class="badge badge-success badge-pill ml-1">NEW</span>
+                            {% endif %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ new_notes_count }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-plus-circle fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Recently Updated (6h)
+                            {% if recently_updated_count > 0 %}
+                                <span class="badge badge-primary badge-pill ml-1">UPDATED</span>
+                            {% endif %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ recently_updated_count }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-edit fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Note Creation -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Quick Note</h6>
+            </div>
+            <div class="card-body">
+                <form id="quickNoteForm">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <input type="text" id="quickTitle" class="form-control" placeholder="Note title..." maxlength="200">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <input type="text" id="quickContent" class="form-control" placeholder="Quick note content..." maxlength="500">
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <button type="submit" class="btn btn-notebook btn-block">
+                                <i class="fas fa-plus"></i> Add
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'notebook:note_create' %}" class="btn btn-notebook btn-block">
+                            <i class="fas fa-plus"></i> New Note
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'notebook:note_list' %}" class="btn btn-outline-primary btn-block">
+                            <i class="fas fa-list"></i> View All Notes
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'notebook:category_create' %}" class="btn btn-outline-secondary btn-block">
+                            <i class="fas fa-tags"></i> New Category
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'notebook:archived_notes' %}" class="btn btn-outline-info btn-block">
+                            <i class="fas fa-archive"></i> Archived Notes
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Notes -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Recent Notes</h6>
+                <a href="{% url 'notebook:note_list' %}" class="btn btn-sm btn-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if recent_notes %}
+                    {% for note in recent_notes %}
+                        <div class="note-card card mb-2 {% if note.is_pinned %}pinned{% endif %} {% if note.is_new %}new-note{% elif note.is_recently_updated %}recently-updated{% endif %}">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <h6 class="card-title mb-1">
+                                        <a href="{% url 'notebook:note_detail' note.pk %}" class="text-decoration-none">
+                                            {{ note.title|truncatechars:50 }}
+                                        </a>
+                                        {% if note.is_pinned %}
+                                            <i class="fas fa-thumbtack text-warning ms-1"></i>
+                                        {% endif %}
+                                        {% if note.is_new %}
+                                            <span class="badge badge-success badge-sm ms-1 new-indicator">NEW</span>
+                                        {% elif note.is_recently_updated %}
+                                            <span class="badge badge-primary badge-sm ms-1 updated-indicator">UPDATED</span>
+                                        {% endif %}
+                                    </h6>
+                                    <div class="d-flex align-items-center">
+                                        <span class="badge {{ note.get_priority_badge_class }} priority-badge me-2">
+                                            {{ note.get_priority_display }}
+                                        </span>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                                                    data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <div class="dropdown-menu dropdown-menu-right">
+                                                <a class="dropdown-item" href="{% url 'notebook:note_detail' note.pk %}">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+                                                <a class="dropdown-item" href="{% url 'notebook:note_edit' note.pk %}">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </a>
+                                                <div class="dropdown-divider"></div>
+                                                <a class="dropdown-item text-danger" href="{% url 'notebook:note_delete' note.pk %}">
+                                                    <i class="fas fa-trash"></i> Delete
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="card-text note-content text-muted">
+                                    {{ note.content|truncatechars:100 }}
+                                </p>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock"></i> {{ note.updated_at|timesince }} ago
+                                </small>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-sticky-note fa-3x mb-3"></i>
+                        <p>No notes yet. <a href="{% url 'notebook:note_create' %}">Create your first note</a>!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Reminders -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Reminders</h6>
+            </div>
+            <div class="card-body">
+                <!-- Overdue Reminders -->
+                {% if overdue_reminders %}
+                    <h6 class="text-danger mb-2">
+                        <i class="fas fa-exclamation-triangle"></i> Overdue
+                    </h6>
+                    {% for note in overdue_reminders %}
+                        <div class="card mb-2 reminder-overdue">
+                            <div class="card-body p-2">
+                                <h6 class="card-title mb-1">
+                                    <a href="{% url 'notebook:note_detail' note.pk %}" class="text-decoration-none">
+                                        {{ note.title|truncatechars:40 }}
+                                    </a>
+                                </h6>
+                                <small class="text-danger">
+                                    <i class="fas fa-clock"></i> Due {{ note.reminder_date|timesince }} ago
+                                </small>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    <hr>
+                {% endif %}
+
+                <!-- Upcoming Reminders -->
+                {% if upcoming_reminders %}
+                    <h6 class="text-info mb-2">
+                        <i class="fas fa-bell"></i> Upcoming
+                    </h6>
+                    {% for note in upcoming_reminders %}
+                        <div class="card mb-2 reminder-upcoming">
+                            <div class="card-body p-2">
+                                <h6 class="card-title mb-1">
+                                    <a href="{% url 'notebook:note_detail' note.pk %}" class="text-decoration-none">
+                                        {{ note.title|truncatechars:40 }}
+                                    </a>
+                                </h6>
+                                <small class="text-info">
+                                    <i class="fas fa-clock"></i> Due in {{ note.reminder_date|timeuntil }}
+                                </small>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                {% if not overdue_reminders and not upcoming_reminders %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-bell fa-3x mb-3"></i>
+                        <p>No reminders set.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Categories Overview -->
+    {% if categories_with_counts %}
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Categories Overview</h6>
+                <a href="{% url 'notebook:category_list' %}" class="btn btn-sm btn-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% for item in categories_with_counts %}
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="category-color me-3"
+                              style="background-color: {{ item.category.color }}; width: 20px; height: 20px; border-radius: 50%;"></span>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-0">{{ item.category.name }}</h6>
+                            <small class="text-muted">{{ item.count }} note{{ item.count|pluralize }}</small>
+                        </div>
+                        <a href="{% url 'notebook:note_list' %}?category={{ item.category.id }}"
+                           class="btn btn-sm btn-outline-primary">
+                            View
+                        </a>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Quick note creation
+    const quickNoteForm = document.getElementById('quickNoteForm');
+    if (quickNoteForm) {
+        quickNoteForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const title = document.getElementById('quickTitle').value.trim();
+            const content = document.getElementById('quickContent').value.trim();
+
+            if (!title || !content) {
+                alert('Please enter both title and content for the note.');
+                return;
+            }
+
+            // Get CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            // Submit via fetch
+            fetch('{% url "notebook:quick_note_create" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                },
+                body: `title=${encodeURIComponent(title)}&content=${encodeURIComponent(content)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Clear form
+                    document.getElementById('quickTitle').value = '';
+                    document.getElementById('quickContent').value = '';
+
+                    // Show success message
+                    alert(data.message);
+
+                    // Optionally reload the page to show updated statistics
+                    window.location.reload();
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while creating the note.');
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -10,6 +10,7 @@
     border: 1px solid #ddd;
     box-sizing: border-box;
     position: relative;
+    color: #000;
 }
 
 .receipt-head {
@@ -29,7 +30,7 @@
 
 .table th,
 .table td {
-    padding: 4px 6px;
+    padding: 4px 6px 4px 6px !important; /* top right bottom left */
     border-top: 0px solid #e3e6f0;
 }
 
@@ -188,3 +189,281 @@ footer small {
         width: 100%;
     }
 }
+
+/* A4 print specific styles */
+.receipt-container.a4-print {
+    width: 210mm;
+    font-size: 16px !important; /* Increased from 14px */
+    line-height: 1.5;
+}
+
+.a4-print .receipt-head h3 {
+    font-size: 24px !important;
+    margin-bottom: 8px;
+}
+
+.a4-print .receipt-head p {
+    font-size: 18px !important;
+    margin-bottom: 5px;
+}
+
+.a4-print .table {
+    font-size: 14px !important;
+}
+
+.a4-print .table th {
+    font-size: 16px !important;
+    font-weight: bold;
+}
+
+/* Common table styles */
+.receipt-container table {
+    border-collapse: collapse;
+}
+
+.receipt-container table,
+.receipt-container th,
+.receipt-container td {
+    border: none !important;
+}
+
+/* Adjust column widths for both thermal and A4 */
+.table th:first-child,
+.table td:first-child {
+    width: 5% !important; /* Reduced SN column */
+}
+
+.table th:last-child,
+.table td:last-child {
+    width: 15% !important; /* Increased Subtotal column */
+}
+
+/* A4 specific table styles */
+.a4-print table {
+    width: 100% !important;
+}
+
+.a4-print table th {
+    border-bottom: 1px solid #dee2e6 !important;
+}
+
+.a4-print table td {
+    padding: 8px 4px 8px 4px !important; /* top right bottom left */
+}
+
+/* Thermal print specific styles */
+@media print {
+    .thermal-print.hide-dosage table th:nth-child(1),
+    .thermal-print.hide-dosage table td:nth-child(1) {
+        width: 5% !important; /* Reduced SN width */
+    }
+    
+    .thermal-print.hide-dosage table th:last-child,
+    .thermal-print.hide-dosage table td:last-child {
+        width: 30% !important; /* Increased Subtotal width */
+    }
+}
+
+/* Add this to your existing thermal print styles */
+@media print {
+    .thermal-print .dosage-form-column .brand-column {
+        display: none !important;
+    }
+    
+    /* Adjust column widths for thermal print when dosage form is hidden */
+    .thermal-print.hide-dosage table th:nth-child(1),
+    .thermal-print.hide-dosage table td:nth-child(1) {
+        width: 5% !important; /* Item No/ID */
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(2),
+    .thermal-print.hide-dosage table td:nth-child(2) {
+        width: 40% !important; /* Item Name - increased width */
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(3),
+    .thermal-print.hide-dosage table td:nth-child(3) {
+        width: 10% !important; /* Quantity */
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(4),
+    .thermal-print.hide-dosage table td:nth-child(4) {
+        width: 30% !important; /* Price/Total - increased width */
+    }
+}
+
+/* Add these styles for Quantity column padding adjustment */
+.table th:nth-child(6),
+.table td:nth-child(6) {
+    padding-left: 2px !important; /* Reduced left padding for Quantity column */
+}
+
+/* Adjust for thermal print */
+.thermal-print .table th:nth-child(5),
+.thermal-print .table td:nth-child(5) {
+    padding-left: 2px !important; /* Reduced left padding for Quantity column in thermal (shifts due to hidden dosage form) */
+}
+
+/* Update existing table cell padding */
+.table th,
+.table td {
+    padding: 4px 6px 4px 6px !important; /* top right bottom left */
+}
+
+/* A4 print specific padding */
+.a4-print table td {
+    padding: 8px 4px 8px 4px !important; /* top right bottom left */
+}
+
+/* Reduced left padding for Unit and Quantity columns */
+.table th:nth-child(5),
+.table td:nth-child(5),  /* Unit column */
+.table th:nth-child(6),
+.table td:nth-child(6) { /* Quantity column */
+    padding-left: 2px !important;
+}
+
+/* Adjust for thermal print (columns shift left due to hidden dosage form) */
+.thermal-print .table th:nth-child(4),
+.thermal-print .table td:nth-child(4),  /* Unit column in thermal */
+.thermal-print .table th:nth-child(5),
+.thermal-print .table td:nth-child(5) { /* Quantity column in thermal */
+    padding-left: 2px !important;
+}
+
+/* Add brand column hiding for thermal print */
+.thermal-print .brand-column {
+    display: none !important;
+}
+
+/* Hide both dosage and brand columns in thermal print */
+@media print {
+    .thermal-print .dosage-form-column,
+    .thermal-print .brand-column {
+        display: none !important;
+    }
+}
+
+/* Adjust thermal print column widths when both dosage and brand are hidden */
+@media print {
+    .thermal-print.hide-dosage table th:nth-child(1),
+    .thermal-print.hide-dosage table td:nth-child(1) {
+        width: 5% !important;  /* SN */
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(2),
+    .thermal-print.hide-dosage table td:nth-child(2) {
+        width: 45% !important; /* Item Name - increased width */
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(3),
+    .thermal-print.hide-dosage table td:nth-child(3) {
+        width: 10% !important; /* Unit */
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(4),
+    .thermal-print.hide-dosage table td:nth-child(4) {
+        width: 15% !important; /* Qty */
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(5),
+    .thermal-print.hide-dosage table td:nth-child(5) {
+        width: 25% !important; /* Subtotal */
+    }
+}
+
+/* Update existing table cell padding */
+.table th,
+.table td {
+    padding: 4px 6px 4px 6px !important; /* top right bottom left */
+}
+
+/* A4 print specific padding */
+.a4-print table td {
+    padding: 8px 4px 8px 4px !important; /* top right bottom left */
+}
+
+/* Thermal print specific column adjustments */
+@media print {
+    .thermal-print.hide-dosage table th:nth-child(1),
+    .thermal-print.hide-dosage table td:nth-child(1) {
+        width: 8% !important;  /* SN */
+        padding-left: 1px !important;
+        padding-right: 1px !important;
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(2),
+    .thermal-print.hide-dosage table td:nth-child(2) {
+        width: 37% !important; /* Item Name - slightly reduced */
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(3),
+    .thermal-print.hide-dosage table td:nth-child(3) {
+        width: 10% !important; /* Unit */
+        padding-left: 1px !important;
+        padding-right: 1px !important;
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(4),
+    .thermal-print.hide-dosage table td:nth-child(4) {
+        width: 10% !important; /* Qty */
+        padding-left: 1px !important;
+        padding-right: 1px !important;
+        text-align: center;
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(5),
+    .thermal-print.hide-dosage table td:nth-child(5) {
+        width: 17% !important; /* Rate */
+        padding-left: 1px !important;
+        padding-right: 1px !important;
+        text-align: right;
+    }
+    
+    .thermal-print.hide-dosage table th:nth-child(6),
+    .thermal-print.hide-dosage table td:nth-child(6) {
+        width: 18% !important; /* Subtotal */
+        padding-left: 1px !important;
+        padding-right: 1px !important;
+        text-align: right;
+    }
+
+    /* Ensure numbers align properly */
+    .thermal-print .table td:nth-child(4),
+    .thermal-print .table td:nth-child(5),
+    .thermal-print .table td:nth-child(6) {
+        font-family: monospace;
+        white-space: nowrap;
+    }
+
+    /* Adjust overall table width for thermal */
+    .thermal-print .table {
+        width: 76mm !important;
+        margin: 0 !important;
+        table-layout: fixed !important;
+    }
+
+    /* Ensure text doesn't overflow */
+    .thermal-print .table td {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+/* General table cell padding adjustment */
+.table th,
+.table td {
+    padding: 4px 2px !important;
+}
+
+/* Ensure right alignment for numeric columns */
+.table td:nth-child(4),
+.table td:nth-child(5),
+.table td:nth-child(6) {
+    text-align: right;
+}
+
+

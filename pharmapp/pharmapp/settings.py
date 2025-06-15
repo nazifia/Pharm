@@ -18,7 +18,7 @@ SECRET_KEY = 'django-insecure-745$ysi)dtow@&h&g9%um@8m-7#8)xkva&4r1q4vx_mpg3pg&3
 DEBUG = True
 
 # ALLOWED_HOSTS = []
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
 
 
 # Application definition
@@ -34,11 +34,14 @@ INSTALLED_APPS = [
     'whitenoise.runserver_nostatic',
     'django.contrib.humanize',
     'django_htmx',
+    # 'channels',  # Add channels for WebSocket support (temporarily disabled)
     'store',
     'userauth',
     'customer',
     'wholesale',
     'supplier',
+    'chat',
+    'notebook',  # Add notebook app for note-taking functionality
     'corsheaders',  # Make sure this is here
 ]
 
@@ -99,6 +102,17 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'pharmapp.wsgi.application'
+# ASGI_APPLICATION = 'pharmapp.asgi.application'
+
+# Channel layers configuration for WebSocket support (temporarily disabled)
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             "hosts": [('127.0.0.1', 6379)],
+#         },
+#     },
+# }
 
 
 # Database
@@ -170,6 +184,12 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR /'media'
 
 AUTH_USER_MODEL = 'userauth.User'
+
+# Authentication backends
+# AUTHENTICATION_BACKENDS = [
+#     'userauth.backends.MobileBackend',  # Custom mobile authentication
+#     'django.contrib.auth.backends.ModelBackend',  # Default backend as fallback
+# ]
 
 
 

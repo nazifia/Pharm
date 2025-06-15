@@ -1,0 +1,146 @@
+{% extends 'notebook/base_notebook.html' %}
+{% load static %}
+
+{% block notebook_title %}{{ title }}{% endblock %}
+{% block notebook_subtitle %}Create a new category to organize your notes{% endblock %}
+
+{% block notebook_content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-tags"></i> {{ title }}
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    <!-- Name Field -->
+                    <div class="form-group mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">
+                            <strong>Category Name</strong> <span class="text-danger">*</span>
+                        </label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.name.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Description Field -->
+                    <div class="form-group mb-3">
+                        <label for="{{ form.description.id_for_label }}" class="form-label">
+                            <strong>Description</strong>
+                        </label>
+                        {{ form.description }}
+                        {% if form.description.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.description.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Optional description to help identify the purpose of this category.
+                        </div>
+                    </div>
+
+                    <!-- Color Field -->
+                    <div class="form-group mb-4">
+                        <label for="{{ form.color.id_for_label }}" class="form-label">
+                            <strong>Category Color</strong>
+                        </label>
+                        <div class="d-flex align-items-center">
+                            {{ form.color }}
+                            <div class="ms-3">
+                                <span id="color-preview" class="category-color" 
+                                      style="background-color: {{ form.color.value|default:'#007bff' }}; width: 30px; height: 30px; border-radius: 50%;"></span>
+                            </div>
+                        </div>
+                        {% if form.color.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.color.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Choose a color to visually identify this category in your notes.
+                        </div>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-notebook">
+                            <i class="fas fa-save"></i> {{ submit_text }}
+                        </button>
+                        <a href="{% url 'notebook:category_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Preview Card -->
+        <div class="card shadow mt-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-info">
+                    <i class="fas fa-eye"></i> Preview
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <span id="preview-color" class="category-color me-3" 
+                          style="background-color: {{ form.color.value|default:'#007bff' }}; width: 30px; height: 30px; border-radius: 50%;"></span>
+                    <div>
+                        <h6 id="preview-name" class="mb-0">{{ form.name.value|default:'Category Name' }}</h6>
+                        <small id="preview-description" class="text-muted">
+                            {{ form.description.value|default:'Category description will appear here' }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const nameInput = document.querySelector('input[name="name"]');
+    const descriptionInput = document.querySelector('textarea[name="description"]');
+    const colorInput = document.querySelector('input[name="color"]');
+    
+    const previewName = document.getElementById('preview-name');
+    const previewDescription = document.getElementById('preview-description');
+    const previewColor = document.getElementById('preview-color');
+    const colorPreview = document.getElementById('color-preview');
+    
+    // Update preview on input changes
+    if (nameInput) {
+        nameInput.addEventListener('input', function() {
+            previewName.textContent = this.value || 'Category Name';
+        });
+    }
+    
+    if (descriptionInput) {
+        descriptionInput.addEventListener('input', function() {
+            previewDescription.textContent = this.value || 'Category description will appear here';
+        });
+    }
+    
+    if (colorInput) {
+        colorInput.addEventListener('input', function() {
+            const color = this.value;
+            previewColor.style.backgroundColor = color;
+            colorPreview.style.backgroundColor = color;
+        });
+    }
+});
+</script>
+{% endblock %}

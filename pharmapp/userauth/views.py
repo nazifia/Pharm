@@ -171,10 +171,22 @@ def register_view(request):
                 profile = Profile.objects.get_or_create(user=user)[0]
                 profile.full_name = form.cleaned_data['full_name']
                 profile.user_type = form.cleaned_data['user_type']
+                profile.department = form.cleaned_data.get('department', '')
+                profile.employee_id = form.cleaned_data.get('employee_id', '')
+                profile.hire_date = form.cleaned_data.get('hire_date')
                 profile.save()
 
-                messages.success(request, 'User account created successfully.')
-                return redirect('userauth:register')
+                # Log the activity
+                ActivityLog.log_activity(
+                    user=request.user,
+                    action=f"Created new user: {user.username} ({profile.user_type})",
+                    action_type='CREATE',
+                    target_model='User',
+                    target_id=str(user.id)
+                )
+
+                messages.success(request, f'User {user.username} created successfully with role {profile.user_type}.')
+                return redirect('userauth:user_list')
             except Exception as e:
                 messages.error(request, f'Error creating user: {str(e)}')
     else:
@@ -241,10 +253,37 @@ def edit_user_profile(request):
 @role_required(['Admin'])
 def user_list(request):
     """View for listing all users with management options"""
+    from .forms import UserSearchForm
+    from django.db.models import Q
+
     users = User.objects.select_related('profile').all()
+    search_form = UserSearchForm(request.GET)
+
+    # Apply search filters
+    if search_form.is_valid():
+        search_query = search_form.cleaned_data.get('search_query')
+        user_type = search_form.cleaned_data.get('user_type')
+        status = search_form.cleaned_data.get('status')
+
+        if search_query:
+            users = users.filter(
+                Q(username__icontains=search_query) |
+                Q(profile__full_name__icontains=search_query) |
+                Q(mobile__icontains=search_query) |
+                Q(profile__employee_id__icontains=search_query) |
+                Q(email__icontains=search_query)
+            )
+
+        if user_type:
+            users = users.filter(profile__user_type=user_type)
+
+        if status:
+            is_active = status == 'active'
+            users = users.filter(is_active=is_active)
 
     context = {
         'users': users,
+        'search_form': search_form,
         'title': 'User Management'
     }
 
@@ -273,6 +312,9 @@ def edit_user(request, user_id):
                 # Update profile
                 profile.full_name = form.cleaned_data['full_name']
                 profile.user_type = form.cleaned_data['user_type']
+                profile.department = form.cleaned_data.get('department', '')
+                profile.employee_id = form.cleaned_data.get('employee_id', '')
+                profile.hire_date = form.cleaned_data.get('hire_date')
                 profile.save()
 
                 # Log the activity
@@ -301,6 +343,9 @@ def edit_user(request, user_id):
             'email': user_to_edit.email,
             'full_name': profile.full_name,
             'user_type': profile.user_type,
+            'department': profile.department,
+            'employee_id': profile.employee_id,
+            'hire_date': profile.hire_date,
             'is_active': user_to_edit.is_active
         }
         form = UserEditForm(initial=initial_data)
@@ -385,6 +430,256 @@ def toggle_user_status(request, user_id):
 
     except User.DoesNotExist:
         messages.error(request, 'User not found.')
+
+    return redirect('userauth:user_list')
+
+
+@login_required
+@role_required(['Admin'])
+def user_details(request, user_id):
+    """View for displaying detailed user information"""
+    try:
+        user = User.objects.select_related('profile').get(id=user_id)
+
+        # Get user's activity logs
+        recent_activities = ActivityLog.objects.filter(user=user).order_by('-timestamp')[:10]
+
+        context = {
+            'user': user,
+            'recent_activities': recent_activities,
+            'permissions': user.get_permissions(),
+            'title': f'User Details - {user.username}'
+        }
+
+        return render(request, 'userauth/user_details.html', context)
+
+    except User.DoesNotExist:
+        messages.error(request, 'User not found.')
+        return redirect('userauth:user_list')
+
+
+@login_required
+@role_required(['Admin'])
+def privilege_management_view(request):
+    """View for managing user privileges"""
+    from .forms import PrivilegeManagementForm
+    from .models import USER_PERMISSIONS, UserPermission
+
+    if request.method == 'POST':
+        form = PrivilegeManagementForm(request.POST)
+
+        # Get selected user from hidden field if form user field is empty
+        selected_user_id = request.POST.get('selected_user_id')
+        selected_user = None
+
+        if form.is_valid() and form.cleaned_data.get('user'):
+            selected_user = form.cleaned_data['user']
+        elif selected_user_id:
+            try:
+                selected_user = User.objects.get(id=selected_user_id)
+            except User.DoesNotExist:
+                messages.error(request, 'Selected user not found.')
+                return redirect('userauth:privilege_management_view')
+
+        if selected_user:
+            # Process permission assignments
+            permissions_updated = []
+            permissions_removed = []
+
+            # Get all available permissions
+            all_permissions = set()
+            for role_permissions in USER_PERMISSIONS.values():
+                all_permissions.update(role_permissions)
+
+            # Process each permission checkbox - get from POST data directly since form might not have all fields
+            for permission in all_permissions:
+                field_name = f'permission_{permission}'
+                is_granted = request.POST.get(field_name) == 'on'  # Checkbox value
+
+                # Get or create the permission record
+                user_permission, created = UserPermission.objects.get_or_create(
+                    user=selected_user,
+                    permission=permission,
+                    defaults={
+                        'granted': is_granted,
+                        'granted_by': request.user,
+                        'notes': f'Permission {"granted" if is_granted else "revoked"} by {request.user.username}'
+                    }
+                )
+
+                # Update existing permission if it changed
+                if not created and user_permission.granted != is_granted:
+                    user_permission.granted = is_granted
+                    user_permission.granted_by = request.user
+                    user_permission.granted_at = timezone.now()
+                    user_permission.notes = f'Permission {"granted" if is_granted else "revoked"} by {request.user.username}'
+                    user_permission.save()
+
+                    if is_granted:
+                        permissions_updated.append(permission)
+                    else:
+                        permissions_removed.append(permission)
+                elif created:
+                    if is_granted:
+                        permissions_updated.append(permission)
+                    else:
+                        permissions_removed.append(permission)
+
+            # Create success message
+            message_parts = []
+            if permissions_updated:
+                message_parts.append(f"Granted permissions: {', '.join(permissions_updated)}")
+            if permissions_removed:
+                message_parts.append(f"Revoked permissions: {', '.join(permissions_removed)}")
+
+            if message_parts:
+                messages.success(request, f'Permissions updated for {selected_user.username}. ' + '; '.join(message_parts))
+            else:
+                messages.info(request, f'No permission changes made for {selected_user.username}.')
+
+            # Log the activity
+            ActivityLog.log_activity(
+                user=request.user,
+                action=f"Updated privileges for user: {selected_user.username}",
+                action_type='UPDATE',
+                target_model='User',
+                target_id=str(selected_user.id)
+            )
+        else:
+            messages.error(request, 'Please select a user to manage permissions.')
+    else:
+        # Check if a user_id is provided in GET parameters for pre-selection
+        selected_user_id = request.GET.get('user_id')
+        selected_user = None
+        if selected_user_id:
+            try:
+                selected_user = User.objects.get(id=selected_user_id)
+                form = PrivilegeManagementForm(selected_user=selected_user)
+            except User.DoesNotExist:
+                form = PrivilegeManagementForm()
+        else:
+            form = PrivilegeManagementForm()
+
+    context = {
+        'form': form,
+        'user_permissions': USER_PERMISSIONS,
+        'title': 'Privilege Management',
+        'selected_user': selected_user if 'selected_user' in locals() else None
+    }
+
+    return render(request, 'userauth/privilege_management.html', context)
+
+
+@login_required
+@role_required(['Admin'])
+def get_user_permissions(request, user_id):
+    """AJAX endpoint to get user permissions"""
+    try:
+        user = User.objects.get(id=user_id)
+
+        # Get all available permissions
+        all_permissions = set()
+        for role_permissions in USER_PERMISSIONS.values():
+            all_permissions.update(role_permissions)
+
+        # Get role-based permissions
+        role_permissions = set(user.get_role_permissions())
+
+        # Get individual permission overrides
+        individual_permissions = user.get_individual_permissions()
+
+        # Build response data
+        permissions_data = {}
+        for permission in all_permissions:
+            if permission in individual_permissions:
+                # Individual permission overrides role permission
+                permissions_data[permission] = {
+                    'granted': individual_permissions[permission],
+                    'source': 'individual',
+                    'role_based': permission in role_permissions
+                }
+            else:
+                # Use role-based permission
+                permissions_data[permission] = {
+                    'granted': permission in role_permissions,
+                    'source': 'role',
+                    'role_based': permission in role_permissions
+                }
+
+        return JsonResponse({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'full_name': user.profile.full_name,
+                'user_type': user.profile.user_type
+            },
+            'permissions': permissions_data
+        })
+
+    except User.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'User not found'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@login_required
+@role_required(['Admin'])
+def bulk_user_actions(request):
+    """View for performing bulk actions on users"""
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        user_ids = request.POST.getlist('user_ids')
+
+        if not user_ids:
+            messages.error(request, 'No users selected.')
+            return redirect('userauth:user_list')
+
+        users = User.objects.filter(id__in=user_ids).exclude(id=request.user.id)
+
+        if action == 'activate':
+            users.update(is_active=True)
+            messages.success(request, f'Activated {users.count()} users.')
+
+            # Log the activity
+            ActivityLog.log_activity(
+                user=request.user,
+                action=f"Bulk activated {users.count()} users",
+                action_type='UPDATE',
+                target_model='User'
+            )
+
+        elif action == 'deactivate':
+            users.update(is_active=False)
+            messages.success(request, f'Deactivated {users.count()} users.')
+
+            # Log the activity
+            ActivityLog.log_activity(
+                user=request.user,
+                action=f"Bulk deactivated {users.count()} users",
+                action_type='UPDATE',
+                target_model='User'
+            )
+
+        elif action == 'delete':
+            count = users.count()
+            usernames = list(users.values_list('username', flat=True))
+            users.delete()
+            messages.success(request, f'Deleted {count} users.')
+
+            # Log the activity
+            ActivityLog.log_activity(
+                user=request.user,
+                action=f"Bulk deleted users: {', '.join(usernames)}",
+                action_type='DELETE',
+                target_model='User'
+            )
 
     return redirect('userauth:user_list')
 

@@ -1,0 +1,399 @@
+{% extends 'notebook/base_notebook.html' %}
+{% load static %}
+
+{% block notebook_title %}
+    {% if is_archived_view %}
+        Archived Notes
+    {% elif is_tag_view %}
+        Notes tagged with "{{ tag }}"
+    {% else %}
+        My Notes
+    {% endif %}
+{% endblock %}
+
+{% block notebook_subtitle %}
+    {% if is_archived_view %}
+        View and manage your archived notes
+    {% elif is_tag_view %}
+        All notes containing the tag "{{ tag }}"
+    {% else %}
+        Manage and organize your notes
+    {% endif %}
+{% endblock %}
+
+{% block notebook_content %}
+{% csrf_token %}
+<!-- Search and Filter Form -->
+{% if not is_archived_view %}
+<div class="search-form">
+    <form method="get" class="row g-3">
+        <div class="col-md-4">
+            {{ search_form.query }}
+        </div>
+        <div class="col-md-2">
+            {{ search_form.category }}
+        </div>
+        <div class="col-md-2">
+            {{ search_form.priority }}
+        </div>
+        <div class="col-md-2">
+            <div class="form-check">
+                {{ search_form.is_pinned }}
+                <label class="form-check-label" for="{{ search_form.is_pinned.id_for_label }}">
+                    Pinned only
+                </label>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i> Search
+            </button>
+            <a href="{% url 'notebook:note_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-times"></i>
+            </a>
+        </div>
+    </form>
+</div>
+{% endif %}
+
+<!-- Notes Header -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex align-items-center">
+        <h5 class="mb-0 me-3">
+            {% if is_archived_view %}
+                Archived Notes ({{ total_notes }})
+            {% elif is_tag_view %}
+                Notes tagged with "{{ tag }}" ({{ total_notes }})
+            {% else %}
+                Notes ({{ total_notes }})
+            {% endif %}
+        </h5>
+
+        <!-- Bulk Actions -->
+        {% if page_obj and not is_archived_view %}
+            <div class="bulk-actions" style="display: none;">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="bulkDeleteSelected()">
+                    <i class="fas fa-trash"></i> Delete Selected
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+                    <i class="fas fa-times"></i> Clear
+                </button>
+                <span class="text-muted ms-2">
+                    <span id="selected-count">0</span> selected
+                </span>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="d-flex align-items-center">
+        {% if page_obj and not is_archived_view %}
+            <button type="button" class="btn btn-outline-secondary btn-sm me-2" onclick="toggleBulkSelect()">
+                <i class="fas fa-check-square"></i> Select Multiple
+            </button>
+        {% endif %}
+        {% if not is_archived_view %}
+            <a href="{% url 'notebook:note_create' %}" class="btn btn-notebook">
+                <i class="fas fa-plus"></i> New Note
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Notes Grid -->
+{% if page_obj %}
+    <div class="row">
+        {% for note in page_obj %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="note-card card h-100 {% if note.is_pinned %}pinned{% endif %} {% if note.priority == 'high' %}high-priority{% elif note.priority == 'urgent' %}urgent-priority{% endif %} {% if note.is_new %}new-note{% elif note.is_recently_updated %}recently-updated{% endif %}">
+                    <div class="card-body">
+                        <!-- Bulk Select Checkbox -->
+                        <div class="bulk-select-checkbox" style="display: none;">
+                            <div class="form-check position-absolute" style="top: 10px; left: 10px; z-index: 10;">
+                                <input class="form-check-input note-checkbox" type="checkbox" value="{{ note.pk }}" id="note-{{ note.pk }}">
+                                <label class="form-check-label" for="note-{{ note.pk }}"></label>
+                            </div>
+                        </div>
+
+                        <!-- Note Header -->
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title mb-0">
+                                <a href="{% url 'notebook:note_detail' note.pk %}" class="text-decoration-none">
+                                    {{ note.title|truncatechars:40 }}
+                                </a>
+                                {% if note.is_pinned %}
+                                    <i class="fas fa-thumbtack text-warning ms-1"></i>
+                                {% endif %}
+                                {% if note.is_new %}
+                                    <span class="badge badge-success badge-sm ms-1 new-indicator">NEW</span>
+                                {% elif note.is_recently_updated %}
+                                    <span class="badge badge-primary badge-sm ms-1 updated-indicator">UPDATED</span>
+                                {% endif %}
+                            </h6>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'notebook:note_detail' note.pk %}">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'notebook:note_edit' note.pk %}">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'notebook:note_pin' note.pk %}">
+                                            <i class="fas fa-thumbtack"></i> 
+                                            {% if note.is_pinned %}Unpin{% else %}Pin{% endif %}
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'notebook:note_archive' note.pk %}">
+                                            <i class="fas fa-archive"></i> 
+                                            {% if note.is_archived %}Unarchive{% else %}Archive{% endif %}
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item text-warning" href="javascript:void(0)" onclick="quickDelete({{ note.pk }}, '{{ note.title|escapejs }}')">
+                                            <i class="fas fa-trash-alt"></i> Quick Delete
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item text-danger" href="{% url 'notebook:note_delete' note.pk %}">
+                                            <i class="fas fa-trash"></i> Delete (Confirm)
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Priority Badge -->
+                        <div class="mb-2">
+                            <span class="badge {{ note.get_priority_badge_class }} priority-badge">
+                                {{ note.get_priority_display }}
+                            </span>
+                            {% if note.category %}
+                                <span class="badge badge-light">
+                                    <span class="category-color" style="background-color: {{ note.category.color }};"></span>
+                                    {{ note.category.name }}
+                                </span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Note Content -->
+                        <p class="card-text note-content">
+                            {{ note.content|truncatechars:150 }}
+                        </p>
+
+                        <!-- Tags -->
+                        {% if note.tags %}
+                            <div class="note-tags">
+                                {% for tag in note.get_tags_list %}
+                                    <a href="{% url 'notebook:notes_by_tag' tag %}" class="note-tag">{{ tag }}</a>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <!-- Footer -->
+                        <div class="card-footer bg-transparent border-0 p-0 mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-clock"></i> {{ note.updated_at|timesince }} ago
+                                {% if note.reminder_date %}
+                                    <br>
+                                    <i class="fas fa-bell {% if note.is_overdue %}text-danger{% else %}text-info{% endif %}"></i>
+                                    {% if note.is_overdue %}
+                                        Overdue: {{ note.reminder_date|timesince }} ago
+                                    {% else %}
+                                        Reminder: {{ note.reminder_date|timeuntil }}
+                                    {% endif %}
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+        <nav aria-label="Notes pagination">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if request.GET.query %}&query={{ request.GET.query }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if request.GET.priority %}&priority={{ request.GET.priority }}{% endif %}{% if request.GET.is_pinned %}&is_pinned=on{% endif %}">
+                            &laquo; First
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.query %}&query={{ request.GET.query }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if request.GET.priority %}&priority={{ request.GET.priority }}{% endif %}{% if request.GET.is_pinned %}&is_pinned=on{% endif %}">
+                            Previous
+                        </a>
+                    </li>
+                {% endif %}
+
+                <li class="page-item active">
+                    <span class="page-link">
+                        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    </span>
+                </li>
+
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.query %}&query={{ request.GET.query }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if request.GET.priority %}&priority={{ request.GET.priority }}{% endif %}{% if request.GET.is_pinned %}&is_pinned=on{% endif %}">
+                            Next
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.query %}&query={{ request.GET.query }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if request.GET.priority %}&priority={{ request.GET.priority }}{% endif %}{% if request.GET.is_pinned %}&is_pinned=on{% endif %}">
+                            Last &raquo;
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+
+{% else %}
+    <!-- Empty State -->
+    <div class="text-center py-5">
+        <i class="fas fa-sticky-note fa-5x text-muted mb-4"></i>
+        <h4 class="text-muted">
+            {% if is_archived_view %}
+                No archived notes found
+            {% else %}
+                No notes found
+            {% endif %}
+        </h4>
+        <p class="text-muted">
+            {% if is_archived_view %}
+                You haven't archived any notes yet.
+            {% else %}
+                Start organizing your thoughts by creating your first note.
+            {% endif %}
+        </p>
+        {% if not is_archived_view %}
+            <a href="{% url 'notebook:note_create' %}" class="btn btn-notebook btn-lg">
+                <i class="fas fa-plus"></i> Create Your First Note
+            </a>
+        {% endif %}
+    </div>
+{% endif %}
+
+<script>
+let bulkSelectMode = false;
+
+function toggleBulkSelect() {
+    bulkSelectMode = !bulkSelectMode;
+    const checkboxes = document.querySelectorAll('.bulk-select-checkbox');
+    const bulkActions = document.querySelector('.bulk-actions');
+    const toggleBtn = document.querySelector('[onclick="toggleBulkSelect()"]');
+
+    if (bulkSelectMode) {
+        checkboxes.forEach(cb => cb.style.display = 'block');
+        bulkActions.style.display = 'block';
+        toggleBtn.innerHTML = '<i class="fas fa-times"></i> Cancel Select';
+        toggleBtn.classList.remove('btn-outline-secondary');
+        toggleBtn.classList.add('btn-outline-danger');
+    } else {
+        checkboxes.forEach(cb => cb.style.display = 'none');
+        bulkActions.style.display = 'none';
+        toggleBtn.innerHTML = '<i class="fas fa-check-square"></i> Select Multiple';
+        toggleBtn.classList.remove('btn-outline-danger');
+        toggleBtn.classList.add('btn-outline-secondary');
+        clearSelection();
+    }
+}
+
+function clearSelection() {
+    const checkboxes = document.querySelectorAll('.note-checkbox');
+    checkboxes.forEach(cb => cb.checked = false);
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const selectedCheckboxes = document.querySelectorAll('.note-checkbox:checked');
+    const countElement = document.getElementById('selected-count');
+    if (countElement) {
+        countElement.textContent = selectedCheckboxes.length;
+    }
+}
+
+function bulkDeleteSelected() {
+    const selectedCheckboxes = document.querySelectorAll('.note-checkbox:checked');
+    const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+
+    if (selectedIds.length === 0) {
+        alert('Please select notes to delete.');
+        return;
+    }
+
+    if (confirm(`Are you sure you want to delete ${selectedIds.length} selected note${selectedIds.length > 1 ? 's' : ''}? This action can be undone within 10 minutes.`)) {
+        const formData = new FormData();
+        selectedIds.forEach(id => formData.append('note_ids', id));
+
+        fetch('{% url "notebook:bulk_delete_notes" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while deleting notes.');
+        });
+    }
+}
+
+// Quick delete function
+function quickDelete(noteId, noteTitle) {
+    if (confirm(`Are you sure you want to delete "${noteTitle}"? This action can be undone within 10 minutes.`)) {
+        fetch(`/notebook/notes/${noteId}/delete/ajax/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                alert(data.message);
+                // Reload page
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while deleting the note.');
+        });
+    }
+}
+
+// Add event listeners for checkboxes
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = document.querySelectorAll('.note-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectedCount);
+    });
+});
+</script>
+{% endblock %}

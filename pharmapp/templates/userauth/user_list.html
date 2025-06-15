@@ -19,10 +19,60 @@
         {% endfor %}
     {% endif %}
 
+    <!-- Search and Filter Section -->
+    <div class="card shadow mb-4">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">Search & Filter Users</h6>
+        </div>
+        <div class="card-body">
+            <form method="GET" class="row">
+                <div class="col-md-4 mb-3">
+                    {{ search_form.search_query.label_tag }}
+                    {{ search_form.search_query }}
+                </div>
+                <div class="col-md-3 mb-3">
+                    {{ search_form.user_type.label_tag }}
+                    {{ search_form.user_type }}
+                </div>
+                <div class="col-md-3 mb-3">
+                    {{ search_form.status.label_tag }}
+                    {{ search_form.status }}
+                </div>
+                <div class="col-md-2 mb-3">
+                    <label>&nbsp;</label>
+                    <div>
+                        <button type="submit" class="btn btn-info btn-sm">
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                        <a href="{% url 'userauth:user_list' %}" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-times"></i> Clear
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="row mb-4">
-        <div class="col-12 text-right">
+        <div class="col-md-6">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-warning btn-sm" onclick="bulkAction('activate')" disabled id="bulk-activate-btn">
+                    <i class="fas fa-check"></i> Activate Selected
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="bulkAction('deactivate')" disabled id="bulk-deactivate-btn">
+                    <i class="fas fa-ban"></i> Deactivate Selected
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="bulkAction('delete')" disabled id="bulk-delete-btn">
+                    <i class="fas fa-trash"></i> Delete Selected
+                </button>
+            </div>
+        </div>
+        <div class="col-md-6 text-right">
             <a href="{% url 'userauth:register' %}" class="btn btn-primary">
                 <i class="fas fa-user-plus"></i> Add New User
+            </a>
+            <a href="{% url 'userauth:privilege_management_view' %}" class="btn btn-info">
+                <i class="fas fa-lock"></i> Manage Privileges
             </a>
         </div>
     </div>
@@ -33,71 +83,97 @@
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-bordered table-hover" id="usersTable">
-                    <thead class="thead-light">
-                        <tr>
-                            <th>Username</th>
-                            <th>Full Name</th>
-                            <th>Mobile</th>
-                            <th>Email</th>
-                            <th>User Type</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for user in users %}
-                        <tr id="user-row-{{ user.id }}">
-                            <td>{{ user.username }}</td>
-                            <td>{{ user.profile.full_name }}</td>
-                            <td>{{ user.mobile }}</td>
-                            <td>{{ user.email|default:"N/A" }}</td>
-                            <td>
-                                <span class="badge badge-primary">{{ user.profile.user_type }}</span>
-                            </td>
-                            <td>
-                                {% if user.is_active %}
-                                    <span class="badge badge-success">Active</span>
-                                {% else %}
-                                    <span class="badge badge-danger">Inactive</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="btn-group" role="group">
-                                    <a href="{% url 'userauth:edit_user' user.id %}" class="btn btn-sm btn-info"
-                                       data-toggle="modal" data-target="#editUserModal"
-                                       hx-get="{% url 'userauth:edit_user' user.id %}"
-                                       hx-target="#editUserModal .modal-content">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </a>
-                                    
+                <form id="bulk-action-form" method="POST" action="{% url 'userauth:bulk_user_actions' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" id="bulk-action-input">
+                    <table class="table table-bordered table-hover" id="usersTable">
+                        <thead class="thead-light">
+                            <tr>
+                                <th width="50">
+                                    <input type="checkbox" id="select-all" class="form-check-input">
+                                </th>
+                                <th>Username</th>
+                                <th>Full Name</th>
+                                <th>Mobile</th>
+                                <th>User Type</th>
+                                <th>Department</th>
+                                <th>Employee ID</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr id="user-row-{{ user.id }}">
+                                <td>
                                     {% if user != request.user %}
-                                        <a href="{% url 'userauth:toggle_user_status' user.id %}" class="btn btn-sm {% if user.is_active %}btn-warning{% else %}btn-success{% endif %}"
-                                           hx-get="{% url 'userauth:toggle_user_status' user.id %}"
-                                           hx-target="#user-row-{{ user.id }}"
-                                           hx-swap="outerHTML">
-                                            {% if user.is_active %}
-                                                <i class="fas fa-ban"></i> Deactivate
-                                            {% else %}
-                                                <i class="fas fa-check"></i> Activate
-                                            {% endif %}
-                                        </a>
-                                        
-                                        <a href="{% url 'userauth:delete_user' user.id %}" class="btn btn-sm btn-danger"
-                                           onclick="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </a>
+                                        <input type="checkbox" name="user_ids" value="{{ user.id }}" class="form-check-input user-checkbox">
                                     {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="7" class="text-center">No users found.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                                </td>
+                                <td>
+                                    <strong>{{ user.username }}</strong>
+                                    {% if user.is_superuser %}
+                                        <span class="badge badge-warning badge-sm ml-1">Super</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.profile.full_name|default:"N/A" }}</td>
+                                <td>{{ user.mobile }}</td>
+                                <td>
+                                    <span class="badge badge-primary">{{ user.profile.user_type|default:"N/A" }}</span>
+                                </td>
+                                <td>{{ user.profile.department|default:"N/A" }}</td>
+                                <td>{{ user.profile.employee_id|default:"N/A" }}</td>
+                                <td>
+                                    {% if user.is_active %}
+                                        <span class="badge badge-success">Active</span>
+                                    {% else %}
+                                        <span class="badge badge-danger">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.profile.created_at|date:"M d, Y" }}</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{% url 'userauth:user_details' user.id %}" class="btn btn-sm btn-outline-primary" title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{% url 'userauth:edit_user' user.id %}" class="btn btn-sm btn-info"
+                                           data-toggle="modal" data-target="#editUserModal"
+                                           hx-get="{% url 'userauth:edit_user' user.id %}"
+                                           hx-target="#editUserModal .modal-content" title="Edit User">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+
+                                        {% if user != request.user %}
+                                            <a href="{% url 'userauth:toggle_user_status' user.id %}" class="btn btn-sm {% if user.is_active %}btn-warning{% else %}btn-success{% endif %}"
+                                               hx-get="{% url 'userauth:toggle_user_status' user.id %}"
+                                               hx-target="#user-row-{{ user.id }}"
+                                               hx-swap="outerHTML"
+                                               title="{% if user.is_active %}Deactivate{% else %}Activate{% endif %} User">
+                                                {% if user.is_active %}
+                                                    <i class="fas fa-ban"></i>
+                                                {% else %}
+                                                    <i class="fas fa-check"></i>
+                                                {% endif %}
+                                            </a>
+
+                                            <a href="{% url 'userauth:delete_user' user.id %}" class="btn btn-sm btn-danger"
+                                               onclick="return confirm('Are you sure you want to delete this user? This action cannot be undone.');"
+                                               title="Delete User">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="10" class="text-center">No users found.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </form>
             </div>
         </div>
     </div>
@@ -116,13 +192,102 @@
 
 {% block extra_js %}
 <script>
-    $(document).ready(function() {
-        $('#usersTable').DataTable({
-            "order": [[4, "asc"]],  // Sort by user type by default
-            "columnDefs": [
-                { "orderable": false, "targets": 6 }  // Disable sorting on actions column
-            ]
+document.addEventListener('DOMContentLoaded', function() {
+    // Select all checkbox functionality
+    const selectAllCheckbox = document.getElementById('select-all');
+    const userCheckboxes = document.querySelectorAll('.user-checkbox');
+    const bulkButtons = ['bulk-activate-btn', 'bulk-deactivate-btn', 'bulk-delete-btn'];
+
+    // Handle select all checkbox
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            userCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            toggleBulkButtons();
+        });
+    }
+
+    // Handle individual checkboxes
+    userCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            // Update select all checkbox state
+            const checkedCount = document.querySelectorAll('.user-checkbox:checked').length;
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = checkedCount === userCheckboxes.length;
+                selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < userCheckboxes.length;
+            }
+
+            toggleBulkButtons();
         });
     });
+
+    // Toggle bulk action buttons based on selection
+    function toggleBulkButtons() {
+        const hasSelection = document.querySelectorAll('.user-checkbox:checked').length > 0;
+        bulkButtons.forEach(buttonId => {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.disabled = !hasSelection;
+            }
+        });
+    }
+
+    // Initial state
+    toggleBulkButtons();
+});
+
+// Bulk action function
+function bulkAction(action) {
+    const checkedBoxes = document.querySelectorAll('.user-checkbox:checked');
+
+    if (checkedBoxes.length === 0) {
+        alert('Please select at least one user.');
+        return;
+    }
+
+    let confirmMessage = '';
+    switch(action) {
+        case 'activate':
+            confirmMessage = `Are you sure you want to activate ${checkedBoxes.length} user(s)?`;
+            break;
+        case 'deactivate':
+            confirmMessage = `Are you sure you want to deactivate ${checkedBoxes.length} user(s)?`;
+            break;
+        case 'delete':
+            confirmMessage = `Are you sure you want to delete ${checkedBoxes.length} user(s)? This action cannot be undone.`;
+            break;
+    }
+
+    if (confirm(confirmMessage)) {
+        document.getElementById('bulk-action-input').value = action;
+        document.getElementById('bulk-action-form').submit();
+    }
+}
+
+// DataTable initialization for better table functionality
+$(document).ready(function() {
+    if (typeof $.fn.DataTable !== 'undefined') {
+        $('#usersTable').DataTable({
+            "pageLength": 25,
+            "order": [[ 8, "desc" ]], // Sort by created date
+            "columnDefs": [
+                { "orderable": false, "targets": [0, 9] }, // Disable sorting for checkbox and actions columns
+                { "searchable": false, "targets": [0, 9] }
+            ],
+            "language": {
+                "search": "Search users:",
+                "lengthMenu": "Show _MENU_ users per page",
+                "info": "Showing _START_ to _END_ of _TOTAL_ users",
+                "paginate": {
+                    "first": "First",
+                    "last": "Last",
+                    "next": "Next",
+                    "previous": "Previous"
+                }
+            }
+        });
+    }
+});
 </script>
 {% endblock %}

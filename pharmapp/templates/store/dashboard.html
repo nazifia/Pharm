@@ -1,7 +1,7 @@
 {% extends "partials/base.html" %}
 {% load static %}
 {% block content %}
-<style>
+{% comment %} <style>
     .statistics {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -50,7 +50,7 @@
             font-size: 1.5em;
         }
     }
-</style>
+</style> {% endcomment %}
 
 <div
     style="background-image: url({% static 'images/pharmacy2.jpg' %}); height: 100vh; background-size: cover; background-position: center;">
@@ -62,20 +62,23 @@
     {% for message in messages %}
     <div style="text-align: center;" class="alert alert-{{message.tags}}">{{message}}</div>
     {% endfor %}
-    <!-- <div class="statistics">
+    <div class="statistics">
         <div class="bar-chart">
-            <canvas id="dailySalesChart"></canvas>
+            <canvas id="myAreaChart"></canvas> <!-- Changed ID to myAreaChart -->
         </div>
         <div class="pie-chart">
-            <canvas class="col-md-6 offset-md-2" id="monthlySalesChart"></canvas>
+            <canvas id="myPieChart"></canvas> <!-- Changed ID to myPieChart -->
         </div>
-    </div> -->
+    </div>
     {% endif %}
 </div>
 
 <!-- Include Chart.js and HTMX -->
-<!-- <script src="{% static 'js/chart.min.js' %}"></script>
-<script src="https://unpkg.com/htmx.org@1.9.0"></script> -->
+<script src="{% static 'js/chart.min.js' %}"></script>
+<script src="https://unpkg.com/htmx.org@1.9.0"></script>
+<!-- Page level custom scripts -->
+<script src="{% static 'js/demo/chart-area-demo.js' %}"></script>
+<script src="{% static 'js/demo/chart-pie-demo.js' %}"></script>
 <!-- <script>
     // Function to render daily sales chart
     function renderDailySalesChart(data) {

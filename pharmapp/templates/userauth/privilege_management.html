@@ -1,0 +1,449 @@
+{% extends "partials/base.html" %}
+{% load custom_filters %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1>Privilege Management</h1>
+                <a href="{% url 'userauth:user_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to User List
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- User Selection and Privilege Assignment -->
+        <div class="col-md-8">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-cog"></i> Select User for Privilege Management
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="privilege-form">
+                        {% csrf_token %}
+                        <input type="hidden" id="selected_user_id" name="selected_user_id" value=""">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.user.id_for_label }}">Select User:</label>
+                                {{ form.user }}
+                                {% if form.user.help_text %}
+                                    <small class="form-text text-muted">{{ form.user.help_text }}</small>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>&nbsp;</label>
+                                <div>
+                                    <button type="button" class="btn btn-info" onclick="loadUserPermissions()">
+                                        <i class="fas fa-search"></i> Load User Permissions
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="permissions-section" style="display: none;">
+                            <hr>
+                            <h6>Available Permissions:</h6>
+                            <div class="row">
+                                {% for field in form %}
+                                    {% if 'permission_' in field.name %}
+                                        <div class="col-md-4 mb-2">
+                                            <div class="form-check">
+                                                {{ field }}
+                                                <label class="form-check-label" for="{{ field.id_for_label }}">
+                                                    {{ field.label }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+
+                            <div class="mt-3">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save"></i> Save Permissions
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                                    <i class="fas fa-undo"></i> Reset
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Role-Based Permissions Reference -->
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle"></i> Role-Based Permissions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="rolePermissionsAccordion">
+                        {% for role, permissions in user_permissions.items %}
+                            <div class="card">
+                                <div class="card-header p-2" id="heading{{ forloop.counter }}">
+                                    <h6 class="mb-0">
+                                        <button class="btn btn-link btn-sm" type="button" data-toggle="collapse"
+                                                data-target="#collapse{{ forloop.counter }}" aria-expanded="false"
+                                                aria-controls="collapse{{ forloop.counter }}">
+                                            <span class="badge badge-primary">{{ role }}</span>
+                                        </button>
+                                    </h6>
+                                </div>
+                                <div id="collapse{{ forloop.counter }}" class="collapse"
+                                     aria-labelledby="heading{{ forloop.counter }}"
+                                     data-parent="#rolePermissionsAccordion">
+                                    <div class="card-body p-2">
+                                        <small>
+                                            {% for permission in permissions %}
+                                                <div class="permission-item">
+                                                    <i class="fas fa-check text-success"></i>
+                                                    {{ permission|format_permission }}
+                                                </div>
+                                            {% endfor %}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt"></i> Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-primary btn-sm" onclick="selectAllPermissions()">
+                            <i class="fas fa-check-square"></i> Select All Permissions
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="clearAllPermissions()">
+                            <i class="fas fa-square"></i> Clear All Permissions
+                        </button>
+                        <hr>
+                        <button type="button" class="btn btn-info btn-sm" onclick="applyRoleTemplate('Admin')">
+                            <i class="fas fa-user-shield"></i> Apply Admin Template
+                        </button>
+                        <button type="button" class="btn btn-success btn-sm" onclick="applyRoleTemplate('Manager')">
+                            <i class="fas fa-user-tie"></i> Apply Manager Template
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm" onclick="applyRoleTemplate('Pharmacist')">
+                            <i class="fas fa-pills"></i> Apply Pharmacist Template
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current User Permissions Display -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i> Current User Permissions Summary
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="current-permissions-display">
+                        <p class="text-muted text-center">Select a user to view their current permissions.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Role permission templates
+const rolePermissions = {{ user_permissions|safe }};
+
+function loadUserPermissions() {
+    const userSelect = document.querySelector('select[name="user"]');
+    const selectedUserId = userSelect.value;
+
+    if (!selectedUserId) {
+        alert('Please select a user first.');
+        return;
+    }
+
+    // Show loading state
+    const permissionsSection = document.getElementById('permissions-section');
+    permissionsSection.style.display = 'block';
+    permissionsSection.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading permissions...</div>';
+
+    // Make AJAX call to get user's current permissions
+    fetch(`/api/user-permissions/${selectedUserId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Set the selected user ID in the hidden field
+                document.getElementById('selected_user_id').value = selectedUserId;
+
+                // Update checkboxes dynamically
+                updatePermissionCheckboxes(data.permissions);
+                updateCurrentPermissionsDisplay(data.user, data.permissions);
+            } else {
+                alert('Error loading user permissions: ' + data.error);
+                permissionsSection.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading user permissions');
+            permissionsSection.style.display = 'none';
+        });
+}
+
+function updateCurrentPermissionsDisplay(user, permissions = null) {
+    const displayDiv = document.getElementById('current-permissions-display');
+
+    if (typeof user === 'string') {
+        // Legacy call with just userId
+        const userSelect = document.querySelector('select[name="user"]');
+        const selectedOption = userSelect.options[userSelect.selectedIndex];
+        const userName = selectedOption.text;
+
+        displayDiv.innerHTML = `
+            <h6>Permissions for: <span class="badge badge-primary">${userName}</span></h6>
+            <p class="text-info">Use the form above to modify permissions for this user.</p>
+        `;
+        return;
+    }
+
+    // New detailed display with user object and permissions
+    let html = `
+        <h6>Permissions for: <span class="badge badge-primary">${user.full_name || user.username}</span>
+        <small class="text-muted">(${user.user_type})</small></h6>
+    `;
+
+    if (permissions) {
+        const grantedPerms = Object.entries(permissions).filter(([perm, data]) => data.granted);
+        const revokedPerms = Object.entries(permissions).filter(([perm, data]) => !data.granted && data.source === 'individual');
+
+        html += `<div class="row">`;
+
+        if (grantedPerms.length > 0) {
+            html += `
+                <div class="col-md-6">
+                    <h6 class="text-success"><i class="fas fa-check"></i> Granted Permissions (${grantedPerms.length})</h6>
+                    <div class="permission-list">
+            `;
+            grantedPerms.forEach(([perm, data]) => {
+                const source = data.source === 'role' ? 'Role-based' : 'Individual';
+                const badgeClass = data.source === 'role' ? 'badge-info' : 'badge-success';
+                html += `
+                    <div class="permission-item">
+                        <i class="fas fa-check text-success"></i>
+                        ${perm.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        <span class="badge ${badgeClass} badge-sm">${source}</span>
+                    </div>
+                `;
+            });
+            html += `</div></div>`;
+        }
+
+        if (revokedPerms.length > 0) {
+            html += `
+                <div class="col-md-6">
+                    <h6 class="text-danger"><i class="fas fa-times"></i> Revoked Permissions (${revokedPerms.length})</h6>
+                    <div class="permission-list">
+            `;
+            revokedPerms.forEach(([perm, data]) => {
+                html += `
+                    <div class="permission-item">
+                        <i class="fas fa-times text-danger"></i>
+                        ${perm.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        <span class="badge badge-warning badge-sm">Individually Revoked</span>
+                    </div>
+                `;
+            });
+            html += `</div></div>`;
+        }
+
+        html += `</div>`;
+    }
+
+    html += `<p class="text-info mt-3">Use the form above to modify permissions for this user.</p>`;
+    displayDiv.innerHTML = html;
+}
+
+function restorePermissionsSection() {
+    // This function will be called after we get the permissions data
+    // The actual restoration will happen in updatePermissionCheckboxes
+}
+
+function updatePermissionCheckboxes(permissions) {
+    const permissionsSection = document.getElementById('permissions-section');
+
+    // Generate the permissions section HTML
+    let html = `
+        <hr>
+        <h6>Available Permissions:</h6>
+        <div class="row" id="permissions-grid">
+    `;
+
+    // Sort permissions alphabetically
+    const sortedPermissions = Object.keys(permissions).sort();
+
+    sortedPermissions.forEach(permission => {
+        const data = permissions[permission];
+        const permissionLabel = permission.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+        // Determine badge for permission source
+        let badge = '';
+        if (data.source === 'individual') {
+            const badgeClass = data.granted ? 'badge-success' : 'badge-warning';
+            const badgeText = data.granted ? 'Individual' : 'Revoked';
+            badge = `<span class="badge ${badgeClass} badge-sm ml-1">${badgeText}</span>`;
+        } else if (data.role_based) {
+            badge = `<span class="badge badge-info badge-sm ml-1">Role</span>`;
+        }
+
+        html += `
+            <div class="col-md-4 mb-2">
+                <div class="form-check">
+                    <input type="checkbox"
+                           name="permission_${permission}"
+                           id="id_permission_${permission}"
+                           class="form-check-input"
+                           ${data.granted ? 'checked' : ''}>
+                    <label class="form-check-label" for="id_permission_${permission}">
+                        ${permissionLabel}
+                        ${badge}
+                    </label>
+                </div>
+            </div>
+        `;
+    });
+
+    html += `
+        </div>
+        <div class="mt-3">
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-save"></i> Save Permissions
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                <i class="fas fa-undo"></i> Reset
+            </button>
+        </div>
+    `;
+
+    permissionsSection.innerHTML = html;
+}
+
+function selectAllPermissions() {
+    const checkboxes = document.querySelectorAll('input[name^="permission_"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+}
+
+function clearAllPermissions() {
+    const checkboxes = document.querySelectorAll('input[name^="permission_"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+}
+
+function applyRoleTemplate(role) {
+    if (!rolePermissions[role]) {
+        alert('Role template not found.');
+        return;
+    }
+
+    // Clear all first
+    clearAllPermissions();
+
+    // Apply role permissions
+    const permissions = rolePermissions[role];
+    permissions.forEach(permission => {
+        const checkbox = document.querySelector(`input[name="permission_${permission}"]`);
+        if (checkbox) {
+            checkbox.checked = true;
+        }
+    });
+
+    alert(`Applied ${role} permission template.`);
+}
+
+function resetForm() {
+    document.getElementById('permissions-section').style.display = 'none';
+    document.querySelector('select[name="user"]').selectedIndex = 0;
+    clearAllPermissions();
+
+    const displayDiv = document.getElementById('current-permissions-display');
+    displayDiv.innerHTML = '<p class="text-muted text-center">Select a user to view their current permissions.</p>';
+}
+
+// Auto-load permissions when user is selected
+document.addEventListener('DOMContentLoaded', function() {
+    const userSelect = document.querySelector('select[name="user"]');
+    if (userSelect) {
+        userSelect.addEventListener('change', function() {
+            if (this.value) {
+                loadUserPermissions();
+            } else {
+                document.getElementById('permissions-section').style.display = 'none';
+            }
+        });
+    }
+});
+</script>
+
+<style>
+.permission-item {
+    padding: 2px 0;
+    font-size: 0.85em;
+}
+
+.d-grid {
+    display: grid;
+}
+
+.gap-2 {
+    gap: 0.5rem;
+}
+
+.form-check {
+    padding-left: 1.5rem;
+}
+
+.form-check-input {
+    margin-left: -1.5rem;
+}
+
+.permission-source-badge {
+    font-size: 0.7em;
+}
+
+.badge-sm {
+    font-size: 0.75em;
+    padding: 0.25em 0.4em;
+}
+</style>
+{% endblock %}

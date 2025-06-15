@@ -97,7 +97,7 @@ class addItemForm(forms.ModelForm):
 
 
 class dispenseForm(forms.Form):
-    q = forms.CharField(min_length=2, label='', widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder':'SEARCH  HERE...'}))
+    q = forms.CharField(min_length=2, label='', widget=forms.TextInput(attrs={'class': 'form-control search-input', 'placeholder':'Search by item name or brand...'}))
 
 
 class CustomerForm(forms.ModelForm):
@@ -108,6 +108,36 @@ class CustomerForm(forms.ModelForm):
 
 class AddFundsForm(forms.Form):
     amount = forms.DecimalField(max_digits=10, decimal_places=2)
+
+
+class DispensingLogSearchForm(forms.Form):
+    item_name = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Search by item name...',
+            'autocomplete': 'off'
+        }),
+        label='Item Name'
+    )
+    date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date',
+            'style': 'background-color: rgb(196, 253, 253);'
+        }),
+        label='Date'
+    )
+    status = forms.ChoiceField(
+        choices=[('', 'All Status')] + STATUS_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-control'
+        }),
+        label='Status'
+    )
 
 
 

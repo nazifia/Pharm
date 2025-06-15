@@ -1,0 +1,205 @@
+{% extends 'notebook/base_notebook.html' %}
+{% load static %}
+
+{% block notebook_title %}{{ title }}{% endblock %}
+{% block notebook_subtitle %}
+    {% if note %}
+        Edit your note details and content
+    {% else %}
+        Create a new note to organize your thoughts
+    {% endif %}
+{% endblock %}
+
+{% block notebook_content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-edit"></i> {{ title }}
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    <!-- Title Field -->
+                    <div class="form-group mb-3">
+                        <label for="{{ form.title.id_for_label }}" class="form-label">
+                            <strong>Title</strong> <span class="text-danger">*</span>
+                        </label>
+                        {{ form.title }}
+                        {% if form.title.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.title.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Content Field -->
+                    <div class="form-group mb-3">
+                        <label for="{{ form.content.id_for_label }}" class="form-label">
+                            <strong>Content</strong> <span class="text-danger">*</span>
+                        </label>
+                        {{ form.content }}
+                        {% if form.content.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.content.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Write your note content here. You can use this space for any thoughts, ideas, or information you want to remember.
+                        </div>
+                    </div>
+
+                    <!-- Category and Priority Row -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="{{ form.category.id_for_label }}" class="form-label">
+                                    <strong>Category</strong>
+                                </label>
+                                {{ form.category }}
+                                {% if form.category.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.category.errors %}
+                                            <div>{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">
+                                    <a href="{% url 'notebook:category_create' %}" target="_blank">Create new category</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="{{ form.priority.id_for_label }}" class="form-label">
+                                    <strong>Priority</strong>
+                                </label>
+                                {{ form.priority }}
+                                {% if form.priority.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.priority.errors %}
+                                            <div>{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tags Field -->
+                    <div class="form-group mb-3">
+                        <label for="{{ form.tags.id_for_label }}" class="form-label">
+                            <strong>Tags</strong>
+                        </label>
+                        {{ form.tags }}
+                        {% if form.tags.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.tags.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Add tags separated by commas to help organize and search your notes (e.g., work, meeting, important).
+                        </div>
+                    </div>
+
+                    <!-- Reminder Date Field -->
+                    <div class="form-group mb-3">
+                        <label for="{{ form.reminder_date.id_for_label }}" class="form-label">
+                            <strong>Reminder Date</strong>
+                        </label>
+                        {{ form.reminder_date }}
+                        {% if form.reminder_date.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.reminder_date.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Set an optional reminder date and time for this note.
+                        </div>
+                    </div>
+
+                    <!-- Pin Note Checkbox -->
+                    <div class="form-group mb-4">
+                        <div class="form-check">
+                            {{ form.is_pinned }}
+                            <label class="form-check-label" for="{{ form.is_pinned.id_for_label }}">
+                                <strong>Pin this note</strong>
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            Pinned notes will appear at the top of your note list.
+                        </div>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <button type="submit" class="btn btn-notebook">
+                                <i class="fas fa-save"></i> {{ submit_text }}
+                            </button>
+                            <a href="{% if note %}{% url 'notebook:note_detail' note.pk %}{% else %}{% url 'notebook:note_list' %}{% endif %}" 
+                               class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                        {% if note %}
+                            <div>
+                                <a href="{% url 'notebook:note_delete' note.pk %}" 
+                                   class="btn btn-outline-danger"
+                                   onclick="return confirm('Are you sure you want to delete this note?')">
+                                    <i class="fas fa-trash"></i> Delete Note
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Help Card -->
+        <div class="card shadow mt-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-info">
+                    <i class="fas fa-info-circle"></i> Tips for Better Notes
+                </h6>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li><strong>Use descriptive titles:</strong> Make it easy to find your notes later</li>
+                    <li><strong>Add relevant tags:</strong> Use keywords that help categorize your content</li>
+                    <li><strong>Set priorities:</strong> Mark important notes as high or urgent priority</li>
+                    <li><strong>Use categories:</strong> Group related notes together for better organization</li>
+                    <li><strong>Set reminders:</strong> Don't forget important tasks or deadlines</li>
+                    <li><strong>Pin important notes:</strong> Keep frequently accessed notes at the top</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-resize textarea
+document.addEventListener('DOMContentLoaded', function() {
+    const textarea = document.querySelector('textarea[name="content"]');
+    if (textarea) {
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = this.scrollHeight + 'px';
+        });
+        // Initial resize
+        textarea.style.height = textarea.scrollHeight + 'px';
+    }
+});
+</script>
+{% endblock %}

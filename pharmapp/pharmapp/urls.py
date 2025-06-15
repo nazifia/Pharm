@@ -19,7 +19,9 @@ urlpatterns = [
     path('', include('store.urls')),
     path('', include('wholesale.urls')),
     path('', include('userauth.urls')),
-    
+    path('chat/', include('chat.urls')),
+    path('notebook/', include('notebook.urls')),
+
     path('api/', include('api.urls')),
     
     # path('sw.js', serve, {'path': 'js/sw.js'}),

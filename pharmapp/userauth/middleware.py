@@ -215,6 +215,18 @@ class RoleBasedAccessMiddleware:
         # Check if this URL has role restrictions
         if current_url in self.role_required_urls:
             allowed_roles = self.role_required_urls[current_url]
+
+            # Check if user has a profile
+            if not hasattr(request.user, 'profile') or not request.user.profile:
+                # Create a default profile for users without one
+                from userauth.models import Profile
+                Profile.objects.get_or_create(user=request.user, defaults={
+                    'full_name': request.user.username or request.user.mobile,
+                    'user_type': 'Salesperson'  # Default role
+                })
+                # Refresh the user object to get the new profile
+                request.user.refresh_from_db()
+
             user_role = request.user.profile.user_type
 
             if user_role not in allowed_roles:

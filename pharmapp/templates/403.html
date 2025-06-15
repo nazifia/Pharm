@@ -1,0 +1,170 @@
+{% extends "partials/base.html" %}
+{% load custom_filters %}
+{% block title %}Access Denied{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-danger text-white text-center">
+                    <h1 class="mb-0">
+                        <i class="fas fa-ban"></i> Access Denied
+                    </h1>
+                </div>
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-lock fa-5x text-danger mb-3"></i>
+                        <h3>403 - Forbidden</h3>
+                        <p class="lead text-muted">You don't have permission to access this resource.</p>
+                    </div>
+
+                    {% if permission %}
+                        <div class="alert alert-warning">
+                            <h5><i class="fas fa-exclamation-triangle"></i> Missing Permission</h5>
+                            <p>You need the <strong>"{{ permission|format_permission }}"</strong> permission to access this page.</p>
+                        </div>
+                    {% endif %}
+
+                    {% if required_roles %}
+                        <div class="alert alert-info">
+                            <h5><i class="fas fa-user-shield"></i> Role Requirements</h5>
+                            <p>This page requires one of the following roles:</p>
+                            <ul class="list-inline">
+                                {% for role in required_roles %}
+                                    <li class="list-inline-item">
+                                        <span class="badge badge-primary">{{ role }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                            {% if user_role %}
+                                <p class="mt-2">Your current role: <span class="badge badge-secondary">{{ user_role }}</span></p>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    {% if superuser_required %}
+                        <div class="alert alert-danger">
+                            <h5><i class="fas fa-crown"></i> Superuser Access Required</h5>
+                            <p>This page requires superuser privileges.</p>
+                        </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        <h5>What can you do?</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card border-primary">
+                                    <div class="card-body">
+                                        <h6 class="card-title">
+                                            <i class="fas fa-arrow-left text-primary"></i> Go Back
+                                        </h6>
+                                        <p class="card-text">Return to the previous page you were viewing.</p>
+                                        <button onclick="history.back()" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-arrow-left"></i> Go Back
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border-success">
+                                    <div class="card-body">
+                                        <h6 class="card-title">
+                                            <i class="fas fa-home text-success"></i> Dashboard
+                                        </h6>
+                                        <p class="card-text">Go to your dashboard to access available features.</p>
+                                        <a href="{% url 'pharmapp:dashboard' %}" class="btn btn-success btn-sm">
+                                            <i class="fas fa-home"></i> Dashboard
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <div class="card border-info">
+                            <div class="card-body">
+                                <h6 class="card-title">
+                                    <i class="fas fa-question-circle text-info"></i> Need Access?
+                                </h6>
+                                <p class="card-text">
+                                    If you believe you should have access to this page, please contact your system administrator.
+                                </p>
+                                <div class="btn-group" role="group">
+                                    {% if user.is_authenticated %}
+                                        <a href="{% url 'userauth:user_list' %}" class="btn btn-info btn-sm">
+                                            <i class="fas fa-users"></i> Contact Admin
+                                        </a>
+                                    {% endif %}
+                                    <a href="{% url 'userauth:logout' %}" class="btn btn-secondary btn-sm">
+                                        <i class="fas fa-sign-out-alt"></i> Logout
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if user.is_authenticated %}
+                        <div class="mt-4">
+                            <small class="text-muted">
+                                Logged in as: <strong>{{ user.username }}</strong>
+                                {% if user.profile.user_type %}
+                                    ({{ user.profile.user_type }})
+                                {% endif %}
+                            </small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    border: none;
+    border-radius: 15px;
+}
+
+.card-header {
+    border-radius: 15px 15px 0 0 !important;
+}
+
+.fa-5x {
+    font-size: 5rem;
+}
+
+.btn-group .btn {
+    margin: 0 2px;
+}
+
+.list-inline-item {
+    margin-right: 10px;
+}
+
+.alert {
+    border-radius: 10px;
+}
+
+.card.border-primary,
+.card.border-success,
+.card.border-info {
+    border-width: 2px;
+}
+
+@media (max-width: 768px) {
+    .fa-5x {
+        font-size: 3rem;
+    }
+
+    .btn-group {
+        flex-direction: column;
+    }
+
+    .btn-group .btn {
+        margin: 2px 0;
+    }
+}
+</style>
+{% endblock %}

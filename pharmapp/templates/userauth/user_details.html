@@ -1,0 +1,283 @@
+{% extends "partials/base.html" %}
+{% load custom_filters %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1>User Details - {{ user.username }}</h1>
+                <div>
+                    <a href="{% url 'userauth:user_list' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to User List
+                    </a>
+                    <a href="{% url 'userauth:edit_user' user.id %}" class="btn btn-primary">
+                        <i class="fas fa-edit"></i> Edit User
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- User Information Card -->
+        <div class="col-md-8">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user"></i> User Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th width="40%">Username:</th>
+                                    <td>{{ user.username }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Full Name:</th>
+                                    <td>{{ user.profile.full_name|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Mobile:</th>
+                                    <td>{{ user.mobile }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Email:</th>
+                                    <td>{{ user.email|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>User Type:</th>
+                                    <td>
+                                        <span class="badge badge-primary">{{ user.profile.user_type|default:"N/A" }}</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th width="40%">Department:</th>
+                                    <td>{{ user.profile.department|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Employee ID:</th>
+                                    <td>{{ user.profile.employee_id|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Hire Date:</th>
+                                    <td>{{ user.profile.hire_date|date:"M d, Y"|default:"N/A" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Status:</th>
+                                    <td>
+                                        {% if user.is_active %}
+                                            <span class="badge badge-success">Active</span>
+                                        {% else %}
+                                            <span class="badge badge-danger">Inactive</span>
+                                        {% endif %}
+                                        {% if user.is_superuser %}
+                                            <span class="badge badge-warning ml-1">Superuser</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Created:</th>
+                                    <td>{{ user.profile.created_at|date:"M d, Y H:i" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history"></i> Recent Activity
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_activities %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Action</th>
+                                        <th>Type</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for activity in recent_activities %}
+                                    <tr>
+                                        <td>{{ activity.action }}</td>
+                                        <td>
+                                            <span class="badge badge-secondary">{{ activity.action_type }}</span>
+                                        </td>
+                                        <td>{{ activity.timestamp|date:"M d, Y H:i" }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="text-center mt-3">
+                            <a href="{% url 'userauth:activity_dashboard' %}?user={{ user.id }}" class="btn btn-sm btn-outline-info">
+                                View All Activity
+                            </a>
+                        </div>
+                    {% else %}
+                        <p class="text-muted text-center">No recent activity found.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Permissions and Quick Actions -->
+        <div class="col-md-4">
+            <!-- Permissions Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-lock"></i> Role Permissions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if permissions %}
+                        <div class="permission-list">
+                            {% for permission in permissions %}
+                                <div class="permission-item mb-2">
+                                    <i class="fas fa-check text-success"></i>
+                                    <span class="ml-2">{{ permission|format_permission }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No specific permissions assigned.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Quick Actions Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt"></i> Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'userauth:edit_user' user.id %}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-edit"></i> Edit User
+                        </a>
+
+                        {% if user != request.user %}
+                            <a href="{% url 'userauth:toggle_user_status' user.id %}"
+                               class="btn btn-sm {% if user.is_active %}btn-warning{% else %}btn-success{% endif %}"
+                               onclick="return confirm('Are you sure you want to {% if user.is_active %}deactivate{% else %}activate{% endif %} this user?');">
+                                {% if user.is_active %}
+                                    <i class="fas fa-ban"></i> Deactivate User
+                                {% else %}
+                                    <i class="fas fa-check"></i> Activate User
+                                {% endif %}
+                            </a>
+
+                            <a href="{% url 'userauth:delete_user' user.id %}"
+                               class="btn btn-danger btn-sm"
+                               onclick="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
+                                <i class="fas fa-trash"></i> Delete User
+                            </a>
+                        {% endif %}
+
+                        <hr>
+
+                        <a href="{% url 'userauth:activity_dashboard' %}?user={{ user.id }}" class="btn btn-info btn-sm">
+                            <i class="fas fa-list"></i> View Activity Log
+                        </a>
+
+                        <a href="{% url 'userauth:privilege_management_view' %}" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-lock"></i> Manage Privileges
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Statistics Card -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar"></i> User Statistics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="stat-item">
+                                <h4 class="text-primary">{{ recent_activities|length }}</h4>
+                                <small class="text-muted">Recent Actions</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-item">
+                                <h4 class="text-info">{{ user.date_joined|timesince }}</h4>
+                                <small class="text-muted">Member Since</small>
+                            </div>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row text-center">
+                        <div class="col-12">
+                            <div class="stat-item">
+                                <h6 class="text-success">Last Login</h6>
+                                <small class="text-muted">
+                                    {% if user.last_login %}
+                                        {{ user.last_login|date:"M d, Y H:i" }}
+                                    {% else %}
+                                        Never
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.permission-item {
+    padding: 5px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.permission-item:last-child {
+    border-bottom: none;
+}
+
+.stat-item h4, .stat-item h6 {
+    margin-bottom: 5px;
+}
+
+.d-grid {
+    display: grid;
+}
+
+.gap-2 {
+    gap: 0.5rem;
+}
+</style>
+{% endblock %}

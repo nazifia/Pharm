@@ -35,6 +35,94 @@
         box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
     }
 
+    /* Enhanced search form styles */
+    .card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        padding: 0.75rem 1rem;
+    }
+
+    .form-control:focus {
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-text {
+        font-size: 0.875rem;
+    }
+
+    /* Search input specific styling */
+    input[name="item_name"] {
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+
+    input[name="item_name"]:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.15);
+        transform: translateY(-1px);
+    }
+
+    /* Button styling */
+    .btn-secondary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+        transition: all 0.3s ease;
+    }
+
+    .btn-secondary:hover {
+        background-color: #5a6268;
+        border-color: #545b62;
+        transform: translateY(-1px);
+    }
+
+    /* Autocomplete suggestions styling */
+    .autocomplete-suggestions {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-top: none;
+        border-radius: 0 0 4px 4px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .autocomplete-suggestion {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .autocomplete-suggestion:hover,
+    .autocomplete-suggestion.selected {
+        background-color: #f8f9fa;
+    }
+
+    .autocomplete-suggestion:last-child {
+        border-bottom: none;
+    }
+
+    .search-input-container {
+        position: relative;
+    }
+
     /* Clear filter button styles */
     .btn-secondary {
         background-color: #6c757d;
@@ -118,29 +206,109 @@
 <div class="col-12 offset-md-2 table-responsive" id="main">
     <h3 class="col-md-8 offset-md-3">Dispensing Logs</h3>
 
-    <!-- Add the date picker with HTMX -->
+    <!-- Enhanced Search and Filter Section -->
     <div class="row mb-3">
-        <div class="col-md-4">
-            <input type="date" name="date" id="searchDate" class="form-control" value="{{ request.GET.date|default:'' }}"
-                style="background-color: rgb(196, 253, 253);"
-                hx-get="{% url 'store:dispensing_log' %}"
-                hx-target="#logsTable"
-                hx-trigger="change"
-                hx-indicator=".htmx-indicator">
-        </div>
-        <div class="col-md-2">
-            <button class="btn btn-secondary btn-sm"
-                hx-get="{% url 'store:dispensing_log' %}"
-                hx-target="#logsTable"
-                hx-trigger="click"
-                hx-indicator=".htmx-indicator">Clear Filter</button>
-        </div>
-        <div class="col-md-6">
-            <div class="htmx-indicator" style="display:none">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-search mr-2"></i>Search & Filter Dispensed Items</h6>
                 </div>
-                <span class="ms-2">Loading...</span>
+                <div class="card-body">
+                    <form method="GET"
+                          hx-get="{% url 'store:dispensing_log' %}"
+                          hx-target="#logsTable"
+                          hx-trigger="input delay:500ms from:input[name='item_name'], change from:input[name='date'], change from:select[name='status']"
+                          hx-indicator=".htmx-indicator">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="{{ search_form.item_name.id_for_label }}" class="form-label">
+                                    <i class="fas fa-pills mr-1"></i>{{ search_form.item_name.label }}
+                                </label>
+                                <div class="search-input-container">
+                                    {{ search_form.item_name }}
+                                    <div id="autocomplete-suggestions" class="autocomplete-suggestions" style="display: none;"></div>
+                                </div>
+                                <small class="form-text text-muted">Search by first few letters of item name</small>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="{{ search_form.date.id_for_label }}" class="form-label">
+                                    <i class="fas fa-calendar mr-1"></i>{{ search_form.date.label }}
+                                </label>
+                                {{ search_form.date }}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="{{ search_form.status.id_for_label }}" class="form-label">
+                                    <i class="fas fa-info-circle mr-1"></i>{{ search_form.status.label }}
+                                </label>
+                                {{ search_form.status }}
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="button" class="btn btn-secondary btn-sm w-100"
+                                    hx-get="{% url 'store:dispensing_log' %}"
+                                    hx-target="#logsTable"
+                                    hx-trigger="click"
+                                    hx-indicator=".htmx-indicator"
+                                    onclick="document.querySelector('form').reset();">
+                                    <i class="fas fa-times mr-1"></i>Clear All
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Section -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-chart-bar mr-2"></i>Quick Statistics</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="stats-container">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-primary mb-1" id="total-items">-</h4>
+                                <small class="text-muted">Total Items Dispensed</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-success mb-1" id="total-amount">-</h4>
+                                <small class="text-muted">Total Amount</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-info mb-1" id="unique-items">-</h4>
+                                <small class="text-muted">Unique Items</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <button class="btn btn-outline-primary btn-sm" onclick="loadStats()">
+                                    <i class="fas fa-sync-alt"></i> Refresh Stats
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div class="row mb-2">
+        <div class="col-md-12">
+            <div class="htmx-indicator" style="display:none">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border text-primary spinner-border-sm" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <span class="ms-2">Searching dispensed items...</span>
+                </div>
             </div>
         </div>
     </div>
@@ -165,10 +333,13 @@
 </div>
 
 <script>
-    // JavaScript to handle the clear filter button
+    // JavaScript to handle the clear filter button and autocomplete
     document.addEventListener('DOMContentLoaded', function() {
         const clearFilterBtn = document.querySelector('button[hx-trigger="click"]');
         const searchDateInput = document.getElementById('searchDate');
+        const itemNameInput = document.querySelector('input[name="item_name"]');
+        const suggestionsContainer = document.getElementById('autocomplete-suggestions');
+        let selectedIndex = -1;
 
         if (clearFilterBtn && searchDateInput) {
             clearFilterBtn.addEventListener('click', function() {
@@ -176,6 +347,98 @@
                 searchDateInput.value = '';
             });
         }
+
+        // Autocomplete functionality for item name search
+        if (itemNameInput) {
+            itemNameInput.addEventListener('input', function() {
+                const query = this.value.trim();
+
+                if (query.length >= 2) {
+                    fetch(`{% url 'store:dispensing_log_search_suggestions' %}?q=${encodeURIComponent(query)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            showSuggestions(data.suggestions);
+                        })
+                        .catch(error => {
+                            console.error('Error fetching suggestions:', error);
+                            hideSuggestions();
+                        });
+                } else {
+                    hideSuggestions();
+                }
+            });
+
+            itemNameInput.addEventListener('keydown', function(e) {
+                const suggestions = suggestionsContainer.querySelectorAll('.autocomplete-suggestion');
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedIndex = Math.min(selectedIndex + 1, suggestions.length - 1);
+                    updateSelection(suggestions);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedIndex = Math.max(selectedIndex - 1, -1);
+                    updateSelection(suggestions);
+                } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                    e.preventDefault();
+                    suggestions[selectedIndex].click();
+                } else if (e.key === 'Escape') {
+                    hideSuggestions();
+                }
+            });
+
+            itemNameInput.addEventListener('blur', function() {
+                // Delay hiding to allow click on suggestions
+                setTimeout(() => hideSuggestions(), 150);
+            });
+        }
+
+        function showSuggestions(suggestions) {
+            if (suggestions.length === 0) {
+                hideSuggestions();
+                return;
+            }
+
+            suggestionsContainer.innerHTML = '';
+            selectedIndex = -1;
+
+            suggestions.forEach((suggestion, index) => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-suggestion';
+                div.textContent = suggestion;
+                div.addEventListener('click', function() {
+                    itemNameInput.value = suggestion;
+                    hideSuggestions();
+                    // Trigger the HTMX search
+                    itemNameInput.dispatchEvent(new Event('input'));
+                });
+                suggestionsContainer.appendChild(div);
+            });
+
+            suggestionsContainer.style.display = 'block';
+        }
+
+        function hideSuggestions() {
+            suggestionsContainer.style.display = 'none';
+            selectedIndex = -1;
+        }
+
+        function updateSelection(suggestions) {
+            suggestions.forEach((suggestion, index) => {
+                suggestion.classList.toggle('selected', index === selectedIndex);
+            });
+        }
+
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', function(e) {
+            if (itemNameInput && !itemNameInput.contains(e.target) &&
+                suggestionsContainer && !suggestionsContainer.contains(e.target)) {
+                hideSuggestions();
+            }
+        });
+
+        // Load initial statistics
+        loadStats();
 
         // Show/hide the loading indicator
         document.body.addEventListener('htmx:beforeRequest', function(event) {
@@ -192,5 +455,57 @@
             }
         });
     });
+
+    // Function to load statistics
+    function loadStats() {
+        const dateInput = document.querySelector('input[name="date"]');
+        const dateParam = dateInput && dateInput.value ? `?date=${dateInput.value}` : '';
+
+        // Show loading state
+        document.getElementById('total-items').textContent = '...';
+        document.getElementById('total-amount').textContent = '...';
+        document.getElementById('unique-items').textContent = '...';
+
+        fetch(`{% url 'store:dispensing_log_stats' %}${dateParam}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Handle successful response
+                if (data.error) {
+                    console.warn('Stats API returned error:', data.error);
+                    // Still show the data if available
+                }
+
+                document.getElementById('total-items').textContent = data.total_items_dispensed || 0;
+                document.getElementById('total-amount').textContent = `₦${(data.total_amount || 0).toLocaleString()}`;
+                document.getElementById('unique-items').textContent = data.unique_items || 0;
+            })
+            .catch(error => {
+                console.error('Error loading stats:', error);
+                document.getElementById('total-items').textContent = '0';
+                document.getElementById('total-amount').textContent = '₦0';
+                document.getElementById('unique-items').textContent = '0';
+
+                // Show user-friendly error message
+                const statsContainer = document.getElementById('stats-container');
+                if (statsContainer) {
+                    const errorMsg = document.createElement('div');
+                    errorMsg.className = 'col-12 text-center text-muted';
+                    errorMsg.innerHTML = '<small><i class="fas fa-exclamation-triangle"></i> Unable to load statistics</small>';
+                    statsContainer.appendChild(errorMsg);
+
+                    // Remove error message after 5 seconds
+                    setTimeout(() => {
+                        if (errorMsg.parentNode) {
+                            errorMsg.parentNode.removeChild(errorMsg);
+                        }
+                    }, 5000);
+                }
+            });
+    }
 </script>
 {% endblock %}

@@ -11,40 +11,40 @@ from functools import wraps
 
 def is_admin(user):
     """Check if user is an Admin"""
-    return user.is_authenticated and user.profile.user_type == 'Admin'
+    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Admin'
 
 def is_manager(user):
     """Check if user is a Manager"""
-    return user.is_authenticated and user.profile.user_type == 'Manager'
+    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Manager'
 
 def is_pharmacist(user):
     """Check if user is a Pharmacist"""
-    return user.is_authenticated and user.profile.user_type == 'Pharmacist'
+    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Pharmacist'
 
 def is_pharm_tech(user):
     """Check if user is a Pharmacy Technician"""
-    return user.is_authenticated and user.profile.user_type == 'Pharm-Tech'
+    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Pharm-Tech'
 
 def is_salesperson(user):
     """Check if user is a Salesperson"""
-    return user.is_authenticated and user.profile.user_type == 'Salesperson'
+    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Salesperson'
 
 # Combined role checks
 def is_admin_or_manager(user):
     """Check if user is an Admin or Manager"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager']
 
 def is_admin_or_pharmacist(user):
     """Check if user is an Admin or Pharmacist"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Pharmacist']
+    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Pharmacist']
 
 def is_pharmacist_or_pharm_tech(user):
     """Check if user is a Pharmacist or Pharmacy Technician"""
-    return user.is_authenticated and user.profile.user_type in ['Pharmacist', 'Pharm-Tech']
+    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Pharmacist', 'Pharm-Tech']
 
 def is_admin_or_manager_or_pharmacist(user):
     """Check if user is an Admin, Manager, or Pharmacist"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist']
+    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist']
 
 def can_dispense_medication(user):
     """Check if user can dispense medication"""
@@ -163,6 +163,17 @@ def role_required(allowed_roles):
             if not request.user.is_authenticated:
                 messages.error(request, "Please log in to access this page.")
                 return redirect('store:index')
+
+            # Check if user has a profile
+            if not hasattr(request.user, 'profile') or not request.user.profile:
+                # Create a default profile for users without one
+                from userauth.models import Profile
+                Profile.objects.get_or_create(user=request.user, defaults={
+                    'full_name': request.user.username or request.user.mobile,
+                    'user_type': 'Salesperson'  # Default role
+                })
+                # Refresh the user object to get the new profile
+                request.user.refresh_from_db()
 
             if request.user.profile.user_type in allowed_roles:
                 return view_func(request, *args, **kwargs)

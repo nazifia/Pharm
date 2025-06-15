@@ -19,7 +19,7 @@
 
             <form method="POST" action="{% url 'userauth:register' %}" class="needs-validation" novalidate>
                 {% csrf_token %}
-                
+
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label for="id_full_name" class="form-label">Full Name</label>
@@ -30,7 +30,7 @@
                             </div>
                         {% endif %}
                     </div>
-                    
+
                     <div class="col-md-6 mb-3">
                         <label for="id_username" class="form-label">Username</label>
                         {{ form.username }}
@@ -52,7 +52,7 @@
                             </div>
                         {% endif %}
                     </div>
-                    
+
                     <div class="col-md-6 mb-3">
                         <label for="id_email" class="form-label">Email (Optional)</label>
                         {{ form.email }}
@@ -65,12 +65,42 @@
                 </div>
 
                 <div class="row">
-                    <div class="col-md-12 mb-3">
+                    <div class="col-md-6 mb-3">
                         <label for="id_user_type" class="form-label">User Type</label>
                         {{ form.user_type }}
                         {% if form.user_type.errors %}
                             <div class="invalid-feedback d-block">
                                 {{ form.user_type.errors|join:", " }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="id_department" class="form-label">Department (Optional)</label>
+                        {{ form.department }}
+                        {% if form.department.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.department.errors|join:", " }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="id_employee_id" class="form-label">Employee ID (Optional)</label>
+                        {{ form.employee_id }}
+                        {% if form.employee_id.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.employee_id.errors|join:", " }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="id_hire_date" class="form-label">Hire Date (Optional)</label>
+                        {{ form.hire_date }}
+                        {% if form.hire_date.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.hire_date.errors|join:", " }}
                             </div>
                         {% endif %}
                     </div>
@@ -86,7 +116,7 @@
                             </div>
                         {% endif %}
                     </div>
-                    
+
                     <div class="col-md-6 mb-3">
                         <label for="id_password2" class="form-label">Confirm Password</label>
                         {{ form.password2 }}
@@ -110,19 +140,19 @@
     .container {
         max-width: 900px;
     }
-    
+
     .form-control {
         height: 45px;
     }
-    
+
     .btn-lg {
         height: 45px;
     }
-    
+
     .invalid-feedback {
         display: block;
     }
-    
+
     @media (max-width: 768px) {
         .container {
             padding: 15px;

@@ -1,0 +1,318 @@
+{% extends "partials/base.html" %}
+{% load static %}
+
+{% block title %}
+Dispense Items - {{ block.super }}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Dispense Page Specific Styles */
+.dispense-container {
+    background: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    padding: 2rem;
+    margin-top: 1rem;
+}
+
+.dispense-header {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 10px 10px 0 0;
+    margin: -2rem -2rem 2rem -2rem;
+}
+
+.search-form {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    margin-bottom: 2rem;
+}
+
+.search-input {
+    border-radius: 25px;
+    border: 2px solid #e9ecef;
+    padding: 12px 20px;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+}
+
+.search-input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    outline: none;
+}
+
+.search-btn {
+    border-radius: 25px;
+    padding: 12px 30px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.search-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+}
+
+.results-container {
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    overflow: hidden;
+}
+
+.results-header {
+    background: #f8f9fa;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+}
+
+.item-card {
+    border: none;
+    border-bottom: 1px solid #f1f1f1;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.item-card:hover {
+    background: #f8f9fa;
+    transform: translateX(5px);
+}
+
+.item-card:last-child {
+    border-bottom: none;
+}
+
+.item-info {
+    flex: 1;
+}
+
+.item-name {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+}
+
+.item-details {
+    color: #6c757d;
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+}
+
+.item-stock {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.item-price {
+    color: #007bff;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.quantity-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 1rem;
+}
+
+.quantity-input {
+    width: 80px;
+    text-align: center;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+    padding: 5px;
+}
+
+.add-to-cart-btn {
+    border-radius: 20px;
+    padding: 8px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.add-to-cart-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+}
+
+.no-results {
+    text-align: center;
+    padding: 3rem;
+    color: #6c757d;
+}
+
+.no-results i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #dee2e6;
+}
+
+/* Quick Actions */
+.quick-actions {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+}
+
+.quick-actions .btn {
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .dispense-container {
+        padding: 1rem;
+        margin-top: 0.5rem;
+    }
+    
+    .dispense-header {
+        padding: 1rem;
+        margin: -1rem -1rem 1rem -1rem;
+    }
+    
+    .search-form {
+        padding: 1rem;
+    }
+    
+    .item-card {
+        padding: 1rem;
+    }
+    
+    .quantity-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .quantity-input {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="dispense-container">
+        <div class="dispense-header">
+            <h1 class="mb-0">
+                <i class="fas fa-pills mr-3"></i>
+                Dispense Items
+            </h1>
+            <p class="mb-0 mt-2 opacity-75">Search and add items to cart for dispensing</p>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+            <h6 class="mb-3">Quick Actions:</h6>
+            <a href="{% url 'store:cart' %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-shopping-cart"></i> View Cart
+            </a>
+            <a href="{% url 'store:store' %}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-store"></i> Store Interface
+            </a>
+            <a href="{% url 'store:add_item' %}" class="btn btn-success btn-sm">
+                <i class="fas fa-plus"></i> Add New Item
+            </a>
+        </div>
+
+        <!-- Search Form -->
+        <div class="search-form">
+            <form method="POST" action="{% url 'store:dispense' %}">
+                {% csrf_token %}
+                <div class="row align-items-end">
+                    <div class="col-md-8">
+                        <label for="id_q" class="form-label font-weight-bold">Search Items:</label>
+                        {{ form.q.as_widget }}
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary search-btn w-100">
+                            <i class="fas fa-search mr-2"></i>Search Items
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Search Results -->
+        {% if results %}
+        <div class="results-container">
+            <div class="results-header">
+                <i class="fas fa-list mr-2"></i>
+                Search Results ({{ results|length }} item{{ results|length|pluralize }} found)
+            </div>
+            
+            {% for item in results %}
+            <div class="item-card">
+                <div class="row align-items-center">
+                    <div class="col-md-8 item-info">
+                        <div class="item-name">{{ item.name|title }}</div>
+                        <div class="item-details">
+                            <strong>Form:</strong> {{ item.dosage_form|title }} | 
+                            <strong>Brand:</strong> {{ item.brand|default:"N/A" }} | 
+                            <strong>Unit:</strong> {{ item.unit }}
+                        </div>
+                        <div class="item-stock">
+                            <i class="fas fa-boxes mr-1"></i>
+                            {{ item.stock }} {{ item.unit }} Available
+                        </div>
+                        <div class="item-price">
+                            <i class="fas fa-tag mr-1"></i>
+                            ₦{{ item.price|floatformat:2 }} each
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <form method="POST" action="{% url 'store:add_to_cart' item.id %}">
+                            {% csrf_token %}
+                            <div class="quantity-form">
+                                <label for="quantity_{{ item.id }}" class="form-label mb-0">Qty:</label>
+                                <input type="number" 
+                                       name="quantity" 
+                                       id="quantity_{{ item.id }}"
+                                       class="form-control quantity-input" 
+                                       value="1" 
+                                       min="1" 
+                                       max="{{ item.stock }}"
+                                       required>
+                                <input type="hidden" name="unit" value="{{ item.unit }}">
+                                <button type="submit" class="btn btn-success add-to-cart-btn">
+                                    <i class="fas fa-cart-plus mr-1"></i>Add to Cart
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% elif request.method == 'POST' %}
+        <div class="results-container">
+            <div class="no-results">
+                <i class="fas fa-search"></i>
+                <h4>No items found</h4>
+                <p>Try searching with different keywords or check the spelling.</p>
+            </div>
+        </div>
+        {% else %}
+        <div class="results-container">
+            <div class="no-results">
+                <i class="fas fa-pills"></i>
+                <h4>Ready to Search</h4>
+                <p>Enter an item name or brand to start searching for items to dispense.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

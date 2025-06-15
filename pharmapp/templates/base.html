@@ -4,6 +4,7 @@
 <head>
     <!-- ... other head elements ... -->
     <link rel="stylesheet" href="{% static 'css/offline-indicator.css' %}">
+    {% block extra_css %}{% endblock %}
     <style>
         .marquee-container {
             position: relative;
@@ -101,8 +102,71 @@
     </div>
     {% endif %}
 
+    <nav class="navbar navbar-expand-lg navbar-light bg-light mb-3">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">PharmApp</a>
+            <a class="nav-link" style="font-weight:bold;color:#007bff;" href="{% url 'chat:chat_view_default' %}">Chatbox</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if user.is_authenticated %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'chat:chat_view_default' %}">Chat <span id="unread-chat-indicator" class="badge bg-danger" style="display: none;"></span></a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'store:logout_user' %}">Logout</a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'store:index' %}">Login</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% block content %}
+    {% endblock content %}
+
+    <!-- Include floating chatbox for authenticated users -->
+    {% if user.is_authenticated %}
+        {% include 'chat/floating_chatbox.html' %}
+    {% endif %}
+
     <script src="{% static 'js/offline-storage.js' %}"></script>
     <script src="{% static 'js/connection-handler.js' %}"></script>
+
+    {% if user.is_authenticated %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const unreadChatIndicator = document.getElementById('unread-chat-indicator');
+
+            function fetchGlobalUnreadMessages() {
+                fetch("{% url 'chat:unread_messages_count' %}")
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.unread_count > 0) {
+                            unreadChatIndicator.textContent = data.unread_count;
+                            unreadChatIndicator.style.display = 'inline';
+                        } else {
+                            unreadChatIndicator.style.display = 'none';
+                        }
+                    })
+                    .catch(error => console.error('Error fetching global unread messages:', error));
+            }
+
+            // Fetch unread counts periodically
+            if (unreadChatIndicator) { // Only run if the indicator element exists
+                setInterval(fetchGlobalUnreadMessages, 10000); // every 10 seconds
+                fetchGlobalUnreadMessages(); // Initial fetch
+            }
+        });
+    </script>
+    {% endif %}
+
     <script>
         document.body.addEventListener('htmx:afterSwap', function(evt) {
             if (evt.detail.target.id === 'dynamic-marquee') {

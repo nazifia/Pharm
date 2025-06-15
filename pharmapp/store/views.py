@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, JsonResponse
 from django.db.models.functions import TruncMonth, TruncDay
 from django.shortcuts import get_object_or_404, render, redirect
+from django.urls import reverse
 from customer.models import Wallet
 from django.forms import formset_factory
 from .models import *
@@ -19,6 +20,8 @@ from django.views.decorators.http import require_POST
 from django.db.models import Q, F, ExpressionWrapper, Sum, DecimalField
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+from django.contrib.auth import get_user_model
+from django.utils.dateparse import parse_date
 import logging
 
 logger = logging.getLogger(__name__)
@@ -44,16 +47,32 @@ def login_view(request):
     if request.method == 'POST':
         mobile = request.POST.get('mobile')
         password = request.POST.get('password')
-        user = authenticate(request, mobile=mobile, password=password)
+
+        if not mobile or not password:
+            messages.error(request, 'Please provide both mobile number and password.')
+            return render(request, 'store/index.html')
+
+        user = authenticate(request, username=mobile, password=password)
 
         if user is not None:
-            login(request, user)
-            next_url = request.GET.get('next', 'store:dashboard')
-            return redirect(next_url)
+            if user.is_active:
+                login(request, user)
+
+                # Ensure user has a profile
+                from userauth.models import Profile
+                if not hasattr(user, 'profile'):
+                    Profile.objects.get_or_create(user=user, defaults={
+                        'full_name': user.username or user.mobile,
+                        'user_type': 'Salesperson'  # Default role for users without profile
+                    })
+
+                next_url = request.GET.get('next', 'store:dashboard')
+                messages.success(request, f'Welcome back, {user.username or user.mobile}!')
+                return redirect(next_url)
+            else:
+                messages.error(request, 'Your account has been deactivated. Please contact an administrator.')
         else:
-            return render(request, 'store/index.html', {
-                'error': 'Invalid credentials'
-            })
+            messages.error(request, 'Invalid mobile number or password. Please try again.')
 
     return render(request, 'store/index.html')
 
@@ -106,17 +125,34 @@ def is_admin(user):
 
 def index(request):
     if request.method == 'POST':
-        mobile = request.POST['mobile']
-        password = request.POST['password']
+        mobile = request.POST.get('mobile')
+        password = request.POST.get('password')
+
+        if not mobile or not password:
+            messages.error(request, 'Please provide both mobile number and password.')
+            return render(request, 'store/index.html')
 
         # Perform any necessary authentication logic here
-        user = authenticate(mobile=mobile, password=password)
+        user = authenticate(request, username=mobile, password=password)
         if user is not None:
-            login(request, user)
-            return redirect('store:dashboard')
+            if user.is_active:
+                login(request, user)
+
+                # Ensure user has a profile
+                from userauth.models import Profile
+                if not hasattr(user, 'profile'):
+                    Profile.objects.get_or_create(user=user, defaults={
+                        'full_name': user.username or user.mobile,
+                        'user_type': 'Salesperson'  # Default role for users without profile
+                    })
+
+                messages.success(request, f'Welcome back, {user.username or user.mobile}!')
+                return redirect('store:dashboard')
+            else:
+                messages.error(request, 'Your account has been deactivated. Please contact an administrator.')
         else:
-            messages.error(request, 'Invalid mobile number or password')
-            return redirect('store:index')
+            messages.error(request, 'Invalid mobile number or password. Please try again.')
+
     return render(request, 'store/index.html')
 
 
@@ -232,7 +268,13 @@ def search_item(request):
             )
         else:
             items = Item.objects.all()
-        return render(request, 'partials/search_item.html', {'items': items})
+
+        # Check if this is an HTMX request (for embedded search in store page)
+        if request.headers.get('HX-Request'):
+            return render(request, 'partials/search_item.html', {'items': items})
+        else:
+            # Regular page request - redirect to store page with search
+            return redirect(f"{reverse('store:store')}?search={query}" if query else reverse('store:store'))
     else:
         return redirect('store:index')
 
@@ -291,7 +333,13 @@ def dispense(request):
         else:
             form = dispenseForm()
             results = None
-        return render(request, 'partials/dispense_modal.html', {'form': form, 'results': results})
+
+        # Check if this is an HTMX request (for modal)
+        if request.headers.get('HX-Request'):
+            return render(request, 'partials/dispense_modal.html', {'form': form, 'results': results})
+        else:
+            # Regular page request
+            return render(request, 'store/dispense.html', {'form': form, 'results': results})
     else:
         return redirect('store:index')
 
@@ -1926,15 +1974,22 @@ def dispensing_log(request):
         # Retrieve all dispensing logs ordered by the most recent
         logs = DispensingLog.objects.all().order_by('-created_at')
 
-        # Filter logs by the selected date if provided
-        if date_filter := request.GET.get('date'):
-            selected_date = parse_date(date_filter)
-            if selected_date:
-                logs = logs.filter(created_at__date=selected_date)
+        # Initialize search form
+        search_form = DispensingLogSearchForm(request.GET)
 
-        # Filter logs by status if provided
-        if status_filter := request.GET.get('status'):
-            logs = logs.filter(status=status_filter)
+        # Apply filters based on search parameters
+        if search_form.is_valid():
+            # Filter by item name (search by first few letters)
+            if item_name := search_form.cleaned_data.get('item_name'):
+                logs = logs.filter(name__istartswith=item_name)
+
+            # Filter by date
+            if date_filter := search_form.cleaned_data.get('date'):
+                logs = logs.filter(created_at__date=date_filter)
+
+            # Filter by status
+            if status_filter := search_form.cleaned_data.get('status'):
+                logs = logs.filter(status=status_filter)
 
         # Check if this is an HTMX request
         if request.headers.get('HX-Request'):
@@ -1942,9 +1997,127 @@ def dispensing_log(request):
             return render(request, 'partials/partials_dispensing_log.html', {'logs': logs})
         else:
             # Render the full template for non-HTMX requests
-            return render(request, 'store/dispensing_log.html', {'logs': logs})
+            return render(request, 'store/dispensing_log.html', {
+                'logs': logs,
+                'search_form': search_form
+            })
     else:
         return redirect('store:index')
+
+
+@login_required
+def dispensing_log_search_suggestions(request):
+    """
+    Provides search suggestions for item names in dispensing log
+    """
+    if request.user.is_authenticated:
+        query = request.GET.get('q', '').strip()
+        suggestions = []
+
+        if query and len(query) >= 2:
+            # Get unique item names that start with the query
+            dispensed_items = DispensingLog.objects.filter(
+                name__istartswith=query
+            ).values_list('name', flat=True).distinct()[:10]
+
+            suggestions = list(dispensed_items)
+
+        return JsonResponse({'suggestions': suggestions})
+    else:
+        return JsonResponse({'suggestions': []})
+
+
+@login_required
+def dispensing_log_stats(request):
+    """
+    Provides statistics for dispensed items
+    """
+    if request.user.is_authenticated:
+        try:
+            from django.db.models import Count, Sum
+            from datetime import date, timedelta
+            from decimal import Decimal
+
+            # Get date range from request or default to last 30 days
+            end_date = date.today()
+            start_date = end_date - timedelta(days=30)
+
+            if date_filter := request.GET.get('date'):
+                try:
+                    selected_date = parse_date(date_filter)
+                    if selected_date:
+                        start_date = selected_date
+                        end_date = selected_date
+                except Exception as e:
+                    # If date parsing fails, use default range
+                    pass
+
+            # Get statistics
+            logs = DispensingLog.objects.filter(
+                created_at__date__range=[start_date, end_date]
+            )
+
+            # Convert QuerySets to lists for JSON serialization
+            try:
+                top_dispensed_items = list(logs.values('name').annotate(
+                    count=Count('name'),
+                    total_amount=Sum('amount')
+                ).order_by('-count')[:5])
+
+                dispensed_by_status = list(logs.values('status').annotate(
+                    count=Count('status')
+                ).order_by('-count'))
+            except Exception as e:
+                top_dispensed_items = []
+                dispensed_by_status = []
+
+            # Convert Decimal to float for JSON serialization
+            try:
+                total_amount = logs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+                total_amount = float(total_amount)
+            except Exception as e:
+                total_amount = 0.0
+
+            # Convert Decimal amounts in top_dispensed_items
+            for item in top_dispensed_items:
+                try:
+                    if item.get('total_amount'):
+                        item['total_amount'] = float(item['total_amount'])
+                    else:
+                        item['total_amount'] = 0.0
+                except Exception as e:
+                    item['total_amount'] = 0.0
+
+            stats = {
+                'total_items_dispensed': logs.count(),
+                'total_amount': total_amount,
+                'unique_items': logs.values('name').distinct().count(),
+                'top_dispensed_items': top_dispensed_items,
+                'dispensed_by_status': dispensed_by_status,
+                'date_range': {
+                    'start': start_date.isoformat(),
+                    'end': end_date.isoformat()
+                }
+            }
+
+            return JsonResponse(stats, safe=False)
+
+        except Exception as e:
+            # Return error response with basic stats
+            return JsonResponse({
+                'error': f'Error generating stats: {str(e)}',
+                'total_items_dispensed': 0,
+                'total_amount': 0.0,
+                'unique_items': 0,
+                'top_dispensed_items': [],
+                'dispensed_by_status': [],
+                'date_range': {
+                    'start': date.today().isoformat(),
+                    'end': date.today().isoformat()
+                }
+            }, status=500)
+    else:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
 
 
 def receipt_list(request):
@@ -1978,7 +2151,12 @@ def search_receipts(request):
         # Debugging log for queryset
         print(f"Filtered Receipts: {receipts.query}")
 
-        return render(request, 'partials/search_receipts.html', {'receipts': receipts})
+        # Check if this is an HTMX request (for embedded search)
+        if request.headers.get('HX-Request'):
+            return render(request, 'partials/search_receipts.html', {'receipts': receipts})
+        else:
+            # Regular page request - redirect to receipt list page
+            return redirect(f"{reverse('store:receipt_list')}?date={date_query}" if date_query else reverse('store:receipt_list'))
     else:
         return redirect('store:index')
 
@@ -2388,10 +2566,15 @@ def search_procurement(request):
         if name_query:
             procurements = procurements.filter(supplier__name__icontains=name_query)
 
-        # Render the filtered results
-        return render(request, 'partials/search_procurement.html', {
-            'procurements': procurements,
-        })
+        # Check if this is an HTMX request (for embedded search)
+        if request.headers.get('HX-Request'):
+            # Render the filtered results
+            return render(request, 'partials/search_procurement.html', {
+                'procurements': procurements,
+            })
+        else:
+            # Regular page request - redirect to procurement list page
+            return redirect(f"{reverse('store:procurement_list')}?name={name_query}" if name_query else reverse('store:procurement_list'))
     else:
         return redirect('store:index')
 
@@ -3245,7 +3428,13 @@ def search_for_adjustment(request):
         ).order_by('name')
     else:
         items = Item.objects.all().order_by('name')
-    return render(request, 'store/search_for_adjustment.html', {'items': items})
+
+    # Check if this is an HTMX request (for embedded search)
+    if request.headers.get('HX-Request'):
+        return render(request, 'store/search_for_adjustment.html', {'items': items})
+    else:
+        # Regular page request - redirect to adjust stock levels page
+        return redirect(f"{reverse('store:adjust_stock_levels')}?q={query}" if query else reverse('store:adjust_stock_levels'))
 
 
 @login_required

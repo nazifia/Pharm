@@ -1,0 +1,260 @@
+{% extends 'notebook/base_notebook.html' %}
+{% load static %}
+
+{% block notebook_title %}{{ note.title }}{% endblock %}
+{% block notebook_subtitle %}Note details and content{% endblock %}
+
+{% block notebook_content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Note Content Card -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="m-0 font-weight-bold text-primary">
+                        {{ note.title }}
+                        {% if note.is_pinned %}
+                            <i class="fas fa-thumbtack text-warning ms-2"></i>
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button"
+                            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-cog"></i> Actions
+                    </button>
+                    <ul class="dropdown-menu">
+                        {% if can_edit %}
+                            <li>
+                                <a class="dropdown-item" href="{% url 'notebook:note_edit' note.pk %}">
+                                    <i class="fas fa-edit"></i> Edit Note
+                                </a>
+                            </li>
+                        {% endif %}
+                        {% if note.user == request.user %}
+                            <li>
+                                <a class="dropdown-item" href="{% url 'notebook:note_pin' note.pk %}">
+                                    <i class="fas fa-thumbtack"></i> 
+                                    {% if note.is_pinned %}Unpin Note{% else %}Pin Note{% endif %}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'notebook:note_archive' note.pk %}">
+                                    <i class="fas fa-archive"></i> 
+                                    {% if note.is_archived %}Unarchive Note{% else %}Archive Note{% endif %}
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{% url 'notebook:note_delete' note.pk %}">
+                                    <i class="fas fa-trash"></i> Delete Note
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Note Metadata -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-user"></i> Created by: <strong>{{ note.user.get_full_name|default:note.user.username }}</strong>
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <small class="text-muted">
+                            <i class="fas fa-clock"></i> Last updated: <strong>{{ note.updated_at|timesince }} ago</strong>
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Priority and Category Badges -->
+                <div class="mb-3">
+                    <span class="badge {{ note.get_priority_badge_class }} me-2">
+                        <i class="fas fa-flag"></i> {{ note.get_priority_display }} Priority
+                    </span>
+                    {% if note.category %}
+                        <span class="badge badge-light me-2">
+                            <span class="category-color" style="background-color: {{ note.category.color }};"></span>
+                            {{ note.category.name }}
+                        </span>
+                    {% endif %}
+                    {% if note.is_archived %}
+                        <span class="badge badge-secondary">
+                            <i class="fas fa-archive"></i> Archived
+                        </span>
+                    {% endif %}
+                </div>
+
+                <!-- Note Content -->
+                <div class="note-content-display">
+                    <div class="border-start border-primary border-3 ps-3 mb-4">
+                        <div style="white-space: pre-wrap; line-height: 1.6;">{{ note.content }}</div>
+                    </div>
+                </div>
+
+                <!-- Tags -->
+                {% if note.tags %}
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-2">
+                            <i class="fas fa-tags"></i> Tags:
+                        </h6>
+                        <div class="note-tags">
+                            {% for tag in note.get_tags_list %}
+                                <a href="{% url 'notebook:notes_by_tag' tag %}" class="note-tag">{{ tag }}</a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- Reminder -->
+                {% if note.reminder_date %}
+                    <div class="alert {% if note.is_overdue %}alert-danger{% else %}alert-info{% endif %} mb-3">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-bell"></i> Reminder
+                        </h6>
+                        <p class="mb-0">
+                            {% if note.is_overdue %}
+                                <strong>Overdue:</strong> This reminder was due {{ note.reminder_date|timesince }} ago
+                                ({{ note.reminder_date|date:"M d, Y \a\t g:i A" }})
+                            {% else %}
+                                <strong>Upcoming:</strong> Reminder set for {{ note.reminder_date|date:"M d, Y \a\t g:i A" }}
+                                (in {{ note.reminder_date|timeuntil }})
+                            {% endif %}
+                        </p>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="row">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-calendar-plus"></i> Created: {{ note.created_at|date:"M d, Y \a\t g:i A" }}
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <small class="text-muted">
+                            <i class="fas fa-edit"></i> Modified: {{ note.updated_at|date:"M d, Y \a\t g:i A" }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="d-flex justify-content-between">
+            <a href="{% url 'notebook:note_list' %}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left"></i> Back to Notes
+            </a>
+            <div>
+                {% if can_edit %}
+                    <a href="{% url 'notebook:note_edit' note.pk %}" class="btn btn-notebook me-2">
+                        <i class="fas fa-edit"></i> Edit Note
+                    </a>
+                {% endif %}
+                {% if note.user == request.user %}
+                    <a href="{% url 'notebook:note_delete' note.pk %}" class="btn btn-outline-danger">
+                        <i class="fas fa-trash"></i> Delete Note
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- Quick Actions -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-bolt"></i> Quick Actions
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'notebook:note_create' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-plus"></i> New Note
+                    </a>
+                    {% if note.user == request.user %}
+                        <a href="{% url 'notebook:note_pin' note.pk %}" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-thumbtack"></i> 
+                            {% if note.is_pinned %}Unpin{% else %}Pin{% endif %}
+                        </a>
+                        <a href="{% url 'notebook:note_archive' note.pk %}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-archive"></i> 
+                            {% if note.is_archived %}Unarchive{% else %}Archive{% endif %}
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Note Information -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-info-circle"></i> Note Information
+                </h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless table-sm">
+                    <tr>
+                        <td><strong>Priority:</strong></td>
+                        <td>
+                            <span class="badge {{ note.get_priority_badge_class }}">
+                                {{ note.get_priority_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% if note.category %}
+                        <tr>
+                            <td><strong>Category:</strong></td>
+                            <td>
+                                <span class="category-color" style="background-color: {{ note.category.color }};"></span>
+                                {{ note.category.name }}
+                            </td>
+                        </tr>
+                    {% endif %}
+                    <tr>
+                        <td><strong>Status:</strong></td>
+                        <td>
+                            {% if note.is_archived %}
+                                <span class="badge badge-secondary">Archived</span>
+                            {% elif note.is_pinned %}
+                                <span class="badge badge-warning">Pinned</span>
+                            {% else %}
+                                <span class="badge badge-success">Active</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Word Count:</strong></td>
+                        <td>{{ note.content|wordcount }} words</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Related Notes (if same category) -->
+        {% if note.category %}
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-layer-group"></i> Related Notes
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Other notes in "{{ note.category.name }}" category:</p>
+                    <!-- This would require additional view logic to fetch related notes -->
+                    <p class="text-muted small">
+                        <a href="{% url 'notebook:note_list' %}?category={{ note.category.id }}">
+                            View all notes in this category
+                        </a>
+                    </p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

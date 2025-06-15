@@ -1,0 +1,166 @@
+{% extends 'notebook/base_notebook.html' %}
+{% load static %}
+
+{% block notebook_title %}Delete Note{% endblock %}
+{% block notebook_subtitle %}Confirm note deletion{% endblock %}
+
+{% block notebook_content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card shadow border-danger">
+            <div class="card-header bg-danger text-white py-3">
+                <h6 class="m-0 font-weight-bold">
+                    <i class="fas fa-exclamation-triangle"></i> Confirm Deletion
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <h5 class="alert-heading">
+                        <i class="fas fa-warning"></i> Warning!
+                    </h5>
+                    <p class="mb-0">
+                        {% if permanent %}
+                            You are about to permanently delete this note. This action cannot be undone.
+                        {% else %}
+                            You are about to delete this note. You can undo this action within 10 minutes.
+                        {% endif %}
+                    </p>
+                </div>
+
+                <!-- Note Details -->
+                <div class="note-preview border-start border-danger border-3 ps-3 mb-4">
+                    <h5 class="text-danger">{{ note.title }}</h5>
+                    <p class="text-muted">
+                        {{ note.content|truncatechars:200 }}
+                    </p>
+
+                    <!-- Note Statistics -->
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar-plus"></i> Created: {{ note.created_at|date:"M d, Y" }}<br>
+                                <i class="fas fa-edit"></i> Modified: {{ note.updated_at|timesince }} ago<br>
+                                <i class="fas fa-font"></i> Words: {{ word_count }}
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                {% if note.category %}
+                                    <i class="fas fa-tag"></i> Category: {{ note.category.name }}<br>
+                                {% endif %}
+                                {% if tag_count > 0 %}
+                                    <i class="fas fa-tags"></i> Tags: {{ tag_count }}<br>
+                                {% endif %}
+                                {% if is_pinned %}
+                                    <i class="fas fa-thumbtack text-warning"></i> Pinned note<br>
+                                {% endif %}
+                                {% if has_reminders %}
+                                    <i class="fas fa-bell text-info"></i> Has reminder<br>
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                {% if not permanent %}
+                    <!-- Soft Delete Options -->
+                    <div class="mb-3">
+                        <h6 class="text-muted">Choose an action:</h6>
+                        <div class="btn-group w-100" role="group">
+                            <button type="button" class="btn btn-outline-warning" onclick="archiveNote()">
+                                <i class="fas fa-archive"></i> Archive Instead
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" onclick="deleteNote()">
+                                <i class="fas fa-trash"></i> Delete (Undoable)
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            <strong>Archive:</strong> Move to archive (can be restored anytime)<br>
+                            <strong>Delete:</strong> Remove note (can be undone within 10 minutes)
+                        </small>
+                    </div>
+                {% endif %}
+
+                <!-- Forms -->
+                <form id="deleteForm" method="post" style="display: none;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete">
+                </form>
+
+                <form id="archiveForm" method="post" style="display: none;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="archive">
+                </form>
+
+                {% if permanent %}
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'notebook:note_detail' note.pk %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash"></i> Permanently Delete
+                            </button>
+                        </div>
+                    </form>
+                {% else %}
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'notebook:note_detail' note.pk %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancel
+                        </a>
+                        <div>
+                            <a href="{% url 'notebook:permanent_delete_note' note.pk %}" class="btn btn-outline-danger btn-sm">
+                                <i class="fas fa-exclamation-triangle"></i> Permanent Delete
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function archiveNote() {
+    if (confirm('Archive this note instead of deleting it? You can restore it anytime from the archived notes.')) {
+        document.getElementById('archiveForm').submit();
+    }
+}
+
+function deleteNote() {
+    if (confirm('Delete this note? You can undo this action within 10 minutes.')) {
+        document.getElementById('deleteForm').submit();
+    }
+}
+
+// Quick delete function for AJAX calls
+function quickDelete(noteId, noteTitle) {
+    if (confirm(`Are you sure you want to delete "${noteTitle}"? This action can be undone within 10 minutes.`)) {
+        fetch(`/notebook/notes/${noteId}/delete/ajax/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                alert(data.message);
+                // Reload page or remove element
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while deleting the note.');
+        });
+    }
+}
+</script>
+{% endblock %}

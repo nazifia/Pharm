@@ -1,16 +1,28 @@
 {% for log in logs %}
 <tr>
     <td>{{ log.user.get_full_name|default:log.user.username }}</td>
-    <td>{{ log.name }}</td>
-    <td>{{ log.brand }}</td>
-    <td>{{ log.unit }}</td>
+    <td><strong>{{ log.name }}</strong></td>
+    <td>{{ log.brand|default:"N/A" }}</td>
+    <td>{{ log.unit|default:"N/A" }}</td>
     <td>{{ log.quantity|floatformat:2 }}</td>
-    <td>{{ log.amount|floatformat:2 }}</td>
-    <td>{{ log.get_status_display }}</td>
-    <td>{{ log.created_at }}</td>
+    <td>₦{{ log.amount|floatformat:2 }}</td>
+    <td>
+        <span class="badge {% if log.status == 'Dispensed' %}badge-success{% elif log.status == 'Returned' %}badge-danger{% else %}badge-warning{% endif %}">
+            {{ log.get_status_display }}
+        </span>
+    </td>
+    <td>{{ log.created_at|date:"M d, Y H:i" }}</td>
 </tr>
 {% empty %}
 <tr>
-    <td style="text-align: center;" colspan="8">No sales found for the selected date.</td>
+    <td style="text-align: center;" colspan="8">
+        <div class="text-muted py-3">
+            <i class="fas fa-search fa-2x mb-2"></i>
+            <br>
+            No dispensed items found matching your search criteria.
+            <br>
+            <small>Try adjusting your search terms or date range.</small>
+        </div>
+    </td>
 </tr>
 {% endfor %}

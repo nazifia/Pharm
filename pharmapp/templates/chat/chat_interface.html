@@ -1,0 +1,840 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}
+Chat - {{ block.super }}
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/chat.css' %}">
+<link rel="stylesheet" href="{% static 'css/chat-realtime.css' %}">
+<style>
+/* Enhanced Chat Interface Styling */
+.chat-interface-container {
+    height: calc(100vh - 120px);
+    max-height: 800px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.chat-sidebar {
+    border-right: 1px solid #dee2e6;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 15px 0 0 15px;
+}
+
+.chat-main-area {
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    border-radius: 0 15px 15px 0;
+}
+
+.badge-light {
+    color: #212529;
+    background-color: #f8f9fa;
+    border-radius: 12px;
+    font-weight: 500;
+}
+
+.badge-danger {
+    color: #fff;
+    background-color: #dc3545;
+    border-radius: 12px;
+    font-weight: 500;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.chat-messages-container {
+    background: linear-gradient(to bottom, #f8f9fa, #ffffff);
+    border-radius: 12px;
+    padding: 20px;
+    min-height: 400px;
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    scroll-behavior: smooth;
+}
+
+.message-item {
+    margin-bottom: 1rem;
+    animation: slideInUp 0.3s ease-out;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-bubble {
+    max-width: 75%;
+    padding: 12px 18px;
+    border-radius: 20px;
+    word-wrap: break-word;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.message-bubble:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.list-group-item {
+    border: none;
+    border-radius: 8px;
+    margin-bottom: 2px;
+    transition: all 0.2s ease;
+}
+
+.list-group-item:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+    cursor: pointer;
+    transform: translateX(5px);
+}
+
+.list-group-item.active {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    border-color: #007bff;
+    color: white;
+    transform: translateX(5px);
+}
+
+.online-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #28a745;
+    display: inline-block;
+    margin-left: 8px;
+    position: relative;
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+}
+
+.online-indicator.online {
+    animation: pulse-online 2s infinite;
+}
+
+@keyframes pulse-online {
+    0% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+    }
+}
+
+#message-input {
+    border-radius: 25px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+    padding: 12px 20px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+}
+
+#message-input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    outline: none;
+    background: rgba(255, 255, 255, 1);
+}
+
+.card {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.card-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    font-weight: 600;
+    border-radius: 12px 12px 0 0 !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.card-header.bg-success {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+}
+
+.card-header.bg-primary {
+    background: linear-gradient(135deg, #007bff 0%, #6610f2 100%) !important;
+}
+
+.card-header.bg-info {
+    background: linear-gradient(135deg, #17a2b8 0%, #007bff 100%) !important;
+}
+
+/* Typing indicator enhancement */
+#typing-indicator {
+    padding: 10px 15px;
+    font-style: italic;
+    color: #6c757d;
+    background: rgba(108, 117, 125, 0.1);
+    border-radius: 15px;
+    margin: 5px 0;
+    animation: fadeIn 0.3s ease-in;
+}
+
+/* Send button enhancement */
+.btn-primary {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    border: none;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .chat-interface-container {
+        height: calc(100vh - 80px);
+        border-radius: 10px;
+    }
+
+    .chat-sidebar {
+        border-right: none;
+        border-bottom: 1px solid #dee2e6;
+        border-radius: 10px 10px 0 0;
+    }
+
+    .chat-main-area {
+        border-radius: 0 0 10px 10px;
+    }
+
+    .message-item .rounded {
+        max-width: 90% !important;
+    }
+
+    #message-input {
+        font-size: 16px;
+        padding: 10px 15px;
+    }
+
+    .message-bubble {
+        max-width: 85%;
+        padding: 10px 15px;
+    }
+}
+
+/* Connection status indicator */
+.connection-status {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 8px 15px;
+    border-radius: 20px;
+    color: white;
+    font-size: 0.875rem;
+    z-index: 1000;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.connection-status.connected {
+    background: linear-gradient(135deg, #28a745, #20c997);
+}
+
+.connection-status.disconnected {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+}
+
+/* Scroll bar styling */
+.chat-messages-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-messages-container::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+}
+
+.chat-messages-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    border-radius: 3px;
+}
+
+.chat-messages-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #0056b3, #004085);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Real-time Chat Status Indicator -->
+<div id="chat-connection-status" class="connection-status connected" style="display: none;">
+    <i class="fas fa-wifi"></i> Real-time Chat Active
+</div>
+
+<div class="container-fluid mt-4 chat-interface-container">
+    <div class="row h-100">
+        <!-- Sidebar with Users and Rooms -->
+        <div class="col-md-3 chat-sidebar">
+            <!-- Online Users -->
+            <div class="card mb-3">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <span>Online Users</span>
+                    <span class="badge badge-light text-dark" id="online-count">0</span>
+                </div>
+                <div class="card-body p-0" style="max-height: 200px; overflow-y: auto;">
+                    <div id="online-users-list" class="p-2">
+                        <div class="text-center text-muted">Loading online users...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Chats -->
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <span>Recent Chats</span>
+                    <button class="btn btn-sm btn-light" data-toggle="modal" data-target="#newChatModal">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                    <ul class="list-group list-group-flush" id="chat-rooms-list">
+                        {% for room in user_rooms %}
+                            <li class="list-group-item {% if selected_room and selected_room.id == room.id %}active{% endif %} chat-room-item"
+                                data-room-id="{{ room.id }}">
+                                <a href="{% url 'chat:room_chat' room.id %}" class="text-decoration-none d-block">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <strong>{{ room.name|default:"Direct Message" }}</strong>
+                                            {% if room.room_type == 'direct' %}
+                                                <small class="text-muted d-block">
+                                                    {% for participant in room.participants.all %}
+                                                        {% if participant != request.user %}
+                                                            {{ participant.username }}
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </small>
+                                            {% endif %}
+                                        </div>
+                                        {% if room.unread_count > 0 %}
+                                            <span class="badge badge-danger">{{ room.unread_count }}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if room.latest_message_time %}
+                                        <small class="text-muted">{{ room.latest_message_time|naturaltime }}</small>
+                                    {% endif %}
+                                </a>
+                            </li>
+                        {% empty %}
+                            <li class="list-group-item text-center text-muted">No recent chats</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- All Users -->
+            <div class="card mt-3">
+                <div class="card-header bg-info text-white">
+                    All Users
+                </div>
+                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                    <ul class="list-group list-group-flush" id="all-users-list">
+                        {% for user_item in users %}
+                            <li class="list-group-item">
+                                <a href="{% url 'chat:chat_view' user_item.id %}" class="text-decoration-none d-block">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>{{ user_item.username }}</span>
+                                        <span class="online-indicator-{{ user_item.id }}" style="display: none;">
+                                            <i class="fas fa-circle text-success" style="font-size: 8px;"></i>
+                                        </span>
+                                    </div>
+                                </a>
+                            </li>
+                        {% empty %}
+                            <li class="list-group-item text-center text-muted">No other users found.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Area Column -->
+        <div class="col-md-9 chat-main-area">
+            <div class="card h-100">
+                <!-- Chat Header -->
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        {% if selected_room %}
+                            {% if selected_room.room_type == 'direct' %}
+                                {% for participant in selected_room.participants.all %}
+                                    {% if participant != request.user %}
+                                        <i class="fas fa-user"></i> Chat with {{ participant.username }}
+                                        <span class="user-status-{{ participant.id }} ml-2" style="display: none;">
+                                            <i class="fas fa-circle text-success" style="font-size: 8px;"></i> Online
+                                        </span>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <i class="fas fa-users"></i> {{ selected_room.name }}
+                            {% endif %}
+                        {% else %}
+                            <i class="fas fa-comments"></i> Select a chat to start messaging
+                        {% endif %}
+                    </div>
+                    <div>
+                        {% if selected_room %}
+                            <span class="typing-indicator" id="typing-indicator" style="display: none;">
+                                <small><i class="fas fa-ellipsis-h"></i> Someone is typing...</small>
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Messages Container -->
+                <div class="card-body p-0 d-flex flex-column" style="height: 500px;">
+                    <div class="flex-grow-1 p-3 chat-messages-container" id="chat-messages-container" style="overflow-y: auto;">
+                        {% if selected_room %}
+                            {% for message in messages %}
+                                <div class="message-item mb-3 {% if message.sender == request.user %}text-right{% endif %}" data-message-id="{{ message.id }}">
+                                    <div class="d-inline-block p-2 rounded {% if message.sender == request.user %}bg-primary text-white{% else %}bg-light{% endif %}" style="max-width: 75%;">
+                                        {% if message.sender != request.user %}
+                                            <small class="font-weight-bold text-muted d-block">{{ message.sender.username }}</small>
+                                        {% endif %}
+
+                                        {% if message.file_attachment %}
+                                            <div class="mb-2">
+                                                {% if message.message_type == 'image' %}
+                                                    <img src="{{ message.file_attachment.url }}" class="img-fluid rounded" style="max-width: 200px;">
+                                                {% else %}
+                                                    <a href="{{ message.file_attachment.url }}" target="_blank" class="text-decoration-none">
+                                                        <i class="fas fa-file"></i> {{ message.file_attachment.name }}
+                                                    </a>
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+
+                                        {% if message.message %}
+                                            <div>{{ message.message|linebreaks }}</div>
+                                        {% endif %}
+
+                                        <div class="d-flex justify-content-between align-items-center mt-1">
+                                            <small class="{% if message.sender == request.user %}text-light{% else %}text-muted{% endif %}">
+                                                {{ message.timestamp|naturaltime }}
+                                            </small>
+                                            {% if message.sender == request.user %}
+                                                <small class="text-light">
+                                                    {% if message.status == 'read' %}
+                                                        <i class="fas fa-check-double"></i>
+                                                    {% elif message.status == 'delivered' %}
+                                                        <i class="fas fa-check"></i>
+                                                    {% else %}
+                                                        <i class="far fa-clock"></i>
+                                                    {% endif %}
+                                                </small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <div class="text-center text-muted mt-5">
+                                    <i class="fas fa-comments fa-3x mb-3"></i>
+                                    <p>No messages yet. Start the conversation!</p>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-center text-muted mt-5">
+                                <i class="fas fa-comment-dots fa-3x mb-3"></i>
+                                <p>Select a user or chat room to start messaging</p>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Message Input -->
+                    {% if selected_room %}
+                    <div class="border-top p-3">
+                        <form id="quick-message-form" class="d-flex align-items-end">
+                            {% csrf_token %}
+                            <input type="hidden" id="room-id" value="{{ selected_room.id }}">
+                            <div class="flex-grow-1 mr-2">
+                                <input type="text"
+                                       id="message-input"
+                                       class="form-control"
+                                       placeholder="Type your message..."
+                                       autocomplete="off"
+                                       maxlength="1000">
+                            </div>
+                            <div class="d-flex">
+                                <button type="button" class="btn btn-outline-secondary mr-1" id="file-upload-btn">
+                                    <i class="fas fa-paperclip"></i>
+                                </button>
+                                <button type="submit" class="btn btn-primary" id="send-btn">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- File upload form (hidden) -->
+                        <form id="file-upload-form" style="display: none;" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="file" id="file-input" accept="image/*,application/pdf,.doc,.docx,.txt">
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Chat Modal -->
+<div class="modal fade" id="newChatModal" tabindex="-1" aria-labelledby="newChatModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newChatModalLabel">Start New Chat</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="user-search" class="form-label">Search Users</label>
+                    <input type="text" class="form-control" id="user-search" placeholder="Type username...">
+                </div>
+                <div id="user-search-results">
+                    {% for user_item in users %}
+                        <div class="d-flex justify-content-between align-items-center p-2 border-bottom user-item" data-user-id="{{ user_item.id }}">
+                            <span>{{ user_item.username }}</span>
+                            <button class="btn btn-sm btn-primary start-chat-btn" data-user-id="{{ user_item.id }}">
+                                Start Chat
+                            </button>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chatContainer = document.getElementById('chat-messages-container');
+    const messageInput = document.getElementById('message-input');
+    const quickMessageForm = document.getElementById('quick-message-form');
+    const roomId = document.getElementById('room-id')?.value;
+    const typingIndicator = document.getElementById('typing-indicator');
+
+    let typingTimer;
+    let isTyping = false;
+
+    // Auto-scroll to bottom
+    function scrollToBottom() {
+        if (chatContainer) {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    }
+
+    // Initial scroll
+    scrollToBottom();
+
+    // Handle quick message form submission
+    if (quickMessageForm) {
+        quickMessageForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const message = messageInput.value.trim();
+            if (!message || !roomId) return;
+
+            // Send message via AJAX
+            fetch('{% url "chat:chat_view_default" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    room_id: roomId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Clear input
+                    messageInput.value = '';
+
+                    // Add message to chat
+                    addMessageToChat(data.message, true);
+
+                    // Stop typing indicator
+                    setTypingStatus(false);
+
+                    // Scroll to bottom
+                    scrollToBottom();
+                } else {
+                    console.error('Error sending message:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+    }
+
+    // Handle typing indicators
+    if (messageInput && roomId) {
+        messageInput.addEventListener('input', function() {
+            if (!isTyping) {
+                setTypingStatus(true);
+                isTyping = true;
+            }
+
+            // Clear existing timer
+            clearTimeout(typingTimer);
+
+            // Set new timer
+            typingTimer = setTimeout(() => {
+                setTypingStatus(false);
+                isTyping = false;
+            }, 2000);
+        });
+
+        messageInput.addEventListener('blur', function() {
+            setTypingStatus(false);
+            isTyping = false;
+        });
+    }
+
+    // Set typing status
+    function setTypingStatus(typing) {
+        if (!roomId) return;
+
+        fetch('{% url "chat:set_typing_status" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                room_id: roomId,
+                is_typing: typing
+            })
+        })
+        .catch(error => console.error('Error setting typing status:', error));
+    }
+
+    // Add message to chat UI
+    function addMessageToChat(message, isOwn) {
+        const messagesContainer = document.getElementById('chat-messages-container');
+        if (!messagesContainer) return;
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message-item mb-3 ${isOwn ? 'text-right' : ''}`;
+        messageDiv.setAttribute('data-message-id', message.id);
+
+        const messageContent = `
+            <div class="d-inline-block p-2 rounded ${isOwn ? 'bg-primary text-white' : 'bg-light'}" style="max-width: 75%;">
+                ${!isOwn ? `<small class="font-weight-bold text-muted d-block">${message.sender}</small>` : ''}
+                <div>${message.message}</div>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <small class="${isOwn ? 'text-light' : 'text-muted'}">just now</small>
+                    ${isOwn ? '<small class="text-light"><i class="far fa-clock"></i></small>' : ''}
+                </div>
+            </div>
+        `;
+
+        messageDiv.innerHTML = messageContent;
+        messagesContainer.appendChild(messageDiv);
+    }
+
+    // Fetch online users
+    function fetchOnlineUsers() {
+        fetch('{% url "chat:get_online_users" %}')
+            .then(response => response.json())
+            .then(data => {
+                const onlineList = document.getElementById('online-users-list');
+                const onlineCount = document.getElementById('online-count');
+
+                if (onlineList && data.online_users) {
+                    onlineCount.textContent = data.online_users.length;
+
+                    if (data.online_users.length === 0) {
+                        onlineList.innerHTML = '<li class="list-group-item text-center text-muted">No users online</li>';
+                    } else {
+                        onlineList.innerHTML = data.online_users.map(user => `
+                            <li class="list-group-item">
+                                <a href="{% url 'chat:chat_view' 0 %}".replace('0', user.id) class="text-decoration-none">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>${user.username}</span>
+                                        <i class="fas fa-circle text-success" style="font-size: 8px;"></i>
+                                    </div>
+                                </a>
+                            </li>
+                        `).join('');
+                    }
+
+                    // Update online indicators
+                    data.online_users.forEach(user => {
+                        const indicator = document.querySelector(`.online-indicator-${user.id}`);
+                        const statusIndicator = document.querySelector(`.user-status-${user.id}`);
+                        if (indicator) indicator.style.display = 'inline';
+                        if (statusIndicator) statusIndicator.style.display = 'inline';
+                    });
+                }
+            })
+            .catch(error => console.error('Error fetching online users:', error));
+    }
+
+    // Fetch typing users
+    function fetchTypingUsers() {
+        if (!roomId) return;
+
+        fetch(`{% url 'chat:get_typing_users' '00000000-0000-0000-0000-000000000000' %}`.replace('00000000-0000-0000-0000-000000000000', roomId))
+            .then(response => response.json())
+            .then(data => {
+                if (typingIndicator && data.typing_users) {
+                    if (data.count > 0) {
+                        const names = data.typing_users.slice(0, 2).join(', ');
+                        const text = data.count === 1 ?
+                            `${names} is typing...` :
+                            `${names}${data.count > 2 ? ` and ${data.count - 2} others` : ''} are typing...`;
+
+                        typingIndicator.innerHTML = `<small><i class="fas fa-ellipsis-h"></i> ${text}</small>`;
+                        typingIndicator.style.display = 'inline';
+                    } else {
+                        typingIndicator.style.display = 'none';
+                    }
+                }
+            })
+            .catch(error => console.error('Error fetching typing users:', error));
+    }
+
+    // User search functionality
+    const userSearch = document.getElementById('user-search');
+    if (userSearch) {
+        userSearch.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const userItems = document.querySelectorAll('.user-item');
+
+            userItems.forEach(item => {
+                const username = item.querySelector('span').textContent.toLowerCase();
+                if (username.includes(searchTerm)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // Start chat buttons
+    document.querySelectorAll('.start-chat-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const userId = this.getAttribute('data-user-id');
+            window.location.href = `{% url 'chat:chat_view' 0 %}`.replace('0', userId);
+        });
+    });
+
+    // File upload handling
+    const fileUploadBtn = document.getElementById('file-upload-btn');
+    const fileInput = document.getElementById('file-input');
+
+    if (fileUploadBtn && fileInput) {
+        fileUploadBtn.addEventListener('click', function() {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                // Handle file upload here
+                console.log('File selected:', this.files[0]);
+                // You can implement file upload functionality here
+            }
+        });
+    }
+
+    // Periodic updates
+    setInterval(fetchOnlineUsers, 30000); // Every 30 seconds
+    setInterval(fetchTypingUsers, 2000);  // Every 2 seconds
+
+    // Initial fetch
+    fetchOnlineUsers();
+    if (roomId) {
+        fetchTypingUsers();
+    }
+
+    // Focus message input
+    if (messageInput) {
+        messageInput.focus();
+    }
+});
+</script>
+
+<!-- Real-time Chat Implementation -->
+<script src="{% static 'js/realtime-chat.js' %}"></script>
+<script src="{% static 'js/chat-enhancements.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set user ID for real-time chat
+    document.body.dataset.userId = '{{ request.user.id }}';
+
+    // Initialize real-time chat for current room if available
+    const roomId = document.getElementById('room-id')?.value;
+    if (roomId && window.realtimeChat) {
+        window.realtimeChat.switchRoom(roomId);
+    }
+
+    // Override the existing form submission to use real-time chat
+    const quickMessageForm = document.getElementById('quick-message-form');
+    if (quickMessageForm && window.realtimeChat) {
+        // Remove existing event listeners
+        const newForm = quickMessageForm.cloneNode(true);
+        quickMessageForm.parentNode.replaceChild(newForm, quickMessageForm);
+
+        newForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const messageInput = document.getElementById('message-input');
+            const message = messageInput.value.trim();
+
+            if (message) {
+                window.realtimeChat.sendMessage(message);
+                messageInput.value = '';
+            }
+        });
+    }
+
+    // Handle room switching
+    document.querySelectorAll('.chat-room-item a').forEach(link => {
+        link.addEventListener('click', function(e) {
+            const href = this.getAttribute('href');
+            const roomIdMatch = href.match(/room\/([^\/]+)\//);
+            if (roomIdMatch && window.realtimeChat) {
+                window.realtimeChat.switchRoom(roomIdMatch[1]);
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
