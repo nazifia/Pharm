@@ -235,6 +235,11 @@ LOGIN_URL = 'store:index'  # Update this to match your login URL pattern
 LOGIN_REDIRECT_URL = 'store:index'
 LOGOUT_REDIRECT_URL = 'store:index'
 
+
+# Allow more form fields
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+
+
 # def copy_index_html(sender, **kwargs):
 #     """Copy capacitor_index.html to staticfiles/index.html after collectstatic"""
 #     source = os.path.join(BASE_DIR, 'templates', 'capacitor_index.html')
