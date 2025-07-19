@@ -1,6 +1,7 @@
 {% extends 'partials/base.html' %}
 {% load humanize %}
 {% load static %}
+{% load permission_tags %}
 
 {% block content %}
 
@@ -213,7 +214,9 @@
                     {% if user.is_superuser or is_staff %}
                     <th scope="col">UNIT</th>
                     {% endif %}
+                    {% if user|can_view_financial_data %}
                     <th scope="col">COST</th>
+                    {% endif %}
                     <th scope="col">U/PRICE</th>
                     <th scope="col">STOCK</th>
                     <th scope="col">EXP DATE</th>
@@ -228,7 +231,9 @@
                     {% if user.is_superuser or is_staff %}
                     <th scope="col">UNIT</th>
                     {% endif %}
+                    {% if user|can_view_financial_data %}
                     <th scope="col">COST</th>
+                    {% endif %}
                     <th scope="col">U/PRICE</th>
                     <th scope="col">STOCK</th>
                     <th scope="col">EXP DATE</th>
@@ -256,7 +261,9 @@
                     {% if user.is_superuser or is_staff %}
                     <td>{{item.unit}}</td>
                     {% endif %}
+                    {% if user|can_view_financial_data %}
                     <td>{{item.cost|intcomma}}</td>
+                    {% endif %}
                     <td>{{item.price|intcomma}}</td>
                     <td>{{item.stock}}</td>
                     <td>{{item.exp_date}}</td>

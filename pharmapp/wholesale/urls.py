@@ -73,8 +73,11 @@ urlpatterns = [
     path('adjust-wholesale-stock-level/<int:item_id>/', views.adjust_wholesale_stock_level, name='adjust_wholesale_stock_level'),
 
     # Customer return items URL
-    path('wholesale/return_items/<int:pk>/', views.return_wholesale_items_for_customer, name='return_wholesale_items_for_customer'),
+    path('return_items/<int:pk>/', views.return_wholesale_items_for_customer, name='return_wholesale_items_for_customer'),
 
     # Wholesale Transfer URL
     path('transfer/multiple/', views.transfer_multiple_wholesale_items, name='transfer_multiple_wholesale_items'),
+
+    # Stock Check Enhancement URLs
+    path('add_items_to_wholesale_stock_check/<int:stock_check_id>/', views.add_items_to_wholesale_stock_check, name='add_items_to_wholesale_stock_check'),
 ]

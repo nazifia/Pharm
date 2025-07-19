@@ -1,5 +1,6 @@
 {% extends "partials/base.html" %}
 {% load custom_filters %}
+{% load permission_tags %}
 {% block content %}
 <div class="container mt-4">
     <div class="row mb-4">
@@ -57,7 +58,18 @@
 
                         <div id="permissions-section" style="display: none;">
                             <hr>
-                            <h6>Available Permissions:</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0">Available Permissions:</h6>
+                                <div class="d-flex align-items-center">
+                                    <input type="text" id="permission-search" class="form-control form-control-sm mr-2"
+                                           placeholder="Search permissions..." style="width: 200px;">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-primary" onclick="filterPermissions('all')" id="filter-all">All</button>
+                                        <button type="button" class="btn btn-outline-success" onclick="filterPermissions('granted')" id="filter-granted">Granted</button>
+                                        <button type="button" class="btn btn-outline-warning" onclick="filterPermissions('revoked')" id="filter-revoked">Revoked</button>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="row">
                                 {% for field in form %}
                                     {% if 'permission_' in field.name %}
@@ -153,8 +165,46 @@
                         <button type="button" class="btn btn-warning btn-sm" onclick="applyRoleTemplate('Pharmacist')">
                             <i class="fas fa-pills"></i> Apply Pharmacist Template
                         </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" onclick="applyRoleTemplate('Pharm-Tech')">
+                            <i class="fas fa-user-md"></i> Apply Pharm-Tech Template
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="applyRoleTemplate('Salesperson')">
+                            <i class="fas fa-handshake"></i> Apply Salesperson Template
+                        </button>
+                        <hr>
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="showBulkPermissionModal()">
+                            <i class="fas fa-users-cog"></i> Bulk Permission Management
+                        </button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Permission Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card text-center">
+                <div class="stat-number" id="total-permissions">{{ user_permissions|length }}</div>
+                <div class="stat-label">User Roles</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card text-center">
+                <div class="stat-number" id="total-users">-</div>
+                <div class="stat-label">Total Users</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card text-center">
+                <div class="stat-number" id="active-permissions">-</div>
+                <div class="stat-label">Active Permissions</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card text-center">
+                <div class="stat-number" id="custom-permissions">-</div>
+                <div class="stat-label">Custom Permissions</div>
             </div>
         </div>
     </div>
@@ -173,6 +223,68 @@
                         <p class="text-muted text-center">Select a user to view their current permissions.</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Permission Management Modal -->
+<div class="modal fade" id="bulkPermissionModal" tabindex="-1" role="dialog" aria-labelledby="bulkPermissionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="bulkPermissionModalLabel">
+                    <i class="fas fa-users-cog"></i> Bulk Permission Management
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="bulk-permission-form">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Select Users:</h6>
+                            <div class="form-group">
+                                <select multiple class="form-control" id="bulk-users" name="users" size="8">
+                                    <!-- Users will be loaded dynamically -->
+                                </select>
+                                <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple users</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Select Permission:</h6>
+                            <div class="form-group">
+                                <select class="form-control" id="bulk-permission" name="permission">
+                                    <option value="">Select a permission...</option>
+                                    <!-- Permissions will be loaded dynamically -->
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Action:</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="bulk-action" id="bulk-grant" value="grant" checked>
+                                    <label class="form-check-label" for="bulk-grant">
+                                        <i class="fas fa-check text-success"></i> Grant Permission
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="bulk-action" id="bulk-revoke" value="revoke">
+                                    <label class="form-check-label" for="bulk-revoke">
+                                        <i class="fas fa-times text-danger"></i> Revoke Permission
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="executeBulkPermission()">
+                    <i class="fas fa-save"></i> Apply Changes
+                </button>
             </div>
         </div>
     </div>
@@ -198,7 +310,12 @@ function loadUserPermissions() {
 
     // Make AJAX call to get user's current permissions
     fetch(`/api/user-permissions/${selectedUserId}/`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 // Set the selected user ID in the hidden field
@@ -235,60 +352,128 @@ function updateCurrentPermissionsDisplay(user, permissions = null) {
         return;
     }
 
-    // New detailed display with user object and permissions
-    let html = `
-        <h6>Permissions for: <span class="badge badge-primary">${user.full_name || user.username}</span>
-        <small class="text-muted">(${user.user_type})</small></h6>
-    `;
-
-    if (permissions) {
-        const grantedPerms = Object.entries(permissions).filter(([perm, data]) => data.granted);
-        const revokedPerms = Object.entries(permissions).filter(([perm, data]) => !data.granted && data.source === 'individual');
-
-        html += `<div class="row">`;
-
-        if (grantedPerms.length > 0) {
-            html += `
-                <div class="col-md-6">
-                    <h6 class="text-success"><i class="fas fa-check"></i> Granted Permissions (${grantedPerms.length})</h6>
-                    <div class="permission-list">
-            `;
-            grantedPerms.forEach(([perm, data]) => {
-                const source = data.source === 'role' ? 'Role-based' : 'Individual';
-                const badgeClass = data.source === 'role' ? 'badge-info' : 'badge-success';
-                html += `
-                    <div class="permission-item">
-                        <i class="fas fa-check text-success"></i>
-                        ${perm.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                        <span class="badge ${badgeClass} badge-sm">${source}</span>
-                    </div>
-                `;
-            });
-            html += `</div></div>`;
-        }
-
-        if (revokedPerms.length > 0) {
-            html += `
-                <div class="col-md-6">
-                    <h6 class="text-danger"><i class="fas fa-times"></i> Revoked Permissions (${revokedPerms.length})</h6>
-                    <div class="permission-list">
-            `;
-            revokedPerms.forEach(([perm, data]) => {
-                html += `
-                    <div class="permission-item">
-                        <i class="fas fa-times text-danger"></i>
-                        ${perm.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                        <span class="badge badge-warning badge-sm">Individually Revoked</span>
-                    </div>
-                `;
-            });
-            html += `</div></div>`;
-        }
-
-        html += `</div>`;
+    if (!user || !permissions) {
+        displayDiv.innerHTML = '<p class="text-muted text-center">Select a user to view their current permissions.</p>';
+        return;
     }
 
-    html += `<p class="text-info mt-3">Use the form above to modify permissions for this user.</p>`;
+    // Role templates for comparison
+    const roleTemplates = {
+        'Pharmacist': ['manage_inventory', 'dispense_medication', 'process_sales', 'manage_customers', 'adjust_prices', 'process_returns', 'transfer_stock', 'view_sales_history', 'view_procurement_history', 'process_split_payments', 'search_items'],
+        'Sales Representative': ['process_sales', 'manage_customers', 'view_sales_history', 'process_returns', 'process_split_payments', 'search_items'],
+        'Inventory Manager': ['manage_inventory', 'perform_stock_check', 'transfer_stock', 'adjust_prices', 'view_procurement_history', 'search_items'],
+        'Admin': ['manage_users', 'edit_user_profiles', 'access_admin_panel', 'manage_inventory', 'dispense_medication', 'process_sales', 'manage_customers', 'adjust_prices', 'process_returns', 'transfer_stock', 'view_sales_history', 'view_procurement_history', 'process_split_payments', 'search_items', 'perform_stock_check', 'view_reports', 'view_financial_reports', 'view_activity_logs']
+    };
+
+    // Get user's role permissions for comparison
+    const rolePermissions = roleTemplates[user.user_type] || [];
+
+    // Categorize permissions based on the API response structure (simple boolean format)
+    const allGrantedPermissions = [];
+    const roleBasedPermissions = [];
+    const individuallyGrantedPermissions = [];
+    const individuallyRevokedPermissions = [];
+
+    // Process all permissions
+    Object.entries(permissions).forEach(([permission, isGranted]) => {
+        const isRolePermission = rolePermissions.includes(permission);
+
+        if (isGranted) {
+            allGrantedPermissions.push(permission);
+            if (isRolePermission) {
+                roleBasedPermissions.push(permission);
+            } else {
+                // This permission is granted but not in role - individually granted
+                individuallyGrantedPermissions.push(permission);
+            }
+        } else if (isRolePermission) {
+            // This is a role permission that has been individually revoked
+            individuallyRevokedPermissions.push(permission);
+        }
+    });
+
+    let html = `
+        <div class="user-permissions-summary">
+            <h6>Permissions for: <span class="badge badge-primary">${user.full_name || user.username}</span>
+            <small class="text-muted">(${user.user_type})</small></h6>
+    `;
+
+    // Summary statistics
+    html += `
+        <div class="row mb-3">
+            <div class="col-3">
+                <div class="text-center">
+                    <div class="h4 text-primary">${allGrantedPermissions.length}</div>
+                    <small class="text-muted">Total Active</small>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="text-center">
+                    <div class="h4 text-success">${roleBasedPermissions.length}</div>
+                    <small class="text-muted">From Role</small>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="text-center">
+                    <div class="h4 text-info">${individuallyGrantedPermissions.length}</div>
+                    <small class="text-muted">Individual Granted</small>
+                </div>
+            </div>
+            <div class="col-3">
+                <div class="text-center">
+                    <div class="h4 text-danger">${individuallyRevokedPermissions.length}</div>
+                    <small class="text-muted">Revoked</small>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Show categorized permissions
+    if (roleBasedPermissions.length > 0) {
+        html += `
+            <div class="permission-category mb-3">
+                <h6 class="text-success"><i class="fas fa-user-tag"></i> Role-Based Permissions (${roleBasedPermissions.length})</h6>
+                <div class="permission-badges">
+        `;
+        roleBasedPermissions.forEach(permission => {
+            const displayName = permission.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            html += `<span class="badge badge-success mr-1 mb-1">${displayName}</span>`;
+        });
+        html += `</div></div>`;
+    }
+
+    if (individuallyGrantedPermissions.length > 0) {
+        html += `
+            <div class="permission-category mb-3">
+                <h6 class="text-info"><i class="fas fa-plus-circle"></i> Individually Granted (${individuallyGrantedPermissions.length})</h6>
+                <div class="permission-badges">
+        `;
+        individuallyGrantedPermissions.forEach(permission => {
+            const displayName = permission.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            html += `<span class="badge badge-info mr-1 mb-1">${displayName}</span>`;
+        });
+        html += `</div></div>`;
+    }
+
+    if (individuallyRevokedPermissions.length > 0) {
+        html += `
+            <div class="permission-category mb-3">
+                <h6 class="text-danger"><i class="fas fa-minus-circle"></i> Individually Revoked (${individuallyRevokedPermissions.length})</h6>
+                <div class="permission-badges">
+        `;
+        individuallyRevokedPermissions.forEach(permission => {
+            const displayName = permission.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            html += `<span class="badge badge-danger mr-1 mb-1">${displayName}</span>`;
+        });
+        html += `</div></div>`;
+    }
+
+    html += `
+            <div class="mt-3">
+                <p class="text-info"><i class="fas fa-info-circle"></i> Use the permission management panel above to modify permissions for this user.</p>
+            </div>
+        </div>`;
+
     displayDiv.innerHTML = html;
 }
 
@@ -391,6 +576,104 @@ function applyRoleTemplate(role) {
     alert(`Applied ${role} permission template.`);
 }
 
+function showBulkPermissionModal() {
+    // Load users and permissions for bulk management
+    loadBulkUsers();
+    loadBulkPermissions();
+    $('#bulkPermissionModal').modal('show');
+}
+
+function loadBulkUsers() {
+    const userSelect = document.getElementById('bulk-users');
+    userSelect.innerHTML = '<option>Loading users...</option>';
+
+    // Get all users except current admin
+    fetch('/api/users/')
+        .then(response => response.json())
+        .then(data => {
+            userSelect.innerHTML = '';
+            data.users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = `${user.full_name || user.username} (${user.user_type})`;
+                userSelect.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading users:', error);
+            userSelect.innerHTML = '<option>Error loading users</option>';
+        });
+}
+
+function loadBulkPermissions() {
+    const permissionSelect = document.getElementById('bulk-permission');
+    permissionSelect.innerHTML = '<option value="">Select a permission...</option>';
+
+    // Get all available permissions
+    const allPermissions = new Set();
+    Object.values(rolePermissions).forEach(permissions => {
+        permissions.forEach(perm => allPermissions.add(perm));
+    });
+
+    Array.from(allPermissions).sort().forEach(permission => {
+        const option = document.createElement('option');
+        option.value = permission;
+        option.textContent = permission.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        permissionSelect.appendChild(option);
+    });
+}
+
+function executeBulkPermission() {
+    const selectedUsers = Array.from(document.getElementById('bulk-users').selectedOptions).map(opt => opt.value);
+    const selectedPermission = document.getElementById('bulk-permission').value;
+    const action = document.querySelector('input[name="bulk-action"]:checked').value;
+
+    if (selectedUsers.length === 0) {
+        alert('Please select at least one user.');
+        return;
+    }
+
+    if (!selectedPermission) {
+        alert('Please select a permission.');
+        return;
+    }
+
+    const confirmMessage = `Are you sure you want to ${action} the permission "${selectedPermission}" for ${selectedUsers.length} user(s)?`;
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+
+    // Execute bulk permission change
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    formData.append('users', JSON.stringify(selectedUsers));
+    formData.append('permission', selectedPermission);
+    formData.append('action', action);
+
+    fetch('/bulk-permission-management/', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Successfully ${action}ed permission for ${data.affected_users} user(s).`);
+            $('#bulkPermissionModal').modal('hide');
+            // Refresh current user permissions if one of the affected users is currently selected
+            const currentUserId = document.getElementById('selected_user_id').value;
+            if (selectedUsers.includes(currentUserId)) {
+                loadUserPermissions();
+            }
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error executing bulk permission change');
+    });
+}
+
 function resetForm() {
     document.getElementById('permissions-section').style.display = 'none';
     document.querySelector('select[name="user"]').selectedIndex = 0;
@@ -398,6 +681,66 @@ function resetForm() {
 
     const displayDiv = document.getElementById('current-permissions-display');
     displayDiv.innerHTML = '<p class="text-muted text-center">Select a user to view their current permissions.</p>';
+}
+
+// Permission search and filter functionality
+function filterPermissions(type) {
+    const permissionItems = document.querySelectorAll('#permissions-grid .col-md-4');
+    const filterButtons = document.querySelectorAll('.btn-group .btn');
+
+    // Update active button
+    filterButtons.forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`filter-${type}`).classList.add('active');
+
+    permissionItems.forEach(item => {
+        const checkbox = item.querySelector('input[type="checkbox"]');
+        const isChecked = checkbox.checked;
+        const hasRevokedBadge = item.querySelector('.badge-warning');
+
+        let show = true;
+        if (type === 'granted') {
+            show = isChecked && !hasRevokedBadge;
+        } else if (type === 'revoked') {
+            show = hasRevokedBadge || (!isChecked && !item.querySelector('.badge-info'));
+        }
+
+        item.style.display = show ? 'block' : 'none';
+    });
+}
+
+function searchPermissions() {
+    const searchTerm = document.getElementById('permission-search').value.toLowerCase();
+    const permissionItems = document.querySelectorAll('#permissions-grid .col-md-4');
+
+    permissionItems.forEach(item => {
+        const label = item.querySelector('label').textContent.toLowerCase();
+        const matches = label.includes(searchTerm);
+
+        // Only hide if it doesn't match search AND it's not already hidden by filter
+        if (!matches) {
+            item.style.display = 'none';
+        } else if (item.style.display === 'none') {
+            // Re-apply current filter to show matching items
+            const activeFilter = document.querySelector('.btn-group .btn.active');
+            if (activeFilter) {
+                const filterType = activeFilter.id.replace('filter-', '');
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                const isChecked = checkbox.checked;
+                const hasRevokedBadge = item.querySelector('.badge-warning');
+
+                let show = true;
+                if (filterType === 'granted') {
+                    show = isChecked && !hasRevokedBadge;
+                } else if (filterType === 'revoked') {
+                    show = hasRevokedBadge || (!isChecked && !item.querySelector('.badge-info'));
+                }
+
+                item.style.display = show ? 'block' : 'none';
+            } else {
+                item.style.display = 'block';
+            }
+        }
+    });
 }
 
 // Auto-load permissions when user is selected
@@ -412,7 +755,42 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Add search functionality
+    const searchInput = document.getElementById('permission-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', searchPermissions);
+    }
+
+    // Set default filter to 'all'
+    document.getElementById('filter-all').classList.add('active');
+
+    // Load statistics
+    loadStatistics();
 });
+
+function loadStatistics() {
+    // Load total users
+    fetch('/api/users/')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('total-users').textContent = data.users.length;
+            }
+        })
+        .catch(error => console.error('Error loading user count:', error));
+
+    // Calculate total permissions
+    const allPermissions = new Set();
+    Object.values(rolePermissions).forEach(permissions => {
+        permissions.forEach(perm => allPermissions.add(perm));
+    });
+    document.getElementById('active-permissions').textContent = allPermissions.size;
+
+    // Load custom permissions count (this would need another API endpoint)
+    // For now, we'll set it to a placeholder
+    document.getElementById('custom-permissions').textContent = '?';
+}
 </script>
 
 <style>
@@ -444,6 +822,73 @@ document.addEventListener('DOMContentLoaded', function() {
 .badge-sm {
     font-size: 0.75em;
     padding: 0.25em 0.4em;
+}
+
+.permission-grid-item {
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    padding: 8px;
+    margin-bottom: 8px;
+}
+
+.permission-grid-item:hover {
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+}
+
+.permission-grid-item.granted {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.permission-grid-item.revoked {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+.search-highlight {
+    background-color: yellow;
+    font-weight: bold;
+}
+
+.btn-group .btn.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.modal-lg {
+    max-width: 900px;
+}
+
+.permission-category {
+    border-left: 4px solid #007bff;
+    padding-left: 10px;
+    margin-bottom: 15px;
+}
+
+.permission-category h6 {
+    color: #007bff;
+    font-weight: bold;
+}
+
+.stats-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.stats-card .stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.stats-card .stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
 }
 </style>
 {% endblock %}

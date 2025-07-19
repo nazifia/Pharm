@@ -9,7 +9,7 @@ from django.http import HttpResponse, JsonResponse
 from django.db.models.functions import TruncMonth, TruncDay
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
-from customer.models import Wallet
+from customer.models import Wallet, Customer, WholesaleCustomer, WholesaleCustomerWallet, TransactionHistory
 from django.forms import formset_factory
 from .models import *
 from .forms import *
@@ -187,11 +187,6 @@ def store(request):
         # Use the threshold from settings
         low_stock_threshold = settings.low_stock_threshold
 
-        # Calculate values using the threshold from settings
-        total_purchase_value = sum(item.cost * item.stock for item in items)
-        total_stock_value = sum(item.price * item.stock for item in items)
-        total_profit = total_stock_value - total_purchase_value
-
         # Identify low-stock items using the threshold from settings
         low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
 
@@ -200,10 +195,20 @@ def store(request):
             'low_stock_items': low_stock_items,
             'settings_form': settings_form,
             'low_stock_threshold': low_stock_threshold,
-            'total_purchase_value': total_purchase_value,
-            'total_stock_value': total_stock_value,
-            'total_profit': total_profit,
         }
+
+        # Only include financial data if user has permission
+        if request.user.has_permission('view_financial_reports'):
+            # Calculate values using the threshold from settings
+            total_purchase_value = sum(item.cost * item.stock for item in items)
+            total_stock_value = sum(item.price * item.stock for item in items)
+            total_profit = total_stock_value - total_purchase_value
+
+            context.update({
+                'total_purchase_value': total_purchase_value,
+                'total_stock_value': total_stock_value,
+                'total_profit': total_profit,
+            })
         return render(request, 'store/store.html', context)
     else:
         return redirect('store:index')
@@ -503,31 +508,81 @@ def update_cart_quantity(request, pk):
 def clear_cart(request):
     if request.user.is_authenticated:
         if request.method == 'POST':
-            cart_items = Cart.objects.all()
+            try:
+                with transaction.atomic():
+                    # Get cart items specifically for retail
+                    cart_items = Cart.objects.filter(user=request.user)
 
-            for cart_item in cart_items:
-                # Return items to stock
-                cart_item.item.stock += cart_item.quantity
-                cart_item.item.save()
+                    if not cart_items.exists():
+                        messages.info(request, 'Cart is already empty.')
+                        return redirect('store:cart')
 
-                # Remove DispensingLog entries
-                DispensingLog.objects.filter(
-                    user=request.user,
-                    name=cart_item.item.name,
-                    quantity=cart_item.quantity,
-                    amount=cart_item.item.price * cart_item.quantity
-                ).delete()
+                    # Calculate total amount to potentially refund
+                    total_refund = sum(
+                        item.item.price * item.quantity
+                        for item in cart_items
+                    )
 
-            # Remove associated Sales entries if no other cart items exist
-            Sales.objects.filter(user=request.user).delete()
+                    for cart_item in cart_items:
+                        # Return items to stock
+                        cart_item.item.stock += cart_item.quantity
+                        cart_item.item.save()
 
-            # Clear cart items
-            cart_items.delete()
-            messages.success(request, 'Cart cleared and items returned to stock.')
+                        # Remove DispensingLog entries
+                        DispensingLog.objects.filter(
+                            user=request.user,
+                            name=cart_item.item.name,
+                            quantity=cart_item.quantity,
+                            status='Dispensed'  # Only remove dispensed logs
+                        ).delete()
+
+                    # Find any pending sales entries (those without receipts)
+                    sales_entries = Sales.objects.filter(
+                        user=request.user,
+                        customer__isnull=False,  # Only retail sales with customers
+                        receipts__isnull=True  # Pending sales have no receipts
+                    ).distinct()
+
+                    for sale in sales_entries:
+                        if sale.customer:
+                            try:
+                                wallet = sale.customer.wallet
+                                if wallet and total_refund > 0:
+                                    wallet.balance += total_refund
+                                    wallet.save()
+
+                                    # Create transaction history for the refund
+                                    TransactionHistory.objects.create(
+                                        customer=sale.customer,
+                                        transaction_type='refund',
+                                        amount=total_refund,
+                                        description='Cart cleared - items returned'
+                                    )
+                            except Wallet.DoesNotExist:
+                                messages.warning(
+                                    request,
+                                    f'Wallet not found for customer {sale.customer.name}'
+                                )
+
+                        # Delete associated sales items first
+                        sale.sales_items.all().delete()
+                        # Delete the sale
+                        sale.delete()
+
+                    # Clear cart items
+                    cart_items.delete()
+
+                    messages.success(
+                        request,
+                        'Cart cleared successfully. All items returned to stock and transactions reversed.'
+                    )
+
+            except Exception as e:
+                messages.error(request, f'Error clearing cart: {str(e)}')
+                return redirect('store:cart')
 
         return redirect('store:cart')
-    else:
-        return redirect('store:index')
+    return redirect('store:index')
 
 
 
@@ -696,6 +751,13 @@ def receipt(request):
                 # Now explicitly set the payment method and status
                 receipt.payment_method = payment_method
                 receipt.status = status
+
+                # Check if wallet went negative (from session for single payments)
+                if request.session.get('wallet_went_negative', False):
+                    receipt.wallet_went_negative = True
+                    # Clear the session flag
+                    del request.session['wallet_went_negative']
+
                 receipt.save()
 
                 # If this is a split payment, create the payment records
@@ -709,9 +771,16 @@ def receipt(request):
                             # Deduct from customer's wallet
                             try:
                                 wallet = Wallet.objects.get(customer=sales.customer)
+                                # Check if wallet will go negative
+                                wallet_balance_before = wallet.balance
                                 # Allow negative balance
                                 wallet.balance -= wallet_amount
                                 wallet.save()
+
+                                # Check if wallet went negative and set flag
+                                if wallet_balance_before >= 0 and wallet.balance < 0:
+                                    receipt.wallet_went_negative = True
+                                    receipt.save()
 
                                 # Create transaction history
                                 TransactionHistory.objects.create(
@@ -735,9 +804,16 @@ def receipt(request):
                             # Deduct from customer's wallet
                             try:
                                 wallet = Wallet.objects.get(customer=sales.customer)
+                                # Check if wallet will go negative
+                                wallet_balance_before = wallet.balance
                                 # Allow negative balance
                                 wallet.balance -= wallet_amount
                                 wallet.save()
+
+                                # Check if wallet went negative and set flag
+                                if wallet_balance_before >= 0 and wallet.balance < 0:
+                                    receipt.wallet_went_negative = True
+                                    receipt.save()
 
                                 # Create transaction history
                                 TransactionHistory.objects.create(
@@ -1109,6 +1185,16 @@ def return_item(request, pk):
                         sales.total_amount -= refund_amount
                         sales.save()
 
+                        # Create dispensing log entry for the return
+                        DispensingLog.objects.create(
+                            user=request.user,
+                            name=item.name,
+                            unit=item.unit,
+                            quantity=return_quantity,
+                            amount=refund_amount,
+                            status='Returned'
+                        )
+
                         # Get payment method and status for the receipt
                         payment_method = request.POST.get('payment_method', 'Cash')
                         status = request.POST.get('status', 'Paid')
@@ -1123,6 +1209,15 @@ def return_item(request, pk):
                                 wallet = Wallet.objects.get(customer=sales.customer)
                                 wallet.balance += refund_amount
                                 wallet.save()
+
+                                # Create transaction history for the refund
+                                TransactionHistory.objects.create(
+                                    customer=sales.customer,
+                                    transaction_type='refund',
+                                    amount=refund_amount,
+                                    description=f'Refund for returned item: {item.name} (Qty: {return_quantity})'
+                                )
+
                                 messages.success(
                                     request,
                                     f'{return_quantity} of {item.name} successfully returned, and ₦{refund_amount} refunded to the wallet.'
@@ -1782,7 +1877,22 @@ def select_items(request, pk):
         customer = get_object_or_404(Customer, id=pk)
         # Store wholesale customer ID in session for later use
         request.session['customer_id'] = customer.id
-        items = Item.objects.all().order_by('name')
+
+        # Check if this is a return action request
+        action = request.GET.get('action', 'purchase')
+        if request.method == 'POST':
+            action = request.POST.get('action', 'purchase')
+
+        # Filter items based on action
+        if action == 'return':
+            # For returns, show only items that were previously purchased by this customer
+            purchased_item_ids = SalesItem.objects.filter(
+                sales__customer=customer
+            ).values_list('item_id', flat=True).distinct()
+            items = Item.objects.filter(id__in=purchased_item_ids).order_by('name')
+        else:
+            # For purchases, show all available items
+            items = Item.objects.all().order_by('name')
 
         # Fetch wallet balance
         wallet_balance = Decimal('0.0')
@@ -1804,13 +1914,15 @@ def select_items(request, pk):
 
             total_cost = Decimal('0.0')
 
-            # Create a new Sales record for this transaction
-            # Instead of get_or_create, we always create a new record to avoid the MultipleObjectsReturned error
-            sales = Sales.objects.create(
-                user=request.user,
-                customer=customer,
-                total_amount=Decimal('0.0')
-            )
+            # Create a new Sales record only for purchases, not for returns
+            sales = None
+            if action == 'purchase':
+                # Create a new Sales record for this transaction
+                sales = Sales.objects.create(
+                    user=request.user,
+                    customer=customer,
+                    total_amount=Decimal('0.0')
+                )
 
             # Store payment method and status in session for later use in receipt generation
             payment_method = request.POST.get('payment_method', 'Cash')
@@ -1881,53 +1993,72 @@ def select_items(request, pk):
                         )
 
                     elif action == 'return':
-                        # Handle return logic
+                        # Handle return logic - find existing sales items for this customer and item
                         item.stock += quantity
                         item.save()
 
-                        try:
-                            sales_item = SalesItem.objects.get(sales=sales, item=item)
+                        # Find existing sales items for this customer and item
+                        existing_sales_items = SalesItem.objects.filter(
+                            sales__customer=customer,
+                            item=item
+                        ).order_by('-sales__date')
 
-                            if sales_item.quantity < quantity:
-                                messages.warning(request, f"Cannot return more {item.name} than purchased.")
-                                return redirect('store:customers')
+                        if not existing_sales_items.exists():
+                            messages.warning(request, f"No purchase record found for {item.name} for this customer.")
+                            continue
 
-                            sales_item.quantity -= quantity
+                        # Calculate total available quantity to return
+                        total_available = sum(si.quantity for si in existing_sales_items)
+                        if total_available < quantity:
+                            messages.warning(request, f"Cannot return {quantity} {item.name}. Only {total_available} available for return.")
+                            continue
+
+                        # Process returns from most recent purchases first
+                        remaining_to_return = quantity
+                        total_refund_amount = Decimal('0.0')
+
+                        for sales_item in existing_sales_items:
+                            if remaining_to_return <= 0:
+                                break
+
+                            return_from_this_sale = min(sales_item.quantity, remaining_to_return)
+                            refund_amount = (sales_item.price * return_from_this_sale)
+                            total_refund_amount += refund_amount
+
+                            # Update sales item
+                            sales_item.quantity -= return_from_this_sale
                             if sales_item.quantity == 0:
                                 sales_item.delete()
                             else:
                                 sales_item.save()
 
-                            refund_amount = (item.price * quantity)
-                            sales.total_amount -= refund_amount
-                            sales.save()
+                            # Update sales total
+                            sales_item.sales.total_amount -= refund_amount
+                            sales_item.sales.save()
 
-                            DispensingLog.objects.create(
-                                user=request.user,
-                                name=item.name,
-                                unit=unit,
-                                quantity=quantity,
-                                amount=refund_amount,
-                                status='Partially Returned' if sales_item.quantity > 0 else 'Returned'  # Status based on remaining quantity
-                            )
+                            remaining_to_return -= return_from_this_sale
 
-                            # **Log Item Selection History (Return)**
-                            ItemSelectionHistory.objects.create(
-                                customer=customer,
-                                user=request.user,
-                                item=item,
-                                quantity=quantity,
-                                action=action,
-                                unit_price=item.price,
-                            )
+                        # Create dispensing log for the return
+                        DispensingLog.objects.create(
+                            user=request.user,
+                            name=item.name,
+                            unit=unit,
+                            quantity=quantity,
+                            amount=total_refund_amount,
+                            status='Returned'
+                        )
 
-                            total_cost -= refund_amount
+                        # **Log Item Selection History (Return)**
+                        ItemSelectionHistory.objects.create(
+                            customer=customer,
+                            user=request.user,
+                            item=item,
+                            quantity=quantity,
+                            action=action,
+                            unit_price=item.price,
+                        )
 
-                            # No need to update receipt here as it will be created later
-
-                        except SalesItem.DoesNotExist:
-                            messages.warning(request, f"Item {item.name} is not part of the sales.")
-                            return redirect('store:select_items', pk=pk)
+                        total_cost -= total_refund_amount
 
                 except Item.DoesNotExist:
                     messages.warning(request, 'One of the selected items does not exist.')
@@ -1937,12 +2068,29 @@ def select_items(request, pk):
             try:
                 wallet = customer.wallet
                 if action == 'purchase':
+                    # Check if wallet will go negative
+                    wallet_balance_before = wallet.balance
                     wallet.balance -= total_cost
+
+                    # Store negative wallet flag in session for receipt generation
+                    if wallet_balance_before >= 0 and wallet.balance < 0:
+                        request.session['wallet_went_negative'] = True
+
                     # Allow negative balance but inform the user
                     if wallet.balance < 0:
                         messages.info(request, f'Customer {customer.name} now has a negative wallet balance of {wallet.balance}')
                 elif action == 'return':
                     wallet.balance += abs(total_cost)
+
+                    # Create transaction history for the return refund
+                    if abs(total_cost) > 0:
+                        TransactionHistory.objects.create(
+                            customer=customer,
+                            transaction_type='refund',
+                            amount=abs(total_cost),
+                            description='Refund for returned items'
+                        )
+
                 wallet.save()
             except Wallet.DoesNotExist:
                 messages.warning(request, 'Customer does not have a wallet.')
@@ -1961,7 +2109,8 @@ def select_items(request, pk):
         return render(request, 'partials/select_items.html', {
             'customer': customer,
             'items': items,
-            'wallet_balance': wallet_balance
+            'wallet_balance': wallet_balance,
+            'action': action
         })
     else:
         return redirect('store:index')
@@ -3603,3 +3752,378 @@ def complete_customer_history(request, customer_id):
 
         return render(request, 'store/complete_customer_history.html', context)
     return redirect('store:index')
+
+
+@login_required
+def wallet_transaction_history(request, customer_id):
+    """View for displaying wallet transaction history for retail customers"""
+    if request.user.is_authenticated:
+        customer = get_object_or_404(Customer, id=customer_id)
+
+        # Get all transactions for this customer
+        transactions = TransactionHistory.objects.filter(
+            customer=customer
+        ).order_by('-date')
+
+        # Apply filters if provided
+        transaction_type = request.GET.get('transaction_type')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+
+        if transaction_type:
+            transactions = transactions.filter(transaction_type=transaction_type)
+
+        if date_from:
+            try:
+                date_from_parsed = parse_date(date_from)
+                if date_from_parsed:
+                    transactions = transactions.filter(date__gte=date_from_parsed)
+            except ValueError:
+                pass
+
+        if date_to:
+            try:
+                date_to_parsed = parse_date(date_to)
+                if date_to_parsed:
+                    transactions = transactions.filter(date__lte=date_to_parsed)
+            except ValueError:
+                pass
+
+        # Get wallet balance
+        wallet_balance = Decimal('0.0')
+        try:
+            wallet_balance = customer.wallet.balance
+        except Wallet.DoesNotExist:
+            pass
+
+        # Calculate totals by transaction type
+        totals = {
+            'deposit': transactions.filter(transaction_type='deposit').aggregate(
+                total=Sum('amount'))['total'] or Decimal('0.0'),
+            'purchase': transactions.filter(transaction_type='purchase').aggregate(
+                total=Sum('amount'))['total'] or Decimal('0.0'),
+            'debit': transactions.filter(transaction_type='debit').aggregate(
+                total=Sum('amount'))['total'] or Decimal('0.0'),
+            'refund': transactions.filter(transaction_type='refund').aggregate(
+                total=Sum('amount'))['total'] or Decimal('0.0'),
+        }
+
+        context = {
+            'customer': customer,
+            'transactions': transactions,
+            'wallet_balance': wallet_balance,
+            'totals': totals,
+            'transaction_types': TransactionHistory.TRANSACTION_TYPES,
+            'filters': {
+                'transaction_type': transaction_type,
+                'date_from': date_from,
+                'date_to': date_to,
+            }
+        }
+
+        return render(request, 'store/wallet_transaction_history.html', context)
+    else:
+        return redirect('store:index')
+
+
+@login_required
+def wholesale_wallet_transaction_history(request, customer_id):
+    """View for displaying wallet transaction history for wholesale customers"""
+    if request.user.is_authenticated:
+        customer = get_object_or_404(WholesaleCustomer, id=customer_id)
+
+        # Get all transactions for this wholesale customer
+        transactions = TransactionHistory.objects.filter(
+            wholesale_customer=customer
+        ).order_by('-date')
+
+        # Apply filters if provided
+        transaction_type = request.GET.get('transaction_type')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+
+        if transaction_type:
+            transactions = transactions.filter(transaction_type=transaction_type)
+
+        if date_from:
+            try:
+                date_from_parsed = parse_date(date_from)
+                if date_from_parsed:
+                    transactions = transactions.filter(date__gte=date_from_parsed)
+            except ValueError:
+                pass
+
+        if date_to:
+            try:
+                date_to_parsed = parse_date(date_to)
+                if date_to_parsed:
+                    transactions = transactions.filter(date__lte=date_to_parsed)
+            except ValueError:
+                pass
+
+        # Get wallet balance
+        wallet_balance = Decimal('0.0')
+        try:
+            wallet_balance = customer.wholesale_customer_wallet.balance
+        except WholesaleCustomerWallet.DoesNotExist:
+            pass
+
+        # Calculate totals by transaction type
+        totals = {
+            'deposit': transactions.filter(transaction_type='deposit').aggregate(
+                total=Sum('amount'))['total'] or Decimal('0.0'),
+            'purchase': transactions.filter(transaction_type='purchase').aggregate(
+                total=Sum('amount'))['total'] or Decimal('0.0'),
+            'debit': transactions.filter(transaction_type='debit').aggregate(
+                total=Sum('amount'))['total'] or Decimal('0.0'),
+            'refund': transactions.filter(transaction_type='refund').aggregate(
+                total=Sum('amount'))['total'] or Decimal('0.0'),
+        }
+
+        context = {
+            'customer': customer,
+            'transactions': transactions,
+            'wallet_balance': wallet_balance,
+            'totals': totals,
+            'transaction_types': TransactionHistory.TRANSACTION_TYPES,
+            'filters': {
+                'transaction_type': transaction_type,
+                'date_from': date_from,
+                'date_to': date_to,
+            }
+        }
+
+        return render(request, 'wholesale/wallet_transaction_history.html', context)
+    else:
+        return redirect('store:index')
+
+
+@login_required
+def user_dispensing_summary(request):
+    """View for displaying dispensing summary by user"""
+    if request.user.is_authenticated:
+        # Get date filters
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        user_filter = request.GET.get('user_id')
+
+        # Start with all dispensing logs
+        logs = DispensingLog.objects.all()
+
+        # Apply filters
+        if date_from:
+            try:
+                date_from_parsed = parse_date(date_from)
+                if date_from_parsed:
+                    logs = logs.filter(created_at__gte=date_from_parsed)
+            except ValueError:
+                pass
+
+        if date_to:
+            try:
+                date_to_parsed = parse_date(date_to)
+                if date_to_parsed:
+                    logs = logs.filter(created_at__lte=date_to_parsed)
+            except ValueError:
+                pass
+
+        if user_filter:
+            logs = logs.filter(user_id=user_filter)
+
+        # Group by user and calculate summaries
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        user_summaries = []
+        users = User.objects.filter(dispensinglog__in=logs).distinct()
+
+        for user in users:
+            user_logs = logs.filter(user=user)
+
+            dispensed_logs = user_logs.filter(status='Dispensed')
+            returned_logs = user_logs.filter(status__in=['Returned', 'Partially Returned'])
+
+            dispensed_count = dispensed_logs.count()
+            dispensed_amount = dispensed_logs.aggregate(total=Sum('amount'))['total'] or Decimal('0.0')
+            dispensed_quantity = dispensed_logs.aggregate(total=Sum('quantity'))['total'] or Decimal('0.0')
+
+            returned_count = returned_logs.count()
+            returned_amount = returned_logs.aggregate(total=Sum('amount'))['total'] or Decimal('0.0')
+            returned_quantity = returned_logs.aggregate(total=Sum('quantity'))['total'] or Decimal('0.0')
+
+            net_amount = dispensed_amount - returned_amount
+            net_quantity = dispensed_quantity - returned_quantity
+
+            user_summaries.append({
+                'user': user,
+                'dispensed_count': dispensed_count,
+                'dispensed_amount': dispensed_amount,
+                'dispensed_quantity': dispensed_quantity,
+                'returned_count': returned_count,
+                'returned_amount': returned_amount,
+                'returned_quantity': returned_quantity,
+                'net_amount': net_amount,
+                'net_quantity': net_quantity,
+            })
+
+        # Sort by net amount descending
+        user_summaries.sort(key=lambda x: x['net_amount'], reverse=True)
+
+        # Get all users for filter dropdown
+        all_users = User.objects.filter(dispensinglog__isnull=False).distinct()
+
+        context = {
+            'user_summaries': user_summaries,
+            'all_users': all_users,
+            'filters': {
+                'date_from': date_from,
+                'date_to': date_to,
+                'user_id': user_filter,
+            }
+        }
+
+        return render(request, 'store/user_dispensing_summary.html', context)
+    else:
+        return redirect('store:index')
+
+
+@login_required
+def user_dispensing_details(request, user_id=None):
+    """View for displaying detailed dispensing breakdown by user"""
+    if request.user.is_authenticated:
+        # Get filters
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        status_filter = request.GET.get('status')
+
+        # Get the specific user if user_id is provided
+        target_user = None
+        if user_id:
+            try:
+                target_user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                messages.error(request, 'User not found.')
+                return redirect('store:user_dispensing_summary')
+
+        # Start with dispensing logs
+        logs = DispensingLog.objects.select_related('user').all()
+
+        # Filter by user if specified
+        if target_user:
+            logs = logs.filter(user=target_user)
+
+        # Apply date filters
+        if date_from:
+            try:
+                date_from_parsed = parse_date(date_from)
+                if date_from_parsed:
+                    logs = logs.filter(created_at__gte=date_from_parsed)
+            except ValueError:
+                pass
+
+        if date_to:
+            try:
+                date_to_parsed = parse_date(date_to)
+                if date_to_parsed:
+                    logs = logs.filter(created_at__lte=date_to_parsed)
+            except ValueError:
+                pass
+
+        # Apply status filter
+        if status_filter:
+            logs = logs.filter(status=status_filter)
+
+        # Order by most recent first
+        logs = logs.order_by('-created_at')
+
+        # Get all users for filter dropdown
+        all_users = User.objects.filter(dispensinglog__isnull=False).distinct()
+
+        # Get status choices for filter
+        status_choices = [
+            ('Dispensed', 'Dispensed'),
+            ('Returned', 'Returned'),
+            ('Partially Returned', 'Partially Returned'),
+        ]
+
+        context = {
+            'logs': logs,
+            'target_user': target_user,
+            'all_users': all_users,
+            'status_choices': status_choices,
+            'filters': {
+                'date_from': date_from,
+                'date_to': date_to,
+                'status': status_filter,
+                'user_id': user_id,
+            }
+        }
+
+        return render(request, 'store/user_dispensing_details.html', context)
+    else:
+        return redirect('store:index')
+
+
+@user_passes_test(is_admin)
+@login_required
+def add_items_to_stock_check(request, stock_check_id):
+    """Add more items to an existing stock check"""
+    if request.user.is_authenticated:
+        stock_check = get_object_or_404(StockCheck, id=stock_check_id)
+
+        # Only allow adding items to in-progress stock checks
+        if stock_check.status != 'in_progress':
+            messages.error(request, 'Cannot add items to a completed stock check.')
+            return redirect('store:update_stock_check', stock_check.id)
+
+        # Get items that are not already in this stock check
+        existing_item_ids = stock_check.stockcheckitem_set.values_list('item_id', flat=True)
+        available_items = Item.objects.exclude(id__in=existing_item_ids).order_by('name')
+
+        if request.method == 'POST':
+            selected_item_ids = request.POST.getlist('selected_items')
+            zero_empty_items = request.POST.get('zero_empty_items', 'true').lower() == 'true'
+
+            if not selected_item_ids:
+                messages.error(request, 'Please select at least one item to add.')
+                return redirect('store:add_items_to_stock_check', stock_check.id)
+
+            # Create stock check items for selected items
+            stock_check_items = []
+            added_count = 0
+
+            for item_id in selected_item_ids:
+                try:
+                    item = Item.objects.get(id=item_id)
+
+                    # Skip items with zero stock if zero_empty_items is True
+                    if not zero_empty_items or item.stock > 0:
+                        stock_check_items.append(
+                            StockCheckItem(
+                                stock_check=stock_check,
+                                item=item,
+                                expected_quantity=item.stock,
+                                actual_quantity=0,
+                                status='pending'
+                            )
+                        )
+                        added_count += 1
+                except Item.DoesNotExist:
+                    continue
+
+            if stock_check_items:
+                StockCheckItem.objects.bulk_create(stock_check_items)
+                messages.success(request, f'{added_count} items added to stock check successfully.')
+            else:
+                messages.warning(request, 'No items were added. Items may have zero stock or already exist in the stock check.')
+
+            return redirect('store:update_stock_check', stock_check.id)
+
+        context = {
+            'stock_check': stock_check,
+            'available_items': available_items,
+        }
+
+        return render(request, 'store/add_items_to_stock_check.html', context)
+    else:
+        return redirect('store:index')

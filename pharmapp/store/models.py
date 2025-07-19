@@ -237,6 +237,103 @@ class DispensingLog(models.Model):
     def __str__(self):
         return f'{self.user.username} - {self.name} {self.dosage_form} {self.brand} ({self.quantity} {self.unit} {self.status})'
 
+    @property
+    def has_returns(self):
+        """Check if this dispensed item has any returns"""
+        # If this entry itself has been marked as returned/partially returned
+        if self.status in ['Returned', 'Partially Returned']:
+            return True
+
+        # If this is a dispensed item, check for separate return entries
+        if self.status == 'Dispensed':
+            # Look for return entries with the same item name (more flexible matching)
+            return DispensingLog.objects.filter(
+                name=self.name,
+                status__in=['Returned', 'Partially Returned']
+            ).exists()
+
+        return False
+
+    @property
+    def related_returns(self):
+        """Get all return entries for this dispensed item"""
+        if self.status == 'Dispensed':
+            # Look for separate return entries with the same item name
+            return DispensingLog.objects.filter(
+                name=self.name,
+                status__in=['Returned', 'Partially Returned']
+            ).order_by('created_at')
+        else:
+            return DispensingLog.objects.none()
+
+    @property
+    def total_returned_quantity(self):
+        """Get total quantity returned for this dispensed item"""
+        if self.status == 'Returned':
+            # This entry itself was fully returned
+            return self.quantity
+        elif self.status == 'Partially Returned':
+            # This entry was partially returned - we need to calculate the returned amount
+            # For now, we'll show that it has returns but can't calculate exact amount
+            # without additional tracking
+            return self.quantity  # This is the remaining quantity, not returned quantity
+        else:
+            # This is a dispensed item, check for separate return entries
+            return sum(log.quantity for log in self.related_returns)
+
+    @property
+    def return_summary(self):
+        """Get a comprehensive return summary for this dispensed item"""
+        if self.status == 'Returned':
+            return {
+                'has_returns': True,
+                'return_type': 'fully_returned',
+                'returned_quantity': self.quantity,
+                'remaining_quantity': 0,
+                'return_percentage': 100,
+                'status_display': 'Fully returned'
+            }
+        elif self.status == 'Partially Returned':
+            return {
+                'has_returns': True,
+                'return_type': 'partially_returned',
+                'returned_quantity': 0,  # Would need additional tracking to calculate
+                'remaining_quantity': self.quantity,
+                'return_percentage': 0,  # Would need additional tracking to calculate
+                'status_display': 'Partially returned'
+            }
+        elif self.status == 'Dispensed':
+            related_returns = self.related_returns
+            if related_returns.exists():
+                total_returned = sum(log.quantity for log in related_returns)
+                return_percentage = (total_returned / self.quantity * 100) if self.quantity > 0 else 0
+                return {
+                    'has_returns': True,
+                    'return_type': 'separate_returns',
+                    'returned_quantity': total_returned,
+                    'remaining_quantity': self.quantity - total_returned,
+                    'return_percentage': return_percentage,
+                    'status_display': f'{total_returned} returned'
+                }
+            else:
+                return {
+                    'has_returns': False,
+                    'return_type': 'no_returns',
+                    'returned_quantity': 0,
+                    'remaining_quantity': self.quantity,
+                    'return_percentage': 0,
+                    'status_display': 'No returns'
+                }
+        else:
+            return {
+                'has_returns': False,
+                'return_type': 'unknown',
+                'returned_quantity': 0,
+                'remaining_quantity': self.quantity,
+                'return_percentage': 0,
+                'status_display': 'Unknown status'
+            }
+
 
 
 # Ensure Sales is defined before Receipt
@@ -310,6 +407,7 @@ class Receipt(models.Model):
         ('Partially Paid', 'Partially Paid'),
         ('Unpaid', 'Unpaid'),
     ], default='Paid')
+    wallet_went_negative = models.BooleanField(default=False, help_text="Indicates if customer's wallet went negative during this transaction")
 
     def __str__(self):
         name = self.customer.name if self.customer else "WALK-IN CUSTOMER"
@@ -348,6 +446,7 @@ class WholesaleReceipt(models.Model):
         ('Partially Paid', 'Partially Paid'),
         ('Unpaid', 'Unpaid'),
     ], default='Paid')
+    wallet_went_negative = models.BooleanField(default=False, help_text="Indicates if customer's wallet went negative during this transaction")
 
     def __str__(self):
         name = self.wholesale_customer.name if self.wholesale_customer else "WALK-IN CUSTOMER"
@@ -488,7 +587,7 @@ class StockCheck(models.Model):
     ]
 
     id = models.AutoField(primary_key=True)
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_at')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_stock_checks')
     date = models.DateTimeField(default=datetime.now)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)

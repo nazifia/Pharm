@@ -93,4 +93,16 @@ urlpatterns = [
     path('adjust-stock-level/<int:item_id>/', views.adjust_stock_level, name='adjust_stock_level'),
     path('update-marquee/', views.update_marquee, name='update_marquee'),
     path('complete_customer_history/<int:customer_id>/', views.complete_customer_history, name='complete_customer_history'),
+
+    # Wallet Transaction History URLs
+    path('wallet_transaction_history/<int:customer_id>/', views.wallet_transaction_history, name='wallet_transaction_history'),
+    path('wholesale_wallet_transaction_history/<int:customer_id>/', views.wholesale_wallet_transaction_history, name='wholesale_wallet_transaction_history'),
+
+    # User Dispensing Summary URLs
+    path('user_dispensing_summary/', views.user_dispensing_summary, name='user_dispensing_summary'),
+    path('user_dispensing_details/', views.user_dispensing_details, name='user_dispensing_details'),
+    path('user_dispensing_details/<int:user_id>/', views.user_dispensing_details, name='user_dispensing_details_user'),
+
+    # Stock Check Enhancement URLs
+    path('add_items_to_stock_check/<int:stock_check_id>/', views.add_items_to_stock_check, name='add_items_to_stock_check'),
 ]

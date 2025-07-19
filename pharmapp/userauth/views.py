@@ -1,6 +1,6 @@
 from django.contrib.auth.hashers import check_password
 from django.core.exceptions import ValidationError
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.urls import reverse
@@ -10,8 +10,10 @@ from .forms import *
 from store.views import is_admin
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 import random
+import json
 from .permissions import role_required
 
 
@@ -114,9 +116,12 @@ def generate_test_logs(request):
 
 
 @login_required
-@role_required(['Admin', 'Manager'])
 def activity_dashboard(request):
     """View for the activity log dashboard"""
+    # Check if user has permission to view activity logs
+    if not request.user.has_permission('view_activity_logs'):
+        messages.error(request, 'You do not have permission to view activity logs.')
+        return redirect('store:index')
     # Get statistics
     total_logs = ActivityLog.objects.count()
 
@@ -161,18 +166,24 @@ def register_view(request):
         form = UserRegistrationForm(request.POST)
         if form.is_valid():
             try:
+                # Create the user first
                 user = form.save(commit=False)
-                # Now we'll use the provided username instead of mobile
                 user.username = form.cleaned_data['username']
                 user.mobile = form.cleaned_data['mobile']
+                user.email = form.cleaned_data.get('email', '')
                 user.save()
 
-                # Create or update profile
-                profile = Profile.objects.get_or_create(user=user)[0]
+                # The profile should be created by the signal, but let's ensure it exists
+                # and update it with the form data
+                profile, created = Profile.objects.get_or_create(user=user)
                 profile.full_name = form.cleaned_data['full_name']
                 profile.user_type = form.cleaned_data['user_type']
                 profile.department = form.cleaned_data.get('department', '')
-                profile.employee_id = form.cleaned_data.get('employee_id', '')
+
+                # Handle employee_id carefully - only set if it's not empty
+                employee_id = form.cleaned_data.get('employee_id', '').strip() if form.cleaned_data.get('employee_id') else None
+                profile.employee_id = employee_id if employee_id else None
+
                 profile.hire_date = form.cleaned_data.get('hire_date')
                 profile.save()
 
@@ -188,7 +199,19 @@ def register_view(request):
                 messages.success(request, f'User {user.username} created successfully with role {profile.user_type}.')
                 return redirect('userauth:user_list')
             except Exception as e:
-                messages.error(request, f'Error creating user: {str(e)}')
+                # Handle specific database constraint errors
+                error_message = str(e)
+                if 'UNIQUE constraint failed: userauth_profile.employee_id' in error_message:
+                    messages.error(request, 'This employee ID is already taken. Please choose a different employee ID or leave it blank.')
+                elif 'UNIQUE constraint failed' in error_message:
+                    messages.error(request, 'A user with this information already exists. Please check your input.')
+                else:
+                    messages.error(request, f'Error creating user: {error_message}')
+
+                # Log the error for debugging
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"User registration error: {error_message}", exc_info=True)
     else:
         form = UserRegistrationForm()
 
@@ -572,6 +595,508 @@ def privilege_management_view(request):
 
 @login_required
 @role_required(['Admin'])
+def enhanced_privilege_management_view(request):
+    """Enhanced privilege management view with advanced features"""
+    from .models import USER_PERMISSIONS, UserPermission
+
+    # Get all users with their profiles
+    users = User.objects.select_related('profile').all()
+
+    # Calculate statistics
+    total_users = users.count()
+    total_permissions = len(set().union(*USER_PERMISSIONS.values()))
+    active_roles = len([role for role, perms in USER_PERMISSIONS.items() if perms])
+    custom_permissions = UserPermission.objects.count()
+
+    context = {
+        'users': users,
+        'user_permissions': USER_PERMISSIONS,
+        'total_users': total_users,
+        'total_permissions': total_permissions,
+        'active_roles': active_roles,
+        'custom_permissions': custom_permissions,
+        'title': 'Enhanced Privilege Management'
+    }
+
+    return render(request, 'userauth/enhanced_privilege_management.html', context)
+
+
+@login_required
+@role_required(['Admin'])
+def user_permissions_api(request, user_id):
+    """API endpoint to get user permissions"""
+    try:
+        user = get_object_or_404(User, id=user_id)
+
+        # Get user's effective permissions
+        user_permissions = {}
+        role_permissions = user.get_role_permissions()
+        individual_permissions = user.get_individual_permissions()
+
+        # Combine role and individual permissions
+        all_possible_permissions = set().union(*USER_PERMISSIONS.values()) if USER_PERMISSIONS else set()
+        for permission in all_possible_permissions:
+            # Check individual permission first, then role permission
+            if permission in individual_permissions:
+                user_permissions[permission] = individual_permissions[permission]
+            else:
+                user_permissions[permission] = permission in role_permissions
+
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"User permissions API - User: {user.username}, Role: {user.profile.user_type if hasattr(user, 'profile') else 'None'}")
+        logger.info(f"Role permissions: {role_permissions}")
+        logger.info(f"Individual permissions: {individual_permissions}")
+        logger.info(f"Final permissions: {user_permissions}")
+
+        return JsonResponse({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'full_name': user.profile.full_name if hasattr(user, 'profile') else '',
+                'user_type': user.profile.user_type if hasattr(user, 'profile') else ''
+            },
+            'permissions': user_permissions
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@role_required(['Admin'])
+@require_http_methods(["POST"])
+def save_user_permissions_api(request):
+    """API endpoint to save user permissions"""
+    try:
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+        permissions = data.get('permissions', {})
+
+        if not user_id:
+            return JsonResponse({'success': False, 'error': 'User ID required'})
+
+        user = get_object_or_404(User, id=user_id)
+
+        # Get user's role permissions for comparison
+        role_permissions = set(user.get_role_permissions())
+
+        # Process each permission
+        for permission, granted in permissions.items():
+            is_role_permission = permission in role_permissions
+
+            # Only create individual permission if it differs from role permission
+            if granted != is_role_permission:
+                UserPermission.objects.update_or_create(
+                    user=user,
+                    permission=permission,
+                    defaults={
+                        'granted': granted,
+                        'granted_by': request.user,
+                        'notes': f'Individual permission override by {request.user.username}'
+                    }
+                )
+            else:
+                # Remove individual permission if it matches role permission
+                UserPermission.objects.filter(user=user, permission=permission).delete()
+
+        # Log the activity
+        ActivityLog.log_activity(
+            user=request.user,
+            action=f"Updated permissions for user: {user.username}",
+            action_type='UPDATE',
+            target_model='User',
+            target_id=str(user.id)
+        )
+
+        return JsonResponse({'success': True})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@role_required(['Admin'])
+@require_http_methods(["POST"])
+def bulk_operations_api(request):
+    """API endpoint for bulk user operations"""
+    try:
+        data = json.loads(request.body)
+        user_ids = data.get('user_ids', [])
+        role_template = data.get('role_template')
+        status_change = data.get('status_change')
+
+        if not user_ids:
+            return JsonResponse({'success': False, 'error': 'No users selected'})
+
+        users = User.objects.filter(id__in=user_ids)
+        affected_users = 0
+
+        for user in users:
+            # Apply role template
+            if role_template and role_template in USER_PERMISSIONS:
+                # Clear existing individual permissions
+                UserPermission.objects.filter(user=user).delete()
+
+                # Update user role
+                if hasattr(user, 'profile'):
+                    user.profile.user_type = role_template
+                    user.profile.save()
+                    affected_users += 1
+
+            # Apply status change
+            if status_change:
+                if status_change == 'activate':
+                    user.is_active = True
+                elif status_change == 'deactivate':
+                    user.is_active = False
+                user.save()
+                affected_users += 1
+
+        # Log the activity
+        ActivityLog.log_activity(
+            user=request.user,
+            action=f"Bulk operations applied to {affected_users} users",
+            action_type='BULK_UPDATE',
+            target_model='User',
+            target_id='bulk'
+        )
+
+        return JsonResponse({
+            'success': True,
+            'affected_users': affected_users
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@role_required(['Admin'])
+def permission_matrix_api(request):
+    """API endpoint to get permission matrix data"""
+    try:
+        users = User.objects.select_related('profile').filter(is_active=True)
+        all_permissions = sorted(set().union(*USER_PERMISSIONS.values()))
+
+        matrix_data = {
+            'permissions': all_permissions,
+            'users': []
+        }
+
+        for user in users:
+            user_permissions = user.get_permissions()
+            matrix_data['users'].append({
+                'id': user.id,
+                'name': user.profile.full_name if hasattr(user, 'profile') and user.profile.full_name else user.username,
+                'role': user.profile.user_type if hasattr(user, 'profile') else 'Unknown',
+                'permissions': user_permissions
+            })
+
+        return JsonResponse({
+            'success': True,
+            'matrix': matrix_data
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@role_required(['Admin'])
+def privilege_statistics_api(request):
+    """API endpoint to get privilege management statistics"""
+    try:
+        # Basic counts
+        total_users = User.objects.count()
+        active_users = User.objects.filter(is_active=True).count()
+        inactive_users = total_users - active_users
+
+        # Permission statistics
+        all_permissions = set().union(*USER_PERMISSIONS.values()) if USER_PERMISSIONS else set()
+        total_permissions = len(all_permissions)
+        active_roles = len([role for role, perms in USER_PERMISSIONS.items() if perms])
+        custom_permissions = UserPermission.objects.count()
+
+        # Permission grants and revokes
+        granted_permissions = UserPermission.objects.filter(granted=True).count()
+        revoked_permissions = UserPermission.objects.filter(granted=False).count()
+
+        # Recent activity
+        from datetime import timedelta
+        recent_date = timezone.now() - timedelta(days=7)
+        recent_permission_changes = UserPermission.objects.filter(granted_at__gte=recent_date).count()
+
+        # Role distribution
+        role_distribution = {}
+        for user in User.objects.select_related('profile').all():
+            role = user.profile.user_type if hasattr(user, 'profile') and user.profile.user_type else 'Unknown'
+            role_distribution[role] = role_distribution.get(role, 0) + 1
+
+        return JsonResponse({
+            'success': True,
+            'total_users': total_users,
+            'active_users': active_users,
+            'inactive_users': inactive_users,
+            'total_permissions': total_permissions,
+            'active_roles': active_roles,
+            'custom_permissions': custom_permissions,
+            'granted_permissions': granted_permissions,
+            'revoked_permissions': revoked_permissions,
+            'recent_permission_changes': recent_permission_changes,
+            'role_distribution': role_distribution
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@role_required(['Admin'])
+@require_http_methods(["POST"])
+def revoke_user_permission_api(request):
+    """API endpoint to revoke specific user permission"""
+    try:
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+        permission = data.get('permission')
+
+        if not user_id or not permission:
+            return JsonResponse({'success': False, 'error': 'User ID and permission required'})
+
+        user = get_object_or_404(User, id=user_id)
+
+        # Create or update permission record to revoke
+        user_permission, created = UserPermission.objects.get_or_create(
+            user=user,
+            permission=permission,
+            defaults={
+                'granted': False,
+                'granted_by': request.user,
+                'notes': f'Permission revoked by {request.user.username}'
+            }
+        )
+
+        if not created and user_permission.granted:
+            user_permission.granted = False
+            user_permission.granted_by = request.user
+            user_permission.granted_at = timezone.now()
+            user_permission.notes = f'Permission revoked by {request.user.username}'
+            user_permission.save()
+
+        # Log the activity
+        ActivityLog.log_activity(
+            user=request.user,
+            action=f"Revoked permission '{permission}' from user: {user.username}",
+            action_type='REVOKE',
+            target_model='User',
+            target_id=str(user.id)
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Permission "{permission}" revoked from {user.username}'
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@role_required(['Admin'])
+@require_http_methods(["POST"])
+def grant_user_permission_api(request):
+    """API endpoint to grant specific user permission"""
+    try:
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+        permission = data.get('permission')
+
+        if not user_id or not permission:
+            return JsonResponse({'success': False, 'error': 'User ID and permission required'})
+
+        user = get_object_or_404(User, id=user_id)
+
+        # Create or update permission record to grant
+        user_permission, created = UserPermission.objects.get_or_create(
+            user=user,
+            permission=permission,
+            defaults={
+                'granted': True,
+                'granted_by': request.user,
+                'notes': f'Permission granted by {request.user.username}'
+            }
+        )
+
+        if not created and not user_permission.granted:
+            user_permission.granted = True
+            user_permission.granted_by = request.user
+            user_permission.granted_at = timezone.now()
+            user_permission.notes = f'Permission granted by {request.user.username}'
+            user_permission.save()
+
+        # Log the activity
+        ActivityLog.log_activity(
+            user=request.user,
+            action=f"Granted permission '{permission}' to user: {user.username}",
+            action_type='GRANT',
+            target_model='User',
+            target_id=str(user.id)
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Permission "{permission}" granted to {user.username}'
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@role_required(['Admin'])
+def all_permissions_api(request):
+    """API endpoint to get all available permissions"""
+    try:
+        all_permissions = {}
+
+        # Organize permissions by category
+        categories = {
+            'User Management': ['manage_users', 'edit_user_profiles', 'access_admin_panel'],
+            'Inventory Management': ['manage_inventory', 'perform_stock_check', 'transfer_stock', 'adjust_prices'],
+            'Sales Management': ['process_sales', 'process_returns', 'process_split_payments', 'manage_customers'],
+            'Reports & Analytics': ['view_reports', 'view_financial_reports', 'view_activity_logs', 'view_sales_history'],
+            'System Administration': ['manage_system_settings', 'manage_payment_methods', 'override_payment_status'],
+            'Procurement': ['approve_procurement', 'manage_suppliers', 'manage_expenses', 'pause_resume_procurement'],
+            'Pharmacy Operations': ['dispense_medication', 'approve_returns', 'search_items']
+        }
+
+        for category, permissions in categories.items():
+            all_permissions[category] = []
+            for permission in permissions:
+                # Get permission description
+                description = permission.replace('_', ' ').title()
+                all_permissions[category].append({
+                    'id': permission,
+                    'name': description,
+                    'description': f"Allows user to {description.lower()}"
+                })
+
+        return JsonResponse({
+            'success': True,
+            'permissions': all_permissions
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@role_required(['Admin'])
+def export_permissions_api(request):
+    """API endpoint to export permissions data as CSV"""
+    try:
+        import csv
+        from django.http import HttpResponse
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="permissions_export_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+
+        writer = csv.writer(response)
+
+        # Write header
+        all_permissions = sorted(set().union(*USER_PERMISSIONS.values()))
+        header = ['User ID', 'Username', 'Full Name', 'Role', 'Status'] + all_permissions
+        writer.writerow(header)
+
+        # Write user data
+        users = User.objects.select_related('profile').all()
+        for user in users:
+            user_permissions = user.get_permissions()
+            row = [
+                user.id,
+                user.username,
+                user.profile.full_name if hasattr(user, 'profile') and user.profile.full_name else '',
+                user.profile.user_type if hasattr(user, 'profile') else '',
+                'Active' if user.is_active else 'Inactive'
+            ]
+
+            # Add permission columns
+            for permission in all_permissions:
+                row.append('Yes' if permission in user_permissions else 'No')
+
+            writer.writerow(row)
+
+        return response
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@role_required(['Admin'])
+def user_audit_trail_api(request, user_id):
+    """API endpoint to get user audit trail"""
+    try:
+        user = get_object_or_404(User, id=user_id)
+
+        # Get recent activity logs for this user
+        recent_activities = ActivityLog.objects.filter(
+            target_model='User',
+            target_id=str(user.id)
+        ).order_by('-timestamp')[:50]
+
+        # Get permission changes
+        permission_changes = UserPermission.objects.filter(
+            user=user
+        ).select_related('granted_by').order_by('-granted_at')[:20]
+
+        activities = []
+        for activity in recent_activities:
+            activities.append({
+                'timestamp': activity.timestamp.isoformat(),
+                'action': activity.action,
+                'action_type': activity.action_type,
+                'performed_by': activity.user.username if activity.user else 'System'
+            })
+
+        permissions = []
+        for perm in permission_changes:
+            permissions.append({
+                'timestamp': perm.granted_at.isoformat(),
+                'permission': perm.permission,
+                'granted': perm.granted,
+                'granted_by': perm.granted_by.username if perm.granted_by else 'System',
+                'notes': perm.notes
+            })
+
+        return JsonResponse({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'full_name': user.profile.full_name if hasattr(user, 'profile') else ''
+            },
+            'activities': activities,
+            'permission_changes': permissions
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@role_required(['Admin'])
 def get_user_permissions(request, user_id):
     """AJAX endpoint to get user permissions"""
     try:
@@ -682,4 +1207,115 @@ def bulk_user_actions(request):
             )
 
     return redirect('userauth:user_list')
+
+
+@login_required
+@role_required(['Admin'])
+def get_all_users_api(request):
+    """API endpoint to get all users for bulk operations"""
+    try:
+        users = User.objects.select_related('profile').filter(is_active=True).exclude(id=request.user.id)
+        users_data = []
+
+        for user in users:
+            users_data.append({
+                'id': user.id,
+                'username': user.username,
+                'full_name': user.profile.full_name if hasattr(user, 'profile') and user.profile else user.username,
+                'user_type': user.profile.user_type if hasattr(user, 'profile') and user.profile else 'Unknown'
+            })
+
+        return JsonResponse({
+            'success': True,
+            'users': users_data
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@login_required
+@role_required(['Admin'])
+def bulk_permission_management(request):
+    """API endpoint for bulk permission management"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Only POST method allowed'})
+
+    try:
+        import json
+
+        user_ids = json.loads(request.POST.get('users', '[]'))
+        permission = request.POST.get('permission')
+        action = request.POST.get('action')  # 'grant' or 'revoke'
+
+        if not user_ids or not permission or not action:
+            return JsonResponse({'success': False, 'error': 'Missing required parameters'})
+
+        if action not in ['grant', 'revoke']:
+            return JsonResponse({'success': False, 'error': 'Invalid action'})
+
+        affected_users = 0
+        errors = []
+
+        for user_id in user_ids:
+            try:
+                user = User.objects.get(id=user_id)
+
+                # Get or create the permission record
+                user_permission, created = UserPermission.objects.get_or_create(
+                    user=user,
+                    permission=permission,
+                    defaults={
+                        'granted': action == 'grant',
+                        'granted_by': request.user,
+                        'notes': f'Bulk {action} by {request.user.username}'
+                    }
+                )
+
+                # Update existing permission if it changed
+                if not created:
+                    if user_permission.granted != (action == 'grant'):
+                        user_permission.granted = (action == 'grant')
+                        user_permission.granted_by = request.user
+                        user_permission.granted_at = timezone.now()
+                        user_permission.notes = f'Bulk {action} by {request.user.username}'
+                        user_permission.save()
+                        affected_users += 1
+                elif created:
+                    affected_users += 1
+
+            except User.DoesNotExist:
+                errors.append(f'User with ID {user_id} not found')
+            except Exception as e:
+                errors.append(f'Error processing user {user_id}: {str(e)}')
+
+        # Log the activity
+        ActivityLog.log_activity(
+            user=request.user,
+            action=f"Bulk {action} permission '{permission}' for {affected_users} users",
+            action_type='UPDATE',
+            target_model='UserPermission',
+            target_id='bulk'
+        )
+
+        response_data = {
+            'success': True,
+            'affected_users': affected_users,
+            'permission': permission,
+            'action': action
+        }
+
+        if errors:
+            response_data['errors'] = errors
+
+        return JsonResponse(response_data)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
 

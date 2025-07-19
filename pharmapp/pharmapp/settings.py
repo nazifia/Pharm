@@ -34,6 +34,8 @@ INSTALLED_APPS = [
     'whitenoise.runserver_nostatic',
     'django.contrib.humanize',
     'django_htmx',
+    'crispy_forms',  # Removed - using simple HTML/CSS instead
+    'crispy_bootstrap5',  # Removed - using simple HTML/CSS instead
     # 'channels',  # Add channels for WebSocket support (temporarily disabled)
     'store',
     'userauth',
@@ -238,6 +240,10 @@ LOGOUT_REDIRECT_URL = 'store:index'
 
 # Allow more form fields
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
+
+# Crispy Forms Configuration
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 
 # def copy_index_html(sender, **kwargs):

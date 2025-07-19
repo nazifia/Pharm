@@ -57,6 +57,12 @@
                 {% endif %}
 
                 <p style="font-size: 1.1em; margin-top: 5px;">Payment Status: <strong style="color: {% if receipt.status == 'Paid' %}#28a745{% else %}#dc3545{% endif %};">{{ receipt.status }}</strong></p>
+
+                {% if receipt.wallet_went_negative %}
+                <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; padding: 8px; margin: 10px 0; color: #856404;">
+                    <strong>⚠️ NOTICE:</strong> Customer's wallet balance went negative during this transaction.
+                </div>
+                {% endif %}
             </div>
         </header>
 

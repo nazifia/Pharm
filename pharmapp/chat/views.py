@@ -369,18 +369,29 @@ def send_message_api(request):
         data = json.loads(request.body)
         room_id = data.get('room_id')
         message_text = data.get('message', '').strip()
+        message_type = data.get('message_type', 'text')
+        reply_to_id = data.get('reply_to')
 
-        if not room_id or not message_text:
-            return JsonResponse({'error': 'Room ID and message required'}, status=400)
+        if not room_id:
+            return JsonResponse({'error': 'Room ID required'}, status=400)
 
         room = get_object_or_404(ChatRoom, id=room_id, participants=request.user)
+
+        # Handle reply
+        reply_to = None
+        if reply_to_id:
+            try:
+                reply_to = ChatMessage.objects.get(id=reply_to_id, room=room)
+            except ChatMessage.DoesNotExist:
+                pass
 
         # Create message
         message = ChatMessage.objects.create(
             room=room,
             sender=request.user,
             message=message_text,
-            message_type='text'
+            message_type=message_type,
+            reply_to=reply_to
         )
 
         # Set legacy receiver field for backward compatibility
@@ -487,4 +498,142 @@ def serialize_message_enhanced(message):
         'status': message.status,
         'is_read': message.is_read,
         'file_url': message.file_attachment.url if message.file_attachment else None,
+        'edited_at': message.edited_at.isoformat() if message.edited_at else None,
+        'voice_duration': message.voice_duration,
+        'is_pinned': message.is_pinned,
+        'is_forwarded': message.is_forwarded,
+        'location_lat': str(message.location_lat) if message.location_lat else None,
+        'location_lng': str(message.location_lng) if message.location_lng else None,
+        'location_address': message.location_address,
+        'reply_to': {
+            'id': str(message.reply_to.id),
+            'message': message.reply_to.message,
+            'sender': message.reply_to.sender.username
+        } if message.reply_to else None
     }
+
+
+@login_required
+@require_http_methods(["POST"])
+def add_reaction_api(request):
+    """Add reaction to a message"""
+    try:
+        data = json.loads(request.body)
+        message_id = data.get('message_id')
+        reaction = data.get('reaction')
+
+        if not message_id or not reaction:
+            return JsonResponse({'error': 'Message ID and reaction required'}, status=400)
+
+        message = get_object_or_404(ChatMessage, id=message_id)
+
+        # Check if user is participant in the room
+        if not message.room.participants.filter(id=request.user.id).exists():
+            return JsonResponse({'error': 'Access denied'}, status=403)
+
+        from .models import MessageReaction
+
+        # Toggle reaction (add if not exists, remove if exists)
+        reaction_obj, created = MessageReaction.objects.get_or_create(
+            message=message,
+            user=request.user,
+            reaction=reaction
+        )
+
+        if not created:
+            reaction_obj.delete()
+
+        # Get all reactions for this message
+        reactions = {}
+        for r in message.reactions.all():
+            if r.reaction not in reactions:
+                reactions[r.reaction] = []
+            reactions[r.reaction].append(r.user.username)
+
+        return JsonResponse({
+            'success': True,
+            'reactions': reactions
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def upload_file_api(request):
+    """Upload file for chat"""
+    try:
+        room_id = request.POST.get('room_id')
+        message_type = request.POST.get('message_type', 'file')
+        file = request.FILES.get('file')
+
+        if not room_id or not file:
+            return JsonResponse({'error': 'Room ID and file required'}, status=400)
+
+        room = get_object_or_404(ChatRoom, id=room_id, participants=request.user)
+
+        # Validate file type and size
+        max_size = 10 * 1024 * 1024  # 10MB
+        if file.size > max_size:
+            return JsonResponse({'error': 'File too large. Maximum size is 10MB.'}, status=400)
+
+        # Create message with file
+        message = ChatMessage.objects.create(
+            room=room,
+            sender=request.user,
+            message=request.POST.get('caption', ''),
+            message_type=message_type,
+            file_attachment=file
+        )
+
+        # Update room timestamp
+        room.updated_at = timezone.now()
+        room.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': serialize_message_enhanced(message)
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def upload_voice_api(request):
+    """Upload voice message"""
+    try:
+        room_id = request.POST.get('room_id')
+        voice_file = request.FILES.get('voice_file')
+        duration = request.POST.get('duration', 0)
+
+        if not room_id or not voice_file:
+            return JsonResponse({'error': 'Room ID and voice file required'}, status=400)
+
+        room = get_object_or_404(ChatRoom, id=room_id, participants=request.user)
+
+        # Create voice message
+        message = ChatMessage.objects.create(
+            room=room,
+            sender=request.user,
+            message='',
+            message_type='voice',
+            file_attachment=voice_file,
+            voice_duration=int(duration) if duration else None
+        )
+
+        # Update room timestamp
+        room.updated_at = timezone.now()
+        room.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': serialize_message_enhanced(message)
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

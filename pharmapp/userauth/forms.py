@@ -20,14 +20,14 @@ class UserRegistrationForm(UserCreationForm):
     mobile = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Mobile Number'}), required=True)
     user_type = forms.ChoiceField(choices=USER_TYPE, widget=forms.Select(attrs={'class': 'form-control'}), required=True)
     department = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Department'}), required=False)
-    employee_id = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Employee ID'}), required=False)
+    employee_id = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter unique employee ID (optional)'}), required=False)
     hire_date = forms.DateField(widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}), required=False)
     password1 = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Password'}), required=True)
     password2 = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Confirm Password'}), required=True)
 
     class Meta:
         model = User
-        fields = ('full_name', 'username', 'email', 'mobile', 'user_type', 'department', 'employee_id', 'hire_date', 'password1', 'password2')
+        fields = ('username', 'email', 'mobile', 'password1', 'password2')
 
     def clean_username(self):
         username = self.cleaned_data.get('username')
@@ -43,9 +43,18 @@ class UserRegistrationForm(UserCreationForm):
 
     def clean_employee_id(self):
         employee_id = self.cleaned_data.get('employee_id')
-        if employee_id and Profile.objects.filter(employee_id=employee_id).exists():
-            raise forms.ValidationError("This employee ID is already taken.")
-        return employee_id
+        if employee_id:
+            # Strip whitespace and check if it's not empty
+            employee_id = employee_id.strip()
+            if not employee_id:
+                # If it's empty after stripping, return None
+                return None
+
+            # Check if this employee_id already exists
+            if Profile.objects.filter(employee_id=employee_id).exists():
+                raise forms.ValidationError("This employee ID is already taken. Please choose a different one.")
+
+        return employee_id if employee_id else None
 
 
 
@@ -67,7 +76,7 @@ class UserEditForm(forms.ModelForm):
     mobile = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Mobile Number'}), required=True)
     user_type = forms.ChoiceField(choices=USER_TYPE, widget=forms.Select(attrs={'class': 'form-control'}), required=True)
     department = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Department'}), required=False)
-    employee_id = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Employee ID'}), required=False)
+    employee_id = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter unique employee ID (optional)'}), required=False)
     hire_date = forms.DateField(widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}), required=False)
     is_active = forms.BooleanField(widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}), required=False)
 
@@ -92,11 +101,18 @@ class UserEditForm(forms.ModelForm):
     def clean_employee_id(self):
         employee_id = self.cleaned_data.get('employee_id')
         if employee_id:
+            # Strip whitespace and check if it's not empty
+            employee_id = employee_id.strip()
+            if not employee_id:
+                # If it's empty after stripping, return None
+                return None
+
             # Check if employee_id exists but exclude the current instance's profile
             existing_profile = Profile.objects.filter(employee_id=employee_id).exclude(user=self.instance).first()
             if existing_profile:
-                raise forms.ValidationError("This employee ID is already taken.")
-        return employee_id
+                raise forms.ValidationError("This employee ID is already taken. Please choose a different one.")
+
+        return employee_id if employee_id else None
 
 
 class PrivilegeManagementForm(forms.Form):

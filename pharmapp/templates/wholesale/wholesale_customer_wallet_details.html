@@ -15,6 +15,12 @@
                 href="{% url 'wholesale:reset_wholesale_customer_wallet' customer.pk %}"
                 onclick="return confirm('Are you sure you want to clear {{wallet.customer.name}}\'s wallet?')">Clear
                 Wallet</a>
+
+            <a href="{% url 'store:wholesale_wallet_transaction_history' customer.pk %}"
+               class="btn btn-sm btn-outline-info">
+                <i class="fas fa-history"></i> Transaction History
+            </a>
+
             <a class="btn btn-sm btn-outline-dark" href="{{request.META.HTTP_REFERER}}">Back</a>
         </div>
     </div>

@@ -1,121 +1,440 @@
+{% load crispy_forms_tags %}
+{% load static %}
+
+<!-- Bootstrap CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
 {% block content %}
+
 <style>
-    .table {
-        color: #333;
+    /* Modern Bootstrap-Enhanced Wholesale Styling */
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
-    table {
-        width: 100%;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    .main-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        margin: 20px auto;
+        max-width: 1400px;
     }
 
-    .table-hover th,
-    .table-hover td {
+    .customer-header {
+        background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 50%, #fecfef 100%);
+        color: #2d3748;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(255, 154, 158, 0.3);
+        margin-bottom: 25px;
         text-align: center;
     }
 
-    /* Media Queries */
+    .customer-header h3 {
+        font-weight: 700;
+        font-size: 1.8rem;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 
-    /* For tablets and smaller devices */
+    .customer-header h3::before {
+        content: "🏢";
+        margin-right: 10px;
+        font-size: 1.5rem;
+    }
+
+    .customer-header h4 {
+        font-weight: 600;
+        font-size: 1.3rem;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #2d3748;
+    }
+
+    .customer-header h4::before {
+        content: "💼";
+        margin-right: 8px;
+    }
+
+    .action-controls {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(79, 172, 254, 0.3);
+    }
+
+    .search-container {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        backdrop-filter: blur(5px);
+    }
+
+    .btn-gradient-primary {
+        background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+        border: none;
+        color: white;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn-gradient-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(255, 154, 158, 0.4);
+        color: white;
+    }
+
+    .action-label {
+        color: #4a5568;
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+    }
+
+    .action-label::before {
+        content: "⚡";
+        margin-right: 8px;
+    }
+
+    .form-select {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a24) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 12px 20px !important;
+        font-weight: 600 !important;
+        font-size: 1.1rem !important;
+        box-shadow: 0 4px 15px rgba(238, 90, 36, 0.3) !important;
+        transition: all 0.3s ease !important;
+        width: auto !important;
+    }
+
+    .form-select:focus {
+        outline: none !important;
+        box-shadow: 0 0 0 3px rgba(238, 90, 36, 0.3) !important;
+        transform: translateY(-2px) !important;
+    }
+
+    .form-control {
+        border: 2px solid #e2e8f0 !important;
+        border-radius: 12px !important;
+        padding: 12px 20px !important;
+        font-size: 1rem !important;
+        transition: all 0.3s ease !important;
+        background: white !important;
+    }
+
+    .form-control:focus {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+        outline: none !important;
+        background: #f7fafc !important;
+    }
+
+    .table {
+        background: white;
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        border-collapse: separate;
+        border-spacing: 0;
+        margin: 0;
+    }
+
+    .table thead th {
+        background: linear-gradient(135deg, #4a5568, #2d3748);
+        color: white;
+        font-weight: 600;
+        padding: 15px 12px;
+        text-align: center;
+        border: none;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .table tbody tr {
+        transition: all 0.3s ease;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .table tbody tr:hover {
+        background: linear-gradient(135deg, #f7fafc, #edf2f7);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .table tbody td {
+        padding: 15px 12px;
+        vertical-align: middle;
+        border: none;
+        text-align: center;
+    }
+
+    .table tbody td:nth-child(2) {
+        text-align: left;
+        font-weight: 600;
+        color: #2d3748;
+    }
+
+    /* Media Queries */
     @media (max-width: 768px) {
-        .col-md-10 {
-            margin-left: 0;
-            margin-top: 20px;
-            padding: 0 15px;
+        .wholesale-container {
+            margin: 10px;
+            padding: 20px;
+            border-radius: 15px;
         }
 
-        table {
-            width: 95%;
-            font-size: 0.6rem;
-            /* Reduce font size for smaller screens */
+        .customer-header {
+            padding: 20px;
+        }
+
+        .customer-header h3 {
+            font-size: 1.5rem;
+        }
+
+        .customer-header h4 {
+            font-size: 1.1rem;
+        }
+
+        }
+
+        .form-select, .form-control {
+            font-size: 0.9rem !important;
+            padding: 10px 15px !important;
         }
 
         .btn {
-            font-size: 0.5rem;
-            /* Adjust button size */
-            padding: 5px 10px;
+            font-size: 0.9rem;
+            padding: 10px 20px;
         }
     }
 
-    /* For mobile devices */
     @media (max-width: 480px) {
-        .col-md-10 {
-            margin-left: 0;
-            margin-top: 15px;
-            padding: 0 10px;
+        .wholesale-container {
+            margin: 5px;
+            padding: 15px;
         }
 
-        table {
-            font-size: 0.8em;
-            width: 45%;
-            margin-left: 1em;
+        .customer-header {
+            padding: 15px;
         }
 
-        .btn {
-            font-size: 0.7rem;
-            padding: 4px 8px;
-        }
-
-        thead {
+        .table thead {
             display: none;
-            /* Hide table header for mobile screens */
         }
 
-        tbody tr {
-            display: flex;
-            flex-direction: column;
-            margin-bottom: 10px;
-            border-bottom: 1px solid #ddd;
+        .table tbody tr {
+            display: block;
+            background: white;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
-        tbody td {
-            text-align: left;
+        .table tbody td {
             display: flex;
             justify-content: space-between;
-            padding: 3px 7px;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left !important;
         }
 
-        tbody td::before {
+        .table tbody td:last-child {
+            border-bottom: none;
+        }
+
+        .table tbody td::before {
             content: attr(data-label);
             font-weight: bold;
+            color: #4a5568;
+            flex: 1;
         }
+
+        .table tbody td > * {
+            flex: 1;
+            text-align: right;
+        }
+    }
+
+    /* Enhanced form elements */
+    input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: #667eea;
+        cursor: pointer;
+        transform: scale(1.2);
+    }
+
+    input[type="number"] {
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 8px 12px;
+        width: 80px;
+        text-align: center;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    input[type="number"]:enabled {
+        border-color: #667eea;
+        background: #f7fafc;
+    }
+
+    input[type="number"]:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #48bb78, #38a169) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 15px 40px !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 20px rgba(56, 161, 105, 0.3) !important;
+        transition: all 0.3s ease !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 25px rgba(56, 161, 105, 0.4) !important;
+        background: linear-gradient(135deg, #38a169, #2f855a) !important;
+    }
+
+    .btn-primary:active {
+        transform: translateY(0) !important;
+    }
+
+    /* Price and stock styling */
+    .price-cell {
+        color: #38a169;
+        font-weight: 600;
+    }
+
+    .stock-high {
+        color: #38a169;
+        font-weight: 600;
+    }
+
+    .stock-medium {
+        color: #d69e2e;
+        font-weight: 600;
+    }
+
+    .stock-low {
+        color: #e53e3e;
+        font-weight: 600;
+    }
+
+    /* Payment section styling */
+    .payment-section {
+        background: rgba(255, 255, 255, 0.9);
+        padding: 20px;
+        border-radius: 12px;
+        margin-top: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .payment-row {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .payment-group {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .payment-group label {
+        color: #4a5568;
+        font-weight: 600;
+        margin-bottom: 8px;
+        display: block;
+    }
+
+    /* Animation for smooth transitions */
+    * {
+        transition: all 0.3s ease;
+    }
+
+    /* Hover effects for interactive elements */
+    .table tbody tr:hover input[type="checkbox"] {
+        transform: scale(1.3);
+    }
+
+    .table tbody tr:hover input[type="number"]:enabled {
+        border-color: #4c51bf;
+        background: #edf2f7;
     }
 </style>
 
 
-<div class="col-12">
-    {% if customer %}
-    <div class="customer-info mb-4">
-        <h3 style="color: red;">Select for: {{ customer.name|upper }}</h3>
-        <input type="hidden" name="customer_id" value="{{ customer.id }}">
-        <input type="hidden" name="customer_name" value="{{ customer.name }}">
-        <h4>Wallet Balance: ₦ {{ wallet_balance }}</h4>
-    </div>
-    {% endif %}
-
-    <!-- Action selection (purchase or return) -->
-    <div class="mb-4">
-        <label for="action" class="form-label" style="font-weight: bold;">Select Action:</label>
-        <select id="action" class="form-select form-control" name="action" form="item-form"
-            style="background-color: rgb(252, 182, 182); width:auto">
-            <option value="purchase" selected>Purchase</option>
-            <option value="return">Return</option>
-        </select>
-    </div>
-
-    <!-- Search field to filter items -->
-    <div class="mb-3">
-        <input type="text" class="form-control" id="wholesale-item-search" name="q" placeholder="Search for items..."
-            hx-get="{% url 'wholesale:search_wholesale_items' %}" hx-trigger="keyup changed delay:300ms"
-            hx-target="#for-customer" hx-swap="innerHTML" hx-indicator=".htmx-indicator"
-            style="background-color: rgb(210, 247, 253);">
-        <div class="htmx-indicator" style="display:none">
-            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
+<div class="container-fluid">
+    <div class="main-container p-4">
+        {% if customer %}
+        <div class="customer-header text-dark p-4 mb-4 rounded">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h3 class="mb-2"><i class="fas fa-building me-2"></i>Select for: {{ customer.name|upper }}</h3>
+                    <input type="hidden" name="customer_id" value="{{ customer.id }}">
+                    <input type="hidden" name="customer_name" value="{{ customer.name }}">
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <h4 class="mb-0"><i class="fas fa-briefcase me-2"></i>₦ {{ wallet_balance }}</h4>
+                </div>
             </div>
-            <small>Searching...</small>
         </div>
-    </div>
+        {% endif %}
+
+        <!-- Action selection (purchase or return) -->
+        <div class="action-controls text-white p-4 mb-4 rounded">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <label for="action" class="form-label fw-bold"><i class="fas fa-bolt me-2"></i>Select Action:</label>
+                    <select id="action" class="form-select" name="action" form="item-form">
+                        <option value="purchase" {% if action == 'purchase' %}selected{% endif %}>Purchase</option>
+                        <option value="return" {% if action == 'return' %}selected{% endif %}>Return</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search field to filter items -->
+        <div class="search-container p-3 mb-4 rounded">
+            <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" class="form-control" id="wholesale-item-search" name="q" placeholder="Search for wholesale items..."
+                    hx-get="{% url 'wholesale:search_wholesale_items' %}" hx-trigger="keyup changed delay:300ms"
+                    hx-target="#for-customer" hx-swap="innerHTML" hx-indicator=".htmx-indicator">
+            </div>
+            <div class="htmx-indicator mt-2" style="display:none">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <small>Searching...</small>
+                </div>
+            </div>
+        </div>
 
 
     <form method="post" action="{% url 'wholesale:select_wholesale_items' customer.id %}" id="item-form">
@@ -142,16 +461,18 @@
                 <tbody id="for-customer">
                     {% for item in items %}
                     <tr>
-                        <td>
+                        <td data-label="Select">
                             <input type="checkbox" name="item_ids" value="{{ item.id }}">
                         </td>
-                        <td>{{ item.name|title }}</td>
-                        <td>{{ item.dosage_form }}</td>
-                        <td>{{ item.brand|title }}</td>
-                        <td>{{ item.unit }}</td>
-                        <td>{{ item.price }}</td>
-                        <td>{{ item.stock }}</td>
-                        <td>
+                        <td data-label="Item" class="item-name">{{ item.name|title }}</td>
+                        <td data-label="D/form">{{ item.dosage_form|default:"N/A" }}</td>
+                        <td data-label="Brand">{{ item.brand|title|default:"N/A" }}</td>
+                        <td data-label="Unit">{{ item.unit }}</td>
+                        <td data-label="Price" class="price-cell">₦{{ item.price|floatformat:2 }}</td>
+                        <td data-label="Stock" class="{% if item.stock > 50 %}stock-high{% elif item.stock > 20 %}stock-medium{% else %}stock-low{% endif %}">
+                            {{ item.stock }}
+                        </td>
+                        <td data-label="Quantity">
                             <input type="number" name="quantities" max="{{ item.stock_quantity }}" value="1" min="0.5" step="0.5"
                                 class="form-control input-sm" disabled>
                         </td>
@@ -160,22 +481,21 @@
                 </tbody>
             </table>
         </div>
+
         <!-- Payment Method and Status Selection -->
-        <div class="row mt-4 mb-3">
-            <div class="col-md-6">
-                <div class="form-group">
-                    <label for="payment_method" class="form-label" style="font-weight: bold;">Payment Method:</label>
-                    <select id="payment_method" name="payment_method" class="form-select form-control" style="background-color: rgb(210, 247, 253); width:auto">
+        <div class="payment-section bg-light p-4 rounded mb-4">
+            <div class="row">
+                <div class="col-md-6">
+                    <label for="payment_method" class="form-label fw-bold"><i class="fas fa-credit-card me-2"></i>Payment Method:</label>
+                    <select id="payment_method" name="payment_method" class="form-select">
                         <option value="Cash" selected>Cash</option>
                         <option value="Wallet">Wallet</option>
                         <option value="Transfer">Transfer</option>
                     </select>
                 </div>
-            </div>
-            <div class="col-md-6">
-                <div class="form-group">
-                    <label for="status" class="form-label" style="font-weight: bold;">Payment Status:</label>
-                    <select id="status" name="status" class="form-select form-control" style="background-color: rgb(210, 247, 253); width:auto">
+                <div class="col-md-6">
+                    <label for="status" class="form-label fw-bold"><i class="fas fa-chart-bar me-2"></i>Payment Status:</label>
+                    <select id="status" name="status" class="form-select">
                         <option value="Paid" selected>Paid</option>
                         <option value="Unpaid">Unpaid</option>
                     </select>
@@ -183,8 +503,13 @@
             </div>
         </div>
 
-        <button type="submit" class="btn btn-success my-3">Proceed with Action</button>
+        <div class="text-center mt-4">
+            <button type="submit" class="btn btn-gradient-primary btn-lg px-5">
+                <i class="fas fa-arrow-right me-2"></i>Proceed with Action
+            </button>
+        </div>
     </form>
+    </div>
 </div>
 <script>
     // Function to enable quantity input when checkbox is selected
@@ -210,17 +535,15 @@
     // Update form action dynamically based on selected action
     const actionSelect = document.getElementById('action');
     actionSelect.addEventListener('change', function () {
-        const form = document.getElementById('item-form');
-        const customerId = document.querySelector('input[name="customer_id"]').value;
-        const action = this.value;
+        const selectedAction = this.value;
 
-        // Update form action URL based on the selected action
-        if (action === 'return') {
-            form.action = `/wholesale/return_items/${customerId}/`;
-        } else {
-            form.action = `/wholesale/select_wholesale_items/${customerId}/`;
-        }
+        // Reload the page with the new action parameter to show correct items
+        const currentUrl = new URL(window.location);
+        currentUrl.searchParams.set('action', selectedAction);
+        window.location.href = currentUrl.toString();
     });
 </script>
 
+<!-- Bootstrap JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock content %}

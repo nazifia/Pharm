@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Permissions Display</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>Test Permissions Display</h2>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <h4>Test Data</h4>
+                <pre id="test-data"></pre>
+                <button class="btn btn-primary" onclick="testPermissionsDisplay()">Test Display</button>
+            </div>
+            <div class="col-md-6">
+                <h4>Result</h4>
+                <div id="current-permissions-display" class="border p-3">
+                    <!-- Result will appear here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mock role templates (same as in the actual system)
+        const roleTemplates = {
+            'Admin': ['manage_users', 'view_financial_reports', 'manage_system_settings', 'access_admin_panel', 'manage_inventory', 'dispense_medication', 'process_sales', 'view_reports', 'approve_procurement', 'manage_customers', 'manage_suppliers', 'manage_expenses', 'adjust_prices', 'process_returns', 'approve_returns', 'transfer_stock', 'view_activity_logs', 'perform_stock_check', 'edit_user_profiles', 'manage_payment_methods', 'process_split_payments', 'override_payment_status', 'pause_resume_procurement', 'search_items'],
+            'Manager': ['manage_inventory', 'dispense_medication', 'process_sales', 'view_reports', 'approve_procurement', 'manage_customers', 'manage_suppliers', 'manage_expenses', 'adjust_prices', 'process_returns', 'approve_returns', 'transfer_stock', 'view_activity_logs', 'perform_stock_check', 'manage_payment_methods', 'process_split_payments', 'override_payment_status', 'pause_resume_procurement', 'search_items'],
+            'Pharmacist': ['manage_inventory', 'dispense_medication', 'process_sales', 'manage_customers', 'adjust_prices', 'process_returns', 'transfer_stock', 'view_sales_history', 'view_procurement_history', 'process_split_payments', 'search_items'],
+            'Pharm-Tech': ['manage_inventory', 'process_sales', 'manage_customers', 'process_returns', 'transfer_stock', 'view_sales_history', 'view_procurement_history', 'perform_stock_check', 'process_split_payments', 'search_items'],
+            'Salesperson': ['process_sales', 'manage_customers', 'view_sales_history', 'process_split_payments', 'search_items']
+        };
+
+        // Test data based on actual API response for AMIR (Pharmacist)
+        const testUser = {
+            id: 2,
+            username: 'ameer',
+            full_name: 'AMIR',
+            user_type: 'Pharmacist'
+        };
+
+        const testPermissions = {
+            'view_sales_history': true,
+            'process_split_payments': false,
+            'view_financial_reports': true,
+            'adjust_prices': false,
+            'dispense_medication': false,
+            'process_returns': false,
+            'process_sales': false,
+            'view_procurement_history': false,
+            'manage_customers': false,
+            'search_items': false,
+            'manage_users': false,
+            'transfer_stock': false,
+            'manage_inventory': false,
+            'approve_returns': false,
+            'view_reports': false,
+            'view_activity_logs': false,
+            'manage_payment_methods': false,
+            'access_admin_panel': false,
+            'edit_user_profiles': false,
+            'manage_expenses': false,
+            'manage_system_settings': false,
+            'override_payment_status': false,
+            'perform_stock_check': false,
+            'pause_resume_procurement': false,
+            'approve_procurement': false,
+            'manage_suppliers': false
+        };
+
+        function updateCurrentPermissionsDisplay(user, permissions) {
+            const displayDiv = document.getElementById('current-permissions-display');
+            
+            // Debug logging
+            console.log('updateCurrentPermissionsDisplay called with:', { user, permissions });
+            console.log('Role templates:', roleTemplates);
+            
+            if (!user || !permissions) {
+                displayDiv.innerHTML = '<p class="text-muted text-center">Select a user to view their current permissions.</p>';
+                return;
+            }
+
+            // Get user's role permissions for comparison
+            const rolePermissions = roleTemplates[user.user_type] || [];
+            console.log('Role permissions for', user.user_type, ':', rolePermissions);
+            
+            // Categorize permissions based on the actual API response structure
+            const allGrantedPermissions = [];
+            const roleBasedPermissions = [];
+            const individuallyGrantedPermissions = [];
+            const individuallyRevokedPermissions = [];
+            
+            // Process all permissions
+            Object.entries(permissions).forEach(([permission, isGranted]) => {
+                const isRolePermission = rolePermissions.includes(permission);
+                console.log(`Processing ${permission}: granted=${isGranted}, isRolePermission=${isRolePermission}`);
+                
+                if (isGranted) {
+                    allGrantedPermissions.push(permission);
+                    if (isRolePermission) {
+                        roleBasedPermissions.push(permission);
+                    } else {
+                        // This permission is granted but not in role - individually granted
+                        individuallyGrantedPermissions.push(permission);
+                    }
+                } else if (isRolePermission) {
+                    // This is a role permission that has been individually revoked
+                    individuallyRevokedPermissions.push(permission);
+                }
+            });
+            
+            console.log('Categorization results:', {
+                allGrantedPermissions,
+                roleBasedPermissions,
+                individuallyGrantedPermissions,
+                individuallyRevokedPermissions
+            });
+
+            let html = `
+                <div class="user-permissions-summary">
+                    <h6>Permissions for: <span class="badge bg-primary">${user.full_name || user.username}</span>
+                    <small class="text-muted">(${user.user_type})</small></h6>
+            `;
+
+            // Show all granted permissions first
+            if (allGrantedPermissions.length > 0) {
+                html += `
+                    <div class="permission-category mb-3">
+                        <h6 class="text-success"><i class="fas fa-check-circle"></i> All Active Permissions (${allGrantedPermissions.length})</h6>
+                        <div class="permission-badges">
+                `;
+                allGrantedPermissions.forEach(permission => {
+                    const displayName = permission.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const isFromRole = rolePermissions.includes(permission);
+                    const badgeClass = isFromRole ? 'bg-success' : 'bg-info';
+                    const tooltip = isFromRole ? 'From Role' : 'Individually Granted';
+                    html += `<span class="badge ${badgeClass} me-1 mb-1" title="${tooltip}">${displayName}</span>`;
+                });
+                html += `</div></div>`;
+            }
+
+            // Role-based permissions breakdown
+            if (roleBasedPermissions.length > 0) {
+                html += `
+                    <div class="permission-category mb-3">
+                        <h6 class="text-success"><i class="fas fa-user-tag"></i> From Role Template (${roleBasedPermissions.length})</h6>
+                        <div class="permission-badges">
+                `;
+                roleBasedPermissions.forEach(permission => {
+                    const displayName = permission.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    html += `<span class="badge bg-success me-1 mb-1">${displayName}</span>`;
+                });
+                html += `</div></div>`;
+            }
+
+            // Individually granted permissions
+            if (individuallyGrantedPermissions.length > 0) {
+                html += `
+                    <div class="permission-category mb-3">
+                        <h6 class="text-info"><i class="fas fa-plus-circle"></i> Individually Granted (${individuallyGrantedPermissions.length})</h6>
+                        <div class="permission-badges">
+                `;
+                individuallyGrantedPermissions.forEach(permission => {
+                    const displayName = permission.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    html += `<span class="badge bg-info me-1 mb-1">${displayName}</span>`;
+                });
+                html += `</div></div>`;
+            }
+
+            // Individually revoked permissions
+            if (individuallyRevokedPermissions.length > 0) {
+                html += `
+                    <div class="permission-category mb-3">
+                        <h6 class="text-danger"><i class="fas fa-minus-circle"></i> Individually Revoked (${individuallyRevokedPermissions.length})</h6>
+                        <div class="permission-badges">
+                `;
+                individuallyRevokedPermissions.forEach(permission => {
+                    const displayName = permission.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    html += `<span class="badge bg-danger me-1 mb-1">${displayName}</span>`;
+                });
+                html += `</div></div>`;
+            }
+
+            // Show message if no permissions
+            if (allGrantedPermissions.length === 0) {
+                html += `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> This user currently has no active permissions.
+                    </div>
+                `;
+            }
+
+            // Summary statistics
+            const totalGranted = allGrantedPermissions.length;
+            const totalRevoked = individuallyRevokedPermissions.length;
+            const fromRole = roleBasedPermissions.length;
+            const individual = individuallyGrantedPermissions.length;
+            
+            html += `
+                <div class="permission-summary-stats mt-3" style="background: #f8f9fa; border-radius: 8px; padding: 15px; border: 1px solid #e9ecef;">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="stat-item text-center">
+                                <h5 class="text-success">${totalGranted}</h5>
+                                <small class="text-muted">Total Active</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-item text-center">
+                                <h5 class="text-primary">${fromRole}</h5>
+                                <small class="text-muted">From Role</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-item text-center">
+                                <h5 class="text-info">${individual}</h5>
+                                <small class="text-muted">Individual</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-item text-center">
+                                <h5 class="text-danger">${totalRevoked}</h5>
+                                <small class="text-muted">Revoked</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            html += `
+                <div class="mt-3">
+                    <p class="text-info"><i class="fas fa-info-circle"></i> Use the permission management panel above to modify permissions for this user.</p>
+                </div>
+            </div>`;
+
+            displayDiv.innerHTML = html;
+        }
+
+        function testPermissionsDisplay() {
+            document.getElementById('test-data').textContent = JSON.stringify({
+                user: testUser,
+                permissions: testPermissions
+            }, null, 2);
+            
+            updateCurrentPermissionsDisplay(testUser, testPermissions);
+        }
+
+        // Auto-run test on page load
+        window.onload = function() {
+            testPermissionsDisplay();
+        };
+    </script>
+
+    <style>
+        .permission-category {
+            border-left: 3px solid #dee2e6;
+            padding-left: 15px;
+            margin-bottom: 20px;
+        }
+
+        .permission-category h6 {
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .permission-badges {
+            line-height: 2;
+        }
+
+        .permission-badges .badge {
+            font-size: 0.8rem;
+            padding: 4px 8px;
+        }
+
+        .stat-item h5 {
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+
+        .stat-item small {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</body>
+</html>

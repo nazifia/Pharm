@@ -134,7 +134,7 @@ class RoleBasedAccessMiddleware:
         self.role_required_urls = {
             # User Management
             'userauth:register': ['Admin'],
-            'userauth:activity_dashboard': ['Admin', 'Manager'],
+            # Note: activity_dashboard now uses permission-based checking in the view
             'userauth:permissions_management': ['Admin'],
             'userauth:generate_test_logs': ['Admin'],
             'userauth:user_list': ['Admin'],

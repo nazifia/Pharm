@@ -1,0 +1,689 @@
+{% extends "partials/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="chat-container">
+    <!-- Chat Header -->
+    <div class="chat-header">
+        <div class="chat-header-left">
+            <div class="user-avatar">
+                {% if selected_user.profile.image %}
+                    <img src="{{ selected_user.profile.image.url }}" alt="{{ selected_user.username }}">
+                {% else %}
+                    <div class="avatar-placeholder">{{ selected_user.username|first|upper }}</div>
+                {% endif %}
+                <span class="online-indicator" id="user-online-status"></span>
+            </div>
+            <div class="user-info">
+                <h4>{{ selected_user.profile.full_name|default:selected_user.username }}</h4>
+                <span class="user-status" id="typing-indicator">
+                    <span id="last-seen">Last seen recently</span>
+                </span>
+            </div>
+        </div>
+        <div class="chat-header-right">
+            <button class="btn btn-sm btn-outline-primary" onclick="toggleChatSearch()">
+                <i class="fas fa-search"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-primary" onclick="openChatSettings()">
+                <i class="fas fa-cog"></i>
+            </button>
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-ellipsis-v"></i>
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" onclick="viewChatInfo()">Chat Info</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="clearChatHistory()">Clear History</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="blockUser()">Block User</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Bar (Hidden by default) -->
+    <div class="chat-search" id="chat-search" style="display: none;">
+        <div class="input-group">
+            <input type="text" class="form-control" placeholder="Search messages..." id="search-input">
+            <button class="btn btn-outline-secondary" onclick="searchMessages()">
+                <i class="fas fa-search"></i>
+            </button>
+            <button class="btn btn-outline-secondary" onclick="toggleChatSearch()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Messages Container -->
+    <div class="messages-container" id="messages-container">
+        <div class="messages-list" id="messages-list">
+            {% for message in messages %}
+                <div class="message-wrapper {{ message.sender.id|yesno:'sent,received' }}" data-message-id="{{ message.id }}">
+                    <div class="message-bubble">
+                        {% if message.reply_to %}
+                            <div class="reply-preview">
+                                <div class="reply-line"></div>
+                                <div class="reply-content">
+                                    <strong>{{ message.reply_to.sender.username }}</strong>
+                                    <p>{{ message.reply_to.message|truncatechars:50 }}</p>
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+                        {% if message.is_forwarded %}
+                            <div class="forwarded-indicator">
+                                <i class="fas fa-share"></i> Forwarded
+                            </div>
+                        {% endif %}
+
+                        <div class="message-content">
+                            {% if message.message_type == 'text' %}
+                                <p>{{ message.message|linebreaks }}</p>
+                            {% elif message.message_type == 'image' %}
+                                <div class="image-message">
+                                    <img src="{{ message.file_attachment.url }}" alt="Image" onclick="openImageModal(this.src)">
+                                    {% if message.message %}<p>{{ message.message }}</p>{% endif %}
+                                </div>
+                            {% elif message.message_type == 'voice' %}
+                                <div class="voice-message">
+                                    <button class="play-voice-btn" onclick="playVoiceMessage('{{ message.file_attachment.url }}')">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    <div class="voice-waveform"></div>
+                                    <span class="voice-duration">{{ message.voice_duration }}s</span>
+                                </div>
+                            {% elif message.message_type == 'file' %}
+                                <div class="file-message">
+                                    <i class="fas fa-file"></i>
+                                    <a href="{{ message.file_attachment.url }}" download>{{ message.file_attachment.name }}</a>
+                                </div>
+                            {% elif message.message_type == 'location' %}
+                                <div class="location-message">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <div>
+                                        <p>{{ message.location_address }}</p>
+                                        <small>{{ message.location_lat }}, {{ message.location_lng }}</small>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="message-meta">
+                            <span class="message-time">{{ message.timestamp|date:"H:i" }}</span>
+                            {% if message.sender.id == request.user.id %}
+                                <span class="message-status">
+                                    {% if message.status == 'sent' %}
+                                        <i class="fas fa-check"></i>
+                                    {% elif message.status == 'delivered' %}
+                                        <i class="fas fa-check-double"></i>
+                                    {% elif message.status == 'read' %}
+                                        <i class="fas fa-check-double text-primary"></i>
+                                    {% endif %}
+                                </span>
+                            {% endif %}
+                            {% if message.edited_at %}
+                                <small class="text-muted">edited</small>
+                            {% endif %}
+                        </div>
+
+                        <!-- Message Reactions -->
+                        <div class="message-reactions" id="reactions-{{ message.id }}">
+                            <!-- Reactions will be loaded here -->
+                        </div>
+
+                        <!-- Message Actions -->
+                        <div class="message-actions">
+                            <button class="action-btn" onclick="replyToMessage('{{ message.id }}', '{{ message.message|escapejs }}')">
+                                <i class="fas fa-reply"></i>
+                            </button>
+                            <button class="action-btn" onclick="showReactionPicker('{{ message.id }}')">
+                                <i class="fas fa-smile"></i>
+                            </button>
+                            <button class="action-btn" onclick="forwardMessage('{{ message.id }}')">
+                                <i class="fas fa-share"></i>
+                            </button>
+                            {% if message.sender.id == request.user.id %}
+                                <button class="action-btn" onclick="editMessage('{{ message.id }}', '{{ message.message|escapejs }}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="action-btn text-danger" onclick="deleteMessage('{{ message.id }}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Reply Preview -->
+    <div class="reply-preview-container" id="reply-preview" style="display: none;">
+        <div class="reply-preview-content">
+            <div class="reply-line"></div>
+            <div>
+                <strong id="reply-username"></strong>
+                <p id="reply-message"></p>
+            </div>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="cancelReply()">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- Message Input Area -->
+    <div class="message-input-area">
+        <div class="input-actions-left">
+            <button class="btn btn-outline-secondary" onclick="toggleAttachmentMenu()">
+                <i class="fas fa-paperclip"></i>
+            </button>
+            <div class="attachment-menu" id="attachment-menu" style="display: none;">
+                <button onclick="selectFile('image')"><i class="fas fa-image"></i> Photo</button>
+                <button onclick="selectFile('file')"><i class="fas fa-file"></i> Document</button>
+                <button onclick="startVoiceRecording()"><i class="fas fa-microphone"></i> Voice</button>
+                <button onclick="shareLocation()"><i class="fas fa-map-marker-alt"></i> Location</button>
+            </div>
+        </div>
+        
+        <div class="message-input-container">
+            <textarea 
+                class="form-control message-input" 
+                id="message-input" 
+                placeholder="Type a message..." 
+                rows="1"
+                onkeydown="handleKeyDown(event)"
+                oninput="handleTyping()"
+            ></textarea>
+        </div>
+        
+        <div class="input-actions-right">
+            <button class="btn btn-outline-secondary" onclick="toggleEmojiPicker()">
+                <i class="fas fa-smile"></i>
+            </button>
+            <button class="btn btn-primary send-btn" onclick="sendMessage()" id="send-btn">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Voice Recording Interface -->
+    <div class="voice-recording" id="voice-recording" style="display: none;">
+        <div class="recording-indicator">
+            <div class="recording-dot"></div>
+            <span>Recording...</span>
+            <span id="recording-time">0:00</span>
+        </div>
+        <div class="recording-actions">
+            <button class="btn btn-danger" onclick="cancelRecording()">
+                <i class="fas fa-times"></i>
+            </button>
+            <button class="btn btn-success" onclick="stopRecording()">
+                <i class="fas fa-stop"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden file inputs -->
+<input type="file" id="image-input" accept="image/*" style="display: none;" onchange="handleFileSelect(this, 'image')">
+<input type="file" id="file-input" accept="*/*" style="display: none;" onchange="handleFileSelect(this, 'file')">
+
+<!-- Reaction Picker Modal -->
+<div class="modal fade" id="reactionModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="reaction-picker">
+                    <button onclick="addReaction('👍')">👍</button>
+                    <button onclick="addReaction('❤️')">❤️</button>
+                    <button onclick="addReaction('😂')">😂</button>
+                    <button onclick="addReaction('😮')">😮</button>
+                    <button onclick="addReaction('😢')">😢</button>
+                    <button onclick="addReaction('😡')">😡</button>
+                    <button onclick="addReaction('👏')">👏</button>
+                    <button onclick="addReaction('🔥')">🔥</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-body p-0">
+                <img id="modal-image" src="" class="img-fluid w-100">
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.chat-container {
+    height: calc(100vh - 80px);
+    min-height: 700px;
+    display: flex;
+    flex-direction: column;
+    background: #f8f9fa;
+}
+
+.chat-header {
+    background: white;
+    padding: 1rem;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.user-avatar {
+    position: relative;
+    width: 50px;
+    height: 50px;
+}
+
+.user-avatar img, .avatar-placeholder {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.avatar-placeholder {
+    background: #007bff;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.online-indicator {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    background: #28a745;
+    border: 2px solid white;
+    border-radius: 50%;
+}
+
+.user-info h4 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.user-status {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.chat-search {
+    padding: 1rem;
+    background: white;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.messages-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1rem;
+    max-height: calc(100vh - 250px);
+}
+
+.messages-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 123, 255, 0.3);
+    border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 123, 255, 0.5);
+}
+
+.message-wrapper {
+    margin-bottom: 1rem;
+    display: flex;
+}
+
+.message-wrapper.sent {
+    justify-content: flex-end;
+}
+
+.message-wrapper.received {
+    justify-content: flex-start;
+}
+
+.message-bubble {
+    max-width: 70%;
+    background: white;
+    border-radius: 18px;
+    padding: 12px 16px;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.message-wrapper.sent .message-bubble {
+    background: #007bff;
+    color: white;
+}
+
+.reply-preview {
+    border-left: 3px solid #007bff;
+    padding-left: 8px;
+    margin-bottom: 8px;
+    opacity: 0.8;
+}
+
+.forwarded-indicator {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-bottom: 4px;
+}
+
+.message-content p {
+    margin: 0;
+}
+
+.image-message img {
+    max-width: 200px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.voice-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.play-voice-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.2rem;
+}
+
+.voice-waveform {
+    flex: 1;
+    height: 20px;
+    background: linear-gradient(to right, #007bff 0%, #007bff 50%, #dee2e6 50%);
+    border-radius: 10px;
+}
+
+.file-message, .location-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.message-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.message-reactions {
+    margin-top: 4px;
+}
+
+.message-actions {
+    position: absolute;
+    top: -30px;
+    right: 0;
+    background: white;
+    border-radius: 15px;
+    padding: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    display: none;
+}
+
+.message-bubble:hover .message-actions {
+    display: flex;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: #6c757d;
+}
+
+.action-btn:hover {
+    background: #f8f9fa;
+}
+
+.reply-preview-container {
+    background: white;
+    padding: 8px 16px;
+    border-top: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.message-input-area {
+    background: white;
+    padding: 1rem;
+    border-top: 1px solid #dee2e6;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.message-input-container {
+    flex: 1;
+}
+
+.message-input {
+    border: 1px solid #dee2e6;
+    border-radius: 20px;
+    padding: 8px 16px;
+    resize: none;
+    max-height: 100px;
+}
+
+.attachment-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    padding: 8px;
+}
+
+.attachment-menu button {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 8px 12px;
+    text-align: left;
+    border-radius: 4px;
+}
+
+.attachment-menu button:hover {
+    background: #f8f9fa;
+}
+
+.voice-recording {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #dc3545;
+    color: white;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.recording-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.recording-dot {
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.reaction-picker {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.reaction-picker button {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    padding: 8px;
+    border-radius: 8px;
+}
+
+.reaction-picker button:hover {
+    background: #f8f9fa;
+}
+
+@media (max-width: 768px) {
+    .message-bubble {
+        max-width: 85%;
+    }
+    
+    .chat-header-right .btn {
+        padding: 0.25rem 0.5rem;
+    }
+}
+</style>
+
+<script>
+// Chat functionality will be added in the next file
+let currentReplyTo = null;
+let currentMessageForReaction = null;
+let isRecording = false;
+let mediaRecorder = null;
+let recordingStartTime = null;
+
+// Initialize chat
+document.addEventListener('DOMContentLoaded', function() {
+    initializeChat();
+    loadMessageReactions();
+    scrollToBottom();
+});
+
+function initializeChat() {
+    // Auto-resize textarea
+    const messageInput = document.getElementById('message-input');
+    messageInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+}
+
+function scrollToBottom() {
+    const container = document.getElementById('messages-container');
+    container.scrollTop = container.scrollHeight;
+}
+
+function toggleChatSearch() {
+    const searchDiv = document.getElementById('chat-search');
+    searchDiv.style.display = searchDiv.style.display === 'none' ? 'block' : 'none';
+    if (searchDiv.style.display === 'block') {
+        document.getElementById('search-input').focus();
+    }
+}
+
+function handleKeyDown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+    }
+}
+
+function sendMessage() {
+    const input = document.getElementById('message-input');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // Implementation will be added
+    console.log('Sending message:', message);
+    
+    input.value = '';
+    input.style.height = 'auto';
+    
+    if (currentReplyTo) {
+        cancelReply();
+    }
+}
+
+function replyToMessage(messageId, messageText) {
+    currentReplyTo = messageId;
+    document.getElementById('reply-username').textContent = 'User'; // Get actual username
+    document.getElementById('reply-message').textContent = messageText;
+    document.getElementById('reply-preview').style.display = 'flex';
+    document.getElementById('message-input').focus();
+}
+
+function cancelReply() {
+    currentReplyTo = null;
+    document.getElementById('reply-preview').style.display = 'none';
+}
+
+function showReactionPicker(messageId) {
+    currentMessageForReaction = messageId;
+    new bootstrap.Modal(document.getElementById('reactionModal')).show();
+}
+
+function addReaction(emoji) {
+    if (currentMessageForReaction) {
+        // Implementation will be added
+        console.log('Adding reaction:', emoji, 'to message:', currentMessageForReaction);
+        bootstrap.Modal.getInstance(document.getElementById('reactionModal')).hide();
+    }
+}
+
+function openImageModal(src) {
+    document.getElementById('modal-image').src = src;
+    new bootstrap.Modal(document.getElementById('imageModal')).show();
+}
+
+// More functions will be added in subsequent files
+</script>
+{% endblock %}

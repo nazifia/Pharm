@@ -1,6 +1,7 @@
 {% extends 'partials/base.html' %}
 {% load static %}
 {% load humanize %}
+{% load permission_tags %}
 
 {% block content %}
 
@@ -237,7 +238,7 @@
                     <th scope="col">D/FORM</th>
                     <th scope="col">BRAND/GEN</th>
                     <th scope="col">UNIT</th>
-                    {% if user.is_superuser or is_staff %}
+                    {% if user|can_view_financial_data %}
                     <th scope="col">COST</th>
                     {% endif %}
                     <th scope="col">U/PRICE</th>
@@ -252,7 +253,7 @@
                     <th scope="col">D/FORM</th>
                     <th scope="col">BRAND/GEN</th>
                     <th scope="col">UNIT</th>
-                    {% if user.is_superuser %}
+                    {% if user|can_view_financial_data %}
                     <th scope="col">COST</th>
                     {% endif %}
                     <th scope="col">U/PRICE</th>
@@ -279,7 +280,7 @@
                     <td>{{item.dosage_form|title}}</td>
                     <td>{{item.brand}}</td>
                     <td>{{item.unit}}</td>
-                    {% if user.is_superuser %}
+                    {% if user|can_view_financial_data %}
                     <td>{{item.cost|intcomma }}</td>
                     {% endif %}
                     <td>{{item.price|intcomma }}</td>

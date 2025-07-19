@@ -53,6 +53,9 @@ class ChatMessage(models.Model):
         ('text', 'Text'),
         ('file', 'File'),
         ('image', 'Image'),
+        ('voice', 'Voice Message'),
+        ('video', 'Video'),
+        ('location', 'Location'),
         ('system', 'System Message'),
     ]
 
@@ -76,6 +79,16 @@ class ChatMessage(models.Model):
     # Legacy fields for backward compatibility
     receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages', null=True, blank=True)
     is_read = models.BooleanField(default=False)
+
+    # Advanced chat features
+    is_pinned = models.BooleanField(default=False)
+    is_forwarded = models.BooleanField(default=False)
+    forwarded_from = models.ForeignKey('self', on_delete=models.SET_NULL, blank=True, null=True, related_name='forwards')
+    voice_duration = models.IntegerField(blank=True, null=True, help_text="Duration in seconds for voice messages")
+    location_lat = models.DecimalField(max_digits=10, decimal_places=8, blank=True, null=True)
+    location_lng = models.DecimalField(max_digits=11, decimal_places=8, blank=True, null=True)
+    location_address = models.CharField(max_length=255, blank=True, null=True)
+    is_deleted = models.BooleanField(default=False)
 
     def __str__(self):
         return f'{self.sender.username} in {self.room}: {self.message[:20]}'
@@ -103,6 +116,63 @@ class MessageReadStatus(models.Model):
 
     class Meta:
         unique_together = ['message', 'user']
+
+class MessageReaction(models.Model):
+    """Model for message reactions (like, love, laugh, etc.)"""
+    REACTION_TYPES = [
+        ('👍', 'Like'),
+        ('❤️', 'Love'),
+        ('😂', 'Laugh'),
+        ('😮', 'Wow'),
+        ('😢', 'Sad'),
+        ('😡', 'Angry'),
+        ('👏', 'Clap'),
+        ('🔥', 'Fire'),
+    ]
+
+    message = models.ForeignKey(ChatMessage, on_delete=models.CASCADE, related_name='reactions')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    reaction = models.CharField(max_length=10, choices=REACTION_TYPES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['message', 'user', 'reaction']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} reacted {self.reaction} to message {self.message.id}"
+
+
+class ChatTheme(models.Model):
+    """Model for chat themes and customization"""
+    name = models.CharField(max_length=100)
+    primary_color = models.CharField(max_length=7, default='#007bff')  # Hex color
+    secondary_color = models.CharField(max_length=7, default='#6c757d')
+    background_color = models.CharField(max_length=7, default='#ffffff')
+    text_color = models.CharField(max_length=7, default='#000000')
+    bubble_color_sent = models.CharField(max_length=7, default='#007bff')
+    bubble_color_received = models.CharField(max_length=7, default='#e9ecef')
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+
+class UserChatPreferences(models.Model):
+    """User chat preferences and settings"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='chat_preferences')
+    theme = models.ForeignKey(ChatTheme, on_delete=models.SET_NULL, null=True, blank=True)
+    notification_sound = models.BooleanField(default=True)
+    show_online_status = models.BooleanField(default=True)
+    auto_download_media = models.BooleanField(default=True)
+    font_size = models.CharField(max_length=10, choices=[('small', 'Small'), ('medium', 'Medium'), ('large', 'Large')], default='medium')
+    enter_to_send = models.BooleanField(default=True)
+    show_typing_indicator = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.user.username}'s chat preferences"
+
 
 class UserChatStatus(models.Model):
     """Track user online status and typing indicators"""

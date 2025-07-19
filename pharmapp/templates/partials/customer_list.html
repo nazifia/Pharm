@@ -116,6 +116,13 @@
                         >
 
                         <a
+                            href="{% url 'store:wallet_transaction_history' customer.id %}"
+                            class="btn btn-info btn-sm"
+                            title="View wallet transaction history"
+                            ><i class="fas fa-history"></i></a
+                        >
+
+                        <a
                             href="{% url 'store:delete_customer' customer.id %}"
                             class="btn btn-sm btn-danger"
                             onclick="return confirm('Are you sure you want to delete {{customer.name}} from the List?')"

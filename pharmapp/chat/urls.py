@@ -19,6 +19,11 @@ urlpatterns = [
     path('api/typing/<uuid:room_id>/', views.get_typing_users, name='get_typing_users'),
     path('api/online-users/', views.get_online_users, name='get_online_users'),
 
+    # Enhanced chat API endpoints
+    path('api/add-reaction/', views.add_reaction_api, name='add_reaction_api'),
+    path('api/upload-file/', views.upload_file_api, name='upload_file_api'),
+    path('api/upload-voice/', views.upload_voice_api, name='upload_voice_api'),
+
     # Real-time chat API endpoints
     path('api/get-new-messages/', views.get_new_messages_api, name='get_new_messages_api'),
     path('api/send-message/', views.send_message_api, name='send_message_api'),

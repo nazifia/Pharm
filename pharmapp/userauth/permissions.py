@@ -100,7 +100,7 @@ def can_transfer_stock(user):
 
 def can_view_activity_logs(user):
     """Check if user can view activity logs"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+    return user.is_authenticated and user.has_permission('view_activity_logs')
 
 def can_perform_stock_check(user):
     """Check if user can perform stock checks"""

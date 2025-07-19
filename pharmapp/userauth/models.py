@@ -128,11 +128,12 @@ def create_user_profile(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
-    # If the user is a superuser, set the user_type to 'Admin'
-    if instance.is_superuser and instance.profile.user_type != 'Admin':
-        instance.profile.user_type = 'Admin'
-
-    instance.profile.save()
+    # Ensure profile exists before trying to access it
+    if hasattr(instance, 'profile'):
+        # If the user is a superuser, set the user_type to 'Admin'
+        if instance.is_superuser and instance.profile.user_type != 'Admin':
+            instance.profile.user_type = 'Admin'
+            instance.profile.save()
 
 
 

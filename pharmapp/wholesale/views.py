@@ -137,11 +137,6 @@ def wholesales(request):
         # Use the threshold from settings
         low_stock_threshold = settings.low_stock_threshold
 
-        # Calculate values using the threshold from settings
-        total_purchase_value = sum(item.cost * item.stock for item in items)
-        total_stock_value = sum(item.price * item.stock for item in items)
-        total_profit = total_stock_value - total_purchase_value
-
         # Identify low-stock items using the threshold from settings
         low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
 
@@ -150,10 +145,20 @@ def wholesales(request):
             'low_stock_items': low_stock_items,
             'settings_form': settings_form,
             'low_stock_threshold': low_stock_threshold,
-            'total_purchase_value': total_purchase_value,
-            'total_stock_value': total_stock_value,
-            'total_profit': total_profit,
         }
+
+        # Only include financial data if user has permission
+        if request.user.has_permission('view_financial_reports'):
+            # Calculate values using the threshold from settings
+            total_purchase_value = sum(item.cost * item.stock for item in items)
+            total_stock_value = sum(item.price * item.stock for item in items)
+            total_profit = total_stock_value - total_purchase_value
+
+            context.update({
+                'total_purchase_value': total_purchase_value,
+                'total_stock_value': total_stock_value,
+                'total_profit': total_profit,
+            })
         return render(request, 'wholesale/wholesales.html', context)
     else:
         return redirect('store:index')
@@ -189,22 +194,27 @@ def add_to_wholesale(request):
                 return redirect('wholesale:wholesales')
         low_stock_threshold = 10  # Adjust this number as needed
 
-        # Calculate total purchase value and total stock value
+        # Get items and low stock items
         items = WholesaleItem.objects.all()
-        total_purchase_value = sum(item.cost * item.stock for item in items)
-        total_stock_value = sum(item.price * item.stock for item in items)
-        total_profit = total_stock_value - total_purchase_value
-
         low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
-
 
         context = {
             'items': items,
             'low_stock_items': low_stock_items,
-            'total_purchase_value': total_purchase_value,
-            'total_stock_value': total_stock_value,
-            'total_profit': total_profit,
         }
+
+        # Only include financial data if user has permission
+        if request.user.has_permission('view_financial_reports'):
+            # Calculate total purchase value and total stock value
+            total_purchase_value = sum(item.cost * item.stock for item in items)
+            total_stock_value = sum(item.price * item.stock for item in items)
+            total_profit = total_stock_value - total_purchase_value
+
+            context.update({
+                'total_purchase_value': total_purchase_value,
+                'total_stock_value': total_stock_value,
+                'total_profit': total_profit,
+            })
         return render(request, 'wholesale/wholesales.html', context)
     else:
         return render(request, 'store/index.html')
@@ -413,7 +423,15 @@ def return_wholesale_item(request, pk):
                                 f"Some of the returned quantity ({remaining_return_quantity}) could not be processed as it exceeds the dispensed records."
                             )
 
-
+                        # Create a new dispensing log entry for the return
+                        DispensingLog.objects.create(
+                            user=request.user,
+                            name=item.name,
+                            unit=item.unit,
+                            quantity=return_quantity,
+                            amount=refund_amount,
+                            status='Returned'
+                        )
 
                         # Update daily and monthly sales data
                         daily_sales = get_daily_sales()
@@ -624,7 +642,22 @@ def select_wholesale_items(request, pk):
         customer = get_object_or_404(WholesaleCustomer, id=pk)
         # Store wholesale customer ID in session for later use
         request.session['wholesale_customer_id'] = customer.id
-        items = WholesaleItem.objects.all().order_by('name')
+
+        # Check if this is a return action request
+        action = request.GET.get('action', 'purchase')
+        if request.method == 'POST':
+            action = request.POST.get('action', 'purchase')
+
+        # Filter items based on action
+        if action == 'return':
+            # For returns, show only items that were previously purchased by this customer
+            purchased_item_ids = WholesaleSalesItem.objects.filter(
+                sales__wholesale_customer=customer
+            ).values_list('item_id', flat=True).distinct()
+            items = WholesaleItem.objects.filter(id__in=purchased_item_ids).order_by('name')
+        else:
+            # For purchases, show all available items
+            items = WholesaleItem.objects.all().order_by('name')
 
         # Fetch wallet balance
         wallet_balance = Decimal('0.0')
@@ -646,41 +679,45 @@ def select_wholesale_items(request, pk):
 
             total_cost = Decimal('0.0')
 
-            # Create a new Sales record for this transaction
-            # Instead of get_or_create, we always create a new record to avoid the MultipleObjectsReturned error
-            sales = Sales.objects.create(
-                user=request.user,
-                wholesale_customer=customer,
-                total_amount=Decimal('0.0')
-            )
-
-            # Fetch or create a Receipt
-            receipt = WholesaleReceipt.objects.filter(wholesale_customer=customer, sales=sales).first()
-
-            if not receipt:
-                # Generate a unique receipt ID using uuid
-                import uuid
-                receipt_id = str(uuid.uuid4())[:5]  # Use first 5 characters of a UUID
-
-                # Get payment method and status from form
-                payment_method = request.POST.get('payment_method', 'Cash')
-                status = request.POST.get('status', 'Paid')
-
-                # Store in session for later use in receipt generation
-                request.session['payment_method'] = payment_method
-                request.session['payment_status'] = status
-
-                receipt = WholesaleReceipt.objects.create(
+            # Create a new Sales record only for purchases, not for returns
+            sales = None
+            if action == 'purchase':
+                # Create a new Sales record for this transaction
+                sales = Sales.objects.create(
+                    user=request.user,
                     wholesale_customer=customer,
-                    sales=sales,
-                    receipt_id=receipt_id,
-                    total_amount=Decimal('0.0'),
-                    buyer_name=customer.name,
-                    buyer_address=customer.address,
-                    date=datetime.now(),
-                    payment_method=payment_method,
-                    status=status
+                    total_amount=Decimal('0.0')
                 )
+
+            # Fetch or create a Receipt only for purchases
+            receipt = None
+            if action == 'purchase' and sales:
+                receipt = WholesaleReceipt.objects.filter(wholesale_customer=customer, sales=sales).first()
+
+                if not receipt:
+                    # Generate a unique receipt ID using uuid
+                    import uuid
+                    receipt_id = str(uuid.uuid4())[:5]  # Use first 5 characters of a UUID
+
+                    # Get payment method and status from form
+                    payment_method = request.POST.get('payment_method', 'Cash')
+                    status = request.POST.get('status', 'Paid')
+
+                    # Store in session for later use in receipt generation
+                    request.session['payment_method'] = payment_method
+                    request.session['payment_status'] = status
+
+                    receipt = WholesaleReceipt.objects.create(
+                        wholesale_customer=customer,
+                        sales=sales,
+                        receipt_id=receipt_id,
+                        total_amount=Decimal('0.0'),
+                        buyer_name=customer.name,
+                        buyer_address=customer.address,
+                        date=datetime.now(),
+                        payment_method=payment_method,
+                        status=status
+                    )
 
 
             for i, item_id in enumerate(item_ids):
@@ -743,55 +780,72 @@ def select_wholesale_items(request, pk):
                         )
 
                     elif action == 'return':
-                        # Handle return logic
+                        # Handle return logic - find existing sales items for this customer and item
                         item.stock += quantity
                         item.save()
 
-                        try:
-                            sales_item = WholesaleSalesItem.objects.get(sales=sales, item=item)
+                        # Find existing sales items for this customer and item
+                        existing_sales_items = WholesaleSalesItem.objects.filter(
+                            sales__wholesale_customer=customer,
+                            item=item
+                        ).order_by('-sales__date')
 
-                            if sales_item.quantity < quantity:
-                                messages.warning(request, f"Cannot return more {item.name} than purchased.")
-                                return redirect('wholesale:wholesale_customers')
+                        if not existing_sales_items.exists():
+                            messages.warning(request, f"No purchase record found for {item.name} for this customer.")
+                            continue
 
-                            sales_item.quantity -= quantity
+                        # Calculate total available quantity to return
+                        total_available = sum(si.quantity for si in existing_sales_items)
+                        if total_available < quantity:
+                            messages.warning(request, f"Cannot return {quantity} {item.name}. Only {total_available} available for return.")
+                            continue
+
+                        # Process returns from most recent purchases first
+                        remaining_to_return = quantity
+                        total_refund_amount = Decimal('0.0')
+
+                        for sales_item in existing_sales_items:
+                            if remaining_to_return <= 0:
+                                break
+
+                            return_from_this_sale = min(sales_item.quantity, remaining_to_return)
+                            refund_amount = (sales_item.price * return_from_this_sale)
+                            total_refund_amount += refund_amount
+
+                            # Update sales item
+                            sales_item.quantity -= return_from_this_sale
                             if sales_item.quantity == 0:
                                 sales_item.delete()
                             else:
                                 sales_item.save()
 
-                            refund_amount = (item.price * quantity)
-                            sales.total_amount -= refund_amount
-                            sales.save()
+                            # Update sales total
+                            sales_item.sales.total_amount -= refund_amount
+                            sales_item.sales.save()
 
-                            DispensingLog.objects.create(
-                                user=request.user,
-                                name=item.name,
-                                unit=unit,
-                                quantity=quantity,
-                                amount=refund_amount,
-                                status='Partially Returned' if sales_item.quantity > 0 else 'Returned'  # Status based on remaining quantity
-                            )
+                            remaining_to_return -= return_from_this_sale
 
-                            # **Log Item Selection History (Return)**
-                            WholesaleSelectionHistory.objects.create(
-                                wholesale_customer=customer,
-                                user=request.user,
-                                item=item,
-                                quantity=quantity,
-                                action=action,
-                                unit_price=item.price,
-                            )
+                        # Create dispensing log for the return
+                        DispensingLog.objects.create(
+                            user=request.user,
+                            name=item.name,
+                            unit=unit,
+                            quantity=quantity,
+                            amount=total_refund_amount,
+                            status='Returned'
+                        )
 
-                            total_cost -= refund_amount
+                        # **Log Item Selection History (Return)**
+                        WholesaleSelectionHistory.objects.create(
+                            wholesale_customer=customer,
+                            user=request.user,
+                            item=item,
+                            quantity=quantity,
+                            action=action,
+                            unit_price=item.price,
+                        )
 
-                            # Update the receipt
-                            receipt.total_amount -= refund_amount
-                            receipt.save()
-
-                        except WholesaleSalesItem.DoesNotExist:
-                            messages.warning(request, f"Item {item.name} is not part of the sales.")
-                            return redirect('wholesale:select_wholesale_items', pk=pk)
+                        total_cost -= total_refund_amount
 
                 except WholesaleItem.DoesNotExist:
                     messages.warning(request, 'One of the selected items does not exist.')
@@ -801,9 +855,29 @@ def select_wholesale_items(request, pk):
             try:
                 wallet = customer.wholesale_customer_wallet
                 if action == 'purchase':
+                    # Check if wallet will go negative
+                    wallet_balance_before = wallet.balance
                     wallet.balance -= total_cost
+
+                    # Store negative wallet flag in session for receipt generation
+                    if wallet_balance_before >= 0 and wallet.balance < 0:
+                        request.session['wallet_went_negative'] = True
+
+                    # Allow negative balance but inform the user
+                    if wallet.balance < 0:
+                        messages.info(request, f'Customer {customer.name} now has a negative wallet balance of {wallet.balance}')
                 elif action == 'return':
                     wallet.balance += abs(total_cost)
+
+                    # Create transaction history for the return refund
+                    if abs(total_cost) > 0:
+                        TransactionHistory.objects.create(
+                            wholesale_customer=customer,
+                            transaction_type='refund',
+                            amount=abs(total_cost),
+                            description='Refund for returned items via select item'
+                        )
+
                 wallet.save()
             except WholesaleCustomerWallet.DoesNotExist:
                 messages.warning(request, 'Customer does not have a wallet.')
@@ -822,7 +896,8 @@ def select_wholesale_items(request, pk):
         return render(request, 'partials/select_wholesale_items.html', {
             'customer': customer,
             'items': items,
-            'wallet_balance': wallet_balance
+            'wallet_balance': wallet_balance,
+            'action': action
         })
     else:
         return redirect('store:index')
@@ -1122,6 +1197,13 @@ def wholesale_receipt(request):
                 # Now explicitly set the payment method and status
                 receipt.payment_method = payment_method
                 receipt.status = status
+
+                # Check if wallet went negative (from session for single payments)
+                if request.session.get('wallet_went_negative', False):
+                    receipt.wallet_went_negative = True
+                    # Clear the session flag
+                    del request.session['wallet_went_negative']
+
                 receipt.save()
 
                 # If this is a split payment, create the payment records
@@ -1135,22 +1217,30 @@ def wholesale_receipt(request):
                             # Deduct from customer's wallet
                             try:
                                 wallet = WholesaleCustomerWallet.objects.get(customer=sales.wholesale_customer)
-                                if wallet.balance >= wallet_amount:
-                                    wallet.balance -= wallet_amount
-                                    wallet.save()
+                                # Check if wallet will go negative
+                                wallet_balance_before = wallet.balance
+                                # Allow negative balance
+                                wallet.balance -= wallet_amount
+                                wallet.save()
 
-                                    # Create transaction history
-                                    TransactionHistory.objects.create(
-                                        wholesale_customer=sales.wholesale_customer,
-                                        transaction_type='purchase',
-                                        amount=wallet_amount,
-                                        description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
-                                    )
+                                # Check if wallet went negative and set flag
+                                if wallet_balance_before >= 0 and wallet.balance < 0:
+                                    receipt.wallet_went_negative = True
+                                    receipt.save()
 
-                                    print(f"Deducted {wallet_amount} from customer {sales.wholesale_customer.name}'s wallet for first payment")
-                                else:
-                                    print(f"Warning: Insufficient wallet balance for customer {sales.wholesale_customer.name}")
-                                    messages.warning(request, f"Warning: Insufficient wallet balance for customer {sales.wholesale_customer.name}")
+                                # Create transaction history
+                                TransactionHistory.objects.create(
+                                    wholesale_customer=sales.wholesale_customer,
+                                    transaction_type='purchase',
+                                    amount=wallet_amount,
+                                    description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                                )
+
+                                print(f"Deducted {wallet_amount} from customer {sales.wholesale_customer.name}'s wallet for first payment")
+                                # Inform if balance is negative
+                                if wallet.balance < 0:
+                                    print(f"Info: Customer {sales.wholesale_customer.name} now has a negative wallet balance of {wallet.balance}")
+                                    messages.info(request, f"Customer {sales.wholesale_customer.name} now has a negative wallet balance of {wallet.balance}")
                             except WholesaleCustomerWallet.DoesNotExist:
                                 print(f"Error: Wallet not found for customer {sales.wholesale_customer.name}")
                                 messages.error(request, f"Error: Wallet not found for customer {sales.wholesale_customer.name}")
@@ -1160,22 +1250,30 @@ def wholesale_receipt(request):
                             # Deduct from customer's wallet
                             try:
                                 wallet = WholesaleCustomerWallet.objects.get(customer=sales.wholesale_customer)
-                                if wallet.balance >= wallet_amount:
-                                    wallet.balance -= wallet_amount
-                                    wallet.save()
+                                # Check if wallet will go negative
+                                wallet_balance_before = wallet.balance
+                                # Allow negative balance
+                                wallet.balance -= wallet_amount
+                                wallet.save()
 
-                                    # Create transaction history
-                                    TransactionHistory.objects.create(
-                                        wholesale_customer=sales.wholesale_customer,
-                                        transaction_type='purchase',
-                                        amount=wallet_amount,
-                                        description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
-                                    )
+                                # Check if wallet went negative and set flag
+                                if wallet_balance_before >= 0 and wallet.balance < 0:
+                                    receipt.wallet_went_negative = True
+                                    receipt.save()
 
-                                    print(f"Deducted {wallet_amount} from customer {sales.wholesale_customer.name}'s wallet for second payment")
-                                else:
-                                    print(f"Warning: Insufficient wallet balance for customer {sales.wholesale_customer.name}")
-                                    messages.warning(request, f"Warning: Insufficient wallet balance for customer {sales.wholesale_customer.name}")
+                                # Create transaction history
+                                TransactionHistory.objects.create(
+                                    wholesale_customer=sales.wholesale_customer,
+                                    transaction_type='purchase',
+                                    amount=wallet_amount,
+                                    description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                                )
+
+                                print(f"Deducted {wallet_amount} from customer {sales.wholesale_customer.name}'s wallet for second payment")
+                                # Inform if balance is negative
+                                if wallet.balance < 0:
+                                    print(f"Info: Customer {sales.wholesale_customer.name} now has a negative wallet balance of {wallet.balance}")
+                                    messages.info(request, f"Customer {sales.wholesale_customer.name} now has a negative wallet balance of {wallet.balance}")
                             except WholesaleCustomerWallet.DoesNotExist:
                                 print(f"Error: Wallet not found for customer {sales.wholesale_customer.name}")
                                 messages.error(request, f"Error: Wallet not found for customer {sales.wholesale_customer.name}")
@@ -1465,6 +1563,16 @@ def return_wholesale_items_for_customer(request, pk):
                 wallet = customer.wholesale_customer_wallet
                 wallet.balance += abs(total_refund)
                 wallet.save()
+
+                # Create transaction history for the return refund
+                if abs(total_refund) > 0:
+                    TransactionHistory.objects.create(
+                        wholesale_customer=customer,
+                        transaction_type='refund',
+                        amount=abs(total_refund),
+                        description='Refund for returned items via select item'
+                    )
+
             except WholesaleCustomerWallet.DoesNotExist:
                 messages.warning(request, 'Customer does not have a wallet.')
                 return redirect('wholesale:select_wholesale_items', pk=pk)
@@ -2013,6 +2121,18 @@ def register_wholesale_customers(request):
 
 def wholesale_customers(request):
     if request.user.is_authenticated:
+        # Check if this is a return action request
+        action = request.GET.get('action')
+        if action == 'return':
+            # For return actions, redirect to a return-specific interface
+            # For now, we'll show the customer list with a return indicator
+            customers = WholesaleCustomer.objects.all().order_by('name')
+            return render(request, 'wholesale/wholesale_customers.html', {
+                'customers': customers,
+                'action': 'return',
+                'page_title': 'Select Customer for Returns'
+            })
+
         customers = WholesaleCustomer.objects.all().order_by('name')  # Order by customer name in ascending order
         return render(request, 'wholesale/wholesale_customers.html', {'customers': customers})
     else:
@@ -2115,6 +2235,71 @@ def wholesale_customers_on_negative(request):
     if request.user.is_authenticated:
         wholesale_customers_on_negative = WholesaleCustomer.objects.filter(wholesale_customer_wallet__balance__lt=0)
         return render(request, 'partials/wholesale_customers_on_negative.html', {'customers': wholesale_customers_on_negative})
+    else:
+        return redirect('store:index')
+
+
+@user_passes_test(is_admin)
+@login_required
+def add_items_to_wholesale_stock_check(request, stock_check_id):
+    """Add more items to an existing wholesale stock check"""
+    if request.user.is_authenticated:
+        stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
+
+        # Only allow adding items to in-progress stock checks
+        if stock_check.status != 'in_progress':
+            messages.error(request, 'Cannot add items to a completed stock check.')
+            return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
+
+        # Get items that are not already in this stock check
+        existing_item_ids = stock_check.wholesale_items.values_list('item_id', flat=True)
+        available_items = WholesaleItem.objects.exclude(id__in=existing_item_ids).order_by('name')
+
+        if request.method == 'POST':
+            selected_item_ids = request.POST.getlist('selected_items')
+            zero_empty_items = request.POST.get('zero_empty_items', 'true').lower() == 'true'
+
+            if not selected_item_ids:
+                messages.error(request, 'Please select at least one item to add.')
+                return redirect('wholesale:add_items_to_wholesale_stock_check', stock_check.id)
+
+            # Create stock check items for selected items
+            stock_check_items = []
+            added_count = 0
+
+            for item_id in selected_item_ids:
+                try:
+                    item = WholesaleItem.objects.get(id=item_id)
+
+                    # Skip items with zero stock if zero_empty_items is True
+                    if not zero_empty_items or item.stock > 0:
+                        stock_check_items.append(
+                            WholesaleStockCheckItem(
+                                stock_check=stock_check,
+                                item=item,
+                                expected_quantity=item.stock,
+                                actual_quantity=0,
+                                status='pending'
+                            )
+                        )
+                        added_count += 1
+                except WholesaleItem.DoesNotExist:
+                    continue
+
+            if stock_check_items:
+                WholesaleStockCheckItem.objects.bulk_create(stock_check_items)
+                messages.success(request, f'{added_count} items added to stock check successfully.')
+            else:
+                messages.warning(request, 'No items were added. Items may have zero stock or already exist in the stock check.')
+
+            return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
+
+        context = {
+            'stock_check': stock_check,
+            'available_items': available_items,
+        }
+
+        return render(request, 'wholesale/add_items_to_wholesale_stock_check.html', context)
     else:
         return redirect('store:index')
 

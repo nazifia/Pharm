@@ -1,5 +1,6 @@
 {% load static %}
 {% load humanize %}
+{% load permission_tags %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -428,8 +429,10 @@
                             <i class="fas fa-user-circle"></i> My Profile</a>
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">System Monitoring:</h6>
+                        {% if user|has_permission:"view_activity_logs" %}
                         <a class="collapse-item" href="{% url 'userauth:activity_dashboard' %}">
                             <i class="fas fa-chart-line"></i> Activity Logs</a>
+                        {% endif %}
                         <a class="collapse-item" href="{% url 'admin:index' %}">
                             <i class="fas fa-cog"></i> Django Admin</a>
                         <div class="collapse-divider"></div>
@@ -751,6 +754,7 @@
                         </a>
 
                         <!-- Total Purchase value Card -->
+                        {% if user|can_view_financial_data %}
                         <div class="col-xl-3 col-md-6 mb-4">
                             <div class="card border-left-info shadow h-100 py-2">
                                 <div class="card-body">
@@ -762,9 +766,7 @@
                                             <div class="row no-gutters align-items-center">
                                                 <div class="col-auto">
                                                     <div class="h5 mb-0 mr-3 font-weight-bold text-gray-800">
-                                                        {% if request.user.is_superuser or is_staff %}
                                                         ₦{{total_purchase_value|intcomma}}
-                                                        {% endif %}
                                                     </div>
                                                 </div>
                                             </div>
@@ -776,8 +778,10 @@
                                 </div>
                             </div>
                         </div>
+                        {% endif %}
 
                         <!-- Total stock Card Example -->
+                        {% if user|can_view_financial_data %}
                         <div class="col-xl-3 col-md-6 mb-4">
                             <div class="card border-left-warning shadow h-100 py-2">
                                 <div class="card-body">
@@ -795,6 +799,7 @@
                                 </div>
                             </div>
                         </div>
+                        {% endif %}
                     </div>
 
                     <!-- Content Row -->
