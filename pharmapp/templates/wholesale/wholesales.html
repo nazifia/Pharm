@@ -191,13 +191,20 @@
         hx-trigger="keyup changed delay:300ms" hx-target="#item-list" placeholder="Search items..." name="search"
         style="background-color: rgb(232, 253, 211); width:auto;">
 
-    <div class="action-buttons mb-3">
-        <button class="btn btn-primary btn-sm" onclick="printContent('a4')">
-            <i class="fas fa-print"></i> Print A4
-        </button>
-        {% comment %} <button class="btn btn-success btn-sm" onclick="downloadPDF()">
-            <i class="fas fa-download"></i> Download PDF
-        </button> {% endcomment %}
+    <div class="action-buttons mb-3 d-flex justify-content-between align-items-center">
+        <div>
+            <a href="{% url 'wholesale:search_wholesale_item' %}" class="btn btn-info btn-sm">
+                <i class="fas fa-search"></i> Advanced Search
+            </a>
+        </div>
+        <div>
+            <button class="btn btn-primary btn-sm" onclick="printContent('a4')">
+                <i class="fas fa-print"></i> Print A4
+            </button>
+            {% comment %} <button class="btn btn-success btn-sm" onclick="downloadPDF()">
+                <i class="fas fa-download"></i> Download PDF
+            </button> {% endcomment %}
+        </div>
     </div>
 
     {% for message in messages %}

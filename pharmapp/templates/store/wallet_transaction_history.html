@@ -10,9 +10,9 @@
             <a href="{% url 'store:customer_list' %}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Customers
             </a>
-            <a href="{% url 'store:wallet_details' customer.id %}" class="btn btn-primary">
+            {% comment %} <a href="{% url 'store:wallet_details' customer.id %}" class="btn btn-primary">
                 <i class="fas fa-wallet"></i> Wallet Details
-            </a>
+            </a> {% endcomment %}
         </div>
     </div>
 

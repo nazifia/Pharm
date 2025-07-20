@@ -25,6 +25,17 @@
 </tr>
 {% empty %}
 <tr>
-    <td colspan="6" style="text-align: center;">No item found matching "{{ request.GET.search }}"</td>
+    <td colspan="9" class="text-center py-4">
+        <div class="text-muted">
+            <i class="fas fa-search fa-2x mb-2"></i>
+            <p class="mb-0">
+                {% if request.GET.search %}
+                    No items found matching "<strong>{{ request.GET.search }}</strong>"
+                {% else %}
+                    No wholesale items available
+                {% endif %}
+            </p>
+        </div>
+    </td>
 </tr>
 {% endfor %}

@@ -1,0 +1,210 @@
+{% extends "partials/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-search me-2"></i>Search Wholesale Items
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- Search Input -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" 
+                                       class="form-control" 
+                                       placeholder="Search by item name, brand, or dosage form..." 
+                                       name="search"
+                                       value="{{ request.GET.search }}"
+                                       hx-get="{% url 'wholesale:search_wholesale_item' %}"
+                                       hx-trigger="keyup changed delay:300ms" 
+                                       hx-target="#item-list" 
+                                       hx-indicator="#search-indicator"
+                                       style="background-color: rgb(232, 253, 211);">
+                            </div>
+                            <div id="search-indicator" class="htmx-indicator mt-2">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                    <span class="visually-hidden">Searching...</span>
+                                </div>
+                                <small class="text-muted ms-2">Searching items...</small>
+                            </div>
+                            <small class="text-muted">
+                                <i class="fas fa-lightbulb me-1"></i>
+                                Tip: Press <kbd>Esc</kbd> to clear search
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-end">
+                                <a href="{% url 'wholesale:wholesales' %}" class="btn btn-secondary me-2">
+                                    <i class="fas fa-arrow-left me-1"></i>Back to Wholesale
+                                </a>
+                                <a href="{% url 'wholesale:add_to_wholesale' %}" class="btn btn-success">
+                                    <i class="fas fa-plus me-1"></i>Add New Item
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results Table -->
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Actions</th>
+                                    <th>Item Name</th>
+                                    <th>Dosage Form</th>
+                                    <th>Brand</th>
+                                    <th>Unit</th>
+                                    {% if user.is_superuser or is_staff %}
+                                    <th>Cost</th>
+                                    {% endif %}
+                                    <th>Price</th>
+                                    <th>Stock</th>
+                                    <th>Exp. Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="item-list">
+                                {% include "partials/wholesale_search.html" %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Results Summary -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="alert alert-info d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    {% if search_query %}
+                                        Showing <strong>{{ total_items }}</strong> result{{ total_items|pluralize }} for: <strong>"{{ search_query }}"</strong>
+                                    {% else %}
+                                        Showing all <strong>{{ total_items }}</strong> wholesale item{{ total_items|pluralize }}. Use the search box above to filter results.
+                                    {% endif %}
+                                </div>
+                                {% if search_query %}
+                                <a href="{% url 'wholesale:search_wholesale_item' %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-times me-1"></i>Clear Search
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Wholesale Item Modal -->
+<div class="modal fade" id="editWholesaleItemModal" tabindex="-1" role="dialog" aria-labelledby="editWholesaleItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <!-- Content will be loaded via HTMX -->
+        </div>
+    </div>
+</div>
+
+<!-- Return Wholesale Item Modal -->
+<div class="modal fade" id="returnWholesaleItemModal" tabindex="-1" role="dialog" aria-labelledby="returnWholesaleItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <!-- Content will be loaded via HTMX -->
+        </div>
+    </div>
+</div>
+
+<style>
+.htmx-indicator {
+    display: none;
+}
+.htmx-request .htmx-indicator {
+    display: inline-block;
+}
+.table th {
+    border-top: none;
+}
+.card {
+    border: none;
+    border-radius: 10px;
+}
+.card-header {
+    border-radius: 10px 10px 0 0;
+}
+.input-group-text {
+    background-color: #e9ecef;
+    border-color: #ced4da;
+}
+.btn {
+    border-radius: 5px;
+}
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+}
+.alert {
+    border-radius: 8px;
+}
+kbd {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 3px;
+    padding: 2px 4px;
+    font-size: 0.8em;
+}
+.btn-group .btn {
+    margin-right: 2px;
+}
+.table td {
+    vertical-align: middle;
+}
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-focus search input
+    const searchInput = document.querySelector('input[name="search"]');
+    if (searchInput) {
+        searchInput.focus();
+
+        // Add keyboard shortcuts
+        searchInput.addEventListener('keydown', function(e) {
+            // Clear search with Escape key
+            if (e.key === 'Escape') {
+                this.value = '';
+                this.dispatchEvent(new Event('keyup'));
+            }
+        });
+    }
+
+    // Handle modal cleanup
+    document.addEventListener('hidden.bs.modal', function (event) {
+        const modal = event.target;
+        const modalContent = modal.querySelector('.modal-content');
+        if (modalContent) {
+            modalContent.innerHTML = '';
+        }
+    });
+
+    // Add confirmation for delete actions
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('btn-danger') && e.target.textContent.includes('X')) {
+            const itemName = e.target.closest('tr').querySelector('td:nth-child(2)').textContent;
+            if (!confirm(`Are you sure you want to delete "${itemName}" from the wholesale inventory?`)) {
+                e.preventDefault();
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

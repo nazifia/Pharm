@@ -171,12 +171,26 @@ def search_wholesale_item(request):
             # Search across multiple fields using Q objects
             items = WholesaleItem.objects.filter(
                 Q(name__icontains=query) |  # Search by name
-                Q(brand__icontains=query) #|  # Search by brand name
-                # Q(category__icontains=query)  # Search by category
-            )
+                Q(brand__icontains=query) |  # Search by brand name
+                Q(dosage_form__icontains=query)  # Search by dosage form
+            ).order_by('name')
         else:
-            items = WholesaleItem.objects.filter(name__icontains=query) if query else WholesaleItem.objects.all()
-        return render(request, 'partials/wholesale_search.html', {'items': items})
+            items = WholesaleItem.objects.all().order_by('name')
+
+        # Add some context for the template
+        context = {
+            'items': items,
+            'search_query': query,
+            'total_items': items.count(),
+            'title': 'Search Wholesale Items'
+        }
+
+        # Check if this is an HTMX request for partial update
+        if request.headers.get('HX-Request'):
+            return render(request, 'partials/wholesale_search.html', context)
+        else:
+            # Return full page for direct access
+            return render(request, 'wholesale/search_wholesale_item.html', context)
     else:
         return redirect('store:index')
 
@@ -218,23 +232,6 @@ def add_to_wholesale(request):
         return render(request, 'wholesale/wholesales.html', context)
     else:
         return render(request, 'store/index.html')
-
-@login_required
-def search_wholesale_item(request):
-    if request.user.is_authenticated:
-        query = request.GET.get('search', '').strip()
-        if query:
-            # Search across multiple fields using Q objects
-            items = WholesaleItem.objects.filter(
-                Q(name__icontains=query) |  # Search by name
-                Q(brand__icontains=query) #|  # Search by brand name
-                # Q(category__icontains=query)  # Search by category
-            )
-        else:
-            items = WholesaleItem.objects.filter(name__icontains=query) if query else WholesaleItem.objects.all()
-        return render(request, 'partials/wholesale_search.html', {'items': items})
-    else:
-        return redirect('store:index')
 
 
 @user_passes_test(is_admin)
