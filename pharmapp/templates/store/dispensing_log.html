@@ -224,10 +224,10 @@
                     <form method="GET"
                           hx-get="{% url 'store:dispensing_log' %}"
                           hx-target="#logsTable"
-                          hx-trigger="input delay:500ms from:input[name='item_name'], change from:input[name='date'], change from:select[name='status']"
+                          hx-trigger="input delay:500ms from:input[name='item_name'], change from:input[name='date'], change from:select[name='status'], change from:select[name='user']"
                           hx-indicator=".htmx-indicator">
                         <div class="row">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label for="{{ search_form.item_name.id_for_label }}" class="form-label">
                                     <i class="fas fa-pills mr-1"></i>{{ search_form.item_name.label }}
                                 </label>
@@ -237,19 +237,27 @@
                                 </div>
                                 <small class="form-text text-muted">Search by first few letters of item name</small>
                             </div>
-                            <div class="col-md-3">
+                            {% if can_view_all_users %}
+                            <div class="col-md-2">
+                                <label for="{{ search_form.user.id_for_label }}" class="form-label">
+                                    <i class="fas fa-user mr-1"></i>{{ search_form.user.label }}
+                                </label>
+                                {{ search_form.user }}
+                            </div>
+                            {% endif %}
+                            <div class="col-md-2">
                                 <label for="{{ search_form.date.id_for_label }}" class="form-label">
                                     <i class="fas fa-calendar mr-1"></i>{{ search_form.date.label }}
                                 </label>
                                 {{ search_form.date }}
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label for="{{ search_form.status.id_for_label }}" class="form-label">
                                     <i class="fas fa-info-circle mr-1"></i>{{ search_form.status.label }}
                                 </label>
                                 {{ search_form.status }}
                             </div>
-                            <div class="col-md-2 d-flex align-items-end">
+                            <div class="col-md-3 d-flex align-items-end">
                                 <button type="button" class="btn btn-secondary btn-sm w-100"
                                     hx-get="{% url 'store:dispensing_log' %}"
                                     hx-target="#logsTable"

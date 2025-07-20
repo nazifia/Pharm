@@ -102,6 +102,7 @@ urlpatterns = [
     path('user_dispensing_summary/', views.user_dispensing_summary, name='user_dispensing_summary'),
     path('user_dispensing_details/', views.user_dispensing_details, name='user_dispensing_details'),
     path('user_dispensing_details/<int:user_id>/', views.user_dispensing_details, name='user_dispensing_details_user'),
+    path('my_dispensing_details/', views.my_dispensing_details, name='my_dispensing_details'),
 
     # Stock Check Enhancement URLs
     path('add_items_to_stock_check/<int:stock_check_id>/', views.add_items_to_stock_check, name='add_items_to_stock_check'),

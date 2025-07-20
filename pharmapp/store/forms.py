@@ -138,6 +138,21 @@ class DispensingLogSearchForm(forms.Form):
         }),
         label='Status'
     )
+    user = forms.ModelChoiceField(
+        queryset=None,  # Will be set dynamically in the view
+        required=False,
+        empty_label='All Users',
+        widget=forms.Select(attrs={
+            'class': 'form-control'
+        }),
+        label='User'
+    )
+
+    def __init__(self, *args, **kwargs):
+        user_queryset = kwargs.pop('user_queryset', None)
+        super().__init__(*args, **kwargs)
+        if user_queryset is not None:
+            self.fields['user'].queryset = user_queryset
 
 
 

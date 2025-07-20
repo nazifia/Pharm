@@ -27,6 +27,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def can_view_all_users_dispensing(user):
+    """
+    Helper function to determine if a user can view all users' dispensing data.
+    Returns True for superusers, staff, admins, and managers.
+    """
+    return (
+        user.is_superuser or
+        user.is_staff or
+        (hasattr(user, 'profile') and
+         user.profile and
+         user.profile.user_type in ['Admin', 'Manager'])
+    )
+
+
 
 
 
@@ -352,7 +366,8 @@ def dispense(request):
 @login_required
 def cart(request):
     if request.user.is_authenticated:
-        cart_items = Cart.objects.all()
+        # Get cart items only for the current user
+        cart_items = Cart.objects.filter(user=request.user)
         total_price = sum(item.item.price * item.quantity for item in cart_items)
         return render(request, 'store/cart.html', {'cart_items': cart_items, 'total_price': total_price})
     else:
@@ -399,7 +414,7 @@ def add_to_cart(request, pk):
 
         # Return the cart summary as JSON if this was an HTMX request
         if request.headers.get('HX-Request'):
-            cart_items = Cart.objects.all()
+            cart_items = Cart.objects.filter(user=request.user)
             total_price = sum(cart_item.subtotal for cart_item in cart_items)
 
             return JsonResponse({
@@ -417,7 +432,7 @@ def add_to_cart(request, pk):
 @login_required
 def view_cart(request):
     if request.user.is_authenticated:
-        cart_items = Cart.objects.select_related('item').all()
+        cart_items = Cart.objects.select_related('item').filter(user=request.user)
         total_price, total_discount = 0, 0
 
         if request.method == 'POST':
@@ -448,9 +463,10 @@ def view_cart(request):
         final_total = total_price - total_discount
         total_discounted_price = total_price - total_discount
 
-        # Get customer from session if it exists
+        # Get customer from user-specific session if it exists
+        from userauth.session_utils import get_user_customer_id
         customer = None
-        customer_id = request.session.get('customer_id')
+        customer_id = get_user_customer_id(request)
         if customer_id:
             try:
                 customer = Customer.objects.get(id=customer_id)
@@ -479,7 +495,8 @@ def view_cart(request):
 @login_required
 def update_cart_quantity(request, pk):
     if request.user.is_authenticated:
-        cart_item = get_object_or_404(Cart, id=pk)
+        # Ensure user can only update their own cart items
+        cart_item = get_object_or_404(Cart, id=pk, user=request.user)
         if request.method == 'POST':
             quantity_to_return = int(request.POST.get('quantity', 0))
             if 0 < quantity_to_return <= cart_item.quantity:
@@ -675,7 +692,7 @@ def receipt(request):
 
         print(f"After initial defaults - Payment Type: {payment_type}, Payment Method: {payment_method}, Status: {status}")
 
-        cart_items = Cart.objects.all()
+        cart_items = Cart.objects.filter(user=request.user)
         if not cart_items.exists():
             messages.warning(request, "No items in the cart.")
             return redirect('store:cart')
@@ -690,8 +707,9 @@ def receipt(request):
         total_discounted_price = total_price - total_discount
         final_total = total_discounted_price if total_discount > 0 else total_price
 
-        # Get wholesale customer ID from session if it exists
-        customer_id = request.session.get('customer_id')
+        # Get customer ID from user-specific session if it exists
+        from userauth.session_utils import get_user_customer_id
+        customer_id = get_user_customer_id(request)
         customer = None
         if customer_id:
             try:
@@ -719,9 +737,12 @@ def receipt(request):
                     else:
                         payment_method = "Cash"  # Default for walk-in customers
 
-                if status not in ["Paid", "Unpaid"]:
-                    # Default status is "Paid" for all customers (both registered and walk-in)
-                    status = "Paid"
+                if status not in ["Paid", "Partially Paid", "Unpaid"]:
+                    # Default status based on customer type
+                    if sales.customer:
+                        status = "Paid"  # Registered customers default to Paid
+                    else:
+                        status = "Paid"  # Walk-in customers also default to Paid
 
                 # Force the values for debugging purposes
                 print(f"\n==== FORCING VALUES FOR RECEIPT =====")
@@ -921,16 +942,17 @@ def receipt(request):
         print(f"Payment Method: {receipt.payment_method}")
         print(f"Status: {receipt.status}\n")
 
-        # Force payment method for registered customers with single payment
-        # For split payments, respect the user's selection
+        # Set appropriate payment method and status based on customer type and payment type
         if has_customer and payment_type != 'split':
-            if receipt.payment_method != 'Wallet':
-                print(f"Forcing payment method to Wallet for customer {receipt.customer.name}")
+            # For registered customers with single payment, default to Wallet if not specified
+            if not receipt.payment_method or receipt.payment_method == 'Cash':
+                print(f"Setting payment method to Wallet for customer {receipt.customer.name}")
                 receipt.payment_method = 'Wallet'
                 receipt.save()
 
-            if receipt.status != 'Paid':
-                print(f"Forcing status to Paid for customer {receipt.customer.name}")
+            # Only set status to 'Paid' if it's not already set to something else
+            if not receipt.status or receipt.status == 'Unpaid':
+                print(f"Setting status to Paid for customer {receipt.customer.name}")
                 receipt.status = 'Paid'
                 receipt.save()
 
@@ -943,9 +965,10 @@ def receipt(request):
                 receipt.save()
                 receipt.refresh_from_db()
         else:
-            # For walk-in customers (non-registered), ensure status is 'Paid'
-            if receipt.status != 'Paid':
-                print(f"Forcing status to Paid for walk-in customer")
+            # For walk-in customers, respect the selected payment method and status
+            # Only default to 'Paid' if status is not explicitly set
+            if not receipt.status:
+                print(f"Setting default status to Paid for walk-in customer")
                 receipt.status = 'Paid'
                 receipt.save()
                 receipt.refresh_from_db()
@@ -2096,11 +2119,11 @@ def select_items(request, pk):
                 messages.warning(request, 'Customer does not have a wallet.')
                 return redirect('store:select_items', pk=pk)
 
-            # Store payment method and status in session for receipt generation
+            # Store payment method and status in user-specific session for receipt generation
+            from userauth.session_utils import set_user_payment_data
             payment_method = request.POST.get('payment_method', 'Cash')
             status = request.POST.get('status', 'Paid')
-            request.session['payment_method'] = payment_method
-            request.session['payment_status'] = status
+            set_user_payment_data(request, payment_method=payment_method, payment_status=status)
 
             action_message = 'added to cart' if action == 'purchase' else 'returned successfully'
             messages.success(request, f'Action completed: Items {action_message}.')
@@ -2120,11 +2143,20 @@ def select_items(request, pk):
 @login_required
 def dispensing_log(request):
     if request.user.is_authenticated:
-        # Retrieve all dispensing logs ordered by the most recent
-        logs = DispensingLog.objects.all().order_by('-created_at')
+        # Permission check: Superusers, Admins, and Managers can see all users, others can only see their own data
+        can_view_all_users = can_view_all_users_dispensing(request.user)
 
-        # Initialize search form
-        search_form = DispensingLogSearchForm(request.GET)
+        # Get user queryset based on permissions
+        if can_view_all_users:
+            user_queryset = User.objects.filter(dispensinglog__isnull=False).distinct()
+            logs = DispensingLog.objects.all().order_by('-created_at')
+        else:
+            # Regular users can only see their own dispensing data
+            user_queryset = User.objects.filter(id=request.user.id)
+            logs = DispensingLog.objects.filter(user=request.user).order_by('-created_at')
+
+        # Initialize search form with user queryset
+        search_form = DispensingLogSearchForm(request.GET, user_queryset=user_queryset)
 
         # Apply filters based on search parameters
         if search_form.is_valid():
@@ -2140,6 +2172,12 @@ def dispensing_log(request):
             if status_filter := search_form.cleaned_data.get('status'):
                 logs = logs.filter(status=status_filter)
 
+            # Filter by user (only for admins/managers)
+            if user_filter := search_form.cleaned_data.get('user'):
+                if can_view_all_users:
+                    logs = logs.filter(user=user_filter)
+                # For regular users, this filter is ignored as they can only see their own data
+
         # Check if this is an HTMX request
         if request.headers.get('HX-Request'):
             # Return only the partial template with filtered logs
@@ -2148,7 +2186,8 @@ def dispensing_log(request):
             # Render the full template for non-HTMX requests
             return render(request, 'store/dispensing_log.html', {
                 'logs': logs,
-                'search_form': search_form
+                'search_form': search_form,
+                'can_view_all_users': can_view_all_users
             })
     else:
         return redirect('store:index')
@@ -3907,8 +3946,16 @@ def user_dispensing_summary(request):
         date_to = request.GET.get('date_to')
         user_filter = request.GET.get('user_id')
 
-        # Start with all dispensing logs
-        logs = DispensingLog.objects.all()
+        # Permission check: Superusers, Admins, and Managers can see all users, others can only see their own data
+        can_view_all_users = can_view_all_users_dispensing(request.user)
+
+        # Start with dispensing logs based on permissions
+        if can_view_all_users:
+            logs = DispensingLog.objects.all()
+        else:
+            # Regular users can only see their own dispensing data
+            logs = DispensingLog.objects.filter(user=request.user)
+            user_filter = str(request.user.id)  # Force filter to current user
 
         # Apply filters
         if date_from:
@@ -3969,12 +4016,17 @@ def user_dispensing_summary(request):
         # Sort by net amount descending
         user_summaries.sort(key=lambda x: x['net_amount'], reverse=True)
 
-        # Get all users for filter dropdown
-        all_users = User.objects.filter(dispensinglog__isnull=False).distinct()
+        # Get users for filter dropdown based on permissions
+        if can_view_all_users:
+            all_users = User.objects.filter(dispensinglog__isnull=False).distinct()
+        else:
+            # Regular users only see themselves in the dropdown
+            all_users = User.objects.filter(id=request.user.id)
 
         context = {
             'user_summaries': user_summaries,
             'all_users': all_users,
+            'can_view_all_users': can_view_all_users,
             'filters': {
                 'date_from': date_from,
                 'date_to': date_to,
@@ -3996,17 +4048,31 @@ def user_dispensing_details(request, user_id=None):
         date_to = request.GET.get('date_to')
         status_filter = request.GET.get('status')
 
+        # Permission check: Superusers, Admins, and Managers can see all users, others can only see their own data
+        can_view_all_users = can_view_all_users_dispensing(request.user)
+
         # Get the specific user if user_id is provided
         target_user = None
         if user_id:
             try:
                 target_user = User.objects.get(id=user_id)
+                # Check if user has permission to view this user's data
+                if not can_view_all_users and target_user != request.user:
+                    messages.error(request, 'You can only view your own dispensing details.')
+                    return redirect('store:user_dispensing_details')
             except User.DoesNotExist:
                 messages.error(request, 'User not found.')
                 return redirect('store:user_dispensing_summary')
+        elif not can_view_all_users:
+            # If regular user doesn't specify user_id, show their own data
+            target_user = request.user
 
-        # Start with dispensing logs
-        logs = DispensingLog.objects.select_related('user').all()
+        # Start with dispensing logs based on permissions
+        if can_view_all_users:
+            logs = DispensingLog.objects.select_related('user').all()
+        else:
+            # Regular users can only see their own dispensing data
+            logs = DispensingLog.objects.select_related('user').filter(user=request.user)
 
         # Filter by user if specified
         if target_user:
@@ -4036,8 +4102,12 @@ def user_dispensing_details(request, user_id=None):
         # Order by most recent first
         logs = logs.order_by('-created_at')
 
-        # Get all users for filter dropdown
-        all_users = User.objects.filter(dispensinglog__isnull=False).distinct()
+        # Get users for filter dropdown based on permissions
+        if can_view_all_users:
+            all_users = User.objects.filter(dispensinglog__isnull=False).distinct()
+        else:
+            # Regular users only see themselves in the dropdown
+            all_users = User.objects.filter(id=request.user.id)
 
         # Get status choices for filter
         status_choices = [
@@ -4050,6 +4120,7 @@ def user_dispensing_details(request, user_id=None):
             'logs': logs,
             'target_user': target_user,
             'all_users': all_users,
+            'can_view_all_users': can_view_all_users,
             'status_choices': status_choices,
             'filters': {
                 'date_from': date_from,
@@ -4062,6 +4133,13 @@ def user_dispensing_details(request, user_id=None):
         return render(request, 'store/user_dispensing_details.html', context)
     else:
         return redirect('store:index')
+
+
+@login_required
+def my_dispensing_details(request):
+    """View for users to see their own dispensing details"""
+    # Redirect to user_dispensing_details with current user's ID
+    return user_dispensing_details(request, user_id=request.user.id)
 
 
 @user_passes_test(is_admin)

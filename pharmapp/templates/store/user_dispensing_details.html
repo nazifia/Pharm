@@ -8,9 +8,17 @@
         <h2>
             <i class="fas fa-list-alt mr-2"></i>
             {% if target_user %}
-                {{ target_user.get_full_name|default:target_user.username }}'s Dispensing Details
+                {% if target_user == user and not can_view_all_users %}
+                    My Dispensing Details
+                {% else %}
+                    {{ target_user.get_full_name|default:target_user.username }}'s Dispensing Details
+                {% endif %}
             {% else %}
-                All Users Dispensing Details
+                {% if can_view_all_users %}
+                    All Users Dispensing Details
+                {% else %}
+                    My Dispensing Details
+                {% endif %}
             {% endif %}
         </h2>
         <div>
@@ -32,17 +40,23 @@
             <form method="GET" class="row">
                 {% if target_user %}
                     <input type="hidden" name="user_id" value="{{ target_user.id }}">
-                {% else %}
+                {% elif can_view_all_users %}
                     <div class="col-md-3">
                         <label for="user_id">User:</label>
                         <select name="user_id" id="user_id" class="form-control">
                             <option value="">All Users</option>
-                            {% for user in all_users %}
-                                <option value="{{ user.id }}" {% if filters.user_id == user.id|stringformat:"s" %}selected{% endif %}>
-                                    {{ user.get_full_name|default:user.username }}
+                            {% for user_option in all_users %}
+                                <option value="{{ user_option.id }}" {% if filters.user_id == user_option.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ user_option.get_full_name|default:user_option.username }}
                                 </option>
                             {% endfor %}
                         </select>
+                    </div>
+                {% else %}
+                    <div class="col-md-3">
+                        <label for="user_info">Viewing:</label>
+                        <input type="text" class="form-control" value="My Dispensing Details" readonly>
+                        <input type="hidden" name="user_id" value="{{ user.id }}">
                     </div>
                 {% endif %}
                 <div class="col-md-2">

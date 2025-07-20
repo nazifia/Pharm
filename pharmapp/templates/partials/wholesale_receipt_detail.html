@@ -72,8 +72,12 @@
         </div>
         {% endif %}
 
-        <p><strong>Payment Method:</strong> {{ receipt.payment_method }}</p>
-        <p><strong>Payment Status:</strong> {{ receipt.status }}</p>
+        <p><strong>Payment Method:</strong> <span style="color: #0066cc; font-weight: bold;">{{ receipt.payment_method|default:'Cash' }}</span></p>
+        <p><strong>Payment Status:</strong>
+            <span style="color: {% if receipt.calculated_status == 'Paid' %}#28a745{% elif receipt.calculated_status == 'Partially Paid' %}#ffc107{% else %}#dc3545{% endif %}; font-weight: bold;">
+                {{ receipt.calculated_status|default:'Unpaid' }}
+            </span>
+        </p>
 
         <div class="table-responsive mt-3">
             <table class="table">

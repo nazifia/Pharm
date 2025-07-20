@@ -57,12 +57,20 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Re-enable essential middleware
     'pharmapp.middleware.ConnectionDetectionMiddleware',
-    'pharmapp.middleware.SyncMiddleware',
     'pharmapp.middleware.OfflineMiddleware',
     'userauth.middleware.ActivityMiddleware',  # Add ActivityMiddleware to log user actions
     'userauth.middleware.RoleBasedAccessMiddleware',  # Add role-based access control
     'userauth.middleware.AutoLogoutMiddleware',  # Add auto-logout functionality
+    # Session security middleware
+    'userauth.session_middleware.SessionValidationMiddleware',  # Session validation for security
+    'userauth.session_middleware.UserActivityTrackingMiddleware',  # Track user activity per session
+    'userauth.session_middleware.SessionCleanupMiddleware',  # Clean up expired sessions
+    # User isolation middleware (temporarily disabled for testing)
+    # 'userauth.user_isolation_middleware.UserIsolationMiddleware',  # Ensure user data isolation
+    # 'userauth.user_isolation_middleware.UserSessionIsolationMiddleware',  # Session isolation
+    # 'userauth.user_isolation_middleware.UserActivityIsolationMiddleware',  # Activity isolation
 ]
 
 # CORS settings
@@ -133,8 +141,12 @@ DATABASES = {
 
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'cache_table',
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
     }
 }
 
@@ -223,12 +235,22 @@ MESSAGE_TAGS = {
 
 
 
-# Set session to expire after 10 minutes (300 seconds) of inactivity
-SESSION_COOKIE_AGE = 1200  # 10 minutes in seconds
+# Session Security Settings
+SESSION_COOKIE_AGE = 1200  # 20 minutes in seconds
 SESSION_SAVE_EVERY_REQUEST = True  # Reset the session expiration time on each request
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
+SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookies
+SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database sessions for better isolation
 
 # Auto logout settings
 AUTO_LOGOUT_DELAY = 20  # Auto logout after 20 minutes of inactivity
+
+# Additional security settings for session isolation
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
 
 
 

@@ -417,6 +417,25 @@ class Receipt(models.Model):
     def is_split_payment(self):
         return self.payment_method == 'Split' and hasattr(self, 'receipt_payments') and self.receipt_payments.exists()
 
+    @property
+    def calculated_status(self):
+        """Calculate the actual payment status based on payment records for split payments"""
+        if self.payment_method == 'Split' and hasattr(self, 'receipt_payments'):
+            payments = self.receipt_payments.all()
+            if not payments.exists():
+                return self.status  # Return stored status if no payment records
+
+            total_paid = sum(payment.amount for payment in payments if payment.status == 'Paid')
+
+            if total_paid >= self.total_amount:
+                return 'Paid'
+            elif total_paid > 0:
+                return 'Partially Paid'
+            else:
+                return 'Unpaid'
+        else:
+            return self.status  # Return stored status for non-split payments
+
 
 # Concrete implementation of Payment for retail receipts
 class ReceiptPayment(Payment):
@@ -455,6 +474,25 @@ class WholesaleReceipt(models.Model):
     @property
     def is_split_payment(self):
         return self.payment_method == 'Split' and hasattr(self, 'wholesale_receipt_payments') and self.wholesale_receipt_payments.exists()
+
+    @property
+    def calculated_status(self):
+        """Calculate the actual payment status based on payment records for split payments"""
+        if self.payment_method == 'Split' and hasattr(self, 'wholesale_receipt_payments'):
+            payments = self.wholesale_receipt_payments.all()
+            if not payments.exists():
+                return self.status  # Return stored status if no payment records
+
+            total_paid = sum(payment.amount for payment in payments if payment.status == 'Paid')
+
+            if total_paid >= self.total_amount:
+                return 'Paid'
+            elif total_paid > 0:
+                return 'Partially Paid'
+            else:
+                return 'Unpaid'
+        else:
+            return self.status  # Return stored status for non-split payments
 
 # Concrete implementation of Payment for wholesale receipts
 class WholesaleReceiptPayment(Payment):

@@ -226,6 +226,36 @@
                 </div>
             </li>
 
+            <!-- Dispensing Management -->
+            <li class="nav-item">
+                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseDispensing"
+                    aria-expanded="true" aria-controls="collapseDispensing">
+                    <i class="fas fa-fw fa-pills"></i>
+                    <span>Dispensing Management</span>
+                </a>
+                <div id="collapseDispensing" class="collapse" aria-labelledby="headingDispensing" data-parent="#accordionSidebar">
+                    <div class="bg-white py-2 collapse-inner rounded">
+                        <h6 class="collapse-header">Dispensing Operations:</h6>
+                        <a class="collapse-item" href="{% url 'store:dispense' %}">
+                            <i class="fas fa-pills"></i> Dispense Items</a>
+                        <a class="collapse-item" href="{% url 'store:dispensing_log' %}">
+                            <i class="fas fa-clipboard-list"></i> Dispensing Log</a>
+                        <div class="collapse-divider"></div>
+                        <h6 class="collapse-header">User Analytics:</h6>
+                        {% if user.is_superuser or user.is_staff or user.profile.user_type == 'Admin' or user.profile.user_type == 'Manager' %}
+                        <a class="collapse-item" href="{% url 'store:user_dispensing_summary' %}">
+                            <i class="fas fa-chart-bar"></i> All Users Summary</a>
+                        <a class="collapse-item" href="{% url 'store:user_dispensing_details' %}">
+                            <i class="fas fa-list-alt"></i> All Users Details</a>
+                        {% endif %}
+                        <a class="collapse-item" href="{% url 'store:user_dispensing_summary' %}">
+                            <i class="fas fa-user-chart"></i> My Summary</a>
+                        <a class="collapse-item" href="{% url 'store:my_dispensing_details' %}">
+                            <i class="fas fa-user-cog"></i> My Details</a>
+                    </div>
+                </div>
+            </li>
+
             <!-- Inventory Management -->
             <li class="nav-item">
                 <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseInventory"
@@ -275,6 +305,10 @@
                         <h6 class="collapse-header">General Reports:</h6>
                         <a class="collapse-item" href="{% url 'store:dispensing_log' %}">
                             <i class="fas fa-clipboard-list"></i> Dispensing Log</a>
+                        <a class="collapse-item" href="{% url 'store:user_dispensing_summary' %}">
+                            <i class="fas fa-users"></i> User Dispensing Summary</a>
+                        <a class="collapse-item" href="{% url 'store:user_dispensing_details' %}">
+                            <i class="fas fa-list-alt"></i> User Dispensing Details</a>
                         <a class="collapse-item" href="{% url 'store:daily_sales' %}">
                             <i class="fas fa-calendar-day"></i> Daily Sales</a>
                         <a class="collapse-item" href="{% url 'store:monthly_sales' %}">

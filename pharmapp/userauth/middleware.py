@@ -244,19 +244,27 @@ class AutoLogoutMiddleware:
 
     def __call__(self, request):
         if request.user.is_authenticated:
+            # Check for auto-logout based on inactivity
             last_activity_str = request.session.get('last_activity')
             if last_activity_str:
                 try:
                     # Parse the last activity with timezone
                     last_activity = timezone.datetime.fromisoformat(last_activity_str)
                     idle_duration = timezone.now() - last_activity
-                    if idle_duration.total_seconds() > settings.AUTO_LOGOUT_DELAY * 420:
+                    if idle_duration.total_seconds() > settings.AUTO_LOGOUT_DELAY * 60:  # Convert minutes to seconds
+                        # Log the auto-logout for security monitoring
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.info(f"Auto-logout triggered for user {request.user.username} after {idle_duration.total_seconds()} seconds of inactivity")
+
                         logout(request)
+                        # Clear session data for security
+                        request.session.flush()
                 except ValueError:
                     # Handle any parsing errors gracefully
                     request.session.pop('last_activity', None)
 
-            # Save the current time with timezone in ISO format
+            # Save the current time with timezone in ISO format (only for authenticated users)
             request.session['last_activity'] = timezone.now().isoformat()
 
         response = self.get_response(request)

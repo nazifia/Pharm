@@ -546,6 +546,7 @@ def add_to_wholesale_cart(request, item_id):
 
         # Add the item to the cart or update its quantity if it already exists
         cart_item, created = WholesaleCart.objects.get_or_create(
+            user=request.user,
             item=item,
             unit=unit,
             defaults={'quantity': quantity, 'price': item.price}
@@ -565,7 +566,7 @@ def add_to_wholesale_cart(request, item_id):
 
         # Return the cart summary as JSON if this was an HTMX request
         if request.headers.get('HX-Request'):
-            cart_items = Cart.objects.all()
+            cart_items = WholesaleCart.objects.filter(user=request.user)
             total_price = sum(cart_item.item.price * cart_item.quantity for cart_item in cart_items)
             # total_discount = sum(cart_item.discount_amount for cart_item in cart_items)
             # total_discounted_price = total_price - total_discount
@@ -906,7 +907,7 @@ def select_wholesale_items(request, pk):
 @login_required
 def wholesale_cart(request):
     if request.user.is_authenticated:
-        cart_items = WholesaleCart.objects.select_related('item').all()
+        cart_items = WholesaleCart.objects.select_related('item').filter(user=request.user)
         total_price, total_discount = 0, 0
 
         if request.method == 'POST':
@@ -947,7 +948,8 @@ def wholesale_cart(request):
 @login_required
 def update_wholesale_cart_quantity(request, pk):
     if request.user.is_authenticated:
-        cart_item = get_object_or_404(WholesaleCart, id=pk)
+        # Ensure user can only update their own cart items
+        cart_item = get_object_or_404(WholesaleCart, id=pk, user=request.user)
         if request.method == 'POST':
             quantity_to_return = Decimal(request.POST.get('quantity', 0))
             if 0 < quantity_to_return <= cart_item.quantity:
@@ -1112,7 +1114,7 @@ def wholesale_receipt(request):
             print(f"Split Payment - Method 1: {payment_method_1}, Amount 1: {payment_amount_1}")
             print(f"Split Payment - Method 2: {payment_method_2}, Amount 2: {payment_amount_2}")
 
-        cart_items = WholesaleCart.objects.all()
+        cart_items = WholesaleCart.objects.filter(user=request.user)
         if not cart_items.exists():
             messages.warning(request, "No items in the cart.")
             return redirect('wholesale:wholesale_cart')
@@ -1167,8 +1169,12 @@ def wholesale_receipt(request):
                     else:
                         payment_method = "Cash"  # Default for walk-in customers
 
-                if status not in ["Paid", "Unpaid"]:
-                    status = "Paid"  # Default status
+                if status not in ["Paid", "Partially Paid", "Unpaid"]:
+                    # Default status based on customer type
+                    if sales.wholesale_customer:
+                        status = "Paid"  # Registered customers default to Paid
+                    else:
+                        status = "Paid"  # Walk-in customers also default to Paid
 
                 # Force the values for debugging purposes
                 print(f"\n==== FORCING VALUES FOR RECEIPT =====")
@@ -1354,18 +1360,19 @@ def wholesale_receipt(request):
         print(f"Payment Method: {receipt.payment_method}")
         print(f"Status: {receipt.status}\n")
 
-        # Force payment method for registered customers with single payment
-        # For split payments, respect the user's selection
+        # Set appropriate payment method and status based on customer type and payment type
         has_customer = sales.wholesale_customer is not None
+
         if has_customer and payment_type != 'split':
-            if receipt.payment_method != 'Wallet':
-                print(f"Forcing payment method to Wallet for customer {receipt.wholesale_customer.name}")
+            # For registered customers with single payment, default to Wallet if not specified
+            if not receipt.payment_method or receipt.payment_method == 'Cash':
+                print(f"Setting payment method to Wallet for customer {receipt.wholesale_customer.name}")
                 receipt.payment_method = 'Wallet'
                 receipt.save()
 
-            # Status is always "Paid" for all customers
-            if receipt.status != 'Paid':
-                print(f"Forcing status to Paid for customer {receipt.wholesale_customer.name}")
+            # Only set status to 'Paid' if it's not already set to something else
+            if not receipt.status or receipt.status == 'Unpaid':
+                print(f"Setting status to Paid for customer {receipt.wholesale_customer.name}")
                 receipt.status = 'Paid'
                 receipt.save()
 
@@ -1378,9 +1385,10 @@ def wholesale_receipt(request):
                 receipt.save()
                 receipt.refresh_from_db()
         else:
-            # For walk-in customers (non-registered), ensure status is 'Paid'
-            if receipt.status != 'Paid':
-                print(f"Forcing status to Paid for walk-in customer")
+            # For walk-in customers, respect the selected payment method and status
+            # Only default to 'Paid' if status is not explicitly set
+            if not receipt.status:
+                print(f"Setting default status to Paid for walk-in customer")
                 receipt.status = 'Paid'
                 receipt.save()
                 receipt.refresh_from_db()

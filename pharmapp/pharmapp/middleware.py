@@ -25,35 +25,36 @@ class OfflineMiddleware:
 class ConnectionDetectionMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
-        self._thread_local = threading.local()
-        
+
     def __call__(self, request):
-        # Check internet connectivity
-        self._thread_local.is_online = self._check_connectivity()
-        
-        # Set the appropriate database
-        self._set_database()
-        
-        # Store connection status in request
-        request.is_online = self._thread_local.is_online
-        
+        # Check internet connectivity (per-request, not thread-local)
+        is_online = self._check_connectivity()
+
+        # Store connection status in request (request-scoped, not thread-local)
+        request.is_online = is_online
+        request.current_database = 'default' if is_online else 'offline'
+
         response = self.get_response(request)
-        
+
         # Add connection status headers
-        response['X-Connection-Status'] = 'online' if self._thread_local.is_online else 'offline'
-        
+        response['X-Connection-Status'] = 'online' if is_online else 'offline'
+
         return response
-    
+
     def _check_connectivity(self):
+        """
+        Check internet connectivity with improved error handling.
+        """
         try:
-            requests.get('https://8.8.8.8', timeout=1)
-            return True
+            # Use a more reliable connectivity check with shorter timeout
+            response = requests.get('https://httpbin.org/status/200', timeout=1)
+            return response.status_code == 200
         except requests.RequestException:
+            # If external check fails, assume offline
             return False
-    
-    def _set_database(self):
-        # Set the current database on the thread local
-        self._thread_local.current_database = 'default' if self._thread_local.is_online else 'offline'
+        except Exception:
+            # For any other errors, assume offline
+            return False
 
 class SyncMiddleware:
     def __init__(self, get_response):

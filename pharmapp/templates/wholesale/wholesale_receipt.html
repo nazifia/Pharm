@@ -56,7 +56,7 @@
                 <p style="font-size: 1.1em; margin-top: 5px;">Payment Method: <strong style="color: #0066cc;">{{ receipt.payment_method }}</strong></p>
                 {% endif %}
 
-                <p style="font-size: 1.1em; margin-top: 5px;">Payment Status: <strong style="color: {% if receipt.status == 'Paid' %}#28a745{% else %}#dc3545{% endif %};">{{ receipt.status }}</strong></p>
+                <p style="font-size: 1.1em; margin-top: 5px;">Payment Status: <strong style="color: {% if receipt.calculated_status == 'Paid' %}#28a745{% elif receipt.calculated_status == 'Partially Paid' %}#ffc107{% else %}#dc3545{% endif %};">{{ receipt.calculated_status|default:'Unpaid' }}</strong></p>
 
                 {% if receipt.wallet_went_negative %}
                 <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; padding: 8px; margin: 10px 0; color: #856404;">
