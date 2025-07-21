@@ -3033,7 +3033,7 @@ def transfer_multiple_store_items(request):
 import logging
 logger = logging.getLogger(__name__)
 
-@user_passes_test(is_admin)
+# @user_passes_test(is_admin)
 @login_required
 def create_stock_check(request):
     if request.user.is_authenticated:
