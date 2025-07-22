@@ -421,9 +421,19 @@ def return_wholesale_item(request, pk):
                             )
 
                         # Create a new dispensing log entry for the return
+                        # Get or create Formulation object for dosage_form
+                        dosage_form_obj = None
+                        if item.dosage_form:
+                            from store.models import Formulation
+                            dosage_form_obj, created = Formulation.objects.get_or_create(
+                                dosage_form=item.dosage_form
+                            )
+
                         DispensingLog.objects.create(
                             user=request.user,
                             name=item.name,
+                            brand=item.brand,
+                            dosage_form=dosage_form_obj,
                             unit=item.unit,
                             quantity=return_quantity,
                             amount=refund_amount,
@@ -518,7 +528,7 @@ def dispense_wholesale(request):
             form = wholesaleDispenseForm(request.POST)
             if form.is_valid():
                 q = form.cleaned_data['q']
-                results = WholesaleItem.objects.filter(name__icontains=q)
+                results = WholesaleItem.objects.filter(name__icontains=q).filter(stock__gt=0)  # Only show items with stock > 0
         else:
             form = wholesaleDispenseForm()
             results = None
@@ -823,10 +833,20 @@ def select_wholesale_items(request, pk):
 
                             remaining_to_return -= return_from_this_sale
 
+                        # Get or create Formulation object for dosage_form
+                        dosage_form_obj = None
+                        if item.dosage_form:
+                            from store.models import Formulation
+                            dosage_form_obj, created = Formulation.objects.get_or_create(
+                                dosage_form=item.dosage_form
+                            )
+
                         # Create dispensing log for the return
                         DispensingLog.objects.create(
                             user=request.user,
                             name=item.name,
+                            brand=item.brand,
+                            dosage_form=dosage_form_obj,
                             unit=unit,
                             quantity=quantity,
                             amount=total_refund_amount,
@@ -1323,9 +1343,19 @@ def wholesale_receipt(request):
             )
 
             subtotal = cart_item.item.price * cart_item.quantity
+            # Get or create Formulation object for dosage_form
+            dosage_form_obj = None
+            if cart_item.item.dosage_form:
+                from store.models import Formulation
+                dosage_form_obj, created = Formulation.objects.get_or_create(
+                    dosage_form=cart_item.item.dosage_form
+                )
+
             DispensingLog.objects.create(
                 user=request.user,
                 name=cart_item.item.name,
+                brand=cart_item.item.brand,
+                dosage_form=dosage_form_obj,
                 unit=cart_item.item.unit,
                 quantity=cart_item.quantity,
                 amount=subtotal,

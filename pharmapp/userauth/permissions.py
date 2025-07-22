@@ -104,7 +104,7 @@ def can_view_activity_logs(user):
 
 def can_perform_stock_check(user):
     """Check if user can perform stock checks"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharm-Tech']
+    return user.is_authenticated
 
 def can_view_financial_reports(user):
     """Check if user can view financial reports"""

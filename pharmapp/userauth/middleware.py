@@ -144,13 +144,13 @@ class RoleBasedAccessMiddleware:
             'admin:index': ['Admin'],
             'admin:app_list': ['Admin'],
 
-            # Stock Management
-            'store:create_stock_check': ['Admin', 'Manager', 'Pharm-Tech'],
-            'store:update_stock_check': ['Admin', 'Manager', 'Pharm-Tech'],
-            'store:list_stock_checks': ['Admin', 'Manager', 'Pharm-Tech'],
-            'wholesale:create_wholesale_stock_check': ['Admin', 'Manager', 'Pharm-Tech'],
-            'wholesale:update_wholesale_stock_check': ['Admin', 'Manager', 'Pharm-Tech'],
-            'wholesale:list_wholesale_stock_checks': ['Admin', 'Manager', 'Pharm-Tech'],
+            # Stock Management - Now accessible to all authenticated users
+            # 'store:create_stock_check': ['Admin', 'Manager', 'Pharm-Tech'],
+            # 'store:update_stock_check': ['Admin', 'Manager', 'Pharm-Tech'],
+            # 'store:list_stock_checks': ['Admin', 'Manager', 'Pharm-Tech'],
+            # 'wholesale:create_wholesale_stock_check': ['Admin', 'Manager', 'Pharm-Tech'],
+            # 'wholesale:update_wholesale_stock_check': ['Admin', 'Manager', 'Pharm-Tech'],
+            # 'wholesale:list_wholesale_stock_checks': ['Admin', 'Manager', 'Pharm-Tech'],
 
             # Financial Management
             'store:expense_list': ['Admin', 'Manager'],
