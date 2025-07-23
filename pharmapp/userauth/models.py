@@ -22,7 +22,8 @@ USER_PERMISSIONS = {
         'manage_suppliers', 'manage_expenses', 'adjust_prices', 'process_returns',
         'approve_returns', 'transfer_stock', 'view_activity_logs', 'perform_stock_check',
         'edit_user_profiles', 'manage_payment_methods', 'process_split_payments',
-        'override_payment_status', 'pause_resume_procurement', 'search_items'
+        'override_payment_status', 'pause_resume_procurement', 'search_items',
+        'operate_retail', 'operate_wholesale'
     ],
     'Manager': [
         'view_financial_reports', 'manage_inventory', 'process_sales', 'view_reports',
@@ -30,21 +31,24 @@ USER_PERMISSIONS = {
         'adjust_prices', 'process_returns', 'approve_returns', 'transfer_stock',
         'view_activity_logs', 'perform_stock_check', 'manage_payment_methods',
         'process_split_payments', 'override_payment_status', 'pause_resume_procurement',
-        'search_items'
+        'search_items', 'operate_retail', 'operate_wholesale'
     ],
     'Pharmacist': [
         'manage_inventory', 'dispense_medication', 'process_sales', 'manage_customers',
         'adjust_prices', 'process_returns', 'transfer_stock', 'view_sales_history',
-        'view_procurement_history', 'process_split_payments', 'search_items'
+        'view_procurement_history', 'process_split_payments', 'search_items',
+        'operate_retail'  # Default to retail only, wholesale can be granted individually
     ],
     'Pharm-Tech': [
         'manage_inventory', 'process_sales', 'manage_customers', 'process_returns',
         'transfer_stock', 'view_sales_history', 'view_procurement_history',
-        'perform_stock_check', 'process_split_payments', 'search_items'
+        'perform_stock_check', 'process_split_payments', 'search_items',
+        'operate_retail'  # Default to retail only, wholesale can be granted individually
     ],
     'Salesperson': [
         'process_sales', 'manage_customers', 'view_sales_history',
-        'process_split_payments', 'search_items'
+        'process_split_payments', 'search_items',
+        'operate_retail'  # Default to retail only, wholesale can be granted individually
     ]
 }
 

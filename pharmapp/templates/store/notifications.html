@@ -1,0 +1,186 @@
+{% extends "partials/base.html" %}
+{% load static %}
+
+{% block title %}Notifications - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-sm-flex align-items-center justify-content-between mb-4">
+                <h1 class="h3 mb-0 text-gray-800">
+                    <i class="fas fa-bell mr-2"></i>Notifications
+                </h1>
+                <div>
+                    <a href="{% url 'store:check_stock_notifications' %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-sync mr-1"></i>Check Stock Levels
+                    </a>
+                </div>
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-list mr-2"></i>All Notifications
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if notifications %}
+                        <div class="notification-list">
+                            {% for notification in notifications %}
+                                <div class="notification-item {% if not notification.is_read %}unread{% endif %} mb-3 p-3 border rounded">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="notification-content flex-grow-1">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <span class="notification-icon mr-2">
+                                                    {% if notification.notification_type == 'low_stock' %}
+                                                        <i class="fas fa-exclamation-triangle text-warning"></i>
+                                                    {% elif notification.notification_type == 'out_of_stock' %}
+                                                        <i class="fas fa-times-circle text-danger"></i>
+                                                    {% elif notification.notification_type == 'expiry_alert' %}
+                                                        <i class="fas fa-calendar-times text-info"></i>
+                                                    {% elif notification.notification_type == 'system_message' %}
+                                                        <i class="fas fa-info-circle text-primary"></i>
+                                                    {% else %}
+                                                        <i class="fas fa-bell text-secondary"></i>
+                                                    {% endif %}
+                                                </span>
+                                                <h6 class="notification-title mb-0 font-weight-bold">
+                                                    {{ notification.title }}
+                                                </h6>
+                                                <span class="badge badge-{{ notification.priority|default:'secondary' }} ml-2">
+                                                    {{ notification.get_priority_display }}
+                                                </span>
+                                            </div>
+                                            <p class="notification-message mb-2 text-gray-700">
+                                                {{ notification.message }}
+                                            </p>
+                                            <div class="notification-meta">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-clock mr-1"></i>
+                                                    {{ notification.created_at|timesince }} ago
+                                                    {% if notification.is_read %}
+                                                        • <i class="fas fa-check mr-1"></i>Read
+                                                    {% endif %}
+                                                </small>
+                                            </div>
+                                        </div>
+                                        <div class="notification-actions ml-3">
+                                            <a href="{% url 'store:dismiss_notification' notification.id %}" 
+                                               class="btn btn-sm btn-outline-secondary"
+                                               onclick="return confirm('Are you sure you want to dismiss this notification?')">
+                                                <i class="fas fa-times"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-bell-slash fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No notifications</h5>
+                            <p class="text-muted">You're all caught up! No notifications to display.</p>
+                            <a href="{% url 'store:check_stock_notifications' %}" class="btn btn-primary">
+                                <i class="fas fa-sync mr-1"></i>Check for Stock Alerts
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.notification-item {
+    transition: all 0.3s ease;
+    background-color: #f8f9fc;
+}
+
+.notification-item.unread {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196f3;
+}
+
+.notification-item:hover {
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+}
+
+.notification-icon {
+    font-size: 1.2rem;
+}
+
+.notification-title {
+    color: #5a5c69;
+}
+
+.notification-message {
+    line-height: 1.5;
+}
+
+.badge-low {
+    background-color: #17a2b8;
+}
+
+.badge-medium {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.badge-high {
+    background-color: #fd7e14;
+}
+
+.badge-critical {
+    background-color: #dc3545;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+}
+
+.card-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-refresh notification count in sidebar
+    function updateNotificationCount() {
+        fetch('{% url "store:notification_count_api" %}')
+            .then(response => response.json())
+            .then(data => {
+                const badge = document.getElementById('notification-badge');
+                if (badge) {
+                    if (data.count > 0) {
+                        badge.textContent = data.count;
+                        badge.style.display = 'inline';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+            })
+            .catch(error => console.error('Error updating notification count:', error));
+    }
+
+    // Update immediately and then every 30 seconds
+    updateNotificationCount();
+    setInterval(updateNotificationCount, 30000);
+});
+</script>
+{% endblock %}

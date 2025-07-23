@@ -39,13 +39,10 @@ def can_view_financial_data(user):
     """
     if not user or not user.is_authenticated:
         return False
-    
-    # Check if user has the specific permission or is admin/superuser
-    return (user.has_permission('view_financial_reports') or 
-            user.is_superuser or 
-            (hasattr(user, 'profile') and 
-             user.profile and 
-             user.profile.user_type == 'Admin'))
+
+    # Use the new permission function for purchase and stock values
+    from userauth.permissions import can_view_purchase_and_stock_values
+    return can_view_purchase_and_stock_values(user)
 
 
 @register.simple_tag
@@ -56,8 +53,34 @@ def user_has_permission(user, permission):
     """
     if not user or not user.is_authenticated:
         return False
-    
+
     return user.has_permission(permission)
+
+
+@register.filter
+def can_operate_retail(user):
+    """
+    Template filter to check if a user can operate retail functionality.
+    Usage: {% if user|can_operate_retail %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    from userauth.permissions import can_operate_retail
+    return can_operate_retail(user)
+
+
+@register.filter
+def can_operate_wholesale(user):
+    """
+    Template filter to check if a user can operate wholesale functionality.
+    Usage: {% if user|can_operate_wholesale %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    from userauth.permissions import can_operate_wholesale
+    return can_operate_wholesale(user)
 
 
 @register.simple_tag

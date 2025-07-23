@@ -22,6 +22,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_date
+from django.utils import timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -185,6 +186,10 @@ def logout_user(request):
 @login_required
 def store(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_operate_retail
+        if not can_operate_retail(request.user):
+            messages.error(request, 'You do not have permission to access retail operations.')
+            return redirect('store:index')
         items = Item.objects.all().order_by('name')
         settings = StoreSettings.get_settings()
 
@@ -229,10 +234,13 @@ def store(request):
 
 
 
-@user_passes_test(is_admin)
 @login_required
 def add_item(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_items
+        if not can_manage_items(request.user):
+            messages.error(request, 'You do not have permission to add items.')
+            return redirect('store:store')
         if request.method == 'POST':
             # The form now uses hidden fields for dosage_form and unit
             # which are set by JavaScript, so we can use the form directly
@@ -297,9 +305,13 @@ def search_item(request):
     else:
         return redirect('store:index')
 
-@user_passes_test(is_admin)
+@login_required
 def edit_item(request, pk):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_items
+        if not can_manage_items(request.user):
+            messages.error(request, 'You do not have permission to edit items.')
+            return redirect('store:store')
         item = get_object_or_404(Item, id=pk)
 
         if request.method == 'POST':
@@ -656,7 +668,21 @@ def receipt(request):
         else:
             # This is a single payment
             payment_method = request.POST.get('payment_method')
-            status = request.POST.get('status', 'Paid')  # Default to 'Paid' if not provided
+            status = request.POST.get('status')
+
+            # If not provided in POST, try to get from user session (from select_items)
+            if not payment_method or not status:
+                from userauth.session_utils import get_user_payment_data
+                session_payment_data = get_user_payment_data(request)
+                if not payment_method:
+                    payment_method = session_payment_data.get('payment_method')
+                if not status:
+                    status = session_payment_data.get('payment_status')
+
+            # Final defaults if still not set
+            if not status:
+                status = 'Paid'  # Default to 'Paid' if not provided
+
             payment_method_1 = None
             payment_method_2 = None
             payment_amount_1 = Decimal('0')
@@ -671,8 +697,10 @@ def receipt(request):
             print(f"Split Payment - Method 1: {payment_method_1}, Amount 1: {payment_amount_1}")
             print(f"Split Payment - Method 2: {payment_method_2}, Amount 2: {payment_amount_2}")
 
-        # Get customer ID from session if it exists
-        customer_id = request.session.get('customer_id')
+        # Get customer ID from user-specific session if it exists
+        from userauth.session_utils import get_user_customer_id
+        customer_id = get_user_customer_id(request)
+        customer = None
         has_customer = False
         if customer_id:
             try:
@@ -709,15 +737,7 @@ def receipt(request):
         total_discounted_price = total_price - total_discount
         final_total = total_discounted_price if total_discount > 0 else total_price
 
-        # Get customer ID from user-specific session if it exists
-        from userauth.session_utils import get_user_customer_id
-        customer_id = get_user_customer_id(request)
-        customer = None
-        if customer_id:
-            try:
-                customer = Customer.objects.get(id=customer_id)
-            except Customer.DoesNotExist:
-                pass
+        # Customer is already retrieved above, no need to fetch again
 
         # Always create a new Sales instance to avoid conflicts
         sales = Sales.objects.create(
@@ -805,13 +825,7 @@ def receipt(request):
                                     receipt.wallet_went_negative = True
                                     receipt.save()
 
-                                # Create transaction history
-                                TransactionHistory.objects.create(
-                                    customer=sales.customer,
-                                    transaction_type='purchase',
-                                    amount=wallet_amount,
-                                    description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
-                                )
+                                # Transaction history will be created later to avoid duplicates
 
                                 print(f"Deducted {wallet_amount} from customer {sales.customer.name}'s wallet for first payment")
                                 # Inform if balance is negative
@@ -838,13 +852,7 @@ def receipt(request):
                                     receipt.wallet_went_negative = True
                                     receipt.save()
 
-                                # Create transaction history
-                                TransactionHistory.objects.create(
-                                    customer=sales.customer,
-                                    transaction_type='purchase',
-                                    amount=wallet_amount,
-                                    description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
-                                )
+                                # Transaction history will be created later to avoid duplicates
 
                                 print(f"Deducted {wallet_amount} from customer {sales.customer.name}'s wallet for second payment")
                                 # Inform if balance is negative
@@ -894,6 +902,33 @@ def receipt(request):
                 print(f"Receipt ID: {receipt.receipt_id}")
                 print(f"Payment Method: {receipt.payment_method}")
                 print(f"Status: {receipt.status}\n")
+
+                # Create transaction history for non-wallet payments (to avoid duplicates)
+                if sales.customer and payment_type != 'split':
+                    # Only create transaction history for non-wallet payments
+                    # Wallet payments already create their own transaction history above
+                    if receipt.payment_method != 'Wallet':
+                        from customer.models import TransactionHistory
+                        TransactionHistory.objects.create(
+                            customer=sales.customer,
+                            transaction_type='purchase',
+                            amount=sales.total_amount,
+                            description=f'Purchase payment via {receipt.payment_method} (Receipt ID: {receipt.receipt_id})'
+                        )
+                    # For wallet payments, create a single transaction history entry
+                    elif receipt.payment_method == 'Wallet':
+                        from customer.models import TransactionHistory
+                        TransactionHistory.objects.create(
+                            customer=sales.customer,
+                            transaction_type='purchase',
+                            amount=sales.total_amount,
+                            description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                        )
+
+                # Clear payment session data after successful receipt creation
+                from userauth.session_utils import delete_user_session_data
+                delete_user_session_data(request, 'payment_method')
+                delete_user_session_data(request, 'payment_status')
         except Exception as e:
             print(f"Error processing receipt: {e}")
             messages.error(request, "An error occurred while processing the receipt.")
@@ -954,7 +989,7 @@ def receipt(request):
         print(f"Status: {receipt.status}\n")
 
         # Set appropriate payment method and status based on customer type and payment type
-        if has_customer and payment_type != 'split':
+        if has_customer and payment_type != 'split' and receipt.customer:
             # For registered customers with single payment, default to Wallet if not specified
             if not receipt.payment_method or receipt.payment_method == 'Cash':
                 print(f"Setting payment method to Wallet for customer {receipt.customer.name}")
@@ -968,7 +1003,7 @@ def receipt(request):
                 receipt.save()
 
             receipt.refresh_from_db()
-        elif has_customer and payment_type == 'split':
+        elif has_customer and payment_type == 'split' and receipt.customer:
             # For split payments with registered customers, ensure the payment method is 'Split'
             if receipt.payment_method != 'Split':
                 print(f"Setting payment method to Split for customer {receipt.customer.name}")
@@ -1918,8 +1953,9 @@ def edit_customer(request, pk):
 def select_items(request, pk):
     if request.user.is_authenticated:
         customer = get_object_or_404(Customer, id=pk)
-        # Store wholesale customer ID in session for later use
-        request.session['customer_id'] = customer.id
+        # Store customer ID in user-specific session for later use
+        from userauth.session_utils import set_user_customer_id
+        set_user_customer_id(request, customer.id)
 
         # Check if this is a return action request
         action = request.GET.get('action', 'purchase')
@@ -2195,7 +2231,8 @@ def dispensing_log(request):
 
             # Filter by date
             if date_filter := search_form.cleaned_data.get('date'):
-                logs = logs.filter(created_at__date=date_filter)
+                from utils.date_utils import filter_queryset_by_date
+                logs = filter_queryset_by_date(logs, 'created_at', str(date_filter))
 
             # Filter by status
             if status_filter := search_form.cleaned_data.get('status'):
@@ -2269,10 +2306,40 @@ def dispensing_log_stats(request):
                     # If date parsing fails, use default range
                     pass
 
-            # Get statistics
-            logs = DispensingLog.objects.filter(
-                created_at__date__range=[start_date, end_date]
-            )
+            # Permission check: Superusers, Admins, and Managers can see all users, others can only see their own data
+            can_view_all_users = can_view_all_users_dispensing(request.user)
+
+            # Get base queryset based on permissions
+            if can_view_all_users:
+                logs = DispensingLog.objects.all()
+            else:
+                # Regular users can only see their own dispensing data
+                logs = DispensingLog.objects.filter(user=request.user)
+
+            # Apply the same filters as the main dispensing log view
+            # Filter by item name (search by first few letters)
+            if item_name := request.GET.get('item_name'):
+                logs = logs.filter(name__istartswith=item_name)
+
+            # Filter by date
+            if date_filter := request.GET.get('date'):
+                from utils.date_utils import filter_queryset_by_date
+                logs = filter_queryset_by_date(logs, 'created_at', str(date_filter))
+            else:
+                # Default to date range if no specific date filter
+                logs = logs.filter(created_at__date__range=[start_date, end_date])
+
+            # Filter by status
+            if status_filter := request.GET.get('status'):
+                logs = logs.filter(status=status_filter)
+
+            # Filter by user (if user has permission to view all users)
+            if can_view_all_users and (user_filter := request.GET.get('user')):
+                try:
+                    user_id = int(user_filter)
+                    logs = logs.filter(user_id=user_id)
+                except (ValueError, TypeError):
+                    pass
 
             # Convert QuerySets to lists for JSON serialization
             try:
@@ -2346,21 +2413,20 @@ def receipt_list(request):
 
 def search_receipts(request):
     if request.user.is_authenticated:
+        from utils.date_utils import filter_queryset_by_date, get_date_filter_context
+
         # Get the date query from the GET request
-        date_query = request.GET.get('date', '').strip()
+        date_context = get_date_filter_context(request, 'date')
+        date_query = date_context['date_string']
 
         # Debugging log
         print(f"Date Query: {date_query}")
 
         receipts = Receipt.objects.all()
-        if date_query:
-            try:
-                # Parse date query
-                date_object = datetime.strptime(date_query, '%Y-%m-%d').date()
-                # Adjust filtering for DateTimeField (if necessary)
-                receipts = receipts.filter(date__date=date_object)
-            except ValueError:
-                print("Invalid date format")
+        if date_query and date_context['is_valid_date']:
+            receipts = filter_queryset_by_date(receipts, 'date', date_query)
+        elif date_query and not date_context['is_valid_date']:
+            print(f"Invalid date format: {date_query}")
 
         # Order receipts by date
         receipts = receipts.order_by('-date')
@@ -3488,18 +3554,17 @@ def transfer_request_list(request):
         Display all transfer requests and transfers.
         Optionally filter by a specific date (YYYY-MM-DD).
         """
+        from utils.date_utils import filter_queryset_by_date, get_date_filter_context
+
         # Get the date filter from GET parameters.
-        date_str = request.GET.get("date")
+        date_context = get_date_filter_context(request, 'date')
+        date_str = date_context['date_string']
         transfers = TransferRequest.objects.all().order_by("-created_at")
 
-        if date_str:
-            try:
-                # Parse the string into a date object.
-                filter_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                transfers = transfers.filter(created_at__date=filter_date)
-            except ValueError:
-                # If date parsing fails, ignore the filter.
-                logger.warning("Invalid date format provided: %s", date_str)
+        if date_str and date_context['is_valid_date']:
+            transfers = filter_queryset_by_date(transfers, 'created_at', date_str)
+        elif date_str and not date_context['is_valid_date']:
+            logger.warning("Invalid date format provided: %s", date_str)
 
         context = {
             "transfers": transfers,
@@ -3548,18 +3613,13 @@ def generate_monthly_report(request):
     return render(request, 'store/expense_report.html', context)
 
 
-@user_passes_test(is_admin)
 @login_required
-# def expense_list(request):
-#     if request.user.is_authenticated:
-#         """Display all expenses."""
-#         expenses = Expense.objects.all().order_by('-date')
-#         return render(request, 'store/expense_list.html', {'expenses': expenses})
-#     else:
-#         return redirect('store:index')
-
 def expense_list(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_expenses
+        if not can_manage_expenses(request.user):
+            messages.error(request, 'You do not have permission to manage expenses.')
+            return redirect('store:index')
         expenses = Expense.objects.all().order_by('-date')
         expense_categories = ExpenseCategory.objects.all().order_by('name')
         return render(request, 'store/expense_list.html', {
@@ -3570,10 +3630,13 @@ def expense_list(request):
         return redirect('store:index')
 
 
-@user_passes_test(is_admin)
 @login_required
 def add_expense_form(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_expenses
+        if not can_manage_expenses(request.user):
+            messages.error(request, 'You do not have permission to add expenses.')
+            return redirect('store:index')
         """Return the modal form for adding expenses."""
         form = ExpenseForm()
         return render(request, 'partials/_expense_form.html', {'form': form})
@@ -3581,10 +3644,13 @@ def add_expense_form(request):
         return redirect('store:index')
 
 
-@user_passes_test(is_admin)
 @login_required
 def add_expense(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_expenses
+        if not can_manage_expenses(request.user):
+            messages.error(request, 'You do not have permission to add expenses.')
+            return redirect('store:index')
         """Handle expense form submission."""
         if request.method == 'POST':
             form = ExpenseForm(request.POST)
@@ -3598,10 +3664,13 @@ def add_expense(request):
     else:
         return redirect('store:index')
 
-@user_passes_test(is_admin)
 @login_required
 def edit_expense_form(request, expense_id):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_expenses
+        if not can_manage_expenses(request.user):
+            messages.error(request, 'You do not have permission to edit expenses.')
+            return redirect('store:index')
         """Return the modal form for editing an expense."""
         expense = get_object_or_404(Expense, id=expense_id)
         form = ExpenseForm(instance=expense)
@@ -3609,11 +3678,14 @@ def edit_expense_form(request, expense_id):
     else:
         return redirect('store:index')
 
-@user_passes_test(is_admin)
 @login_required
 @require_POST
 def update_expense(request, expense_id):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_expenses
+        if not can_manage_expenses(request.user):
+            messages.error(request, 'You do not have permission to update expenses.')
+            return redirect('store:index')
         """Handle updating an expense."""
         expense = get_object_or_404(Expense, id=expense_id)
         form = ExpenseForm(request.POST, instance=expense)
@@ -3716,11 +3788,14 @@ def adjust_stock_level(request, item_id):
 
     return HttpResponse(status=405)  # Method not allowed
 
-@user_passes_test(is_admin)
 @login_required
 @require_POST
 def delete_expense(request, expense_id):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_expenses
+        if not can_manage_expenses(request.user):
+            messages.error(request, 'You do not have permission to delete expenses.')
+            return redirect('store:index')
         """Handle deleting an expense."""
         expense = get_object_or_404(Expense, id=expense_id)
         expense.delete()
@@ -3732,16 +3807,22 @@ def delete_expense(request, expense_id):
 
 
 
-@user_passes_test(is_admin)
 @login_required
 def add_expense_category_form(request):
+    from userauth.permissions import can_manage_expenses
+    if not can_manage_expenses(request.user):
+        messages.error(request, 'You do not have permission to add expense categories.')
+        return redirect('store:index')
     """Return the modal form for adding an expense category."""
     form = ExpenseCategoryForm()
     return render(request, 'partials/_expense_category_form.html', {'form': form})
 
-@user_passes_test(is_admin)
 @login_required
 def add_expense_category(request):
+    from userauth.permissions import can_manage_expenses
+    if not can_manage_expenses(request.user):
+        messages.error(request, 'You do not have permission to add expense categories.')
+        return redirect('store:index')
     """Handle expense category form submission."""
     if request.method == 'POST':
         form = ExpenseCategoryForm(request.POST)
@@ -3986,22 +4067,9 @@ def user_dispensing_summary(request):
             logs = DispensingLog.objects.filter(user=request.user)
             user_filter = str(request.user.id)  # Force filter to current user
 
-        # Apply filters
-        if date_from:
-            try:
-                date_from_parsed = parse_date(date_from)
-                if date_from_parsed:
-                    logs = logs.filter(created_at__gte=date_from_parsed)
-            except ValueError:
-                pass
-
-        if date_to:
-            try:
-                date_to_parsed = parse_date(date_to)
-                if date_to_parsed:
-                    logs = logs.filter(created_at__lte=date_to_parsed)
-            except ValueError:
-                pass
+        # Apply filters using date utilities
+        from utils.date_utils import filter_queryset_by_date_range
+        logs = filter_queryset_by_date_range(logs, 'created_at', date_from, date_to)
 
         if user_filter:
             logs = logs.filter(user_id=user_filter)
@@ -4107,22 +4175,9 @@ def user_dispensing_details(request, user_id=None):
         if target_user:
             logs = logs.filter(user=target_user)
 
-        # Apply date filters
-        if date_from:
-            try:
-                date_from_parsed = parse_date(date_from)
-                if date_from_parsed:
-                    logs = logs.filter(created_at__gte=date_from_parsed)
-            except ValueError:
-                pass
-
-        if date_to:
-            try:
-                date_to_parsed = parse_date(date_to)
-                if date_to_parsed:
-                    logs = logs.filter(created_at__lte=date_to_parsed)
-            except ValueError:
-                pass
+        # Apply date filters using date utilities
+        from utils.date_utils import filter_queryset_by_date_range
+        logs = filter_queryset_by_date_range(logs, 'created_at', date_from, date_to)
 
         # Apply status filter
         if status_filter:
@@ -4232,5 +4287,87 @@ def add_items_to_stock_check(request, stock_check_id):
         }
 
         return render(request, 'store/add_items_to_stock_check.html', context)
+    else:
+        return redirect('store:index')
+
+
+# Notification Views
+@login_required
+def notification_list(request):
+    """Display all notifications for the current user"""
+    if request.user.is_authenticated:
+        from .notifications import NotificationService
+        from .models import Notification
+        from django.db import models
+
+        # Get notifications for this user and system-wide notifications
+        notifications = Notification.objects.filter(
+            is_dismissed=False
+        ).filter(
+            models.Q(user=request.user) | models.Q(user=None)
+        ).order_by('-created_at')
+
+        # Mark notifications as read when viewed
+        unread_notifications = notifications.filter(is_read=False)
+        for notification in unread_notifications:
+            notification.mark_as_read()
+
+        return render(request, 'store/notifications.html', {
+            'notifications': notifications
+        })
+    else:
+        return redirect('store:index')
+
+
+@login_required
+def notification_count_api(request):
+    """API endpoint to get unread notification count"""
+    if request.user.is_authenticated:
+        from .notifications import NotificationService
+        count = NotificationService.get_unread_count(request.user)
+        return JsonResponse({'count': count})
+    return JsonResponse({'count': 0})
+
+
+@login_required
+def dismiss_notification(request, notification_id):
+    """Dismiss a specific notification"""
+    if request.user.is_authenticated:
+        from .models import Notification
+        from django.db import models
+
+        try:
+            notification = Notification.objects.filter(
+                id=notification_id
+            ).filter(
+                models.Q(user=request.user) | models.Q(user=None)
+            ).first()
+
+            if not notification:
+                raise Notification.DoesNotExist()
+            notification.dismiss()
+            messages.success(request, 'Notification dismissed.')
+        except Notification.DoesNotExist:
+            messages.error(request, 'Notification not found.')
+
+        return redirect('store:notification_list')
+    else:
+        return redirect('store:index')
+
+
+@login_required
+def check_stock_notifications(request):
+    """Manually trigger stock check and create notifications"""
+    if request.user.is_authenticated:
+        from .notifications import check_stock_and_notify
+
+        notifications_created = check_stock_and_notify()
+
+        if notifications_created > 0:
+            messages.success(request, f'Created {notifications_created} new stock notifications.')
+        else:
+            messages.info(request, 'No new stock notifications needed.')
+
+        return redirect('store:notification_list')
     else:
         return redirect('store:index')

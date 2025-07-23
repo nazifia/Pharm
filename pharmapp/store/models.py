@@ -1,4 +1,5 @@
 from django.utils.dateparse import parse_date
+from django.utils import timezone
 from decimal import Decimal
 from django.db import models
 from django.dispatch import receiver
@@ -348,16 +349,9 @@ class Sales(models.Model):
         return f'{self.user} - {self.customer.name if self.customer else "WALK-IN CUSTOMER"} - {self.total_amount}'
 
     def save(self, *args, **kwargs):
-        is_new = self.pk is None
+        # Removed automatic transaction history creation to prevent duplicates
+        # Transaction history will be created during payment processing
         super().save(*args, **kwargs)
-        if is_new and self.customer:
-            TransactionHistory.objects.create(
-                customer=self.customer,
-                transaction_type='purchase',
-                amount=self.total_amount,
-                description='Items purchased'
-            )
-            # Removed automatic receipt creation to prevent double receipts
 
     def calculate_total_amount(self):
         self.total_amount = sum(item.price * item.quantity for item in self.sales_items.all())
@@ -888,3 +882,66 @@ class WholesaleSettings(models.Model):
     def get_settings(cls):
         settings, _ = cls.objects.get_or_create(pk=1)
         return settings
+
+
+class Notification(models.Model):
+    """System notifications for users"""
+    NOTIFICATION_TYPES = [
+        ('low_stock', 'Low Stock Alert'),
+        ('out_of_stock', 'Out of Stock Alert'),
+        ('expiry_alert', 'Expiry Alert'),
+        ('system_message', 'System Message'),
+        ('procurement_alert', 'Procurement Alert'),
+    ]
+
+    PRIORITY_LEVELS = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True,
+                           help_text="Leave blank for system-wide notifications")
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
+    priority = models.CharField(max_length=10, choices=PRIORITY_LEVELS, default='medium')
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+
+    # Related objects
+    related_item = models.ForeignKey(Item, on_delete=models.CASCADE, null=True, blank=True)
+    related_wholesale_item = models.ForeignKey(WholesaleItem, on_delete=models.CASCADE, null=True, blank=True)
+
+    # Status fields
+    is_read = models.BooleanField(default=False)
+    is_dismissed = models.BooleanField(default=False)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    dismissed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_read', 'is_dismissed']),
+            models.Index(fields=['notification_type', 'created_at']),
+        ]
+
+    def __str__(self):
+        user_str = f"for {self.user.username}" if self.user else "system-wide"
+        return f"{self.get_notification_type_display()} {user_str}: {self.title}"
+
+    def mark_as_read(self):
+        """Mark notification as read"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save(update_fields=['is_read', 'read_at'])
+
+    def dismiss(self):
+        """Dismiss notification"""
+        if not self.is_dismissed:
+            self.is_dismissed = True
+            self.dismissed_at = timezone.now()
+            self.save(update_fields=['is_dismissed', 'dismissed_at'])

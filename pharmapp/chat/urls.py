@@ -13,6 +13,9 @@ urlpatterns = [
     path('<int:receiver_id>/', views.chat_view, name='chat_view_legacy'),
     path('send/', views.send_message_view, name='send_message'),
 
+    # Bulk messaging
+    path('bulk-message/', views.bulk_message_view, name='bulk_message'),
+
     # API endpoints
     path('api/unread-count/', views.unread_messages_count, name='unread_messages_count'),
     path('api/typing/', views.set_typing_status, name='set_typing_status'),

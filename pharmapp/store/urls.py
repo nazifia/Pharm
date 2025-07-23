@@ -106,4 +106,10 @@ urlpatterns = [
 
     # Stock Check Enhancement URLs
     path('add_items_to_stock_check/<int:stock_check_id>/', views.add_items_to_stock_check, name='add_items_to_stock_check'),
+
+    # Notification URLs
+    path('notifications/', views.notification_list, name='notification_list'),
+    path('notifications/count/', views.notification_count_api, name='notification_count_api'),
+    path('notifications/dismiss/<int:notification_id>/', views.dismiss_notification, name='dismiss_notification'),
+    path('notifications/check-stock/', views.check_stock_notifications, name='check_stock_notifications'),
 ]

@@ -130,6 +130,48 @@ def can_view_procurement_history(user):
     """Check if user can view procurement history"""
     return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharm-Tech']
 
+def can_manage_items(user):
+    """Check if user can add and edit items"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+
+def can_view_purchase_and_stock_values(user):
+    """Check if user can view purchase and stock values (cost, procurement data)"""
+    # Only admins can view by default, managers need specific permission
+    if user.is_authenticated and user.profile.user_type == 'Admin':
+        return True
+    elif user.is_authenticated and user.profile.user_type == 'Manager':
+        # Check if manager has been granted specific permission
+        return user.has_permission('view_purchase_stock_values')
+    return False
+
+def can_manage_expenses(user):
+    """Check if user can add and manage expenses"""
+    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Pharm-Tech', 'Salesperson']
+
+def can_operate_retail(user):
+    """Check if user can operate retail functionality"""
+    if not user.is_authenticated:
+        return False
+
+    # Admins and Managers can always operate retail
+    if user.profile.user_type in ['Admin', 'Manager']:
+        return True
+
+    # Other users need specific permission
+    return user.has_permission('operate_retail')
+
+def can_operate_wholesale(user):
+    """Check if user can operate wholesale functionality"""
+    if not user.is_authenticated:
+        return False
+
+    # Admins and Managers can always operate wholesale
+    if user.profile.user_type in ['Admin', 'Manager']:
+        return True
+
+    # Other users need specific permission
+    return user.has_permission('operate_wholesale')
+
 def can_manage_payment_methods(user):
     """Check if user can manage payment methods"""
     return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']

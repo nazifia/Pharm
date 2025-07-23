@@ -603,6 +603,57 @@ def upload_file_api(request):
 
 
 @login_required
+def bulk_message_view(request):
+    """View for sending bulk messages to all users (superusers/managers only)"""
+    from userauth.permissions import can_manage_users
+
+    if not can_manage_users(request.user):
+        messages.error(request, 'You do not have permission to send bulk messages.')
+        return redirect('chat:chat_view_default')
+
+    if request.method == 'POST':
+        message_text = request.POST.get('message', '').strip()
+        if message_text:
+            # Get all active users except the sender
+            all_users = User.objects.filter(is_active=True).exclude(id=request.user.id)
+
+            # Create individual direct rooms and send messages to each user
+            sent_count = 0
+            for user in all_users:
+                try:
+                    # Get or create direct room with each user
+                    room, created = ChatRoom.get_or_create_direct_room(request.user, user)
+
+                    # Create message in the room
+                    ChatMessage.objects.create(
+                        room=room,
+                        sender=request.user,
+                        message=f"📢 BROADCAST MESSAGE:\n\n{message_text}",
+                        message_type='text',
+                        receiver=user  # Legacy field
+                    )
+
+                    # Update room timestamp
+                    room.updated_at = timezone.now()
+                    room.save()
+
+                    sent_count += 1
+                except Exception as e:
+                    print(f"Error sending message to {user.username}: {e}")
+
+            messages.success(request, f'Bulk message sent to {sent_count} users successfully.')
+            return redirect('chat:bulk_message')
+
+    # Get all active users for display
+    all_users = User.objects.filter(is_active=True).exclude(id=request.user.id)
+
+    return render(request, 'chat/bulk_message.html', {
+        'all_users': all_users,
+        'user_count': all_users.count()
+    })
+
+
+@login_required
 @require_http_methods(["POST"])
 def upload_voice_api(request):
     """Upload voice message"""

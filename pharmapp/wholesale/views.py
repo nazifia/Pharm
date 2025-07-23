@@ -121,6 +121,10 @@ def wholesale_page(request):
 @login_required
 def wholesales(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_operate_wholesale
+        if not can_operate_wholesale(request.user):
+            messages.error(request, 'You do not have permission to access wholesale operations.')
+            return redirect('store:index')
         items = WholesaleItem.objects.all().order_by('name')
         settings = WholesaleSettings.get_settings()
 
@@ -195,10 +199,13 @@ def search_wholesale_item(request):
         return redirect('store:index')
 
 
-@user_passes_test(is_admin)
 @login_required
 def add_to_wholesale(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_items
+        if not can_manage_items(request.user):
+            messages.error(request, 'You do not have permission to add wholesale items.')
+            return redirect('wholesale:wholesales')
         if request.method == 'POST':
             form = addWholesaleForm(request.POST)
             if form.is_valid():
@@ -280,9 +287,13 @@ def add_to_wholesale(request):
 
 
 
-@user_passes_test(is_admin)
+@login_required
 def edit_wholesale_item(request, pk):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_items
+        if not can_manage_items(request.user):
+            messages.error(request, 'You do not have permission to edit wholesale items.')
+            return redirect('wholesale:wholesales')
         item = get_object_or_404(WholesaleItem, id=pk)
 
         if request.method == 'POST':
@@ -1330,6 +1341,19 @@ def wholesale_receipt(request):
                 print(f"Receipt ID: {receipt.receipt_id}")
                 print(f"Payment Method: {receipt.payment_method}")
                 print(f"Status: {receipt.status}\n")
+
+                # Create transaction history for non-wallet payments (to avoid duplicates)
+                if sales.wholesale_customer and payment_type != 'split':
+                    # Only create transaction history for non-wallet payments
+                    # Wallet payments already create their own transaction history above
+                    if receipt.payment_method != 'Wallet':
+                        from customer.models import TransactionHistory
+                        TransactionHistory.objects.create(
+                            wholesale_customer=sales.wholesale_customer,
+                            transaction_type='purchase',
+                            amount=sales.total_amount,
+                            description=f'Purchase payment via {receipt.payment_method} (Receipt ID: {receipt.receipt_id})'
+                        )
         except Exception as e:
             print(f"Error processing receipt: {e}")
             messages.error(request, "An error occurred while processing the receipt.")
@@ -1400,9 +1424,9 @@ def wholesale_receipt(request):
                 receipt.payment_method = 'Wallet'
                 receipt.save()
 
-            # Only set status to 'Paid' if it's not already set to something else
-            if not receipt.status or receipt.status == 'Unpaid':
-                print(f"Setting status to Paid for customer {receipt.wholesale_customer.name}")
+            # Only set status to 'Paid' if it's not already set (preserve user selection)
+            if not receipt.status:
+                print(f"Setting default status to Paid for customer {receipt.wholesale_customer.name}")
                 receipt.status = 'Paid'
                 receipt.save()
 
@@ -1634,19 +1658,17 @@ def wholesale_receipt_list(request):
 
 def search_wholesale_receipts(request):
     if request.user.is_authenticated:
-        # Get the date query from the GET request
-        date_query = request.GET.get('date', '').strip()
+        from utils.date_utils import filter_queryset_by_date, get_date_filter_context
 
+        # Get the date query from the GET request
+        date_context = get_date_filter_context(request, 'date')
+        date_query = date_context['date_string']
 
         receipts = WholesaleReceipt.objects.all()
-        if date_query:
-            try:
-                # Parse date query
-                date_object = datetime.strptime(date_query, '%Y-%m-%d').date()
-                # Adjust filtering for DateTimeField (if necessary)
-                receipts = receipts.filter(date__date=date_object)
-            except ValueError:
-                print("Invalid date format")
+        if date_query and date_context['is_valid_date']:
+            receipts = filter_queryset_by_date(receipts, 'date', date_query)
+        elif date_query and not date_context['is_valid_date']:
+            print(f"Invalid date format: {date_query}")
 
         # Order receipts by date
         receipts = receipts.order_by('-date')
@@ -1663,11 +1685,7 @@ def wholesale_receipt_detail(request, receipt_id):
         # Retrieve the existing receipt
         receipt = get_object_or_404(WholesaleReceipt, receipt_id=receipt_id)
 
-        # Always ensure the status is set to "Paid"
-        if receipt.status != 'Paid':
-            receipt.status = 'Paid'
-            receipt.save()
-            print(f"Forcing status to Paid for wholesale receipt {receipt.receipt_id}")
+        # Preserve the receipt status as set by the user
 
         # Retrieve sales and sales items linked to the receipt
         sales = receipt.sales
