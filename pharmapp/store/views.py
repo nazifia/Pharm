@@ -996,9 +996,9 @@ def receipt(request):
                 receipt.payment_method = 'Wallet'
                 receipt.save()
 
-            # Only set status to 'Paid' if it's not already set to something else
-            if not receipt.status or receipt.status == 'Unpaid':
-                print(f"Setting status to Paid for customer {receipt.customer.name}")
+            # Only set status to 'Paid' if no status was set at all (respect user's choice)
+            if not receipt.status:
+                print(f"Setting default status to Paid for customer {receipt.customer.name} (no status was set)")
                 receipt.status = 'Paid'
                 receipt.save()
 
@@ -1063,11 +1063,8 @@ def receipt_detail(request, receipt_id):
         # Retrieve the existing receipt
         receipt = get_object_or_404(Receipt, receipt_id=receipt_id)
 
-        # Always ensure the status is set to "Paid"
-        if receipt.status != 'Paid':
-            receipt.status = 'Paid'
-            receipt.save()
-            print(f"Forcing status to Paid for receipt {receipt.receipt_id}")
+        # Respect the user's selected payment status - don't force to "Paid"
+        print(f"Receipt {receipt.receipt_id} status: {receipt.status}")
 
         # Retrieve sales and sales items linked to the receipt
         sales = receipt.sales

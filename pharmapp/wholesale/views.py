@@ -892,6 +892,15 @@ def select_wholesale_items(request, pk):
                     if wallet_balance_before >= 0 and wallet.balance < 0:
                         request.session['wallet_went_negative'] = True
 
+                    # Create transaction history for the purchase
+                    if total_cost > 0:
+                        TransactionHistory.objects.create(
+                            wholesale_customer=customer,
+                            transaction_type='purchase',
+                            amount=total_cost,
+                            description='Purchase via select wholesale items'
+                        )
+
                     # Allow negative balance but inform the user
                     if wallet.balance < 0:
                         messages.info(request, f'Customer {customer.name} now has a negative wallet balance of {wallet.balance}')
@@ -1354,6 +1363,8 @@ def wholesale_receipt(request):
                             amount=sales.total_amount,
                             description=f'Purchase payment via {receipt.payment_method} (Receipt ID: {receipt.receipt_id})'
                         )
+                    # Transaction history for wallet payments is already created in select_wholesale_items
+                    # No need to create duplicate transaction history here
         except Exception as e:
             print(f"Error processing receipt: {e}")
             messages.error(request, "An error occurred while processing the receipt.")
