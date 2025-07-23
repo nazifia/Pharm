@@ -2,6 +2,7 @@
 {% load humanize %}
 {% load static %}
 {% load custom_filters %}
+{% load math_filters %}
 
 {% block content %}
 
@@ -127,7 +128,7 @@
                         <th scope="col">Rate</th>
                         <th scope="col">Subtotal</th>
                         <th scope="col">Reduce-by</th>
-                        <!-- <th scope="col">Discount</th> -->
+                        <th scope="col">Discount</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -149,15 +150,15 @@
                                 <button class="btn btn-outline-danger btn-sm mb-2" type="submit">Reduce</button>
                             </form>
                         </td>
-                        <!-- <td>
+                        <td>
                         <form action="" method="post">
                             {% csrf_token %}
                             <input type="number" step="0.01" name="discount_amount-{{ cart_item.id }}"
-                                id="discount_amount-{{cart_item.id}}" min="0" value="discount_amount-{{total_discount}}"
-                                style="width: 70px; border-radius: 3px;">
-                            <button class="btn btn-outline-info btn-sm mb-2" type="submit">Discount</button>
-                        </form> -->
-                        <!-- </td> -->
+                                id="discount_amount-{{cart_item.id}}" min="0" value="{{ cart_item.discount_amount|default:0 }}"
+                                style="width: 70px; border-radius: 3px;" max="{{ cart_item.price|mul:cart_item.quantity }}">
+                            <button class="btn btn-outline-info btn-sm mb-2" type="submit">Apply</button>
+                        </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

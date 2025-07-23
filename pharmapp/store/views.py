@@ -380,10 +380,59 @@ def dispense(request):
 @login_required
 def cart(request):
     if request.user.is_authenticated:
-        # Get cart items only for the current user
-        cart_items = Cart.objects.filter(user=request.user)
-        total_price = sum(item.item.price * item.quantity for item in cart_items)
-        return render(request, 'store/cart.html', {'cart_items': cart_items, 'total_price': total_price})
+        cart_items = Cart.objects.select_related('item').filter(user=request.user)
+        total_price, total_discount = 0, 0
+
+        if request.method == 'POST':
+            # Process each discount form submission
+            for cart_item in cart_items:
+                # Fetch the discount amount using cart_item.id in the input name
+                discount = Decimal(request.POST.get(f'discount_amount-{cart_item.id}', 0))
+                cart_item.discount_amount = max(discount, 0)
+                cart_item.save()
+
+        # Calculate totals
+        for cart_item in cart_items:
+            # Update the price field to match the item's current price
+            if cart_item.price != cart_item.item.price:
+                cart_item.price = cart_item.item.price
+                # This will trigger the save method which recalculates subtotal
+                cart_item.save()
+            else:
+                # Ensure subtotal is correctly calculated even if price hasn't changed
+                cart_item.save()  # This will recalculate subtotal with discount
+
+            # Add to total price (subtotal already includes discount)
+            total_price += cart_item.subtotal
+            total_discount += cart_item.discount_amount
+
+        final_total = total_price - total_discount
+        total_discounted_price = total_price - total_discount
+
+        # Get customer from user-specific session if it exists
+        from userauth.session_utils import get_user_customer_id
+        customer = None
+        customer_id = get_user_customer_id(request)
+        if customer_id:
+            try:
+                customer = Customer.objects.get(id=customer_id)
+            except Customer.DoesNotExist:
+                pass
+
+        # Define available payment methods and statuses
+        payment_methods = ["Cash", "Wallet", "Transfer"]
+        statuses = ["Paid", "Unpaid"]
+
+        return render(request, 'store/cart.html', {
+            'cart_items': cart_items,
+            'total_discount': total_discount,
+            'total_price': total_price,
+            'total_discounted_price': total_discounted_price,
+            'final_total': final_total,
+            'customer': customer,
+            'payment_methods': payment_methods,
+            'statuses': statuses,
+        })
     else:
         return redirect('store:index')
 
@@ -466,12 +515,11 @@ def view_cart(request):
                 cart_item.save()
             else:
                 # Ensure subtotal is correctly calculated even if price hasn't changed
-                cart_item.subtotal = cart_item.price * cart_item.quantity
-                cart_item.save(update_fields=['subtotal'])
+                cart_item.save()  # This will recalculate subtotal with discount
 
-            # Add to total price
+            # Add to total price (subtotal already includes discount)
             total_price += cart_item.subtotal
-            # total_discount += cart_item.discount_amount
+            total_discount += cart_item.discount_amount
 
 
         final_total = total_price - total_discount
@@ -938,7 +986,11 @@ def receipt(request):
             SalesItem.objects.get_or_create(
                 sales=sales,
                 item=cart_item.item,
-                defaults={'quantity': cart_item.quantity, 'price': cart_item.item.price}
+                defaults={
+                    'quantity': cart_item.quantity,
+                    'price': cart_item.item.price,
+                    'discount_amount': cart_item.discount_amount
+                }
             )
 
             subtotal = cart_item.item.price * cart_item.quantity
@@ -1342,10 +1394,10 @@ def get_daily_sales():
         .annotate(day=TruncDay('sales__date'))
         .values('day')
         .annotate(
-            total_sales=Sum(F('price') * F('quantity')),
+            total_sales=Sum(F('price') * F('quantity') - F('discount_amount')),
             total_cost=Sum(F('item__cost') * F('quantity')),
             total_profit=ExpressionWrapper(
-                Sum(F('price') * F('quantity')) - Sum(F('item__cost') * F('quantity')),
+                Sum(F('price') * F('quantity') - F('discount_amount')) - Sum(F('item__cost') * F('quantity')),
                 output_field=DecimalField()
             )
         )
@@ -1356,10 +1408,10 @@ def get_daily_sales():
         .annotate(day=TruncDay('sales__date'))
         .values('day')
         .annotate(
-            total_sales=Sum(F('price') * F('quantity')),
+            total_sales=Sum(F('price') * F('quantity') - F('discount_amount')),
             total_cost=Sum(F('item__cost') * F('quantity')),
             total_profit=ExpressionWrapper(
-                Sum(F('price') * F('quantity')) - Sum(F('item__cost') * F('quantity')),
+                Sum(F('price') * F('quantity') - F('discount_amount')) - Sum(F('item__cost') * F('quantity')),
                 output_field=DecimalField()
             )
         )
@@ -1526,10 +1578,10 @@ def get_monthly_sales_with_expenses():
         .annotate(month=TruncMonth('sales__date'))
         .values('month')
         .annotate(
-            total_sales=Sum(F('price') * F('quantity')),
+            total_sales=Sum(F('price') * F('quantity') - F('discount_amount')),
             total_cost=Sum(F('item__cost') * F('quantity')),
             total_profit=ExpressionWrapper(
-                Sum(F('price') * F('quantity')) - Sum(F('item__cost') * F('quantity')),
+                Sum(F('price') * F('quantity') - F('discount_amount')) - Sum(F('item__cost') * F('quantity')),
                 output_field=DecimalField()
             )
         )
@@ -1541,10 +1593,10 @@ def get_monthly_sales_with_expenses():
         .annotate(month=TruncMonth('sales__date'))
         .values('month')
         .annotate(
-            total_sales=Sum(F('price') * F('quantity')),
+            total_sales=Sum(F('price') * F('quantity') - F('discount_amount')),
             total_cost=Sum(F('item__cost') * F('quantity')),
             total_profit=ExpressionWrapper(
-                Sum(F('price') * F('quantity')) - Sum(F('item__cost') * F('quantity')),
+                Sum(F('price') * F('quantity') - F('discount_amount')) - Sum(F('item__cost') * F('quantity')),
                 output_field=DecimalField()
             )
         )
@@ -1690,8 +1742,13 @@ def monthly_sales_with_deduction(request):
 
             if selected_month:
                 # Wrap the profit expression so Django knows the output type
-                profit_expr = ExpressionWrapper(
-                    F('price') * F('quantity') - F('item__cost') * F('quantity'),
+                profit_expr_regular = ExpressionWrapper(
+                    F('price') * F('quantity') - F('discount_amount') - F('item__cost') * F('quantity'),
+                    output_field=DecimalField()
+                )
+
+                profit_expr_wholesale = ExpressionWrapper(
+                    F('price') * F('quantity') - F('discount_amount') - F('item__cost') * F('quantity'),
                     output_field=DecimalField()
                 )
 
@@ -1699,14 +1756,14 @@ def monthly_sales_with_deduction(request):
                     sales__date__year=selected_month.year,
                     sales__date__month=selected_month.month
                 ).aggregate(
-                    profit=Sum(profit_expr)
+                    profit=Sum(profit_expr_regular)
                 )['profit'] or 0
 
                 total_profit_wholesale = WholesaleSalesItem.objects.filter(
                     sales__date__year=selected_month.year,
                     sales__date__month=selected_month.month
                 ).aggregate(
-                    profit=Sum(profit_expr)
+                    profit=Sum(profit_expr_wholesale)
                 )['profit'] or 0
 
                 total_profit = total_profit_regular + total_profit_wholesale

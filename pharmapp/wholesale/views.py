@@ -954,8 +954,8 @@ def wholesale_cart(request):
             # Process each discount form submission
             for cart_item in cart_items:
                 # Fetch the discount amount using cart_item.id in the input name
-                discount = int(request.POST.get(f'discount_amount-{cart_item.id}', 0))
-                # cart_item.discount_amount = max(discount, 0)
+                discount = Decimal(request.POST.get(f'discount_amount-{cart_item.id}', 0))
+                cart_item.discount_amount = max(discount, 0)
                 cart_item.save()
 
         # Calculate totals
@@ -965,10 +965,13 @@ def wholesale_cart(request):
                 cart_item.price = cart_item.item.price
                 # This will trigger the save method which recalculates subtotal
                 cart_item.save()
+            else:
+                # Ensure subtotal is correctly calculated even if price hasn't changed
+                cart_item.save()  # This will recalculate subtotal with discount
 
-            # Add to total price
+            # Add to total price (subtotal already includes discount)
             total_price += cart_item.subtotal
-            # total_discount += cart_item.discount_amount
+            total_discount += cart_item.discount_amount
 
         final_total = total_price - total_discount
 
@@ -1374,7 +1377,11 @@ def wholesale_receipt(request):
             WholesaleSalesItem.objects.get_or_create(
                 sales=sales,
                 item=cart_item.item,
-                defaults={'quantity': cart_item.quantity, 'price': cart_item.item.price}
+                defaults={
+                    'quantity': cart_item.quantity,
+                    'price': cart_item.item.price,
+                    'discount_amount': cart_item.discount_amount
+                }
             )
 
             subtotal = cart_item.item.price * cart_item.quantity
