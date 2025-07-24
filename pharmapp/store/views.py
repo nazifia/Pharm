@@ -2338,7 +2338,7 @@ def dispensing_log_search_suggestions(request):
 @login_required
 def dispensing_log_stats(request):
     """
-    Provides statistics for dispensed items
+    Provides statistics for dispensed items based on searched/filtered data
     """
     if request.user.is_authenticated:
         try:
@@ -2346,10 +2346,22 @@ def dispensing_log_stats(request):
             from datetime import date, timedelta
             from decimal import Decimal
 
-            # Get date range from request or default to last 30 days
-            end_date = date.today()
-            start_date = end_date - timedelta(days=30)
+            # Get current month's start and end dates for default stats
+            today = date.today()
+            current_month_start = today.replace(day=1)
 
+            # Calculate next month's first day to get current month's end
+            if today.month == 12:
+                next_month_start = today.replace(year=today.year + 1, month=1, day=1)
+            else:
+                next_month_start = today.replace(month=today.month + 1, day=1)
+            current_month_end = next_month_start - timedelta(days=1)
+
+            # Default to current month instead of last 30 days
+            start_date = current_month_start
+            end_date = current_month_end
+
+            # Override with specific date filter if provided
             if date_filter := request.GET.get('date'):
                 try:
                     selected_date = parse_date(date_filter)
@@ -2357,7 +2369,7 @@ def dispensing_log_stats(request):
                         start_date = selected_date
                         end_date = selected_date
                 except Exception as e:
-                    # If date parsing fails, use default range
+                    # If date parsing fails, use current month default
                     pass
 
             # Permission check: Superusers, Admins, and Managers can see all users, others can only see their own data
@@ -2370,17 +2382,17 @@ def dispensing_log_stats(request):
                 # Regular users can only see their own dispensing data
                 logs = DispensingLog.objects.filter(user=request.user)
 
-            # Apply the same filters as the main dispensing log view
+            # Apply the same filters as the main dispensing log view to ensure stats match filtered data
             # Filter by item name (search by first few letters)
             if item_name := request.GET.get('item_name'):
                 logs = logs.filter(name__istartswith=item_name)
 
-            # Filter by date
+            # Filter by date - this is the key change to make stats match search results
             if date_filter := request.GET.get('date'):
                 from utils.date_utils import filter_queryset_by_date
                 logs = filter_queryset_by_date(logs, 'created_at', str(date_filter))
             else:
-                # Default to date range if no specific date filter
+                # Default to current month instead of last 30 days for monthly total sales
                 logs = logs.filter(created_at__date__range=[start_date, end_date])
 
             # Filter by status
@@ -2426,15 +2438,51 @@ def dispensing_log_stats(request):
                 except Exception as e:
                     item['total_amount'] = 0.0
 
+            # Calculate additional stats for better insights
+            total_quantity_dispensed = logs.aggregate(total_qty=Sum('quantity'))['total_qty'] or Decimal('0')
+
+            # Get monthly total sales for comparison (if not already filtered by month)
+            monthly_total_sales = Decimal('0')
+            if not request.GET.get('date'):  # Only show monthly comparison when showing default monthly stats
+                try:
+                    monthly_sales_data = get_monthly_sales_with_expenses()
+                    current_month_data = None
+                    for month, data in monthly_sales_data:
+                        if month.year == today.year and month.month == today.month:
+                            current_month_data = data
+                            break
+
+                    if current_month_data:
+                        monthly_total_sales = float(current_month_data['total_sales'])
+                except Exception as e:
+                    monthly_total_sales = 0.0
+
+            # Determine the context of the stats (filtered vs default)
+            is_filtered = bool(request.GET.get('item_name') or request.GET.get('date') or
+                             request.GET.get('status') or request.GET.get('user'))
+
             stats = {
                 'total_items_dispensed': logs.count(),
                 'total_amount': total_amount,
+                'total_quantity_dispensed': float(total_quantity_dispensed),
                 'unique_items': logs.values('name').distinct().count(),
                 'top_dispensed_items': top_dispensed_items,
                 'dispensed_by_status': dispensed_by_status,
+                'monthly_total_sales': monthly_total_sales,
+                'is_filtered': is_filtered,
                 'date_range': {
                     'start': start_date.isoformat(),
-                    'end': end_date.isoformat()
+                    'end': end_date.isoformat(),
+                    'description': 'Current Month' if not request.GET.get('date') else 'Filtered Date'
+                },
+                'context': {
+                    'period': 'Current Month Total Sales' if not is_filtered else 'Filtered Results',
+                    'filters_applied': {
+                        'item_name': request.GET.get('item_name', ''),
+                        'date': request.GET.get('date', ''),
+                        'status': request.GET.get('status', ''),
+                        'user': request.GET.get('user', '') if can_view_all_users else ''
+                    }
                 }
             }
 

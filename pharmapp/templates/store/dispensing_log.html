@@ -278,33 +278,46 @@
     <div class="row mb-3">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-chart-bar mr-2"></i>Quick Statistics</h6>
+                    <small class="text-muted" id="stats-context">Current Month Total Sales</small>
                 </div>
                 <div class="card-body">
                     <div class="row" id="stats-container">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <div class="text-center">
                                 <h4 class="text-primary mb-1" id="total-items">-</h4>
-                                <small class="text-muted">Total Items Dispensed</small>
+                                <small class="text-muted">Items Dispensed</small>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <div class="text-center">
                                 <h4 class="text-success mb-1" id="total-amount">-</h4>
                                 <small class="text-muted">Total Amount</small>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
+                            <div class="text-center">
+                                <h4 class="text-warning mb-1" id="total-quantity">-</h4>
+                                <small class="text-muted">Total Quantity</small>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
                             <div class="text-center">
                                 <h4 class="text-info mb-1" id="unique-items">-</h4>
                                 <small class="text-muted">Unique Items</small>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
+                            <div class="text-center">
+                                <h4 class="text-secondary mb-1" id="monthly-sales">-</h4>
+                                <small class="text-muted">Monthly Sales</small>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
                             <div class="text-center">
                                 <button class="btn btn-outline-primary btn-sm" onclick="loadStats()">
-                                    <i class="fas fa-sync-alt"></i> Refresh Stats
+                                    <i class="fas fa-sync-alt"></i> Refresh
                                 </button>
                             </div>
                         </div>
@@ -469,20 +482,37 @@
             if (indicator) {
                 indicator.style.display = 'none';
             }
+
+            // Refresh stats after any HTMX request to ensure they match the filtered data
+            loadStats();
         });
     });
 
-    // Function to load statistics
+    // Function to load statistics based on current search parameters
     function loadStats() {
-        const dateInput = document.querySelector('input[name="date"]');
-        const dateParam = dateInput && dateInput.value ? `?date=${dateInput.value}` : '';
+        // Get all search form parameters to ensure stats match filtered data
+        const form = document.querySelector('form');
+        const formData = new FormData(form);
+        const params = new URLSearchParams();
 
-        // Show loading state
+        // Add all form parameters to the stats request
+        for (let [key, value] of formData.entries()) {
+            if (value && value.trim() !== '') {
+                params.append(key, value);
+            }
+        }
+
+        const queryString = params.toString();
+        const statsUrl = `{% url 'store:dispensing_log_stats' %}${queryString ? '?' + queryString : ''}`;
+
+        // Show loading state for all stats
         document.getElementById('total-items').textContent = '...';
         document.getElementById('total-amount').textContent = '...';
+        document.getElementById('total-quantity').textContent = '...';
         document.getElementById('unique-items').textContent = '...';
+        document.getElementById('monthly-sales').textContent = '...';
 
-        fetch(`{% url 'store:dispensing_log_stats' %}${dateParam}`)
+        fetch(statsUrl)
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -496,15 +526,43 @@
                     // Still show the data if available
                 }
 
+                // Update stats display
                 document.getElementById('total-items').textContent = data.total_items_dispensed || 0;
                 document.getElementById('total-amount').textContent = `₦${(data.total_amount || 0).toLocaleString()}`;
+                document.getElementById('total-quantity').textContent = (data.total_quantity_dispensed || 0).toLocaleString();
                 document.getElementById('unique-items').textContent = data.unique_items || 0;
+
+                // Update monthly sales (only show if available)
+                const monthlySalesElement = document.getElementById('monthly-sales');
+                if (data.monthly_total_sales && data.monthly_total_sales > 0) {
+                    monthlySalesElement.textContent = `₦${data.monthly_total_sales.toLocaleString()}`;
+                } else {
+                    monthlySalesElement.textContent = '-';
+                }
+
+                // Update context indicator
+                const contextElement = document.getElementById('stats-context');
+                if (data.context && data.context.period) {
+                    contextElement.textContent = data.context.period;
+
+                    // Change color based on whether filters are applied
+                    if (data.is_filtered) {
+                        contextElement.className = 'text-warning';
+                        contextElement.innerHTML = '<i class="fas fa-filter"></i> ' + data.context.period;
+                    } else {
+                        contextElement.className = 'text-muted';
+                        contextElement.textContent = data.context.period;
+                    }
+                }
             })
             .catch(error => {
                 console.error('Error loading stats:', error);
                 document.getElementById('total-items').textContent = '0';
                 document.getElementById('total-amount').textContent = '₦0';
+                document.getElementById('total-quantity').textContent = '0';
                 document.getElementById('unique-items').textContent = '0';
+                document.getElementById('monthly-sales').textContent = '-';
+                document.getElementById('stats-context').textContent = 'Error Loading Stats';
 
                 // Show user-friendly error message
                 const statsContainer = document.getElementById('stats-container');
