@@ -3231,7 +3231,6 @@ def create_stock_check(request):
         return redirect('store:index')
 
 
-@user_passes_test(is_admin)
 @login_required
 def update_stock_check(request, stock_check_id):
     if request.user.is_authenticated:
@@ -3268,7 +3267,6 @@ def update_stock_check(request, stock_check_id):
 
 
 
-@user_passes_test(is_admin)
 @login_required
 def update_stock_check(request, stock_check_id):
     if request.user.is_authenticated:
@@ -3294,7 +3292,7 @@ def update_stock_check(request, stock_check_id):
 
 
 
-@user_passes_test(is_admin)
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile and u.profile.user_type in ['Admin', 'Manager']))
 @login_required
 def approve_stock_check(request, stock_check_id):
     if request.user.is_authenticated:
@@ -3323,7 +3321,7 @@ def approve_stock_check(request, stock_check_id):
     else:
         return redirect('store:index')
 
-@user_passes_test(is_admin)
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile and u.profile.user_type in ['Admin', 'Manager']))
 @login_required
 def bulk_adjust_stock(request, stock_check_id):
     if request.user.is_authenticated:
@@ -3355,7 +3353,7 @@ def bulk_adjust_stock(request, stock_check_id):
         return redirect('store:index')
 
 
-@user_passes_test(is_admin)
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile and u.profile.user_type in ['Admin', 'Manager']))
 @login_required
 def adjust_stock(request, stock_item_id):
     """Handle individual stock check item adjustments"""
@@ -3402,7 +3400,6 @@ def adjust_stock(request, stock_item_id):
     return render(request, 'store/adjust_stock.html', {'stock_item': stock_item})
 
 
-@user_passes_test(is_admin)
 @login_required
 def stock_check_report(request, stock_check_id):
     stock_check = get_object_or_404(StockCheck, id=stock_check_id)
@@ -3423,7 +3420,6 @@ def stock_check_report(request, stock_check_id):
     return render(request, 'store/stock_check_report.html', context)
 
 
-@user_passes_test(is_admin)
 @login_required
 def list_stock_checks(request):
     # Get all StockCheck objects ordered by date (newest first)
@@ -4280,7 +4276,6 @@ def my_dispensing_details(request):
     return user_dispensing_details(request, user_id=request.user.id)
 
 
-@user_passes_test(is_admin)
 @login_required
 def add_items_to_stock_check(request, stock_check_id):
     """Add more items to an existing stock check"""

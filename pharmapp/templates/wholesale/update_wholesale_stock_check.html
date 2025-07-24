@@ -1,4 +1,5 @@
 {% extends "partials/base.html" %}
+{% load permission_tags %}
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -78,8 +79,10 @@
                 </div>
                 <div class="btn-toolbar mt-3">
                     <button class="btn btn-primary" type="submit">Update Quantities</button>
+                    {% if user|can_approve_stock_check %}
                     <button class="btn btn-success mx-1" type="button" onclick="approveSelected()">Approve Selected</button>
                     <button class="btn btn-warning" type="button" onclick="adjustSelected()">Adjust Selected</button>
+                    {% endif %}
                 </div>
             </form>
         </div>

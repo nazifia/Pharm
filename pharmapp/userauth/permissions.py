@@ -106,6 +106,10 @@ def can_perform_stock_check(user):
     """Check if user can perform stock checks"""
     return user.is_authenticated
 
+def can_approve_stock_check(user):
+    """Check if user can approve and adjust stock checks"""
+    return user.is_authenticated and (user.is_superuser or (hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager']))
+
 def can_view_financial_reports(user):
     """Check if user can view financial reports"""
     return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']

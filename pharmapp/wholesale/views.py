@@ -2310,7 +2310,6 @@ def wholesale_customers_on_negative(request):
         return redirect('store:index')
 
 
-@user_passes_test(is_admin)
 @login_required
 def add_items_to_wholesale_stock_check(request, stock_check_id):
     """Add more items to an existing wholesale stock check"""
@@ -2591,7 +2590,6 @@ def wholesale_procurement_detail(request, procurement_id):
 
 
 
-@user_passes_test(is_admin)
 @login_required
 def create_wholesale_stock_check(request):
     if request.user.is_authenticated:
@@ -2640,7 +2638,6 @@ def create_wholesale_stock_check(request):
         return redirect('store:index')
 
 
-@user_passes_test(is_admin)
 @login_required
 def update_wholesale_stock_check(request, stock_check_id):
     if request.user.is_authenticated:
@@ -2701,29 +2698,7 @@ def update_wholesale_stock_check(request, stock_check_id):
 #         return redirect('store:index')
 
 
-@user_passes_test(is_admin)
-@login_required
-def update_wholesale_stock_check(request, stock_check_id):
-    if request.user.is_authenticated:
-        stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
-        # if stock_check.status == 'completed':
-        #     return redirect('store:stock_check_report', stock_check.id)
-
-        if request.method == "POST":
-            stock_items = []
-            for item_id, actual_qty in request.POST.items():
-                if item_id.startswith("item_"):
-                    item_id = int(item_id.replace("item_", ""))
-                    stock_item = WholesaleStockCheckItem.objects.get(stock_check=stock_check, item_id=item_id)
-                    stock_item.actual_quantity = int(actual_qty)
-                    stock_items.append(stock_item)
-            WholesaleStockCheckItem.objects.bulk_update(stock_items, ['actual_quantity'])
-            messages.success(request, "Stock check updated successfully.")
-            return redirect('wholesale:update_wholesale_stock_check', stock_check.id)
-
-        return render(request, 'wholesale/update_wholesale_stock_check.html', {'stock_check': stock_check})
-    else:
-        return redirect('store:index')
+# Duplicate function removed - using the main update_wholesale_stock_check function above
 
 
 # @user_passes_test(is_admin)
@@ -2757,7 +2732,7 @@ def update_wholesale_stock_check(request, stock_check_id):
 
 
 
-@user_passes_test(is_admin)
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile and u.profile.user_type in ['Admin', 'Manager']))
 @login_required
 def approve_wholesale_stock_check(request, stock_check_id):
     if request.user.is_authenticated:
@@ -2820,7 +2795,7 @@ def approve_wholesale_stock_check(request, stock_check_id):
 #         return redirect('store:index')
 
 
-@user_passes_test(is_admin)
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile and u.profile.user_type in ['Admin', 'Manager']))
 @login_required
 def wholesale_bulk_adjust_stock(request, stock_check_id):
     if request.user.is_authenticated:
@@ -2848,7 +2823,7 @@ def wholesale_bulk_adjust_stock(request, stock_check_id):
             return redirect('wholesale:wholesales')
 
 
-@user_passes_test(is_admin)
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile and u.profile.user_type in ['Admin', 'Manager']))
 @login_required
 def adjust_wholesale_stock(request, stock_item_id):
     """Handle individual wholesale stock check item adjustments"""
@@ -2906,7 +2881,6 @@ def adjust_wholesale_stock(request, stock_item_id):
 #         return redirect('store:index')
 
 
-@user_passes_test(is_admin)
 @login_required
 def wholesale_stock_check_report(request, stock_check_id):
     stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
@@ -2928,7 +2902,6 @@ def wholesale_stock_check_report(request, stock_check_id):
 
 
 
-@user_passes_test(is_admin)
 @login_required
 def list_wholesale_stock_checks(request):
     # Get all StockCheck objects ordered by date (newest first)

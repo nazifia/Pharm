@@ -25,10 +25,24 @@ def is_admin(user):
     """
     if not user or not user.is_authenticated:
         return False
-    
-    return (hasattr(user, 'profile') and 
-            user.profile and 
+
+    return (hasattr(user, 'profile') and
+            user.profile and
             user.profile.user_type == 'Admin') or user.is_superuser
+
+@register.filter
+def can_approve_stock_check(user):
+    """
+    Template filter to check if a user can approve stock checks.
+    Usage: {% if user|can_approve_stock_check %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (user.is_superuser or
+            (hasattr(user, 'profile') and
+             user.profile and
+             user.profile.user_type in ['Admin', 'Manager']))
 
 
 @register.filter
