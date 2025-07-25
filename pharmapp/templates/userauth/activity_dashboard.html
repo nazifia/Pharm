@@ -21,7 +21,7 @@
         <div class="col-md-4">
             <div class="card bg-success text-white mb-3">
                 <div class="card-body text-center">
-                    <h5 class="card-title">Today's Activities</h5>
+                    <h5 class="card-title">{{ filtered_date_label }}</h5>
                     <h2 class="display-4">{{ today_logs }}</h2>
                 </div>
             </div>
@@ -29,7 +29,13 @@
         <div class="col-md-4">
             <div class="card bg-info text-white mb-3">
                 <div class="card-body text-center">
-                    <h5 class="card-title">Active Users</h5>
+                    <h5 class="card-title">
+                        {% if has_date_filter %}
+                            Users in Results
+                        {% else %}
+                            Active Users (7 days)
+                        {% endif %}
+                    </h5>
                     <h2 class="display-4">{{ active_users }}</h2>
                 </div>
             </div>
@@ -45,6 +51,78 @@
             <a href="{% url 'admin:userauth_activitylog_changelist' %}" class="btn btn-outline-secondary ml-2">
                 <i class="fa fa-cog"></i> Admin View
             </a>
+        </div>
+    </div>
+
+    <!-- Enhanced Search and Filter Section -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-search mr-2"></i>Search & Filter Activity Logs</h6>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="{% url 'userauth:activity_dashboard' %}">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="{{ search_form.search_query.id_for_label }}" class="form-label">
+                                    <i class="fas fa-search mr-1"></i>{{ search_form.search_query.label }}
+                                </label>
+                                {{ search_form.search_query }}
+                                <small class="form-text text-muted">Search by action or username</small>
+                            </div>
+                            {% if can_view_all_users %}
+                            <div class="col-md-2">
+                                <label for="{{ search_form.user.id_for_label }}" class="form-label">
+                                    <i class="fas fa-user mr-1"></i>{{ search_form.user.label }}
+                                </label>
+                                {{ search_form.user }}
+                            </div>
+                            {% endif %}
+                            <div class="col-md-2">
+                                <label for="{{ search_form.date.id_for_label }}" class="form-label">
+                                    <i class="fas fa-calendar mr-1"></i>{{ search_form.date.label }}
+                                </label>
+                                {{ search_form.date }}
+                                <small class="form-text text-muted">Single date filter</small>
+                            </div>
+                            <div class="col-md-2">
+                                <label for="{{ search_form.action_type.id_for_label }}" class="form-label">
+                                    <i class="fas fa-info-circle mr-1"></i>{{ search_form.action_type.label }}
+                                </label>
+                                {{ search_form.action_type }}
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary btn-sm mr-2">
+                                    <i class="fas fa-search mr-1"></i>Search
+                                </button>
+                                <a href="{% url 'userauth:activity_dashboard' %}" class="btn btn-secondary btn-sm">
+                                    <i class="fas fa-times mr-1"></i>Clear
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Date Range Section -->
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <h6 class="text-muted">Or use date range:</h6>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="{{ search_form.date_from.id_for_label }}" class="form-label">
+                                    <i class="fas fa-calendar-alt mr-1"></i>{{ search_form.date_from.label }}
+                                </label>
+                                {{ search_form.date_from }}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="{{ search_form.date_to.id_for_label }}" class="form-label">
+                                    <i class="fas fa-calendar-alt mr-1"></i>{{ search_form.date_to.label }}
+                                </label>
+                                {{ search_form.date_to }}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 

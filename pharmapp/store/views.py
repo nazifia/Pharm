@@ -392,6 +392,7 @@ def cart(request):
                 cart_item.save()
 
         # Calculate totals
+        base_total = 0
         for cart_item in cart_items:
             # Update the price field to match the item's current price
             if cart_item.price != cart_item.item.price:
@@ -402,12 +403,14 @@ def cart(request):
                 # Ensure subtotal is correctly calculated even if price hasn't changed
                 cart_item.save()  # This will recalculate subtotal with discount
 
-            # Add to total price (subtotal already includes discount)
-            total_price += cart_item.subtotal
+            # Calculate base total (before discount) and total discount
+            base_total += cart_item.price * cart_item.quantity
             total_discount += cart_item.discount_amount
 
-        final_total = total_price - total_discount
-        total_discounted_price = total_price - total_discount
+        # Calculate final totals
+        total_price = base_total  # Total before discount
+        total_discounted_price = base_total - total_discount  # Total after discount
+        final_total = total_discounted_price
 
         # Get customer from user-specific session if it exists
         from userauth.session_utils import get_user_customer_id
@@ -507,6 +510,7 @@ def view_cart(request):
                 cart_item.save()
 
         # Calculate totals
+        base_total = 0
         for cart_item in cart_items:
             # Update the price field to match the item's current price
             if cart_item.price != cart_item.item.price:
@@ -517,13 +521,14 @@ def view_cart(request):
                 # Ensure subtotal is correctly calculated even if price hasn't changed
                 cart_item.save()  # This will recalculate subtotal with discount
 
-            # Add to total price (subtotal already includes discount)
-            total_price += cart_item.subtotal
+            # Calculate base total (before discount) and total discount
+            base_total += cart_item.price * cart_item.quantity
             total_discount += cart_item.discount_amount
 
-
-        final_total = total_price - total_discount
-        total_discounted_price = total_price - total_discount
+        # Calculate final totals
+        total_price = base_total  # Total before discount
+        total_discounted_price = base_total - total_discount  # Total after discount
+        final_total = total_discounted_price
 
         # Get customer from user-specific session if it exists
         from userauth.session_utils import get_user_customer_id

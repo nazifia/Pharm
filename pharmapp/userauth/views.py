@@ -12,6 +12,7 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+from django.db import models
 import random
 import json
 from .permissions import role_required
@@ -117,30 +118,128 @@ def generate_test_logs(request):
 
 @login_required
 def activity_dashboard(request):
-    """View for the activity log dashboard"""
+    """View for the activity log dashboard with search functionality"""
     # Check if user has permission to view activity logs
     if not request.user.has_permission('view_activity_logs'):
         messages.error(request, 'You do not have permission to view activity logs.')
         return redirect('store:index')
-    # Get statistics
-    total_logs = ActivityLog.objects.count()
 
-    # Today's logs
+    from .forms import ActivityLogSearchForm
+    from utils.date_utils import filter_queryset_by_date, filter_queryset_by_date_range
+
+    # Permission check: Admins can see all users, others can only see their own data
+    can_view_all_users = request.user.profile.user_type in ['Admin']
+
+    # Get base queryset based on permissions
+    if can_view_all_users:
+        logs = ActivityLog.objects.select_related('user').all()
+        user_queryset = User.objects.all()
+    else:
+        # Regular users can only see their own activity logs
+        logs = ActivityLog.objects.select_related('user').filter(user=request.user)
+        user_queryset = User.objects.filter(id=request.user.id)
+
+    # Initialize search form with user queryset
+    search_form = ActivityLogSearchForm(request.GET, user_queryset=user_queryset)
+
+    # Apply filters based on search parameters
+    if search_form.is_valid():
+        # Filter by search query (action or username)
+        search_query = search_form.cleaned_data.get('search_query')
+        if search_query:
+            logs = logs.filter(
+                models.Q(action__icontains=search_query) |
+                models.Q(user__username__icontains=search_query) |
+                models.Q(user__full_name__icontains=search_query)
+            )
+
+        # Filter by date - prioritize single date over date range
+        date_filter = search_form.cleaned_data.get('date')
+        date_from = search_form.cleaned_data.get('date_from')
+        date_to = search_form.cleaned_data.get('date_to')
+
+        if date_filter:
+            # Single date filter takes priority
+            logs = logs.filter(timestamp__date=date_filter)
+        elif date_from or date_to:
+            # Use date range if no single date is specified
+            if date_from:
+                logs = logs.filter(timestamp__date__gte=date_from)
+            if date_to:
+                logs = logs.filter(timestamp__date__lte=date_to)
+
+        # Filter by action type
+        action_type_filter = search_form.cleaned_data.get('action_type')
+        if action_type_filter:
+            logs = logs.filter(action_type=action_type_filter)
+
+        # Filter by user (only for admins)
+        user_filter = search_form.cleaned_data.get('user')
+        if user_filter:
+            if can_view_all_users:
+                logs = logs.filter(user=user_filter)
+
+    # Order by most recent first
+    logs = logs.order_by('-timestamp')
+
+    # Get statistics (based on filtered logs)
+    total_logs = logs.count()
+
+    # Calculate meaningful statistics based on search criteria
     today = timezone.now().date()
-    today_logs = ActivityLog.objects.filter(timestamp__date=today).count()
 
-    # Active users (users with activity in the last 7 days)
-    last_week = today - timezone.timedelta(days=7)
-    active_users = User.objects.filter(activities__timestamp__gte=last_week).distinct().count()
+    # Check if we have date filters applied
+    has_date_filter = False
+    filtered_date_label = "Today's Activities"
 
-    # Recent logs (last 50)
-    recent_logs = ActivityLog.objects.select_related('user').order_by('-timestamp')[:50]
+    if search_form.is_valid():
+        date_filter = search_form.cleaned_data.get('date')
+        date_from = search_form.cleaned_data.get('date_from')
+        date_to = search_form.cleaned_data.get('date_to')
+
+        if date_filter:
+            # Single date filter - show activities for that specific date
+            today_logs = logs.filter(timestamp__date=date_filter).count()
+            filtered_date_label = f"Activities on {date_filter.strftime('%Y-%m-%d')}"
+            has_date_filter = True
+        elif date_from or date_to:
+            # Date range filter - show total activities in the range
+            today_logs = logs.count()  # All logs in the filtered range
+            if date_from and date_to:
+                filtered_date_label = f"Activities from {date_from.strftime('%Y-%m-%d')} to {date_to.strftime('%Y-%m-%d')}"
+            elif date_from:
+                filtered_date_label = f"Activities from {date_from.strftime('%Y-%m-%d')} onwards"
+            elif date_to:
+                filtered_date_label = f"Activities up to {date_to.strftime('%Y-%m-%d')}"
+            has_date_filter = True
+        else:
+            # No date filter - show today's activities from all logs
+            today_logs = logs.filter(timestamp__date=today).count()
+    else:
+        # Form not valid or no filters - show today's activities
+        today_logs = logs.filter(timestamp__date=today).count()
+
+    # Active users calculation
+    if has_date_filter:
+        # If date filter is applied, count unique users in the filtered results
+        active_users = logs.values('user').distinct().count()
+    else:
+        # No date filter - show users active in the last 7 days
+        last_week = today - timezone.timedelta(days=7)
+        active_users = logs.filter(timestamp__gte=last_week).values('user').distinct().count()
+
+    # Limit to 50 most recent for display
+    recent_logs = logs[:50]
 
     context = {
         'total_logs': total_logs,
         'today_logs': today_logs,
         'active_users': active_users,
         'recent_logs': recent_logs,
+        'search_form': search_form,
+        'can_view_all_users': can_view_all_users,
+        'filtered_date_label': filtered_date_label,
+        'has_date_filter': has_date_filter,
     }
 
     return render(request, 'userauth/activity_dashboard.html', context)

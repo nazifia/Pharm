@@ -1,5 +1,5 @@
 from django import forms
-from . models import User, Profile
+from . models import User, Profile, ActivityLog
 from django.contrib.auth.forms import UserCreationForm
 
 USER_TYPE = (
@@ -179,3 +179,68 @@ class UserSearchForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-control'}),
         required=False
     )
+
+
+class ActivityLogSearchForm(forms.Form):
+    """Form for searching and filtering activity logs"""
+    search_query = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Search by action or username...',
+            'autocomplete': 'off'
+        }),
+        label='Search'
+    )
+    date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date',
+            'style': 'background-color: rgb(196, 253, 253);'
+        }),
+        label='Date'
+    )
+    date_from = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date',
+            'style': 'background-color: rgb(196, 253, 253);'
+        }),
+        label='From Date'
+    )
+    date_to = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date',
+            'style': 'background-color: rgb(196, 253, 253);'
+        }),
+        label='To Date'
+    )
+    action_type = forms.ChoiceField(
+        choices=[('', 'All Action Types')] + ActivityLog.ACTION_TYPES,
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-control'
+        }),
+        label='Action Type'
+    )
+    user = forms.ModelChoiceField(
+        queryset=User.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-control'
+        }),
+        label='User',
+        empty_label='All Users'
+    )
+
+    def __init__(self, *args, **kwargs):
+        user_queryset = kwargs.pop('user_queryset', None)
+        super().__init__(*args, **kwargs)
+
+        if user_queryset is not None:
+            self.fields['user'].queryset = user_queryset
