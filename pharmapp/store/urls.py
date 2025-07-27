@@ -63,6 +63,7 @@ urlpatterns = [
     path('stock-check/<int:stock_check_id>/approve/', views.approve_stock_check, name='approve_stock_check'),
     path('stock-check/<int:stock_check_id>/bulk-adjust/', views.bulk_adjust_stock, name='bulk_adjust_stock'),
     path('list/', views.list_stock_checks, name='list_stock_checks'),
+    path('delete/<int:stock_check_id>/', views.delete_stock_check, name='delete_stock_check'),
     path('adjust-stock/<int:stock_item_id>/', views.adjust_stock, name='adjust_stock'),
     path('search-items/', views.search_items, name='search_items'),
     path('search-store-items/', views.search_store_items, name='search_store_items'),
@@ -85,6 +86,9 @@ urlpatterns = [
     path('monthly-sales-deduction/', views.monthly_sales_with_deduction, name='monthly_sales_deduction'),
     path('expense-category/form/', views.add_expense_category_form, name='add_expense_category_form'),
     path('expense-category/add/', views.add_expense_category, name='add_expense_category'),
+    path('expense-category/edit/<int:category_id>/', views.edit_expense_category_form, name='edit_expense_category_form'),
+    path('expense-category/update/<int:category_id>/', views.update_expense_category, name='update_expense_category'),
+    path('expense-category/delete/<int:category_id>/', views.delete_expense_category, name='delete_expense_category'),
     path('expenses/report/', views.generate_monthly_report, name='generate_monthly_report'),
 
     # Stock Adjustment URLs

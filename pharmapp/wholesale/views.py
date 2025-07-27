@@ -2928,6 +2928,30 @@ def list_wholesale_stock_checks(request):
     }
     return render(request, 'wholesale/wholesale_stock_check_list.html', context)
 
+@login_required
+@require_POST
+def delete_wholesale_stock_check(request, stock_check_id):
+    """Delete a wholesale stock check report"""
+    if request.user.is_authenticated:
+        from userauth.permissions import can_manage_inventory
+        if not can_manage_inventory(request.user):
+            messages.error(request, 'You do not have permission to delete wholesale stock check reports.')
+            return redirect('wholesale:list_wholesale_stock_checks')
+
+        stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
+
+        # Check if stock check can be deleted (only pending or in_progress)
+        if stock_check.status == 'completed':
+            messages.error(request, 'Cannot delete completed wholesale stock check reports.')
+            return redirect('wholesale:list_wholesale_stock_checks')
+
+        stock_check_id_display = stock_check.id
+        stock_check.delete()
+        messages.success(request, f'Wholesale stock check report #{stock_check_id_display} deleted successfully.')
+        return redirect('wholesale:list_wholesale_stock_checks')
+    else:
+        return redirect('store:index')
+
 
 
 

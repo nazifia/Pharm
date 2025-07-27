@@ -24,9 +24,16 @@
         <td>{{ stock_check.created_by.username }}</td>
         <td>{{ stock_check.total_discrepancy }}</td>
         <td>
-          <a href="{% url 'store:stock_check_report' stock_check_id=stock_check.id %}">
+          <a href="{% url 'store:stock_check_report' stock_check_id=stock_check.id %}" class="btn btn-info btn-sm">
             View Report
           </a>
+          {% if stock_check.status != 'completed' %}
+          <form method="post" action="{% url 'store:delete_stock_check' stock_check_id=stock_check.id %}" style="display: inline;"
+                onsubmit="return confirm('Are you sure you want to delete this stock check report? This action cannot be undone.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+          {% endif %}
         </td>
       </tr>
       {% empty %}

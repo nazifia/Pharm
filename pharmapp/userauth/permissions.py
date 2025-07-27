@@ -110,6 +110,38 @@ def can_manage_expenses(user):
     """Check if user can edit and delete expenses"""
     return user.is_authenticated and (user.is_superuser or (hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager']))
 
+def can_add_expense_categories(user):
+    """Check if user can add expense categories - allows all authenticated users"""
+    if not user.is_authenticated:
+        return False
+
+    # Allow superusers regardless of profile
+    if user.is_superuser:
+        return True
+
+    # Ensure user has a profile
+    if not hasattr(user, 'profile') or not user.profile:
+        # Create a default profile for users without one
+        from userauth.models import Profile
+        Profile.objects.get_or_create(user=user, defaults={
+            'full_name': user.username or user.mobile,
+            'user_type': 'Salesperson'  # Default role
+        })
+        # Refresh the user object to get the new profile
+        user.refresh_from_db()
+
+    # Ensure user_type is set
+    if not user.profile.user_type:
+        user.profile.user_type = 'Salesperson'
+        user.profile.save()
+
+    # Allow all authenticated users with profiles to add expense categories
+    return True
+
+def can_manage_expense_categories(user):
+    """Check if user can edit and delete expense categories"""
+    return user.is_authenticated and (user.is_superuser or (hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager']))
+
 def can_adjust_prices(user):
     """Check if user can adjust prices"""
     return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']

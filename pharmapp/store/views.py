@@ -2267,17 +2267,12 @@ def select_items(request, pk):
 @login_required
 def dispensing_log(request):
     if request.user.is_authenticated:
-        # Permission check: Superusers, Admins, and Managers can see all users, others can only see their own data
+        # Permission check: Superusers, Admins, and Managers can see all users, others can see all users' logs but with limited statistics
         can_view_all_users = can_view_all_users_dispensing(request.user)
 
-        # Get user queryset based on permissions
-        if can_view_all_users:
-            user_queryset = User.objects.filter(dispensinglog__isnull=False).distinct()
-            logs = DispensingLog.objects.all().order_by('-created_at')
-        else:
-            # Regular users can only see their own dispensing data
-            user_queryset = User.objects.filter(id=request.user.id)
-            logs = DispensingLog.objects.filter(user=request.user).order_by('-created_at')
+        # Get user queryset and logs - now all users can see all dispensing logs
+        user_queryset = User.objects.filter(dispensinglog__isnull=False).distinct()
+        logs = DispensingLog.objects.all().order_by('-created_at')
 
         # Initialize search form with user queryset
         search_form = DispensingLogSearchForm(request.GET, user_queryset=user_queryset)
@@ -2301,7 +2296,7 @@ def dispensing_log(request):
             if user_filter := search_form.cleaned_data.get('user'):
                 if can_view_all_users:
                     logs = logs.filter(user=user_filter)
-                # For regular users, this filter is ignored as they can only see their own data
+                # For regular users, this filter is ignored as they can see all data but can't filter by specific users
 
         # Check if this is an HTMX request
         if request.headers.get('HX-Request'):
@@ -2377,15 +2372,14 @@ def dispensing_log_stats(request):
                     # If date parsing fails, use current month default
                     pass
 
-            # Permission check: Superusers, Admins, and Managers can see all users, others can only see their own data
+            # Permission check: Superusers, Admins, and Managers can see all users, others can see all logs but with limited statistics
             can_view_all_users = can_view_all_users_dispensing(request.user)
 
-            # Get base queryset based on permissions
-            if can_view_all_users:
-                logs = DispensingLog.objects.all()
-            else:
-                # Regular users can only see their own dispensing data
-                logs = DispensingLog.objects.filter(user=request.user)
+            # Get base queryset - all users can see all dispensing logs
+            logs = DispensingLog.objects.all()
+
+            # For statistics calculation, regular users still get totals for the filtered date/search criteria
+            # but they see all users' dispensing logs in the list
 
             # Apply the same filters as the main dispensing log view to ensure stats match filtered data
             # Filter by item name (search by first few letters)
@@ -3511,6 +3505,30 @@ def list_stock_checks(request):
     }
     return render(request, 'store/stock_check_list.html', context)
 
+@login_required
+@require_POST
+def delete_stock_check(request, stock_check_id):
+    """Delete a stock check report"""
+    if request.user.is_authenticated:
+        from userauth.permissions import can_manage_inventory
+        if not can_manage_inventory(request.user):
+            messages.error(request, 'You do not have permission to delete stock check reports.')
+            return redirect('store:list_stock_checks')
+
+        stock_check = get_object_or_404(StockCheck, id=stock_check_id)
+
+        # Check if stock check can be deleted (only pending or in_progress)
+        if stock_check.status == 'completed':
+            messages.error(request, 'Cannot delete completed stock check reports.')
+            return redirect('store:list_stock_checks')
+
+        stock_check_id_display = stock_check.id
+        stock_check.delete()
+        messages.success(request, f'Stock check report #{stock_check_id_display} deleted successfully.')
+        return redirect('store:list_stock_checks')
+    else:
+        return redirect('store:index')
+
 
 
 
@@ -3748,7 +3766,7 @@ def generate_monthly_report(request):
 @login_required
 def expense_list(request):
     if request.user.is_authenticated:
-        from userauth.permissions import can_manage_expenses, can_add_expenses
+        from userauth.permissions import can_manage_expenses, can_add_expenses, can_add_expense_categories, can_manage_expense_categories
 
         # Allow all authenticated users to view expenses
         expenses = Expense.objects.all().order_by('-date')
@@ -3759,7 +3777,9 @@ def expense_list(request):
             'expenses': expenses,
             'expense_categories': expense_categories,
             'can_manage_expenses': can_manage_expenses(request.user),
-            'can_add_expenses': can_add_expenses(request.user)
+            'can_add_expenses': can_add_expenses(request.user),
+            'can_add_expense_categories': can_add_expense_categories(request.user),
+            'can_manage_expense_categories': can_manage_expense_categories(request.user)
         }
         return render(request, 'store/expense_list.html', context)
     else:
@@ -3958,8 +3978,8 @@ def delete_expense(request, expense_id):
 
 @login_required
 def add_expense_category_form(request):
-    from userauth.permissions import can_add_expenses
-    if not can_add_expenses(request.user):
+    from userauth.permissions import can_add_expense_categories
+    if not can_add_expense_categories(request.user):
         messages.error(request, 'You do not have permission to add expense categories.')
         return redirect('store:index')
     """Return the modal form for adding an expense category."""
@@ -3968,8 +3988,8 @@ def add_expense_category_form(request):
 
 @login_required
 def add_expense_category(request):
-    from userauth.permissions import can_add_expenses
-    if not can_add_expenses(request.user):
+    from userauth.permissions import can_add_expense_categories, can_manage_expense_categories
+    if not can_add_expense_categories(request.user):
         messages.error(request, 'You do not have permission to add expense categories.')
         return redirect('store:index')
     """Handle expense category form submission."""
@@ -3977,14 +3997,71 @@ def add_expense_category(request):
         form = ExpenseCategoryForm(request.POST)
         if form.is_valid():
             form.save()
-            # Optionally, get all categories to update a list on the page
+            # Get all categories to update the list on the page
             categories = ExpenseCategory.objects.all().order_by('name')
-            return render(request, 'partials/_expense_category_list.html', {'categories': categories})
+            context = {
+                'categories': categories,
+                'can_manage_expense_categories': can_manage_expense_categories(request.user)
+            }
+            return render(request, 'partials/_expense_category_list.html', context)
         else:
             return render(request, 'partials/_expense_category_form.html', {'form': form})
     else:
         form = ExpenseCategoryForm()
     return render(request, 'partials/_expense_category_form.html', {'form': form})
+
+@login_required
+def edit_expense_category_form(request, category_id):
+    from userauth.permissions import can_manage_expense_categories
+    if not can_manage_expense_categories(request.user):
+        messages.error(request, 'You do not have permission to edit expense categories.')
+        return redirect('store:index')
+    """Return the modal form for editing an expense category."""
+    category = get_object_or_404(ExpenseCategory, id=category_id)
+    form = ExpenseCategoryForm(instance=category)
+    return render(request, 'partials/_expense_category_form.html', {'form': form, 'category_id': category.id})
+
+@login_required
+@require_POST
+def update_expense_category(request, category_id):
+    from userauth.permissions import can_manage_expense_categories
+    if not can_manage_expense_categories(request.user):
+        messages.error(request, 'You do not have permission to update expense categories.')
+        return redirect('store:index')
+    """Handle updating an expense category."""
+    category = get_object_or_404(ExpenseCategory, id=category_id)
+    form = ExpenseCategoryForm(request.POST, instance=category)
+    if form.is_valid():
+        form.save()
+        categories = ExpenseCategory.objects.all().order_by('name')  # Refresh list
+        context = {
+            'categories': categories,
+            'can_manage_expense_categories': can_manage_expense_categories(request.user)
+        }
+        return render(request, 'partials/_expense_category_list.html', context)
+    return JsonResponse({'error': form.errors}, status=400)
+
+@login_required
+@require_POST
+def delete_expense_category(request, category_id):
+    from userauth.permissions import can_manage_expense_categories
+    if not can_manage_expense_categories(request.user):
+        messages.error(request, 'You do not have permission to delete expense categories.')
+        return redirect('store:index')
+    """Handle deleting an expense category."""
+    category = get_object_or_404(ExpenseCategory, id=category_id)
+
+    # Check if category is being used by any expenses
+    if category.expense_set.exists():
+        return JsonResponse({'error': 'Cannot delete category that is being used by expenses.'}, status=400)
+
+    category.delete()
+    categories = ExpenseCategory.objects.all().order_by('name')  # Refresh list
+    context = {
+        'categories': categories,
+        'can_manage_expense_categories': can_manage_expense_categories(request.user)
+    }
+    return render(request, 'partials/_expense_category_list.html', context)
 
 @require_http_methods(["POST"])
 @user_passes_test(lambda u: u.is_superuser)
@@ -4205,16 +4282,13 @@ def user_dispensing_summary(request):
         date_to = request.GET.get('date_to')
         user_filter = request.GET.get('user_id')
 
-        # Permission check: Superusers, Admins, and Managers can see all users, others can only see their own data
+        # Permission check: Superusers, Admins, and Managers can see all users, others can see all logs but with limited filtering
         can_view_all_users = can_view_all_users_dispensing(request.user)
 
-        # Start with dispensing logs based on permissions
-        if can_view_all_users:
-            logs = DispensingLog.objects.all()
-        else:
-            # Regular users can only see their own dispensing data
-            logs = DispensingLog.objects.filter(user=request.user)
-            user_filter = str(request.user.id)  # Force filter to current user
+        # Start with all dispensing logs - all users can see all data
+        logs = DispensingLog.objects.all()
+
+        # For regular users, they can't filter by specific users (user_filter is ignored for them)
 
         # Apply filters using date utilities
         from utils.date_utils import filter_queryset_by_date_range
@@ -4294,7 +4368,7 @@ def user_dispensing_details(request, user_id=None):
         date_to = request.GET.get('date_to')
         status_filter = request.GET.get('status')
 
-        # Permission check: Superusers, Admins, and Managers can see all users, others can only see their own data
+        # Permission check: Superusers, Admins, and Managers can see all users, others can see all logs but with limited filtering
         can_view_all_users = can_view_all_users_dispensing(request.user)
 
         # Get the specific user if user_id is provided
@@ -4313,12 +4387,8 @@ def user_dispensing_details(request, user_id=None):
             # If regular user doesn't specify user_id, show their own data
             target_user = request.user
 
-        # Start with dispensing logs based on permissions
-        if can_view_all_users:
-            logs = DispensingLog.objects.select_related('user').all()
-        else:
-            # Regular users can only see their own dispensing data
-            logs = DispensingLog.objects.select_related('user').filter(user=request.user)
+        # Start with all dispensing logs - all users can see all data
+        logs = DispensingLog.objects.select_related('user').all()
 
         # Filter by user if specified
         if target_user:
@@ -4339,8 +4409,8 @@ def user_dispensing_details(request, user_id=None):
         if can_view_all_users:
             all_users = User.objects.filter(dispensinglog__isnull=False).distinct()
         else:
-            # Regular users only see themselves in the dropdown
-            all_users = User.objects.filter(id=request.user.id)
+            # Regular users can see all users but can't filter by them (dropdown is disabled)
+            all_users = User.objects.filter(dispensinglog__isnull=False).distinct()
 
         # Get status choices for filter
         status_choices = [

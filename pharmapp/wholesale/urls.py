@@ -55,6 +55,7 @@ urlpatterns = [
     path('stock-check/<int:stock_check_id>/wholesale-approve/', views.approve_wholesale_stock_check, name='approve_wholesale_stock_check'),
     path('stock-check/<int:stock_check_id>/wholesale-bulk-adjust/', views.wholesale_bulk_adjust_stock, name='wholesale_bulk_adjust_stock'),
     path('wholesale_list/', views.list_wholesale_stock_checks, name='list_wholesale_stock_checks'),
+    path('delete-wholesale-stock-check/<int:stock_check_id>/', views.delete_wholesale_stock_check, name='delete_wholesale_stock_check'),
     path('adjust-wholesale-stock/<int:stock_item_id>/', views.adjust_wholesale_stock, name='adjust_wholesale_stock'),
     path('search-wholesale-items/', views.search_wholesale_items, name='search_wholesale_items'),
     # Search wholesale items for procurement URL has been removed

@@ -1,5 +1,49 @@
-<form method="post" hx-post="{% url 'store:add_expense_category' %}" hx-target="#expense-category-list" hx-swap="outerHTML">
+{% if category_id %}
+<!-- Edit Expense Category Form -->
+<form method="post"
+      hx-post="{% url 'store:update_expense_category' category_id %}"
+      hx-target="#expense-category-list"
+      hx-swap="outerHTML">
     {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="btn btn-primary">Save</button>
+
+    <div class="row">
+        <div class="col-md-4">
+            <label for="id_name" class="form-label">Category Name:</label>
+        </div>
+        <div class="col-md-8">
+            {{ form.name }}
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-md-12">
+            <button type="submit" class="btn btn-primary">Update Category</button>
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        </div>
+    </div>
 </form>
+{% else %}
+<!-- Add Expense Category Form -->
+<form method="post"
+      hx-post="{% url 'store:add_expense_category' %}"
+      hx-target="#expense-category-list"
+      hx-swap="outerHTML">
+    {% csrf_token %}
+
+    <div class="row">
+        <div class="col-md-4">
+            <label for="id_name" class="form-label">Category Name:</label>
+        </div>
+        <div class="col-md-8">
+            {{ form.name }}
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-md-12">
+            <button type="submit" class="btn btn-primary">Save Category</button>
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        </div>
+    </div>
+</form>
+{% endif %}
