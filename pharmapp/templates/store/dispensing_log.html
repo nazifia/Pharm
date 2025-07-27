@@ -526,18 +526,47 @@
                     // Still show the data if available
                 }
 
-                // Update stats display
-                document.getElementById('total-items').textContent = data.total_items_dispensed || 0;
-                document.getElementById('total-amount').textContent = `₦${(data.total_amount || 0).toLocaleString()}`;
-                document.getElementById('total-quantity').textContent = (data.total_quantity_dispensed || 0).toLocaleString();
-                document.getElementById('unique-items').textContent = data.unique_items || 0;
+                // Update stats display based on user permissions
+                if (data.context && data.context.user_restricted) {
+                    // For regular users, only show total amount
+                    document.getElementById('total-items').textContent = '-';
+                    document.getElementById('total-amount').textContent = `₦${(data.total_amount || 0).toLocaleString()}`;
+                    document.getElementById('total-quantity').textContent = '-';
+                    document.getElementById('unique-items').textContent = '-';
+                    document.getElementById('monthly-sales').textContent = '-';
 
-                // Update monthly sales (only show if available)
-                const monthlySalesElement = document.getElementById('monthly-sales');
-                if (data.monthly_total_sales && data.monthly_total_sales > 0) {
-                    monthlySalesElement.textContent = `₦${data.monthly_total_sales.toLocaleString()}`;
+                    // Hide other statistics columns for regular users
+                    const statsContainer = document.getElementById('stats-container');
+                    const statColumns = statsContainer.querySelectorAll('.col-md-2');
+                    statColumns.forEach((col, index) => {
+                        if (index !== 1) { // Only show the total amount column (index 1)
+                            col.style.display = 'none';
+                        } else {
+                            col.className = 'col-md-12'; // Make total amount column full width
+                        }
+                    });
                 } else {
-                    monthlySalesElement.textContent = '-';
+                    // For privileged users, show all detailed statistics
+                    document.getElementById('total-items').textContent = data.total_items_dispensed || 0;
+                    document.getElementById('total-amount').textContent = `₦${(data.total_amount || 0).toLocaleString()}`;
+                    document.getElementById('total-quantity').textContent = (data.total_quantity_dispensed || 0).toLocaleString();
+                    document.getElementById('unique-items').textContent = data.unique_items || 0;
+
+                    // Update monthly sales (only show if available)
+                    const monthlySalesElement = document.getElementById('monthly-sales');
+                    if (data.monthly_total_sales && data.monthly_total_sales > 0) {
+                        monthlySalesElement.textContent = `₦${data.monthly_total_sales.toLocaleString()}`;
+                    } else {
+                        monthlySalesElement.textContent = '-';
+                    }
+
+                    // Show all statistics columns for privileged users
+                    const statsContainer = document.getElementById('stats-container');
+                    const statColumns = statsContainer.querySelectorAll('.col-md-2');
+                    statColumns.forEach(col => {
+                        col.style.display = 'block';
+                        col.className = 'col-md-2'; // Reset to original column width
+                    });
                 }
 
                 // Update context indicator

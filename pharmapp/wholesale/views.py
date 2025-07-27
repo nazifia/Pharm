@@ -2592,6 +2592,7 @@ def wholesale_procurement_detail(request, procurement_id):
 
 
 
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile and u.profile.user_type in ['Admin', 'Manager']))
 @login_required
 def create_wholesale_stock_check(request):
     if request.user.is_authenticated:
@@ -2644,6 +2645,15 @@ def create_wholesale_stock_check(request):
 def update_wholesale_stock_check(request, stock_check_id):
     if request.user.is_authenticated:
         stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
+
+        # Check if user can edit completed stock checks
+        can_edit_completed = request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile and request.user.profile.user_type in ['Admin', 'Manager'])
+
+        # If stock check is completed and user doesn't have permission, redirect to report
+        if stock_check.status == 'completed' and not can_edit_completed:
+            messages.info(request, "This stock check has been completed and cannot be modified.")
+            return redirect('wholesale:wholesale_stock_check_report', stock_check.id)
+
         if stock_check.status not in ['in_progress', 'completed']:
             messages.error(request, "Stock check status is invalid for updates.")
             return redirect('wholesale:wholesales')
@@ -2670,7 +2680,12 @@ def update_wholesale_stock_check(request, stock_check_id):
             messages.success(request, "Stock check updated successfully.")
             return redirect('wholesale:wholesale_stock_check_report', stock_check.id)
 
-        return render(request, 'wholesale/update_wholesale_stock_check.html', {'stock_check': stock_check})
+        # Pass permission info to template
+        context = {
+            'stock_check': stock_check,
+            'can_approve_adjust': can_edit_completed
+        }
+        return render(request, 'wholesale/update_wholesale_stock_check.html', context)
     else:
         return redirect('store:index')
 

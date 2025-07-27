@@ -153,9 +153,10 @@ class RoleBasedAccessMiddleware:
             # 'wholesale:list_wholesale_stock_checks': ['Admin', 'Manager', 'Pharm-Tech'],
 
             # Financial Management
-            'store:expense_list': ['Admin', 'Manager'],
-            'store:add_expense': ['Admin', 'Manager'],
-            'store:edit_expense': ['Admin', 'Manager'],
+            # Note: expense_list and add_expense are now accessible to all authenticated users
+            # Only edit and delete operations are restricted to Admin/Manager
+            'store:edit_expense_form': ['Admin', 'Manager'],
+            'store:update_expense': ['Admin', 'Manager'],
             'store:delete_expense': ['Admin', 'Manager'],
             'store:daily_sales': ['Admin', 'Manager'],
             'store:monthly_sales': ['Admin', 'Manager'],

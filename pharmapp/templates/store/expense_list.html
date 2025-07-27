@@ -2,18 +2,20 @@
 {% block content %}
 <h2>Expense Management</h2>
 
-<!-- Add Expense Button -->
+<!-- Add Expense Button - Show to users who can add expenses -->
+{% if can_add_expenses %}
 <a
     class="btn btn-primary btn-sm my-2" hx-get="{% url 'store:add_expense_form' %}" hx-target="#modal-body" hx-trigger="click" data-toggle="modal" data-target="#expenseModal">
     Add Expense
 </a>
 
-<!-- Add Expense Category Button -->
+<!-- Add Expense Category Button - Show to users who can add expenses -->
 <a
     class="btn btn-secondary btn-sm my-2" hx-get="{% url 'store:add_expense_category_form' %}" hx-target="#modal-body"
     hx-trigger="click" data-toggle="modal" data-target="#expenseModal">
     Add Expense Category
 </a>
+{% endif %}
 
 <a href="{% url "store:monthly_sales_deduction" %}" class="btn btn-info btn-sm my-2"> Generate Expense Summary </a>
 

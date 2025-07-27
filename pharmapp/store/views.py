@@ -2466,30 +2466,48 @@ def dispensing_log_stats(request):
             is_filtered = bool(request.GET.get('item_name') or request.GET.get('date') or
                              request.GET.get('status') or request.GET.get('user'))
 
-            stats = {
-                'total_items_dispensed': logs.count(),
-                'total_amount': total_amount,
-                'total_quantity_dispensed': float(total_quantity_dispensed),
-                'unique_items': logs.values('name').distinct().count(),
-                'top_dispensed_items': top_dispensed_items,
-                'dispensed_by_status': dispensed_by_status,
-                'monthly_total_sales': monthly_total_sales,
-                'is_filtered': is_filtered,
-                'date_range': {
-                    'start': start_date.isoformat(),
-                    'end': end_date.isoformat(),
-                    'description': 'Current Month' if not request.GET.get('date') else 'Filtered Date'
-                },
-                'context': {
-                    'period': 'Current Month Total Sales' if not is_filtered else 'Filtered Results',
-                    'filters_applied': {
-                        'item_name': request.GET.get('item_name', ''),
-                        'date': request.GET.get('date', ''),
-                        'status': request.GET.get('status', ''),
-                        'user': request.GET.get('user', '') if can_view_all_users else ''
+            # For regular users, only show daily total amount
+            if not can_view_all_users:
+                stats = {
+                    'total_amount': total_amount,
+                    'is_filtered': is_filtered,
+                    'date_range': {
+                        'start': start_date.isoformat(),
+                        'end': end_date.isoformat(),
+                        'description': 'Daily Total' if request.GET.get('date') else 'Current Month Total'
+                    },
+                    'context': {
+                        'period': 'Daily Total Sales' if request.GET.get('date') else 'Current Month Total Sales',
+                        'user_restricted': True
                     }
                 }
-            }
+            else:
+                # For privileged users, show all detailed statistics
+                stats = {
+                    'total_items_dispensed': logs.count(),
+                    'total_amount': total_amount,
+                    'total_quantity_dispensed': float(total_quantity_dispensed),
+                    'unique_items': logs.values('name').distinct().count(),
+                    'top_dispensed_items': top_dispensed_items,
+                    'dispensed_by_status': dispensed_by_status,
+                    'monthly_total_sales': monthly_total_sales,
+                    'is_filtered': is_filtered,
+                    'date_range': {
+                        'start': start_date.isoformat(),
+                        'end': end_date.isoformat(),
+                        'description': 'Current Month' if not request.GET.get('date') else 'Filtered Date'
+                    },
+                    'context': {
+                        'period': 'Current Month Total Sales' if not is_filtered else 'Filtered Results',
+                        'filters_applied': {
+                            'item_name': request.GET.get('item_name', ''),
+                            'date': request.GET.get('date', ''),
+                            'status': request.GET.get('status', ''),
+                            'user': request.GET.get('user', '') if can_view_all_users else ''
+                        },
+                        'user_restricted': False
+                    }
+                }
 
             return JsonResponse(stats, safe=False)
 
@@ -3235,7 +3253,7 @@ def transfer_multiple_store_items(request):
 import logging
 logger = logging.getLogger(__name__)
 
-# @user_passes_test(is_admin)
+@user_passes_test(lambda u: u.is_superuser or (hasattr(u, 'profile') and u.profile and u.profile.user_type in ['Admin', 'Manager']))
 @login_required
 def create_stock_check(request):
     if request.user.is_authenticated:
@@ -3324,8 +3342,14 @@ def update_stock_check(request, stock_check_id):
 def update_stock_check(request, stock_check_id):
     if request.user.is_authenticated:
         stock_check = get_object_or_404(StockCheck, id=stock_check_id)
-        # if stock_check.status == 'completed':
-        #     return redirect('store:stock_check_report', stock_check.id)
+
+        # Check if user can edit completed stock checks
+        can_edit_completed = request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile and request.user.profile.user_type in ['Admin', 'Manager'])
+
+        # If stock check is completed and user doesn't have permission, redirect to report
+        if stock_check.status == 'completed' and not can_edit_completed:
+            messages.info(request, "This stock check has been completed and cannot be modified.")
+            return redirect('store:stock_check_report', stock_check.id)
 
         if request.method == "POST":
             stock_items = []
@@ -3339,7 +3363,12 @@ def update_stock_check(request, stock_check_id):
             messages.success(request, "Stock check updated successfully.")
             return redirect('store:update_stock_check', stock_check.id)
 
-        return render(request, 'store/update_stock_check.html', {'stock_check': stock_check})
+        # Pass permission info to template
+        context = {
+            'stock_check': stock_check,
+            'can_approve_adjust': can_edit_completed
+        }
+        return render(request, 'store/update_stock_check.html', context)
     else:
         return redirect('store:index')
 
@@ -3719,16 +3748,20 @@ def generate_monthly_report(request):
 @login_required
 def expense_list(request):
     if request.user.is_authenticated:
-        from userauth.permissions import can_manage_expenses
-        if not can_manage_expenses(request.user):
-            messages.error(request, 'You do not have permission to manage expenses.')
-            return redirect('store:index')
+        from userauth.permissions import can_manage_expenses, can_add_expenses
+
+        # Allow all authenticated users to view expenses
         expenses = Expense.objects.all().order_by('-date')
         expense_categories = ExpenseCategory.objects.all().order_by('name')
-        return render(request, 'store/expense_list.html', {
+
+        # Pass permission info to template
+        context = {
             'expenses': expenses,
             'expense_categories': expense_categories,
-        })
+            'can_manage_expenses': can_manage_expenses(request.user),
+            'can_add_expenses': can_add_expenses(request.user)
+        }
+        return render(request, 'store/expense_list.html', context)
     else:
         return redirect('store:index')
 
@@ -3736,8 +3769,8 @@ def expense_list(request):
 @login_required
 def add_expense_form(request):
     if request.user.is_authenticated:
-        from userauth.permissions import can_manage_expenses
-        if not can_manage_expenses(request.user):
+        from userauth.permissions import can_add_expenses
+        if not can_add_expenses(request.user):
             messages.error(request, 'You do not have permission to add expenses.')
             return redirect('store:index')
         """Return the modal form for adding expenses."""
@@ -3750,8 +3783,8 @@ def add_expense_form(request):
 @login_required
 def add_expense(request):
     if request.user.is_authenticated:
-        from userauth.permissions import can_manage_expenses
-        if not can_manage_expenses(request.user):
+        from userauth.permissions import can_add_expenses, can_manage_expenses
+        if not can_add_expenses(request.user):
             messages.error(request, 'You do not have permission to add expenses.')
             return redirect('store:index')
         """Handle expense form submission."""
@@ -3759,7 +3792,12 @@ def add_expense(request):
             form = ExpenseForm(request.POST)
             if form.is_valid():
                 form.save()
-                return render(request, 'partials/_expense_list.html', {'expenses': Expense.objects.all()})
+                expenses = Expense.objects.all().order_by('-date')
+                context = {
+                    'expenses': expenses,
+                    'can_manage_expenses': can_manage_expenses(request.user)
+                }
+                return render(request, 'partials/_expense_list.html', context)
         else:
             form = ExpenseForm()
 
@@ -3795,7 +3833,11 @@ def update_expense(request, expense_id):
         if form.is_valid():
             form.save()
             expenses = Expense.objects.all().order_by('-date')  # Refresh list
-            return render(request, 'partials/_expense_list.html', {'expenses': expenses})
+            context = {
+                'expenses': expenses,
+                'can_manage_expenses': can_manage_expenses(request.user)
+            }
+            return render(request, 'partials/_expense_list.html', context)
         return JsonResponse({'error': form.errors}, status=400)
     else:
         return redirect('store:index')
@@ -3903,7 +3945,11 @@ def delete_expense(request, expense_id):
         expense = get_object_or_404(Expense, id=expense_id)
         expense.delete()
         expenses = Expense.objects.all().order_by('-date')  # Refresh list
-        return render(request, 'partials/_expense_list.html', {'expenses': expenses})
+        context = {
+            'expenses': expenses,
+            'can_manage_expenses': can_manage_expenses(request.user)
+        }
+        return render(request, 'partials/_expense_list.html', context)
     else:
         return redirect('store:index')
 
@@ -3912,8 +3958,8 @@ def delete_expense(request, expense_id):
 
 @login_required
 def add_expense_category_form(request):
-    from userauth.permissions import can_manage_expenses
-    if not can_manage_expenses(request.user):
+    from userauth.permissions import can_add_expenses
+    if not can_add_expenses(request.user):
         messages.error(request, 'You do not have permission to add expense categories.')
         return redirect('store:index')
     """Return the modal form for adding an expense category."""
@@ -3922,8 +3968,8 @@ def add_expense_category_form(request):
 
 @login_required
 def add_expense_category(request):
-    from userauth.permissions import can_manage_expenses
-    if not can_manage_expenses(request.user):
+    from userauth.permissions import can_add_expenses
+    if not can_add_expenses(request.user):
         messages.error(request, 'You do not have permission to add expense categories.')
         return redirect('store:index')
     """Handle expense category form submission."""

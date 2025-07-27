@@ -79,10 +79,12 @@
                 </div>
                 <div class="btn-toolbar mt-3">
                     <button class="btn btn-primary" type="submit">Update Quantities</button>
-                    {% if user|can_approve_stock_check %}
+                    {% if can_approve_adjust %}
                     <button class="btn btn-success mx-1" type="button" onclick="approveSelected()">Approve Selected</button>
                     <button class="btn btn-warning" type="button" onclick="adjustSelected()">Adjust Selected</button>
                     {% endif %}
+                    <a href="{% url 'wholesale:wholesale_stock_check_report' stock_check.id %}" class="btn btn-info mx-1">View Report</a>
+                </div>
                 </div>
             </form>
         </div>
