@@ -2547,6 +2547,21 @@ def dispensing_log_stats(request):
                 }
             else:
                 # For privileged users, show all detailed statistics
+
+                # Calculate daily total sales for privileged users (from filtered dispensing logs)
+                daily_total_sales_privileged = Decimal('0')
+                try:
+                    # Calculate total sales from dispensing logs (matching the displayed data and date range)
+                    # Use the same filtered logs that are being displayed
+                    filtered_dispensing_sales_privileged = logs.filter(
+                        status='Dispensed'  # Only count dispensed items, not returns
+                    ).aggregate(
+                        total=Sum('amount')
+                    )['total'] or Decimal('0')
+                    daily_total_sales_privileged = float(filtered_dispensing_sales_privileged)
+                except Exception as e:
+                    daily_total_sales_privileged = 0.0
+
                 stats = {
                     'total_items_dispensed': logs.count(),
                     'total_amount': total_amount,
@@ -2555,6 +2570,7 @@ def dispensing_log_stats(request):
                     'top_dispensed_items': top_dispensed_items,
                     'dispensed_by_status': dispensed_by_status,
                     'monthly_total_sales': monthly_total_sales,
+                    'daily_total_sales': daily_total_sales_privileged,  # Add daily sales for privileged users
                     'is_filtered': is_filtered,
                     'date_range': {
                         'start': start_date.isoformat(),

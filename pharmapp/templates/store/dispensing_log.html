@@ -286,7 +286,7 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-chart-bar mr-2"></i>Quick Statistics</h6>
-                    <small class="text-muted" id="stats-context">Current Month Total Sales</small>
+                    <small class="text-muted" id="stats-context">Daily Sales Total</small>
                 </div>
                 <div class="card-body">
                     <div class="row" id="stats-container">
@@ -319,6 +319,13 @@
                             <div class="text-center">
                                 <h4 class="text-secondary mb-1" id="sales-total">-</h4>
                                 <small class="text-muted" id="sales-label">Sales Total</small>
+                            </div>
+                        </div>
+                        <!-- Daily Sales for Privileged Users -->
+                        <div class="col-md-2" id="daily-sales-column" style="display: none;">
+                            <div class="text-center">
+                                <h4 class="text-success mb-1" id="daily-sales-value">-</h4>
+                                <small class="text-muted">Daily Sales</small>
                             </div>
                         </div>
                         <div class="col-md-2">
@@ -529,6 +536,12 @@
             salesElement.textContent = '...';
         }
 
+        // Handle the daily sales element for privileged users
+        const dailySalesElement = document.getElementById('daily-sales-value');
+        if (dailySalesElement) {
+            dailySalesElement.textContent = '...';
+        }
+
         fetch(statsUrl)
             .then(response => {
                 if (!response.ok) {
@@ -566,14 +579,20 @@
                         salesElement.textContent = '-';
                     }
 
+                    // Hide the daily sales column for regular users
+                    const dailySalesColumn = document.getElementById('daily-sales-column');
+                    if (dailySalesColumn) {
+                        dailySalesColumn.style.display = 'none';
+                    }
+
                     // Show visible statistics columns for regular users (Total Amount and Total Quantity remain hidden)
                     const statsContainer = document.getElementById('stats-container');
                     const statColumns = statsContainer.querySelectorAll('.col-md-2');
                     statColumns.forEach((col, index) => {
-                        // Show Items Dispensed (0), Unique Items (3), Monthly Sales (4), and Refresh button (5)
-                        // Hide Total Amount (1) and Total Quantity (2) as requested
-                        if (index === 1 || index === 2) {
-                            col.style.display = 'none'; // Keep Total Amount and Total Quantity hidden
+                        // Show Items Dispensed (0), Unique Items (3), Sales Total (4), and Refresh button (6)
+                        // Hide Total Amount (1), Total Quantity (2), and Daily Sales (5) for regular users
+                        if (index === 1 || index === 2 || index === 5) {
+                            col.style.display = 'none'; // Keep Total Amount, Total Quantity, and Daily Sales hidden
                         } else {
                             col.style.display = 'block';
                             col.className = index === 0 || index === 3 || index === 4 ? 'col-md-3' : 'col-md-3'; // Adjust column sizes
@@ -586,7 +605,7 @@
                     document.getElementById('total-quantity').textContent = '-'; // Hidden as requested
                     document.getElementById('unique-items').textContent = data.unique_items || 0;
 
-                    // Update monthly sales for privileged users (only show if available)
+                    // Update sales total (keep existing behavior)
                     const salesElement = document.getElementById('sales-total');
                     const salesLabelElement = document.getElementById('sales-label');
 
@@ -599,17 +618,35 @@
                         salesElement.textContent = '-';
                     }
 
+                    // Show and update the dedicated Daily Sales column for privileged users
+                    const dailySalesColumn = document.getElementById('daily-sales-column');
+                    const dailySalesValue = document.getElementById('daily-sales-value');
+
+                    if (dailySalesColumn && dailySalesValue) {
+                        dailySalesColumn.style.display = 'block';
+                        if (data.daily_total_sales !== undefined && data.daily_total_sales !== null) {
+                            dailySalesValue.textContent = `₦${data.daily_total_sales.toLocaleString()}`;
+                        } else {
+                            dailySalesValue.textContent = '-';
+                        }
+                    }
+
                     // Show visible statistics columns for privileged users (Total Amount and Total Quantity remain hidden)
                     const statsContainer = document.getElementById('stats-container');
                     const statColumns = statsContainer.querySelectorAll('.col-md-2');
                     statColumns.forEach((col, index) => {
-                        // Show Items Dispensed (0), Unique Items (3), Monthly Sales (4), and Refresh button (5)
+                        // Show Items Dispensed (0), Unique Items (3), Monthly Sales (4), Daily Sales (5), and Refresh button (6)
                         // Hide Total Amount (1) and Total Quantity (2) as requested
                         if (index === 1 || index === 2) {
                             col.style.display = 'none'; // Keep Total Amount and Total Quantity hidden
                         } else {
                             col.style.display = 'block';
-                            col.className = index === 0 || index === 3 || index === 4 ? 'col-md-3' : 'col-md-3'; // Adjust column sizes
+                            // Adjust column sizes to accommodate the new daily sales column
+                            if (index === 0 || index === 3 || index === 4 || index === 5) {
+                                col.className = 'col-md-2'; // Keep original size for better fit
+                            } else {
+                                col.className = 'col-md-2';
+                            }
                         }
                     });
                 }
