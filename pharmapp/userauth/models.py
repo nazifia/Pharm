@@ -11,6 +11,9 @@ USER_TYPE = [
     ('Pharmacist', 'Pharmacist'),
     ('Pharm-Tech', 'Pharm-Tech'),
     ('Salesperson', 'Salesperson'),
+    ('Wholesale Manager', 'Wholesale Manager'),
+    ('Wholesale Operator', 'Wholesale Operator'),
+    ('Wholesale Salesperson', 'Wholesale Salesperson'),
 ]
 
 # Define specific permissions for each user type
@@ -55,6 +58,29 @@ USER_PERMISSIONS = {
         'process_sales', 'view_sales_history', 'process_split_payments', 'search_items',
         # Retail-only permissions by default
         'operate_retail', 'manage_retail_customers', 'manage_retail_expiry'
+    ],
+    'Wholesale Manager': [
+        'view_financial_reports', 'manage_inventory', 'process_sales', 'view_reports',
+        'approve_procurement', 'manage_suppliers', 'manage_expenses', 'adjust_prices',
+        'process_returns', 'approve_returns', 'transfer_stock', 'view_activity_logs',
+        'manage_payment_methods', 'process_split_payments', 'override_payment_status',
+        'pause_resume_procurement', 'search_items',
+        # Wholesale-only permissions
+        'operate_wholesale', 'manage_wholesale_customers', 'manage_wholesale_procurement',
+        'manage_wholesale_stock_checks', 'manage_wholesale_expiry'
+    ],
+    'Wholesale Operator': [
+        'manage_inventory', 'process_sales', 'adjust_prices', 'process_returns',
+        'transfer_stock', 'view_sales_history', 'view_procurement_history',
+        'process_split_payments', 'search_items',
+        # Wholesale-only permissions
+        'operate_wholesale', 'manage_wholesale_customers', 'manage_wholesale_procurement',
+        'manage_wholesale_stock_checks', 'manage_wholesale_expiry'
+    ],
+    'Wholesale Salesperson': [
+        'process_sales', 'view_sales_history', 'process_split_payments', 'search_items',
+        # Wholesale-only permissions
+        'operate_wholesale', 'manage_wholesale_customers', 'manage_wholesale_expiry'
     ]
 }
 

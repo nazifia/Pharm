@@ -119,6 +119,60 @@ def wholesale_page(request):
     return render(request, 'wholesale_page.html')
 
 @login_required
+def wholesale_dashboard(request):
+    """
+    Wholesale-only dashboard for users with wholesale permissions
+    """
+    if request.user.is_authenticated:
+        from userauth.permissions import can_operate_wholesale
+        if not can_operate_wholesale(request.user):
+            messages.error(request, 'You do not have permission to access wholesale operations.')
+            return redirect('store:index')
+
+        from customer.models import WholesaleCustomer
+
+        # Get wholesale items and statistics
+        items = WholesaleItem.objects.all()
+        settings = WholesaleSettings.get_settings()
+        low_stock_threshold = settings.low_stock_threshold
+
+        # Calculate statistics
+        total_items = items.count()
+        low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
+        low_stock_count = len(low_stock_items)
+        in_stock_items = items.filter(stock__gt=0).count()
+        out_of_stock = items.filter(stock=0).count()
+
+        # Get wholesale customers count
+        total_customers = WholesaleCustomer.objects.count()
+
+        context = {
+            'total_items': total_items,
+            'low_stock_items': low_stock_items,
+            'low_stock_count': low_stock_count,
+            'in_stock_items': in_stock_items,
+            'out_of_stock': out_of_stock,
+            'total_customers': total_customers,
+            'low_stock_threshold': low_stock_threshold,
+        }
+
+        # Only include financial data if user has permission
+        if request.user.has_permission('view_financial_reports'):
+            total_purchase_value = sum(item.cost * item.stock for item in items)
+            total_stock_value = sum(item.price * item.stock for item in items)
+            total_profit = total_stock_value - total_purchase_value
+
+            context.update({
+                'total_purchase_value': total_purchase_value,
+                'total_stock_value': total_stock_value,
+                'total_profit': total_profit,
+            })
+
+        return render(request, 'wholesale/wholesale_dashboard.html', context)
+    else:
+        return redirect('store:index')
+
+@login_required
 def wholesales(request):
     if request.user.is_authenticated:
         from userauth.permissions import can_operate_wholesale

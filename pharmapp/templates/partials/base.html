@@ -140,12 +140,16 @@
                         {% if user|can_operate_wholesale %}
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Wholesale:</h6>
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_dashboard' %}">
+                            <i class="fas fa-tachometer-alt"></i> Wholesale Dashboard</a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesales' %}">
                             <i class="fas fa-warehouse"></i> Wholesale Interface</a>
                         <a class="collapse-item" href="{% url 'wholesale:add_to_wholesale' %}">
                             <i class="fas fa-plus"></i> Add Wholesale Item</a>
                         <a class="collapse-item" href="{% url 'wholesale:search_wholesale_item' %}">
                             <i class="fas fa-search"></i> Search Wholesale</a>
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_cart' %}">
+                            <i class="fas fa-shopping-cart"></i> Wholesale Cart</a>
                         {% endif %}
                     </div>
                 </div>

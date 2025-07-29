@@ -5,6 +5,7 @@ app_name = 'wholesale'
 
 urlpatterns = [
     path('wholesale_page/', views.wholesale_page, name='wholesale_page'),
+    path('wholesale_dashboard/', views.wholesale_dashboard, name='wholesale_dashboard'),
     path('wholesales/', views.wholesales, name='wholesales'),
     path('add_to_wholesale/', views.add_to_wholesale, name='add_to_wholesale'),
     path('edit_wholesale_item/<int:pk>/', views.edit_wholesale_item, name='edit_wholesale_item'),

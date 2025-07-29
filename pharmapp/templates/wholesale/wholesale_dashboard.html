@@ -1,0 +1,313 @@
+{% extends 'partials/base.html' %}
+{% load humanize %}
+{% load static %}
+{% load permission_tags %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-warehouse text-primary"></i> Wholesale Operations Dashboard
+        </h1>
+        <div class="d-none d-lg-inline-block">
+            <span class="badge badge-primary">Wholesale Only Mode</span>
+        </div>
+    </div>
+
+    <!-- Quick Stats Row -->
+    <div class="row">
+        <!-- Total Wholesale Items -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Wholesale Items</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_items|default:0 }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-boxes fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Low Stock Items -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Low Stock Items</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ low_stock_count|default:0 }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Stock Value -->
+        {% if user|has_permission:'view_financial_reports' %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Total Stock Value</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">₦{{ total_stock_value|floatformat:2|intcomma|default:0 }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Wholesale Customers -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Wholesale Customers</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_customers|default:0 }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-users fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions Row -->
+    <div class="row">
+        <div class="col-lg-12 mb-4">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-bolt"></i> Quick Actions
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Wholesale Interface -->
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'wholesale:wholesales' %}" class="btn btn-primary btn-block">
+                                <i class="fas fa-warehouse"></i><br>
+                                <small>Wholesale Interface</small>
+                            </a>
+                        </div>
+
+                        <!-- Add Wholesale Item -->
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'wholesale:add_to_wholesale' %}" class="btn btn-success btn-block">
+                                <i class="fas fa-plus"></i><br>
+                                <small>Add Wholesale Item</small>
+                            </a>
+                        </div>
+
+                        <!-- Search Wholesale -->
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'wholesale:search_wholesale_item' %}" class="btn btn-info btn-block">
+                                <i class="fas fa-search"></i><br>
+                                <small>Search Wholesale</small>
+                            </a>
+                        </div>
+
+                        <!-- Wholesale Cart -->
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'wholesale:wholesale_cart' %}" class="btn btn-warning btn-block">
+                                <i class="fas fa-shopping-cart"></i><br>
+                                <small>Wholesale Cart</small>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Wholesale Customers -->
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'wholesale:wholesale_customers' %}" class="btn btn-secondary btn-block">
+                                <i class="fas fa-users"></i><br>
+                                <small>Wholesale Customers</small>
+                            </a>
+                        </div>
+
+                        <!-- Wholesale Receipts -->
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'wholesale:wholesale_receipt_list' %}" class="btn btn-dark btn-block">
+                                <i class="fas fa-receipt"></i><br>
+                                <small>Wholesale Receipts</small>
+                            </a>
+                        </div>
+
+                        <!-- Procurement -->
+                        {% if user|has_permission:'manage_wholesale_procurement' %}
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'wholesale:wholesale_procurement_list' %}" class="btn btn-outline-primary btn-block">
+                                <i class="fas fa-truck"></i><br>
+                                <small>Procurement</small>
+                            </a>
+                        </div>
+                        {% endif %}
+
+                        <!-- Stock Check -->
+                        {% if user|has_permission:'manage_wholesale_stock_checks' %}
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'wholesale:list_wholesale_stock_checks' %}" class="btn btn-outline-warning btn-block">
+                                <i class="fas fa-clipboard-check"></i><br>
+                                <small>Stock Check</small>
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity & Low Stock Alerts -->
+    <div class="row">
+        <!-- Low Stock Alerts -->
+        {% if low_stock_items %}
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-warning">
+                        <i class="fas fa-exclamation-triangle"></i> Low Stock Alerts
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Current Stock</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in low_stock_items|slice:":5" %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ item.name }}</strong><br>
+                                        <small class="text-muted">{{ item.brand|default:"N/A" }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-warning">{{ item.stock }}</span>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'wholesale:edit_wholesale_item' item.pk %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if low_stock_items.count > 5 %}
+                    <div class="text-center">
+                        <a href="{% url 'wholesale:wholesales' %}?low_stock=1" class="btn btn-sm btn-warning">
+                            View All {{ low_stock_items.count }} Low Stock Items
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Stats -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-chart-pie"></i> Wholesale Overview
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 border-right">
+                            <div class="h5 font-weight-bold text-primary">{{ total_items|default:0 }}</div>
+                            <div class="text-xs text-uppercase text-muted">Total Items</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="h5 font-weight-bold text-success">{{ in_stock_items|default:0 }}</div>
+                            <div class="text-xs text-uppercase text-muted">In Stock</div>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row text-center">
+                        <div class="col-6 border-right">
+                            <div class="h5 font-weight-bold text-warning">{{ low_stock_count|default:0 }}</div>
+                            <div class="text-xs text-uppercase text-muted">Low Stock</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="h5 font-weight-bold text-danger">{{ out_of_stock|default:0 }}</div>
+                            <div class="text-xs text-uppercase text-muted">Out of Stock</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Section -->
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-info">
+                        <i class="fas fa-info-circle"></i> Wholesale Operations Guide
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-warehouse text-primary"></i> Inventory Management</h6>
+                            <ul class="list-unstyled">
+                                <li>• Add new wholesale items</li>
+                                <li>• Update stock levels</li>
+                                <li>• Monitor low stock alerts</li>
+                                <li>• Perform stock checks</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-users text-success"></i> Customer Management</h6>
+                            <ul class="list-unstyled">
+                                <li>• Manage wholesale customers</li>
+                                <li>• Track customer orders</li>
+                                <li>• Process bulk sales</li>
+                                <li>• Generate receipts</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-truck text-warning"></i> Procurement</h6>
+                            <ul class="list-unstyled">
+                                <li>• Create procurement requests</li>
+                                <li>• Track supplier orders</li>
+                                <li>• Manage stock transfers</li>
+                                <li>• Update pricing</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
