@@ -510,6 +510,11 @@ def delete_wholesale_item(request, pk):
 @login_required
 def wholesale_exp_alert(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_wholesale_expiry
+        if not can_manage_wholesale_expiry(request.user):
+            messages.error(request, 'You do not have permission to manage wholesale expiry dates.')
+            return redirect('store:index')
+
         alert_threshold = timezone.now() + timedelta(days=90)
 
         expiring_items = WholesaleItem.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=timezone.now())
@@ -2194,6 +2199,11 @@ def register_wholesale_customers(request):
 
 def wholesale_customers(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_wholesale_customers
+        if not can_manage_wholesale_customers(request.user):
+            messages.error(request, 'You do not have permission to manage wholesale customers.')
+            return redirect('store:index')
+
         # Check if this is a return action request
         action = request.GET.get('action')
         if action == 'return':
@@ -2923,8 +2933,14 @@ def wholesale_stock_check_report(request, stock_check_id):
 def list_wholesale_stock_checks(request):
     # Get all StockCheck objects ordered by date (newest first)
     stock_checks = WholesaleStockCheck.objects.all().order_by('-date')
+
+    # Check if user can delete stock check reports
+    from userauth.permissions import can_delete_stock_check_reports
+    can_delete_reports = can_delete_stock_check_reports(request.user)
+
     context = {
         'stock_checks': stock_checks,
+        'can_delete_reports': can_delete_reports,
     }
     return render(request, 'wholesale/wholesale_stock_check_list.html', context)
 
@@ -2933,8 +2949,8 @@ def list_wholesale_stock_checks(request):
 def delete_wholesale_stock_check(request, stock_check_id):
     """Delete a wholesale stock check report"""
     if request.user.is_authenticated:
-        from userauth.permissions import can_manage_inventory
-        if not can_manage_inventory(request.user):
+        from userauth.permissions import can_delete_stock_check_reports
+        if not can_delete_stock_check_reports(request.user):
             messages.error(request, 'You do not have permission to delete wholesale stock check reports.')
             return redirect('wholesale:list_wholesale_stock_checks')
 

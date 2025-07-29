@@ -224,7 +224,7 @@
                     <form method="GET"
                           hx-get="{% url 'store:dispensing_log' %}"
                           hx-target="#logsTable"
-                          hx-trigger="input delay:500ms from:input[name='item_name'], change from:input[name='date'], change from:select[name='status'], change from:select[name='user']"
+                          hx-trigger="input delay:500ms from:input[name='item_name'], change from:input[name='date_from'], change from:input[name='date_to'], change from:select[name='status'], change from:select[name='user']"
                           hx-indicator=".htmx-indicator">
                         <div class="row">
                             <div class="col-md-3">
@@ -246,10 +246,16 @@
                             </div>
                             {% endif %}
                             <div class="col-md-2">
-                                <label for="{{ search_form.date.id_for_label }}" class="form-label">
-                                    <i class="fas fa-calendar mr-1"></i>{{ search_form.date.label }}
+                                <label for="{{ search_form.date_from.id_for_label }}" class="form-label">
+                                    <i class="fas fa-calendar mr-1"></i>{{ search_form.date_from.label }}
                                 </label>
-                                {{ search_form.date }}
+                                {{ search_form.date_from }}
+                            </div>
+                            <div class="col-md-2">
+                                <label for="{{ search_form.date_to.id_for_label }}" class="form-label">
+                                    <i class="fas fa-calendar mr-1"></i>{{ search_form.date_to.label }}
+                                </label>
+                                {{ search_form.date_to }}
                             </div>
                             <div class="col-md-2">
                                 <label for="{{ search_form.status.id_for_label }}" class="form-label">
@@ -257,7 +263,7 @@
                                 </label>
                                 {{ search_form.status }}
                             </div>
-                            <div class="col-md-3 d-flex align-items-end">
+                            <div class="col-md-1 d-flex align-items-end">
                                 <button type="button" class="btn btn-secondary btn-sm w-100"
                                     hx-get="{% url 'store:dispensing_log' %}"
                                     hx-target="#logsTable"
@@ -290,13 +296,14 @@
                                 <small class="text-muted">Items Dispensed</small>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <!-- Total Amount and Total Quantity removed as requested -->
+                        <div class="col-md-2" style="display: none;">
                             <div class="text-center">
                                 <h4 class="text-success mb-1" id="total-amount">-</h4>
                                 <small class="text-muted">Total Amount</small>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-2" style="display: none;">
                             <div class="text-center">
                                 <h4 class="text-warning mb-1" id="total-quantity">-</h4>
                                 <small class="text-muted">Total Quantity</small>
@@ -310,8 +317,8 @@
                         </div>
                         <div class="col-md-2">
                             <div class="text-center">
-                                <h4 class="text-secondary mb-1" id="monthly-sales">-</h4>
-                                <small class="text-muted">Monthly Sales</small>
+                                <h4 class="text-secondary mb-1" id="sales-total">-</h4>
+                                <small class="text-muted" id="sales-label">Sales Total</small>
                             </div>
                         </div>
                         <div class="col-md-2">
@@ -365,15 +372,17 @@
     // JavaScript to handle the clear filter button and autocomplete
     document.addEventListener('DOMContentLoaded', function() {
         const clearFilterBtn = document.querySelector('button[hx-trigger="click"]');
-        const searchDateInput = document.getElementById('searchDate');
+        const dateFromInput = document.querySelector('input[name="date_from"]');
+        const dateToInput = document.querySelector('input[name="date_to"]');
         const itemNameInput = document.querySelector('input[name="item_name"]');
         const suggestionsContainer = document.getElementById('autocomplete-suggestions');
         let selectedIndex = -1;
 
-        if (clearFilterBtn && searchDateInput) {
+        if (clearFilterBtn) {
             clearFilterBtn.addEventListener('click', function() {
-                // Clear the date input
-                searchDateInput.value = '';
+                // Clear the date range inputs
+                if (dateFromInput) dateFromInput.value = '';
+                if (dateToInput) dateToInput.value = '';
             });
         }
 
@@ -490,6 +499,8 @@
 
     // Function to load statistics based on current search parameters
     function loadStats() {
+
+
         // Get all search form parameters to ensure stats match filtered data
         const form = document.querySelector('form');
         const formData = new FormData(form);
@@ -505,12 +516,18 @@
         const queryString = params.toString();
         const statsUrl = `{% url 'store:dispensing_log_stats' %}${queryString ? '?' + queryString : ''}`;
 
+
         // Show loading state for all stats
         document.getElementById('total-items').textContent = '...';
         document.getElementById('total-amount').textContent = '...';
         document.getElementById('total-quantity').textContent = '...';
         document.getElementById('unique-items').textContent = '...';
-        document.getElementById('monthly-sales').textContent = '...';
+
+        // Handle the new sales-total element
+        const salesElement = document.getElementById('sales-total');
+        if (salesElement) {
+            salesElement.textContent = '...';
+        }
 
         fetch(statsUrl)
             .then(response => {
@@ -521,6 +538,8 @@
             })
             .then(data => {
                 // Handle successful response
+
+
                 if (data.error) {
                     console.warn('Stats API returned error:', data.error);
                     // Still show the data if available
@@ -528,44 +547,70 @@
 
                 // Update stats display based on user permissions
                 if (data.context && data.context.user_restricted) {
-                    // For regular users, only show total amount
-                    document.getElementById('total-items').textContent = '-';
-                    document.getElementById('total-amount').textContent = `₦${(data.total_amount || 0).toLocaleString()}`;
-                    document.getElementById('total-quantity').textContent = '-';
-                    document.getElementById('unique-items').textContent = '-';
-                    document.getElementById('monthly-sales').textContent = '-';
+                    // For regular users, show available statistics but hide Total Amount and Total Quantity
+                    document.getElementById('total-items').textContent = data.total_items_dispensed || 0;
+                    document.getElementById('total-amount').textContent = '-'; // Hidden as requested
+                    document.getElementById('total-quantity').textContent = '-'; // Hidden as requested
+                    document.getElementById('unique-items').textContent = data.unique_items || 0;
 
-                    // Hide other statistics columns for regular users
+                    // Update daily sales for regular users (only show if available)
+                    const salesElement = document.getElementById('sales-total');
+                    const salesLabelElement = document.getElementById('sales-label');
+
+                    // Set label to "Daily Sales" for regular users
+                    salesLabelElement.textContent = 'Daily Sales';
+
+                    if (data.daily_total_sales !== undefined && data.daily_total_sales !== null) {
+                        salesElement.textContent = `₦${data.daily_total_sales.toLocaleString()}`;
+                    } else {
+                        salesElement.textContent = '-';
+                    }
+
+                    // Show visible statistics columns for regular users (Total Amount and Total Quantity remain hidden)
                     const statsContainer = document.getElementById('stats-container');
                     const statColumns = statsContainer.querySelectorAll('.col-md-2');
                     statColumns.forEach((col, index) => {
-                        if (index !== 1) { // Only show the total amount column (index 1)
-                            col.style.display = 'none';
+                        // Show Items Dispensed (0), Unique Items (3), Monthly Sales (4), and Refresh button (5)
+                        // Hide Total Amount (1) and Total Quantity (2) as requested
+                        if (index === 1 || index === 2) {
+                            col.style.display = 'none'; // Keep Total Amount and Total Quantity hidden
                         } else {
-                            col.className = 'col-md-12'; // Make total amount column full width
+                            col.style.display = 'block';
+                            col.className = index === 0 || index === 3 || index === 4 ? 'col-md-3' : 'col-md-3'; // Adjust column sizes
                         }
                     });
                 } else {
-                    // For privileged users, show all detailed statistics
+                    // For privileged users, show detailed statistics (but Total Amount and Total Quantity remain hidden)
                     document.getElementById('total-items').textContent = data.total_items_dispensed || 0;
-                    document.getElementById('total-amount').textContent = `₦${(data.total_amount || 0).toLocaleString()}`;
-                    document.getElementById('total-quantity').textContent = (data.total_quantity_dispensed || 0).toLocaleString();
+                    document.getElementById('total-amount').textContent = '-'; // Hidden as requested
+                    document.getElementById('total-quantity').textContent = '-'; // Hidden as requested
                     document.getElementById('unique-items').textContent = data.unique_items || 0;
 
-                    // Update monthly sales (only show if available)
-                    const monthlySalesElement = document.getElementById('monthly-sales');
-                    if (data.monthly_total_sales && data.monthly_total_sales > 0) {
-                        monthlySalesElement.textContent = `₦${data.monthly_total_sales.toLocaleString()}`;
+                    // Update monthly sales for privileged users (only show if available)
+                    const salesElement = document.getElementById('sales-total');
+                    const salesLabelElement = document.getElementById('sales-label');
+
+                    // Set label to "Monthly Sales" for privileged users
+                    salesLabelElement.textContent = 'Monthly Sales';
+
+                    if (data.monthly_total_sales !== undefined && data.monthly_total_sales !== null) {
+                        salesElement.textContent = `₦${data.monthly_total_sales.toLocaleString()}`;
                     } else {
-                        monthlySalesElement.textContent = '-';
+                        salesElement.textContent = '-';
                     }
 
-                    // Show all statistics columns for privileged users
+                    // Show visible statistics columns for privileged users (Total Amount and Total Quantity remain hidden)
                     const statsContainer = document.getElementById('stats-container');
                     const statColumns = statsContainer.querySelectorAll('.col-md-2');
-                    statColumns.forEach(col => {
-                        col.style.display = 'block';
-                        col.className = 'col-md-2'; // Reset to original column width
+                    statColumns.forEach((col, index) => {
+                        // Show Items Dispensed (0), Unique Items (3), Monthly Sales (4), and Refresh button (5)
+                        // Hide Total Amount (1) and Total Quantity (2) as requested
+                        if (index === 1 || index === 2) {
+                            col.style.display = 'none'; // Keep Total Amount and Total Quantity hidden
+                        } else {
+                            col.style.display = 'block';
+                            col.className = index === 0 || index === 3 || index === 4 ? 'col-md-3' : 'col-md-3'; // Adjust column sizes
+                        }
                     });
                 }
 
@@ -590,7 +635,13 @@
                 document.getElementById('total-amount').textContent = '₦0';
                 document.getElementById('total-quantity').textContent = '0';
                 document.getElementById('unique-items').textContent = '0';
-                document.getElementById('monthly-sales').textContent = '-';
+
+                // Handle the new sales-total element
+                const salesElement = document.getElementById('sales-total');
+                if (salesElement) {
+                    salesElement.textContent = '-';
+                }
+
                 document.getElementById('stats-context').textContent = 'Error Loading Stats';
 
                 // Show user-friendly error message

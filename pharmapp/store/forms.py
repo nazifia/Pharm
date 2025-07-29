@@ -121,14 +121,23 @@ class DispensingLogSearchForm(forms.Form):
         }),
         label='Item Name'
     )
-    date = forms.DateField(
+    date_from = forms.DateField(
         required=False,
         widget=forms.DateInput(attrs={
             'class': 'form-control',
             'type': 'date',
             'style': 'background-color: rgb(196, 253, 253);'
         }),
-        label='Date'
+        label='From Date'
+    )
+    date_to = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date',
+            'style': 'background-color: rgb(196, 253, 253);'
+        }),
+        label='To Date'
     )
     status = forms.ChoiceField(
         choices=[('', 'All Status')] + STATUS_CHOICES,

@@ -27,7 +27,7 @@
           <a href="{% url 'wholesale:wholesale_stock_check_report' stock_check_id=stock_check.id %}" class="btn btn-info btn-sm">
             View Report
           </a>
-          {% if stock_check.status != 'completed' %}
+          {% if stock_check.status != 'completed' and can_delete_reports %}
           <form method="post" action="{% url 'wholesale:delete_wholesale_stock_check' stock_check_id=stock_check.id %}" style="display: inline;"
                 onsubmit="return confirm('Are you sure you want to delete this wholesale stock check report? This action cannot be undone.');">
             {% csrf_token %}

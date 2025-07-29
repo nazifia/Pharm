@@ -97,6 +97,97 @@ def can_operate_wholesale(user):
     return can_operate_wholesale(user)
 
 
+@register.filter
+def can_operate_all(user):
+    """
+    Template filter to check if a user can operate both retail and wholesale functionality.
+    Usage: {% if user|can_operate_all %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    from userauth.permissions import can_operate_all
+    return can_operate_all(user)
+
+
+# Customer Management Template Tags
+@register.filter
+def can_manage_retail_customers(user):
+    """Template filter for retail customer management permissions"""
+    if not user or not user.is_authenticated:
+        return False
+    from userauth.permissions import can_manage_retail_customers
+    return can_manage_retail_customers(user)
+
+@register.filter
+def can_manage_wholesale_customers(user):
+    """Template filter for wholesale customer management permissions"""
+    if not user or not user.is_authenticated:
+        return False
+    from userauth.permissions import can_manage_wholesale_customers
+    return can_manage_wholesale_customers(user)
+
+@register.filter
+def can_manage_all_customers(user):
+    """Template filter for all customer management permissions"""
+    if not user or not user.is_authenticated:
+        return False
+    from userauth.permissions import can_manage_all_customers
+    return can_manage_all_customers(user)
+
+
+# Procurement Management Template Tags
+@register.filter
+def can_manage_retail_procurement(user):
+    """Template filter for retail procurement management permissions"""
+    if not user or not user.is_authenticated:
+        return False
+    from userauth.permissions import can_manage_retail_procurement
+    return can_manage_retail_procurement(user)
+
+@register.filter
+def can_manage_wholesale_procurement(user):
+    """Template filter for wholesale procurement management permissions"""
+    if not user or not user.is_authenticated:
+        return False
+    from userauth.permissions import can_manage_wholesale_procurement
+    return can_manage_wholesale_procurement(user)
+
+# Stock Check Management Template Tags
+@register.filter
+def can_manage_retail_stock_checks(user):
+    """Template filter for retail stock check management permissions"""
+    if not user or not user.is_authenticated:
+        return False
+    from userauth.permissions import can_manage_retail_stock_checks
+    return can_manage_retail_stock_checks(user)
+
+@register.filter
+def can_manage_wholesale_stock_checks(user):
+    """Template filter for wholesale stock check management permissions"""
+    if not user or not user.is_authenticated:
+        return False
+    from userauth.permissions import can_manage_wholesale_stock_checks
+    return can_manage_wholesale_stock_checks(user)
+
+# Expiry Management Template Tags
+@register.filter
+def can_manage_retail_expiry(user):
+    """Template filter for retail expiry management permissions"""
+    if not user or not user.is_authenticated:
+        return False
+    from userauth.permissions import can_manage_retail_expiry
+    return can_manage_retail_expiry(user)
+
+@register.filter
+def can_manage_wholesale_expiry(user):
+    """Template filter for wholesale expiry management permissions"""
+    if not user or not user.is_authenticated:
+        return False
+    from userauth.permissions import can_manage_wholesale_expiry
+    return can_manage_wholesale_expiry(user)
+
+
 @register.simple_tag
 def user_role(user):
     """

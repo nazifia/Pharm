@@ -18,37 +18,43 @@ USER_PERMISSIONS = {
     'Admin': [
         'manage_users', 'view_financial_reports', 'manage_system_settings',
         'access_admin_panel', 'manage_inventory', 'dispense_medication',
-        'process_sales', 'view_reports', 'approve_procurement', 'manage_customers',
-        'manage_suppliers', 'manage_expenses', 'adjust_prices', 'process_returns',
-        'approve_returns', 'transfer_stock', 'view_activity_logs', 'perform_stock_check',
-        'edit_user_profiles', 'manage_payment_methods', 'process_split_payments',
-        'override_payment_status', 'pause_resume_procurement', 'search_items',
-        'operate_retail', 'operate_wholesale'
+        'process_sales', 'view_reports', 'approve_procurement', 'manage_suppliers',
+        'manage_expenses', 'adjust_prices', 'process_returns', 'approve_returns',
+        'transfer_stock', 'view_activity_logs', 'edit_user_profiles',
+        'manage_payment_methods', 'process_split_payments', 'override_payment_status',
+        'pause_resume_procurement', 'search_items',
+        # All-access permissions for Admins
+        'operate_all', 'manage_all_customers', 'manage_all_procurement',
+        'manage_all_stock_checks', 'manage_all_expiry'
     ],
     'Manager': [
         'view_financial_reports', 'manage_inventory', 'process_sales', 'view_reports',
-        'approve_procurement', 'manage_customers', 'manage_suppliers', 'manage_expenses',
-        'adjust_prices', 'process_returns', 'approve_returns', 'transfer_stock',
-        'view_activity_logs', 'perform_stock_check', 'manage_payment_methods',
-        'process_split_payments', 'override_payment_status', 'pause_resume_procurement',
-        'search_items', 'operate_retail', 'operate_wholesale'
+        'approve_procurement', 'manage_suppliers', 'manage_expenses', 'adjust_prices',
+        'process_returns', 'approve_returns', 'transfer_stock', 'view_activity_logs',
+        'manage_payment_methods', 'process_split_payments', 'override_payment_status',
+        'pause_resume_procurement', 'search_items',
+        # All-access permissions for Managers
+        'operate_all', 'manage_all_customers', 'manage_all_procurement',
+        'manage_all_stock_checks', 'manage_all_expiry'
     ],
     'Pharmacist': [
-        'manage_inventory', 'dispense_medication', 'process_sales', 'manage_customers',
-        'adjust_prices', 'process_returns', 'transfer_stock', 'view_sales_history',
-        'view_procurement_history', 'process_split_payments', 'search_items',
-        'operate_retail'  # Default to retail only, wholesale can be granted individually
+        'manage_inventory', 'dispense_medication', 'process_sales', 'adjust_prices',
+        'process_returns', 'transfer_stock', 'view_sales_history', 'view_procurement_history',
+        'process_split_payments', 'search_items',
+        # Retail-only permissions by default
+        'operate_retail', 'manage_retail_customers', 'manage_retail_procurement',
+        'manage_retail_stock_checks', 'manage_retail_expiry'
     ],
     'Pharm-Tech': [
-        'manage_inventory', 'process_sales', 'manage_customers', 'process_returns',
-        'transfer_stock', 'view_sales_history', 'view_procurement_history',
-        'perform_stock_check', 'process_split_payments', 'search_items',
-        'operate_retail'  # Default to retail only, wholesale can be granted individually
+        'manage_inventory', 'process_sales', 'process_returns', 'transfer_stock',
+        'view_sales_history', 'perform_stock_check', 'process_split_payments', 'search_items',
+        # Retail-only permissions by default (removed procurement permissions only)
+        'operate_retail', 'manage_retail_customers', 'manage_retail_stock_checks', 'manage_retail_expiry'
     ],
     'Salesperson': [
-        'process_sales', 'manage_customers', 'view_sales_history',
-        'process_split_payments', 'search_items',
-        'operate_retail'  # Default to retail only, wholesale can be granted individually
+        'process_sales', 'view_sales_history', 'process_split_payments', 'search_items',
+        # Retail-only permissions by default
+        'operate_retail', 'manage_retail_customers', 'manage_retail_expiry'
     ]
 }
 

@@ -54,6 +54,13 @@ def can_manage_inventory(user):
     """Check if user can manage inventory"""
     return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharm-Tech']
 
+def can_delete_stock_check_reports(user):
+    """Check if user can delete stock check reports - restricted to superusers, admins, and managers only"""
+    return user.is_authenticated and (
+        user.is_superuser or
+        (hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager'])
+    )
+
 def can_process_sales(user):
     """Check if user can process sales"""
     return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Pharm-Tech', 'Salesperson']
@@ -211,28 +218,201 @@ def can_view_purchase_and_stock_values(user):
 
 
 def can_operate_retail(user):
-    """Check if user can operate retail functionality"""
+    """
+    Check if user can operate retail functionality.
+    Users can access retail if they have 'operate_all' permission OR
+    if they have 'operate_retail' but NOT 'operate_wholesale' (mutual exclusivity).
+    """
     if not user.is_authenticated:
         return False
 
-    # Admins and Managers can always operate retail
-    if user.profile.user_type in ['Admin', 'Manager']:
+    # If user has operate_all permission, they can access retail
+    if user.has_permission('operate_all'):
         return True
 
-    # Other users need specific permission
-    return user.has_permission('operate_retail')
+    # If user has operate_retail but NOT operate_wholesale, they can access retail
+    if user.has_permission('operate_retail') and not user.has_permission('operate_wholesale'):
+        return True
+
+    return False
 
 def can_operate_wholesale(user):
-    """Check if user can operate wholesale functionality"""
+    """
+    Check if user can operate wholesale functionality.
+    Users can access wholesale if they have 'operate_all' permission OR
+    if they have 'operate_wholesale' but NOT 'operate_retail' (mutual exclusivity).
+    """
     if not user.is_authenticated:
         return False
 
-    # Admins and Managers can always operate wholesale
-    if user.profile.user_type in ['Admin', 'Manager']:
+    # If user has operate_all permission, they can access wholesale
+    if user.has_permission('operate_all'):
         return True
 
-    # Other users need specific permission
-    return user.has_permission('operate_wholesale')
+    # If user has operate_wholesale but NOT operate_retail, they can access wholesale
+    if user.has_permission('operate_wholesale') and not user.has_permission('operate_retail'):
+        return True
+
+    return False
+
+def can_operate_all(user):
+    """Check if user can operate both retail and wholesale functionality"""
+    if not user.is_authenticated:
+        return False
+
+    return user.has_permission('operate_all')
+
+# Customer Management Permissions
+def can_manage_retail_customers(user):
+    """Check if user can manage retail customers only"""
+    if not user.is_authenticated:
+        return False
+
+    # If user has manage_all_customers permission, they can manage retail customers
+    if user.has_permission('manage_all_customers'):
+        return True
+
+    # If user has manage_retail_customers but NOT manage_wholesale_customers, they can manage retail customers
+    if user.has_permission('manage_retail_customers') and not user.has_permission('manage_wholesale_customers'):
+        return True
+
+    return False
+
+def can_manage_wholesale_customers(user):
+    """Check if user can manage wholesale customers only"""
+    if not user.is_authenticated:
+        return False
+
+    # If user has manage_all_customers permission, they can manage wholesale customers
+    if user.has_permission('manage_all_customers'):
+        return True
+
+    # If user has manage_wholesale_customers but NOT manage_retail_customers, they can manage wholesale customers
+    if user.has_permission('manage_wholesale_customers') and not user.has_permission('manage_retail_customers'):
+        return True
+
+    return False
+
+def can_manage_all_customers(user):
+    """Check if user can manage both retail and wholesale customers"""
+    if not user.is_authenticated:
+        return False
+
+    return user.has_permission('manage_all_customers')
+
+# Procurement Management Permissions
+def can_manage_retail_procurement(user):
+    """Check if user can manage retail procurement only"""
+    if not user.is_authenticated:
+        return False
+
+    # If user has manage_all_procurement permission, they can manage retail procurement
+    if user.has_permission('manage_all_procurement'):
+        return True
+
+    # If user has manage_retail_procurement but NOT manage_wholesale_procurement, they can manage retail procurement
+    if user.has_permission('manage_retail_procurement') and not user.has_permission('manage_wholesale_procurement'):
+        return True
+
+    return False
+
+def can_manage_wholesale_procurement(user):
+    """Check if user can manage wholesale procurement only"""
+    if not user.is_authenticated:
+        return False
+
+    # If user has manage_all_procurement permission, they can manage wholesale procurement
+    if user.has_permission('manage_all_procurement'):
+        return True
+
+    # If user has manage_wholesale_procurement but NOT manage_retail_procurement, they can manage wholesale procurement
+    if user.has_permission('manage_wholesale_procurement') and not user.has_permission('manage_retail_procurement'):
+        return True
+
+    return False
+
+def can_manage_all_procurement(user):
+    """Check if user can manage both retail and wholesale procurement"""
+    if not user.is_authenticated:
+        return False
+
+    return user.has_permission('manage_all_procurement')
+
+# Stock Check Management Permissions
+def can_manage_retail_stock_checks(user):
+    """Check if user can manage retail stock checks only"""
+    if not user.is_authenticated:
+        return False
+
+    # If user has manage_all_stock_checks permission, they can manage retail stock checks
+    if user.has_permission('manage_all_stock_checks'):
+        return True
+
+    # If user has manage_retail_stock_checks but NOT manage_wholesale_stock_checks, they can manage retail stock checks
+    if user.has_permission('manage_retail_stock_checks') and not user.has_permission('manage_wholesale_stock_checks'):
+        return True
+
+    return False
+
+def can_manage_wholesale_stock_checks(user):
+    """Check if user can manage wholesale stock checks only"""
+    if not user.is_authenticated:
+        return False
+
+    # If user has manage_all_stock_checks permission, they can manage wholesale stock checks
+    if user.has_permission('manage_all_stock_checks'):
+        return True
+
+    # If user has manage_wholesale_stock_checks but NOT manage_retail_stock_checks, they can manage wholesale stock checks
+    if user.has_permission('manage_wholesale_stock_checks') and not user.has_permission('manage_retail_stock_checks'):
+        return True
+
+    return False
+
+def can_manage_all_stock_checks(user):
+    """Check if user can manage both retail and wholesale stock checks"""
+    if not user.is_authenticated:
+        return False
+
+    return user.has_permission('manage_all_stock_checks')
+
+# Expiry Date Management Permissions
+def can_manage_retail_expiry(user):
+    """Check if user can manage retail expiry dates only"""
+    if not user.is_authenticated:
+        return False
+
+    # If user has manage_all_expiry permission, they can manage retail expiry
+    if user.has_permission('manage_all_expiry'):
+        return True
+
+    # If user has manage_retail_expiry but NOT manage_wholesale_expiry, they can manage retail expiry
+    if user.has_permission('manage_retail_expiry') and not user.has_permission('manage_wholesale_expiry'):
+        return True
+
+    return False
+
+def can_manage_wholesale_expiry(user):
+    """Check if user can manage wholesale expiry dates only"""
+    if not user.is_authenticated:
+        return False
+
+    # If user has manage_all_expiry permission, they can manage wholesale expiry
+    if user.has_permission('manage_all_expiry'):
+        return True
+
+    # If user has manage_wholesale_expiry but NOT manage_retail_expiry, they can manage wholesale expiry
+    if user.has_permission('manage_wholesale_expiry') and not user.has_permission('manage_retail_expiry'):
+        return True
+
+    return False
+
+def can_manage_all_expiry(user):
+    """Check if user can manage both retail and wholesale expiry dates"""
+    if not user.is_authenticated:
+        return False
+
+    return user.has_permission('manage_all_expiry')
 
 def can_manage_payment_methods(user):
     """Check if user can manage payment methods"""

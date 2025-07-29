@@ -41,6 +41,20 @@ def can_view_all_users_dispensing(user):
          user.profile.user_type in ['Admin', 'Manager'])
     )
 
+def can_view_full_dispensing_stats(user):
+    """
+    Helper function to determine if a user can view full dispensing statistics.
+    Returns True for superusers, staff, admins, and managers.
+    Pharmacists, Pharm-Techs, and Salespersons get daily-only stats.
+    """
+    return (
+        user.is_superuser or
+        user.is_staff or
+        (hasattr(user, 'profile') and
+         user.profile and
+         user.profile.user_type in ['Admin', 'Manager'])
+    )
+
 
 
 
@@ -1918,6 +1932,10 @@ def register_customers(request):
 @login_required
 def customer_list(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_retail_customers
+        if not can_manage_retail_customers(request.user):
+            messages.error(request, 'You do not have permission to manage retail customers.')
+            return redirect('store:index')
         customers = Customer.objects.all()
         return render(request, 'partials/customer_list.html', {'customers': customers})
     else:
@@ -2283,10 +2301,14 @@ def dispensing_log(request):
             if item_name := search_form.cleaned_data.get('item_name'):
                 logs = logs.filter(name__istartswith=item_name)
 
-            # Filter by date
-            if date_filter := search_form.cleaned_data.get('date'):
-                from utils.date_utils import filter_queryset_by_date
-                logs = filter_queryset_by_date(logs, 'created_at', str(date_filter))
+            # Filter by date range
+            date_from = search_form.cleaned_data.get('date_from')
+            date_to = search_form.cleaned_data.get('date_to')
+            if date_from or date_to:
+                from utils.date_utils import filter_queryset_by_date_range
+                logs = filter_queryset_by_date_range(logs, 'created_at',
+                                                   str(date_from) if date_from else None,
+                                                   str(date_to) if date_to else None)
 
             # Filter by status
             if status_filter := search_form.cleaned_data.get('status'):
@@ -2361,19 +2383,27 @@ def dispensing_log_stats(request):
             start_date = current_month_start
             end_date = current_month_end
 
-            # Override with specific date filter if provided
-            if date_filter := request.GET.get('date'):
+            # Override with specific date range if provided
+            date_from_filter = request.GET.get('date_from')
+            date_to_filter = request.GET.get('date_to')
+
+            if date_from_filter or date_to_filter:
                 try:
-                    selected_date = parse_date(date_filter)
-                    if selected_date:
-                        start_date = selected_date
-                        end_date = selected_date
+                    if date_from_filter:
+                        start_date = parse_date(date_from_filter)
+                        if not start_date:
+                            start_date = current_month_start
+                    if date_to_filter:
+                        end_date = parse_date(date_to_filter)
+                        if not end_date:
+                            end_date = current_month_end
                 except Exception as e:
                     # If date parsing fails, use current month default
                     pass
 
             # Permission check: Superusers, Admins, and Managers can see all users, others can see all logs but with limited statistics
             can_view_all_users = can_view_all_users_dispensing(request.user)
+            can_view_full_stats = can_view_full_dispensing_stats(request.user)
 
             # Get base queryset - all users can see all dispensing logs
             logs = DispensingLog.objects.all()
@@ -2386,13 +2416,26 @@ def dispensing_log_stats(request):
             if item_name := request.GET.get('item_name'):
                 logs = logs.filter(name__istartswith=item_name)
 
-            # Filter by date - this is the key change to make stats match search results
-            if date_filter := request.GET.get('date'):
-                from utils.date_utils import filter_queryset_by_date
-                logs = filter_queryset_by_date(logs, 'created_at', str(date_filter))
+            # Filter by date range - this is the key change to make stats match search results
+            date_from_filter = request.GET.get('date_from')
+            date_to_filter = request.GET.get('date_to')
+            if date_from_filter or date_to_filter:
+                from utils.date_utils import filter_queryset_by_date_range
+                logs = filter_queryset_by_date_range(logs, 'created_at',
+                                                   date_from_filter, date_to_filter)
             else:
-                # Default to current month instead of last 30 days for monthly total sales
-                logs = logs.filter(created_at__date__range=[start_date, end_date])
+                # For users with full stats access (Admin, Manager, Superuser): show current month
+                # For users with limited access (Pharmacist, Pharm-Tech, Salesperson): show today only
+                if can_view_full_stats:
+                    # Default to current month for privileged users
+                    logs = logs.filter(created_at__date__range=[start_date, end_date])
+                else:
+                    # Default to today only for Pharmacists, Pharm-Techs, and Salespersons
+                    today = date.today()
+                    logs = logs.filter(created_at__date=today)
+                    # Update date range for context
+                    start_date = today
+                    end_date = today
 
             # Filter by status
             if status_filter := request.GET.get('status'):
@@ -2457,21 +2500,48 @@ def dispensing_log_stats(request):
                     monthly_total_sales = 0.0
 
             # Determine the context of the stats (filtered vs default)
-            is_filtered = bool(request.GET.get('item_name') or request.GET.get('date') or
-                             request.GET.get('status') or request.GET.get('user'))
+            is_filtered = bool(request.GET.get('item_name') or request.GET.get('date_from') or
+                             request.GET.get('date_to') or request.GET.get('status') or request.GET.get('user'))
 
-            # For regular users, only show daily total amount
-            if not can_view_all_users:
+            # For users without full stats access (Pharmacists, Pharm-Techs, Salespersons), show statistics but hide sensitive financial data
+            if not can_view_full_stats:
+                # Determine the appropriate context message
+                if request.GET.get('date_from') or request.GET.get('date_to'):
+                    period_description = 'Filtered Period Statistics'
+                    context_description = 'Filtered Period'
+                else:
+                    # For users with limited access, default is always daily (today's sales)
+                    period_description = 'Daily Statistics'
+                    context_description = 'Daily'
+
+                # Get daily total sales for regular users (from dispensing logs in the filtered date range)
+                daily_total_sales = Decimal('0')
+                try:
+                    # Calculate total sales from dispensing logs (matching the displayed data and date range)
+                    # Use the same filtered logs that are being displayed
+                    filtered_dispensing_sales = logs.filter(
+                        status='Dispensed'  # Only count dispensed items, not returns
+                    ).aggregate(
+                        total=Sum('amount')
+                    )['total'] or Decimal('0')
+                    daily_total_sales = float(filtered_dispensing_sales)
+                except Exception as e:
+                    daily_total_sales = 0.0
+
                 stats = {
-                    'total_amount': total_amount,
+                    'total_items_dispensed': logs.count(),
+                    'total_amount': total_amount,  # This will be hidden in frontend
+                    'total_quantity_dispensed': float(total_quantity_dispensed),  # This will be hidden in frontend
+                    'unique_items': logs.values('name').distinct().count(),
+                    'daily_total_sales': daily_total_sales,  # Daily sales for regular users
                     'is_filtered': is_filtered,
                     'date_range': {
                         'start': start_date.isoformat(),
                         'end': end_date.isoformat(),
-                        'description': 'Daily Total' if request.GET.get('date') else 'Current Month Total'
+                        'description': context_description
                     },
                     'context': {
-                        'period': 'Daily Total Sales' if request.GET.get('date') else 'Current Month Total Sales',
+                        'period': period_description,
                         'user_restricted': True
                     }
                 }
@@ -2489,13 +2559,14 @@ def dispensing_log_stats(request):
                     'date_range': {
                         'start': start_date.isoformat(),
                         'end': end_date.isoformat(),
-                        'description': 'Current Month' if not request.GET.get('date') else 'Filtered Date'
+                        'description': 'Current Month' if not (request.GET.get('date_from') or request.GET.get('date_to')) else 'Filtered Date Range'
                     },
                     'context': {
                         'period': 'Current Month Total Sales' if not is_filtered else 'Filtered Results',
                         'filters_applied': {
                             'item_name': request.GET.get('item_name', ''),
-                            'date': request.GET.get('date', ''),
+                            'date_from': request.GET.get('date_from', ''),
+                            'date_to': request.GET.get('date_to', ''),
                             'status': request.GET.get('status', ''),
                             'user': request.GET.get('user', '') if can_view_all_users else ''
                         },
@@ -2568,6 +2639,11 @@ def search_receipts(request):
 @login_required
 def exp_date_alert(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_manage_retail_expiry
+        if not can_manage_retail_expiry(request.user):
+            messages.error(request, 'You do not have permission to manage retail expiry dates.')
+            return redirect('store:index')
+
         alert_threshold = datetime.now() + timedelta(days=90)
 
         expiring_items = Item.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=datetime.now())
@@ -3500,8 +3576,14 @@ def stock_check_report(request, stock_check_id):
 def list_stock_checks(request):
     # Get all StockCheck objects ordered by date (newest first)
     stock_checks = StockCheck.objects.all().order_by('-date')
+
+    # Check if user can delete stock check reports
+    from userauth.permissions import can_delete_stock_check_reports
+    can_delete_reports = can_delete_stock_check_reports(request.user)
+
     context = {
         'stock_checks': stock_checks,
+        'can_delete_reports': can_delete_reports,
     }
     return render(request, 'store/stock_check_list.html', context)
 
@@ -3510,8 +3592,8 @@ def list_stock_checks(request):
 def delete_stock_check(request, stock_check_id):
     """Delete a stock check report"""
     if request.user.is_authenticated:
-        from userauth.permissions import can_manage_inventory
-        if not can_manage_inventory(request.user):
+        from userauth.permissions import can_delete_stock_check_reports
+        if not can_delete_stock_check_reports(request.user):
             messages.error(request, 'You do not have permission to delete stock check reports.')
             return redirect('store:list_stock_checks')
 
