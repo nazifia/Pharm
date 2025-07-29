@@ -1,0 +1,158 @@
+{% extends "admin/change_list.html" %}
+{% load admin_urls static admin_list %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+        .sales-dashboard {
+            background: #f8f9fa;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .sales-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .stat-change {
+            font-size: 11px;
+            margin-top: 3px;
+        }
+        .stat-change.positive { color: #28a745; }
+        .stat-change.negative { color: #dc3545; }
+        .top-items, .top-users {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 15px;
+        }
+        .top-items h4, .top-users h4 {
+            margin-top: 0;
+            color: #495057;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+        .item-row, .user-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f8f9fa;
+        }
+        .item-row:last-child, .user-row:last-child {
+            border-bottom: none;
+        }
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .analytics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block content_title %}
+    <h1>Sales Management Dashboard</h1>
+{% endblock %}
+
+{% block result_list %}
+    <div class="sales-dashboard">
+        <h2>📊 Sales Analytics Overview</h2>
+        
+        <!-- Sales Statistics Cards -->
+        <div class="sales-stats">
+            <div class="stat-card">
+                <div class="stat-value">₦{{ today_sales|floatformat:2 }}</div>
+                <div class="stat-label">Today's Sales</div>
+                {% if daily_change %}
+                    <div class="stat-change {% if daily_change > 0 %}positive{% else %}negative{% endif %}">
+                        {% if daily_change > 0 %}↗{% else %}↘{% endif %} {{ daily_change|floatformat:1 }}%
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">₦{{ yesterday_sales|floatformat:2 }}</div>
+                <div class="stat-label">Yesterday's Sales</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">₦{{ this_month_sales|floatformat:2 }}</div>
+                <div class="stat-label">This Month's Sales</div>
+                {% if monthly_change %}
+                    <div class="stat-change {% if monthly_change > 0 %}positive{% else %}negative{% endif %}">
+                        {% if monthly_change > 0 %}↗{% else %}↘{% endif %} {{ monthly_change|floatformat:1 }}%
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-value">₦{{ last_month_sales|floatformat:2 }}</div>
+                <div class="stat-label">Last Month's Sales</div>
+            </div>
+        </div>
+        
+        <!-- Analytics Grid -->
+        <div class="analytics-grid">
+            <!-- Top Selling Items -->
+            <div class="top-items">
+                <h4>🏆 Top Selling Items (This Month)</h4>
+                {% for item in top_items %}
+                    <div class="item-row">
+                        <span><strong>{{ item.name }}</strong></span>
+                        <span>₦{{ item.total_amount|floatformat:2 }} ({{ item.total_quantity }} units)</span>
+                    </div>
+                {% empty %}
+                    <p>No sales data available for this month.</p>
+                {% endfor %}
+            </div>
+            
+            <!-- Top Performing Users -->
+            <div class="top-users">
+                <h4>👥 Top Performing Staff (This Month)</h4>
+                {% for user in sales_by_user %}
+                    <div class="user-row">
+                        <span><strong>{{ user.user__first_name }} {{ user.user__last_name|default:user.user__username }}</strong></span>
+                        <span>₦{{ user.total_sales|floatformat:2 }} ({{ user.total_items }} items)</span>
+                    </div>
+                {% empty %}
+                    <p>No sales data available for this month.</p>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e9ecef;">
+            <small style="color: #6c757d;">
+                📈 Dashboard updates in real-time | Last updated: {{ "now"|date:"Y-m-d H:i:s" }}
+            </small>
+        </div>
+    </div>
+    
+    <h2>📋 Dispensing Log Details</h2>
+    {{ block.super }}
+{% endblock %}
