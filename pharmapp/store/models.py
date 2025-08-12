@@ -122,9 +122,9 @@ class Formulation(models.Model):
 
 
 class Item(models.Model):
-    name = models.CharField(max_length=200)
-    dosage_form = models.CharField(max_length=200, blank=True, null=True)  # Removed choices to allow any value
-    brand = models.CharField(max_length=200, blank=True, null=True)
+    name = models.CharField(max_length=200, db_index=True)  # Add index for faster search
+    dosage_form = models.CharField(max_length=200, blank=True, null=True, db_index=True)  # Add index for search
+    brand = models.CharField(max_length=200, blank=True, null=True, db_index=True)  # Add index for search
     unit = models.CharField(max_length=200, blank=True, null=True)  # Removed choices to allow any value
     cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -135,6 +135,10 @@ class Item(models.Model):
 
     class Meta:
         ordering = ('name',)
+        indexes = [
+            models.Index(fields=['name', 'brand']),  # Composite index for name+brand searches
+            models.Index(fields=['name', 'dosage_form']),  # Composite index for name+dosage searches
+        ]
 
     def __str__(self):
         return f'{self.name} {self.brand} {self.unit} {self.cost} {self.price} {self.markup} {self.stock} {self.exp_date}'
@@ -149,9 +153,9 @@ class Item(models.Model):
 
 
 class WholesaleItem(models.Model):
-    name = models.CharField(max_length=200)
-    dosage_form = models.CharField(max_length=200, blank=True, null=True)  # Removed choices to allow any value
-    brand = models.CharField(max_length=200, blank=True, null=True)
+    name = models.CharField(max_length=200, db_index=True)  # Add index for faster search
+    dosage_form = models.CharField(max_length=200, blank=True, null=True, db_index=True)  # Add index for search
+    brand = models.CharField(max_length=200, blank=True, null=True, db_index=True)  # Add index for search
     unit = models.CharField(max_length=200, blank=True, null=True)  # Removed choices to allow any value
     cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -161,6 +165,10 @@ class WholesaleItem(models.Model):
     exp_date = models.DateField(null=True, blank=True)
     class Meta:
         ordering = ('name',)
+        indexes = [
+            models.Index(fields=['name', 'brand']),  # Composite index for name+brand searches
+            models.Index(fields=['name', 'dosage_form']),  # Composite index for name+dosage searches
+        ]
 
     def __str__(self):
         return f'{self.name} {self.brand} {self.unit} {self.cost} {self.price} {self.markup} {self.stock} {self.exp_date}'
@@ -243,18 +251,51 @@ class WholesaleCart(models.Model):
 
 
 class DispensingLog(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    name = models.CharField(max_length=100)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, db_index=True)  # Add index for user filtering
+    name = models.CharField(max_length=100, db_index=True)  # Add index for name search
     dosage_form = models.ForeignKey(Formulation, on_delete=models.CASCADE, blank=True, null=True)
-    brand = models.CharField(max_length=100, blank=True, null=True)
+    brand = models.CharField(max_length=100, blank=True, null=True, db_index=True)  # Add index for brand search
     unit = models.CharField(max_length=10, choices=UNIT, null=True, blank=True)
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Dispensed')
-    created_at = models.DateTimeField(default=datetime.now)
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Discount amount applied to this dispensed item")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Dispensed', db_index=True)  # Add index for status filtering
+    created_at = models.DateTimeField(default=datetime.now, db_index=True)  # Add index for date filtering
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['-created_at']),  # Index for ordering by creation date (descending)
+            models.Index(fields=['name', 'status']),  # Composite index for name+status searches
+            models.Index(fields=['user', '-created_at']),  # Composite index for user+date filtering
+            models.Index(fields=['status', '-created_at']),  # Composite index for status+date filtering
+        ]
 
     def __str__(self):
         return f'{self.user.username} - {self.name} {self.dosage_form} {self.brand} ({self.quantity} {self.unit} {self.status})'
+
+    @property
+    def original_amount(self):
+        """Calculate the original amount before discount"""
+        return self.amount + self.discount_amount
+
+    @property
+    def discounted_amount(self):
+        """Calculate the final amount after discount"""
+        return self.amount
+
+    @property
+    def rate_per_unit(self):
+        """Calculate the rate per unit (discounted price per unit)"""
+        if self.quantity > 0:
+            return self.discounted_amount / self.quantity
+        return Decimal('0.00')
+
+    @property
+    def original_rate_per_unit(self):
+        """Calculate the original rate per unit (before discount)"""
+        if self.quantity > 0:
+            return self.original_amount / self.quantity
+        return Decimal('0.00')
 
     @property
     def has_returns(self):
@@ -667,8 +708,8 @@ class StockCheckItem(models.Model):
     stock_check = models.ForeignKey(StockCheck, on_delete=models.CASCADE)
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    expected_quantity = models.PositiveIntegerField()
-    actual_quantity = models.PositiveIntegerField()
+    expected_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    actual_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     approved_at = models.DateTimeField(null=True, blank=True)
 
@@ -744,8 +785,8 @@ class WholesaleStockCheckItem(models.Model):
     stock_check = models.ForeignKey(WholesaleStockCheck, on_delete=models.CASCADE, related_name='wholesale_items')
     item = models.ForeignKey(WholesaleItem, on_delete=models.CASCADE, related_name='wholesale_item')
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    expected_quantity = models.PositiveIntegerField()
-    actual_quantity = models.PositiveIntegerField()
+    expected_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    actual_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     approved_at = models.DateTimeField(null=True, blank=True)
 

@@ -59,15 +59,19 @@ def search_wholesale_for_adjustment(request):
 @login_required
 def search_wholesale_items(request):
     """API endpoint for searching wholesale items for stock check"""
-    query = request.GET.get('q', '')
-    if query:
+    query = request.GET.get('q', '').strip()
+    if query and len(query) >= 2:  # Only search for meaningful queries
+        # Optimized search with prefix matching first, then partial matching
         items = WholesaleItem.objects.filter(
+            Q(name__istartswith=query) |
+            Q(brand__istartswith=query) |
+            Q(dosage_form__istartswith=query) |
             Q(name__icontains=query) |
             Q(brand__icontains=query) |
             Q(dosage_form__icontains=query)
-        ).order_by('name')
+        ).distinct().order_by('name')[:30]  # Increased limit but still reasonable
     else:
-        items = WholesaleItem.objects.all().order_by('name')[:20]  # Limit to 20 items if no query
+        items = WholesaleItem.objects.all().order_by('name')[:30]  # Increased limit for better UX
 
     # Check if this is an HTMX request
     if request.headers.get('HX-Request'):
@@ -111,9 +115,12 @@ def adjust_wholesale_stock_level(request, item_id):
             return HttpResponse(status=400)
     return HttpResponse(status=405)
 
-# Admin check
-def is_admin(user):
-    return user.is_authenticated and user.is_superuser or user.is_staff
+# Admin check - allows Admin and Manager users
+def is_admin_or_manager(user):
+    return (user.is_authenticated and
+            hasattr(user, 'profile') and
+            user.profile and
+            user.profile.user_type in ['Admin', 'Manager'])
 
 def wholesale_page(request):
     return render(request, 'wholesale_page.html')
@@ -224,16 +231,24 @@ def wholesales(request):
 @login_required
 def search_wholesale_item(request):
     if request.user.is_authenticated:
+        from userauth.permissions import can_operate_wholesale
+        if not can_operate_wholesale(request.user):
+            messages.error(request, 'You do not have permission to access wholesale operations.')
+            return redirect('store:index')
+
         query = request.GET.get('search', '').strip()
-        if query:
-            # Search across multiple fields using Q objects
+        if query and len(query) >= 2:  # Only search for meaningful queries
+            # Optimized search with prefix matching first, then partial matching
             items = WholesaleItem.objects.filter(
-                Q(name__icontains=query) |  # Search by name
-                Q(brand__icontains=query) |  # Search by brand name
-                Q(dosage_form__icontains=query)  # Search by dosage form
-            ).order_by('name')
+                Q(name__istartswith=query) |  # Faster prefix search
+                Q(brand__istartswith=query) |
+                Q(dosage_form__istartswith=query) |
+                Q(name__icontains=query) |  # Fallback for partial matches
+                Q(brand__icontains=query) |
+                Q(dosage_form__icontains=query)
+            ).distinct().order_by('name')[:50]  # Limit results for performance
         else:
-            items = WholesaleItem.objects.all().order_by('name')
+            items = WholesaleItem.objects.all().order_by('name')[:50]  # Limit initial load
 
         # Add some context for the template
         context = {
@@ -295,7 +310,7 @@ def add_to_wholesale(request):
         return render(request, 'store/index.html')
 
 
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_manager)
 @login_required
 def add_to_wholesale(request):
     if request.user.is_authenticated:
@@ -494,6 +509,12 @@ def return_wholesale_item(request, pk):
                                 dosage_form=item.dosage_form
                             )
 
+                        # Calculate proportional discount for the return
+                        proportional_discount = Decimal('0')
+                        if sales_item.discount_amount > 0 and sales_item.quantity > 0:
+                            discount_per_unit = sales_item.discount_amount / sales_item.quantity
+                            proportional_discount = discount_per_unit * return_quantity
+
                         DispensingLog.objects.create(
                             user=request.user,
                             name=item.name,
@@ -502,6 +523,7 @@ def return_wholesale_item(request, pk):
                             unit=item.unit,
                             quantity=return_quantity,
                             amount=refund_amount,
+                            discount_amount=proportional_discount,
                             status='Returned'
                         )
 
@@ -547,7 +569,7 @@ def return_wholesale_item(request, pk):
 
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(lambda user: user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager'])
 def delete_wholesale_item(request, pk):
     if request.user.is_authenticated:
         item = get_object_or_404(WholesaleItem, id=pk)
@@ -911,6 +933,12 @@ def select_wholesale_items(request, pk):
                                 dosage_form=item.dosage_form
                             )
 
+                        # Calculate proportional discount for the return
+                        proportional_discount = Decimal('0')
+                        if sales_item.discount_amount > 0 and sales_item.quantity > 0:
+                            discount_per_unit = sales_item.discount_amount / sales_item.quantity
+                            proportional_discount = discount_per_unit * quantity
+
                         # Create dispensing log for the return
                         DispensingLog.objects.create(
                             user=request.user,
@@ -920,6 +948,7 @@ def select_wholesale_items(request, pk):
                             unit=unit,
                             quantity=quantity,
                             amount=total_refund_amount,
+                            discount_amount=proportional_discount,
                             status='Returned'
                         )
 
@@ -1454,6 +1483,9 @@ def wholesale_receipt(request):
                     dosage_form=cart_item.item.dosage_form
                 )
 
+            # Calculate discounted amount for dispensing log
+            discounted_amount = subtotal - cart_item.discount_amount
+
             DispensingLog.objects.create(
                 user=request.user,
                 name=cart_item.item.name,
@@ -1461,7 +1493,8 @@ def wholesale_receipt(request):
                 dosage_form=dosage_form_obj,
                 unit=cart_item.item.unit,
                 quantity=cart_item.quantity,
-                amount=subtotal,
+                amount=discounted_amount,
+                discount_amount=cart_item.discount_amount,
                 status="Dispensed"
             )
 
@@ -1939,7 +1972,7 @@ def get_wholesale_sales_by_user(date_from=None, date_to=None):
 
 
 
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_manager)
 def wholesales_by_user(request):
     if request.user.is_authenticated:
         # Get the date range from the GET request
@@ -2299,7 +2332,7 @@ def edit_wholesale_customer(request, pk):
 
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_manager)
 def delete_wholesale_customer(request, pk):
     if request.user.is_authenticated:
         customer = get_object_or_404(WholesaleCustomer, pk=pk)
@@ -2354,7 +2387,7 @@ def wholesale_customer_wallet_details(request, pk):
 
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_manager)
 def reset_wholesale_customer_wallet(request, pk):
     if request.user.is_authenticated:
         wallet = get_object_or_404(WholesaleCustomerWallet, pk=pk)
@@ -2462,7 +2495,7 @@ def wholesale_transactions(request, customer_id):
 
 
 
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_manager)
 @login_required
 def add_wholesale_procurement(request):
     if request.user.is_authenticated:
@@ -2689,8 +2722,8 @@ def create_wholesale_stock_check(request):
                         WholesaleStockCheckItem(
                             stock_check=stock_check,
                             item=item,
-                            expected_quantity=item.stock,
-                            actual_quantity=0,
+                            expected_quantity=item.stock if item.stock else Decimal('0'),
+                            actual_quantity=Decimal('0'),
                             status='pending'
                         )
                     )
@@ -2732,11 +2765,17 @@ def update_wholesale_stock_check(request, stock_check_id):
                     item_id = int(item_id.replace("item_", ""))
                     stock_item = WholesaleStockCheckItem.objects.get(stock_check=stock_check, item_id=item_id)
 
+                    # Convert to Decimal for proper handling
+                    try:
+                        actual_qty_decimal = Decimal(str(actual_qty)) if actual_qty else Decimal('0')
+                    except (ValueError, TypeError):
+                        actual_qty_decimal = Decimal('0')
+
                     # If zero_empty_items is True and both expected and actual are 0, set to 0
-                    if zero_empty_items and stock_item.expected_quantity == 0 and int(actual_qty) == 0:
-                        stock_item.actual_quantity = 0
+                    if zero_empty_items and stock_item.expected_quantity == 0 and actual_qty_decimal == 0:
+                        stock_item.actual_quantity = Decimal('0')
                     else:
-                        stock_item.actual_quantity = int(actual_qty)
+                        stock_item.actual_quantity = actual_qty_decimal
 
                     stock_items.append(stock_item)
 

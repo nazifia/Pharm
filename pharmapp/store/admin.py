@@ -34,12 +34,12 @@ class WholesaleCartAdmin(admin.ModelAdmin):
 
 
 class DispensingLogAdmin(admin.ModelAdmin):
-    list_display = ('user', 'name', 'dosage_form', 'brand', 'unit', 'quantity', 'amount', 'status', 'created_at', 'sales_performance')
+    list_display = ('user', 'name', 'dosage_form', 'brand', 'unit', 'quantity', 'discounted_amount_display', 'discount_display', 'status', 'created_at', 'sales_performance')
     list_filter = ('user', 'status', 'created_at', 'unit')
     search_fields = ('name', 'brand', 'user__username', 'user__first_name', 'user__last_name')
     date_hierarchy = 'created_at'
     list_per_page = 50
-    readonly_fields = ('sales_performance', 'return_info')
+    readonly_fields = ('sales_performance', 'return_info', 'discounted_amount_display', 'discount_display', 'original_amount_display')
 
     def sales_performance(self, obj):
         """Display sales performance indicator"""
@@ -62,6 +62,25 @@ class DispensingLogAdmin(admin.ModelAdmin):
             )
         return "No returns"
     return_info.short_description = 'Return Info'
+
+    def discounted_amount_display(self, obj):
+        """Display the discounted amount"""
+        return f"₦{obj.amount:,.2f}"
+    discounted_amount_display.short_description = 'Amount (Discounted)'
+
+    def discount_display(self, obj):
+        """Display the discount amount"""
+        if obj.discount_amount > 0:
+            return format_html('<span style="color: red;">-₦{:,.2f}</span>', obj.discount_amount)
+        return "-"
+    discount_display.short_description = 'Discount'
+
+    def original_amount_display(self, obj):
+        """Display the original amount before discount"""
+        if obj.discount_amount > 0:
+            return format_html('<span style="color: gray; text-decoration: line-through;">₦{:,.2f}</span>', obj.original_amount)
+        return f"₦{obj.original_amount:,.2f}"
+    original_amount_display.short_description = 'Original Amount'
 
     actions = ['mark_as_returned', 'export_sales_data']
 

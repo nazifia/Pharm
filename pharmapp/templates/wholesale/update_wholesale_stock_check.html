@@ -1,5 +1,64 @@
 {% extends "partials/base.html" %}
 {% load permission_tags %}
+
+{% block extra_css %}
+<style>
+    .table th {
+        background-color: #343a40;
+        color: white;
+        border-color: #454d55;
+        font-weight: 600;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .table td {
+        vertical-align: middle;
+        text-align: center;
+    }
+
+    .table td:nth-child(3) {
+        text-align: left; /* Item name left-aligned */
+    }
+
+    .actual-qty {
+        text-align: center !important;
+    }
+
+    .badge {
+        font-size: 0.85em;
+        padding: 0.4em 0.6em;
+    }
+
+    .btn-group .btn {
+        margin-right: 0;
+    }
+
+    @media (max-width: 768px) {
+        .btn-toolbar {
+            flex-direction: column;
+        }
+
+        .btn-group {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .btn-group .btn {
+            flex: 1;
+        }
+
+        .table-responsive {
+            font-size: 0.9em;
+        }
+
+        .actual-qty {
+            width: 100px !important;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -22,15 +81,15 @@
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="d-flex">
-                        <div class="input-group mr-2">
+                    <div class="d-flex flex-wrap align-items-center">
+                        <div class="input-group mr-2 mb-2 mb-md-0" style="flex: 1; min-width: 250px;">
                             <input type="text" class="form-control" id="itemSearch" placeholder="Search items...">
                             <div class="input-group-append">
                                 <button class="btn btn-outline-secondary" type="button" id="clearSearch">Clear</button>
                             </div>
                         </div>
                         {% if stock_check.status == 'in_progress' %}
-                        <a href="{% url 'wholesale:add_items_to_wholesale_stock_check' stock_check.id %}" class="btn btn-success">
+                        <a href="{% url 'wholesale:add_items_to_wholesale_stock_check' stock_check.id %}" class="btn btn-success ml-2">
                             <i class="fas fa-plus"></i> Add More Items
                         </a>
                         {% endif %}
@@ -42,18 +101,18 @@
                 {% csrf_token %}
                 <input type="hidden" name="zero_empty_items" id="zeroEmptyItems" value="false">
                 <div class="table-responsive">
-                    <table class="table table-hover shadow" id="stockItemsTable">
-                        <thead>
+                    <table class="table table-hover table-striped shadow-sm" id="stockItemsTable">
+                        <thead class="thead-dark">
                             <tr>
-                                <th><input type="checkbox" id="selectall"></th>
-                                <th>SN</th>
-                                <th>Item</th>
-                                <th>D/form</th>
-                                <th>Brand</th>
-                                <th>Unit</th>
-                                <th>Expected Qty</th>
-                                <th>Actual Qty</th>
-                                <th>Status</th>
+                                <th style="width: 50px;"><input type="checkbox" id="selectall"></th>
+                                <th style="width: 60px;">SN</th>
+                                <th style="min-width: 150px;">Item</th>
+                                <th style="width: 100px;">D/form</th>
+                                <th style="width: 120px;">Brand</th>
+                                <th style="width: 80px;">Unit</th>
+                                <th style="width: 100px;">Expected Qty</th>
+                                <th style="width: 130px;">Actual Qty</th>
+                                <th style="width: 100px;">Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -65,8 +124,8 @@
                                 <td>{{ item.item.dosage_form }}</td>
                                 <td>{{ item.item.brand }}</td>
                                 <td>{{ item.item.unit }}</td>
-                                <td>{{ item.expected_quantity }}</td>
-                                <td><input type="number" name="item_{{ item.item.id }}" value="{{ item.actual_quantity }}" class="form-control actual-qty" style="width: 100px;"></td>
+                                <td>{{ item.expected_quantity|floatformat:2 }}</td>
+                                <td><input type="number" step="0.01" name="item_{{ item.item.id }}" value="{{ item.actual_quantity|floatformat:2 }}" class="form-control actual-qty" style="width: 120px;" placeholder="0.00"></td>
                                 <td>
                                     <span class="badge badge-{{ item.status|lower|slice:':7' }}">
                                         {{ item.get_status_display }}
@@ -77,14 +136,25 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="btn-toolbar mt-3">
-                    <button class="btn btn-primary" type="submit">Update Quantities</button>
-                    {% if can_approve_adjust %}
-                    <button class="btn btn-success mx-1" type="button" onclick="approveSelected()">Approve Selected</button>
-                    <button class="btn btn-warning" type="button" onclick="adjustSelected()">Adjust Selected</button>
-                    {% endif %}
-                    <a href="{% url 'wholesale:wholesale_stock_check_report' stock_check.id %}" class="btn btn-info mx-1">View Report</a>
-                </div>
+                <div class="btn-toolbar mt-3 justify-content-between flex-wrap">
+                    <div class="btn-group mb-2" role="group">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-save"></i> Update Quantities
+                        </button>
+                        {% if can_approve_adjust %}
+                        <button class="btn btn-success" type="button" onclick="approveSelected()">
+                            <i class="fas fa-check"></i> Approve Selected
+                        </button>
+                        <button class="btn btn-warning" type="button" onclick="adjustSelected()">
+                            <i class="fas fa-edit"></i> Adjust Selected
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div class="mb-2">
+                        <a href="{% url 'wholesale:wholesale_stock_check_report' stock_check.id %}" class="btn btn-info">
+                            <i class="fas fa-file-alt"></i> View Report
+                        </a>
+                    </div>
                 </div>
             </form>
         </div>

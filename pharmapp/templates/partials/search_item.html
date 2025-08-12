@@ -1,3 +1,4 @@
+{% load permission_tags %}
 {% for item in items %}
 <tr>
     <td>
@@ -7,8 +8,10 @@
         <a class="btn btn-sm btn-warning" data-toggle="modal" data-target="#returnItemModal" hx-get="{% url 'store:return_item' item.id %}"
             hx-target="#returnItemModal .modal-content">Return</a>
 
-        <a href="" onclick="return confirm('Are you sure you want to delete {{item.name|title}} from  Store?')"
+        {% if user|can_delete_items %}
+        <a href="{% url 'store:delete_item' item.id %}" onclick="return confirm('Are you sure you want to delete {{item.name|title}} from  Store?')"
             class="btn btn-sm btn-danger">x</a>
+        {% endif %}
     </td>
     <td>{{item.name|title}}</td>
     <td>{{item.dosage_form|title}}</td>

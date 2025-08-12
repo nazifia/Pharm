@@ -5,7 +5,17 @@
     <td>{{ log.brand|default:"N/A" }}</td>
     <td>{{ log.unit|default:"N/A" }}</td>
     <td>{{ log.quantity|floatformat:2 }}</td>
-    <td>₦{{ log.amount|floatformat:2 }}</td>
+    <td>
+        {% if log.discount_amount > 0 %}
+            <span class="text-success">₦{{ log.rate_per_unit|floatformat:2 }}</span>
+            <small class="text-muted d-block">
+                <s>₦{{ log.original_rate_per_unit|floatformat:2 }}</s>
+                <span class="text-danger">(-₦{{ log.discount_amount|floatformat:2 }})</span>
+            </small>
+        {% else %}
+            ₦{{ log.rate_per_unit|floatformat:2 }}
+        {% endif %}
+    </td>
     <td>
         <span class="badge {% if log.status == 'Dispensed' %}badge-success{% elif log.status == 'Returned' %}badge-danger{% else %}badge-warning{% endif %}">
             {{ log.get_status_display }}

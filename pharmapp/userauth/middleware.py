@@ -181,6 +181,8 @@ class RoleBasedAccessMiddleware:
             'store:delete_customer': ['Admin', 'Manager'],
 
             # Inventory Management
+            'store:delete_item': ['Admin', 'Manager'],
+            'wholesale:delete_wholesale_item': ['Admin', 'Manager'],
             'store:transfer_multiple_store_items': ['Admin', 'Manager', 'Pharm-Tech'],
             'wholesale:transfer_multiple_wholesale_items': ['Admin', 'Manager', 'Pharm-Tech'],
             'store:adjust_prices': ['Admin', 'Manager'],

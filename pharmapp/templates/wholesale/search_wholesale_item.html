@@ -25,7 +25,7 @@
                                        name="search"
                                        value="{{ request.GET.search }}"
                                        hx-get="{% url 'wholesale:search_wholesale_item' %}"
-                                       hx-trigger="keyup changed delay:300ms" 
+                                       hx-trigger="keyup changed delay:150ms"
                                        hx-target="#item-list" 
                                        hx-indicator="#search-indicator"
                                        style="background-color: rgb(232, 253, 211);">

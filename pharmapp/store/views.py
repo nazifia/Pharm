@@ -24,8 +24,45 @@ from django.contrib.auth import get_user_model
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 import logging
+import hashlib
 
 logger = logging.getLogger(__name__)
+
+# Cache utility functions for search optimization
+def get_search_cache_key(model_name, query, user_id=None):
+    """Generate a cache key for search results"""
+    key_data = f"{model_name}:{query}:{user_id or 'all'}"
+    return f"search:{hashlib.md5(key_data.encode()).hexdigest()}"
+
+def cache_search_results(cache_key, results, timeout=300):  # 5 minutes cache
+    """Cache search results"""
+    try:
+        # Convert queryset to list of dictionaries for caching
+        cached_data = []
+        for item in results:
+            if hasattr(item, 'id'):
+                cached_data.append({
+                    'id': item.id,
+                    'name': getattr(item, 'name', ''),
+                    'brand': getattr(item, 'brand', ''),
+                    'dosage_form': getattr(item, 'dosage_form', ''),
+                    'unit': getattr(item, 'unit', ''),
+                    'stock': getattr(item, 'stock', 0),
+                    'price': float(getattr(item, 'price', 0)),
+                })
+        cache.set(cache_key, cached_data, timeout)
+        return cached_data
+    except Exception as e:
+        logger.warning(f"Failed to cache search results: {e}")
+        return None
+
+def get_cached_search_results(cache_key):
+    """Retrieve cached search results"""
+    try:
+        return cache.get(cache_key)
+    except Exception as e:
+        logger.warning(f"Failed to retrieve cached search results: {e}")
+        return None
 
 
 def can_view_all_users_dispensing(user):
@@ -301,14 +338,19 @@ def search_item(request):
     if request.user.is_authenticated:
         query = request.GET.get('search', '').strip()
         if query:
-            # Search across multiple fields using Q objects
-            items = Item.objects.filter(
-                Q(name__icontains=query) |  # Search by name
-                Q(brand__icontains=query) #|  # Search by brand name
-                # Q(category__icontains=query)  # Search by category
-            )
+            # Optimized search with better performance
+            # Use istartswith for better index utilization, fallback to icontains
+            if len(query) >= 2:  # Only search if query is meaningful
+                items = Item.objects.filter(
+                    Q(name__istartswith=query) |  # Faster prefix search
+                    Q(brand__istartswith=query) |
+                    Q(name__icontains=query) |  # Fallback for partial matches
+                    Q(brand__icontains=query)
+                ).distinct().order_by('name')[:50]  # Limit results for performance
+            else:
+                items = Item.objects.none()  # Don't search for very short queries
         else:
-            items = Item.objects.all()
+            items = Item.objects.all().order_by('name')[:50]  # Limit initial load
 
         # Check if this is an HTMX request (for embedded search in store page)
         if request.headers.get('HX-Request'):
@@ -1020,6 +1062,9 @@ def receipt(request):
                     dosage_form=cart_item.item.dosage_form
                 )
 
+            # Calculate discounted amount for dispensing log
+            discounted_amount = subtotal - cart_item.discount_amount
+
             DispensingLog.objects.create(
                 user=request.user,
                 name=cart_item.item.name,
@@ -1027,7 +1072,8 @@ def receipt(request):
                 dosage_form=dosage_form_obj,
                 unit=cart_item.item.unit,
                 quantity=cart_item.quantity,
-                amount=subtotal,
+                amount=discounted_amount,
+                discount_amount=cart_item.discount_amount,
                 status="Dispensed"
             )
 
@@ -1329,6 +1375,12 @@ def return_item(request, pk):
                                 dosage_form=item.dosage_form
                             )
 
+                        # Calculate proportional discount for the return
+                        proportional_discount = Decimal('0')
+                        if sales_item.discount_amount > 0 and sales_item.quantity > 0:
+                            discount_per_unit = sales_item.discount_amount / sales_item.quantity
+                            proportional_discount = discount_per_unit * return_quantity
+
                         # Create dispensing log entry for the return
                         DispensingLog.objects.create(
                             user=request.user,
@@ -1338,6 +1390,7 @@ def return_item(request, pk):
                             unit=item.unit,
                             quantity=return_quantity,
                             amount=refund_amount,
+                            discount_amount=proportional_discount,
                             status='Returned'
                         )
 
@@ -1396,7 +1449,7 @@ def return_item(request, pk):
 
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(lambda user: user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager'])
 def delete_item(request, pk):
     if request.user.is_authenticated:
         item = get_object_or_404(Item, id=pk)
@@ -2201,6 +2254,12 @@ def select_items(request, pk):
                                 dosage_form=item.dosage_form
                             )
 
+                        # Calculate proportional discount for the return
+                        proportional_discount = Decimal('0')
+                        if sales_item.discount_amount > 0 and sales_item.quantity > 0:
+                            discount_per_unit = sales_item.discount_amount / sales_item.quantity
+                            proportional_discount = discount_per_unit * quantity
+
                         # Create dispensing log for the return
                         DispensingLog.objects.create(
                             user=request.user,
@@ -2210,6 +2269,7 @@ def select_items(request, pk):
                             unit=unit,
                             quantity=quantity,
                             amount=total_refund_amount,
+                            discount_amount=proportional_discount,
                             status='Returned'
                         )
 
@@ -2289,8 +2349,11 @@ def dispensing_log(request):
         can_view_all_users = can_view_all_users_dispensing(request.user)
 
         # Get user queryset and logs - now all users can see all dispensing logs
-        user_queryset = User.objects.filter(dispensinglog__isnull=False).distinct()
-        logs = DispensingLog.objects.all().order_by('-created_at')
+        # Optimize user queryset with select_related for better performance
+        user_queryset = User.objects.filter(dispensinglog__isnull=False).distinct().order_by('username')
+
+        # Optimize logs query with select_related for foreign keys
+        logs = DispensingLog.objects.select_related('user', 'dosage_form').order_by('-created_at')
 
         # Initialize search form with user queryset
         search_form = DispensingLogSearchForm(request.GET, user_queryset=user_queryset)
@@ -2344,11 +2407,11 @@ def dispensing_log_search_suggestions(request):
         query = request.GET.get('q', '').strip()
         suggestions = []
 
-        if query and len(query) >= 2:
-            # Get unique item names that start with the query
+        if query and len(query) >= 1:  # Reduce minimum query length for faster suggestions
+            # Optimized query with better performance
             dispensed_items = DispensingLog.objects.filter(
                 name__istartswith=query
-            ).values_list('name', flat=True).distinct()[:10]
+            ).values_list('name', flat=True).distinct().order_by('name')[:8]  # Reduce to 8 for faster response
 
             suggestions = list(dispensed_items)
 
@@ -2519,6 +2582,7 @@ def dispensing_log_stats(request):
                 try:
                     # Calculate total sales from dispensing logs (matching the displayed data and date range)
                     # Use the same filtered logs that are being displayed
+                    # Use discounted amounts (amount field now contains discounted amount)
                     filtered_dispensing_sales = logs.filter(
                         status='Dispensed'  # Only count dispensed items, not returns
                     ).aggregate(
@@ -3372,8 +3436,8 @@ def create_stock_check(request):
                         StockCheckItem(
                             stock_check=stock_check,
                             item=item,
-                            expected_quantity=item.stock,
-                            actual_quantity=0,
+                            expected_quantity=Decimal(str(item.stock)) if item.stock else Decimal('0'),
+                            actual_quantity=Decimal('0'),
                             status='pending'
                         )
                     )
@@ -3406,11 +3470,17 @@ def update_stock_check(request, stock_check_id):
                     item_id = int(item_id.replace("item_", ""))
                     stock_item = StockCheckItem.objects.get(stock_check=stock_check, item_id=item_id)
 
+                    # Convert to Decimal for proper handling
+                    try:
+                        actual_qty_decimal = Decimal(str(actual_qty)) if actual_qty else Decimal('0')
+                    except (ValueError, TypeError):
+                        actual_qty_decimal = Decimal('0')
+
                     # If zero_empty_items is True and both expected and actual are 0, set to 0
-                    if zero_empty_items and stock_item.expected_quantity == 0 and int(actual_qty) == 0:
-                        stock_item.actual_quantity = 0
+                    if zero_empty_items and stock_item.expected_quantity == 0 and actual_qty_decimal == 0:
+                        stock_item.actual_quantity = Decimal('0')
                     else:
-                        stock_item.actual_quantity = int(actual_qty)
+                        stock_item.actual_quantity = actual_qty_decimal
 
                     stock_items.append(stock_item)
 
@@ -3443,7 +3513,14 @@ def update_stock_check(request, stock_check_id):
                 if item_id.startswith("item_"):
                     item_id = int(item_id.replace("item_", ""))
                     stock_item = StockCheckItem.objects.get(stock_check=stock_check, item_id=item_id)
-                    stock_item.actual_quantity = int(actual_qty)
+
+                    # Convert to Decimal for proper handling
+                    try:
+                        actual_qty_decimal = Decimal(str(actual_qty)) if actual_qty else Decimal('0')
+                    except (ValueError, TypeError):
+                        actual_qty_decimal = Decimal('0')
+
+                    stock_item.actual_quantity = actual_qty_decimal
                     stock_items.append(stock_item)
             StockCheckItem.objects.bulk_update(stock_items, ['actual_quantity'])
             messages.success(request, "Stock check updated successfully.")
@@ -3992,15 +4069,19 @@ def search_for_adjustment(request):
 @login_required
 def search_items(request):
     """API endpoint for searching items for stock check"""
-    query = request.GET.get('q', '')
-    if query:
+    query = request.GET.get('q', '').strip()
+    if query and len(query) >= 2:  # Only search for meaningful queries
+        # Optimized search with prefix matching first, then partial matching
         items = Item.objects.filter(
+            Q(name__istartswith=query) |
+            Q(brand__istartswith=query) |
+            Q(dosage_form__istartswith=query) |
             Q(name__icontains=query) |
             Q(brand__icontains=query) |
             Q(dosage_form__icontains=query)
-        ).order_by('name')
+        ).distinct().order_by('name')[:30]  # Increased limit but still reasonable
     else:
-        items = Item.objects.all().order_by('name')[:20]  # Limit to 20 items if no query
+        items = Item.objects.all().order_by('name')[:30]  # Increased limit for better UX
 
     # Check if this is an HTMX request
     if request.headers.get('HX-Request'):

@@ -203,6 +203,20 @@ def user_role(user):
     return None
 
 
+@register.filter
+def can_delete_items(user):
+    """
+    Template filter to check if a user can delete items.
+    Usage: {% if user|can_delete_items %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (hasattr(user, 'profile') and
+            user.profile and
+            user.profile.user_type in ['Admin', 'Manager'])
+
+
 @register.inclusion_tag('userauth/partials/permission_check.html')
 def check_permission(user, permission, content=""):
     """

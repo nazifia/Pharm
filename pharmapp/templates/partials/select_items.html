@@ -389,7 +389,7 @@
             <div class="input-group">
                 <span class="input-group-text"><i class="fas fa-search"></i></span>
                 <input type="text" class="form-control" id="item-search" name="q" placeholder="Search for items..."
-                    hx-get="{% url 'store:search_items' %}" hx-trigger="keyup changed delay:300ms"
+                    hx-get="{% url 'store:search_items' %}" hx-trigger="keyup changed delay:150ms"
                     hx-target="#for-customer" hx-swap="innerHTML" hx-indicator=".htmx-indicator">
             </div>
             <div class="htmx-indicator mt-2" style="display:none">
