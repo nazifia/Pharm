@@ -459,23 +459,105 @@
     </div>
 </div>
 <script>
+    // Global object to store selected items across searches
+    let selectedItems = {};
+
+    // Function to save item selection state
+    function saveItemSelection(itemId, isChecked, quantity) {
+        if (isChecked) {
+            selectedItems[itemId] = {
+                checked: true,
+                quantity: quantity || 1
+            };
+        } else {
+            delete selectedItems[itemId];
+        }
+        console.log('Selected items:', selectedItems);
+    }
+
+    // Function to restore item selections after content swap
+    function restoreItemSelections() {
+        Object.keys(selectedItems).forEach(function(itemId) {
+            const checkbox = document.querySelector(`input[type="checkbox"][value="${itemId}"]`);
+            const quantityInput = checkbox ? checkbox.closest('tr').querySelector('input[type="number"]') : null;
+
+            if (checkbox && quantityInput) {
+                checkbox.checked = selectedItems[itemId].checked;
+                quantityInput.disabled = !checkbox.checked;
+                quantityInput.value = selectedItems[itemId].quantity;
+            }
+        });
+    }
+
+    // Function to add hidden inputs for selected items not visible in current search
+    function addHiddenInputsForSelectedItems() {
+        // Remove existing hidden inputs first
+        document.querySelectorAll('.hidden-selected-item').forEach(el => el.remove());
+
+        const form = document.getElementById('item-form');
+        const visibleItemIds = Array.from(document.querySelectorAll('input[type="checkbox"][name="item_ids"]'))
+            .map(cb => cb.value);
+
+        Object.keys(selectedItems).forEach(function(itemId) {
+            if (!visibleItemIds.includes(itemId)) {
+                // Add hidden inputs for items not visible in current search
+                const hiddenItemId = document.createElement('input');
+                hiddenItemId.type = 'hidden';
+                hiddenItemId.name = 'item_ids';
+                hiddenItemId.value = itemId;
+                hiddenItemId.className = 'hidden-selected-item';
+                form.appendChild(hiddenItemId);
+
+                const hiddenQuantity = document.createElement('input');
+                hiddenQuantity.type = 'hidden';
+                hiddenQuantity.name = 'quantities';
+                hiddenQuantity.value = selectedItems[itemId].quantity;
+                hiddenQuantity.className = 'hidden-selected-item';
+                form.appendChild(hiddenQuantity);
+            }
+        });
+    }
+
     // Function to enable quantity input when checkbox is selected
     function setupCheckboxListeners() {
-        document.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+        document.querySelectorAll('input[type="checkbox"][name="item_ids"]').forEach(function (checkbox) {
             checkbox.addEventListener('change', function () {
                 const quantityInput = this.closest('tr').querySelector('input[type="number"]');
+                const itemId = this.value;
+                const quantity = quantityInput.value;
+
                 quantityInput.disabled = !this.checked;
+
+                // Save selection state
+                saveItemSelection(itemId, this.checked, quantity);
+
+                // Update hidden inputs
+                addHiddenInputsForSelectedItems();
+            });
+        });
+
+        // Also listen for quantity changes
+        document.querySelectorAll('input[type="number"][name="quantities"]').forEach(function (quantityInput) {
+            quantityInput.addEventListener('change', function () {
+                const checkbox = this.closest('tr').querySelector('input[type="checkbox"]');
+                if (checkbox && checkbox.checked) {
+                    const itemId = checkbox.value;
+                    saveItemSelection(itemId, true, this.value);
+                }
             });
         });
     }
 
     // Call the function on page load
     setupCheckboxListeners();
+    restoreItemSelections();
 
     // Set up HTMX event listener to reinitialize checkbox listeners after search results load
     document.body.addEventListener('htmx:afterSwap', function(event) {
         if (event.detail.target.id === 'for-customer') {
             setupCheckboxListeners();
+            restoreItemSelections();
+            addHiddenInputsForSelectedItems();
         }
     });
 
