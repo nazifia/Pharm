@@ -1036,6 +1036,13 @@ def select_wholesale_items(request, pk):
 def wholesale_cart(request):
     if request.user.is_authenticated:
         cart_items = WholesaleCart.objects.select_related('item').filter(user=request.user)
+
+        # Check if cart is empty and cleanup session if needed
+        from store.cart_utils import auto_cleanup_empty_cart_session
+        cleanup_summary = auto_cleanup_empty_cart_session(request, 'wholesale')
+        if cleanup_summary:
+            logger.info(f"Empty wholesale cart session cleaned up on cart view: {cleanup_summary}")
+
         total_price, total_discount = 0, 0
 
         if request.method == 'POST':
@@ -1099,7 +1106,16 @@ def update_wholesale_cart_quantity(request, pk):
 
                 # Update cart item quantity or remove it
                 cart_item.quantity -= quantity_to_return
-                cart_item.save() if cart_item.quantity > 0 else cart_item.delete()
+                if cart_item.quantity > 0:
+                    cart_item.save()
+                else:
+                    cart_item.delete()
+                    # Check if cart is now empty and cleanup session if needed
+                    from store.cart_utils import auto_cleanup_empty_cart_session
+                    cleanup_summary = auto_cleanup_empty_cart_session(request, 'wholesale')
+                    if cleanup_summary:
+                        logger.info(f"Wholesale cart became empty after item removal, session cleaned up: {cleanup_summary}")
+
                 messages.success(request, f"{quantity_to_return} {cart_item.item.unit} of {cart_item.item.name} removed from cart.")
 
         return redirect('wholesale:wholesale_cart')
@@ -1507,9 +1523,10 @@ def wholesale_receipt(request):
 
         cart_items.delete()
 
-        # Clear wholesale_customer_id from session after receipt is created
-        if 'wholesale_customer_id' in request.session:
-            del request.session['wholesale_customer_id']
+        # Comprehensive cart session cleanup after receipt generation
+        from store.cart_utils import cleanup_cart_session_after_receipt
+        cleanup_summary = cleanup_cart_session_after_receipt(request, 'wholesale')
+        logger.info(f"Wholesale cart session cleanup after receipt: {cleanup_summary}")
 
         daily_sales_data = get_daily_sales()
         monthly_sales_data = get_monthly_sales_with_expenses()
