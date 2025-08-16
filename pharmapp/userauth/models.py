@@ -28,7 +28,9 @@ USER_PERMISSIONS = {
         'pause_resume_procurement', 'search_items',
         # All-access permissions for Admins
         'operate_all', 'manage_all_customers', 'manage_all_procurement',
-        'manage_all_stock_checks', 'manage_all_expiry'
+        'manage_all_stock_checks', 'manage_all_expiry',
+        # Specific procurement permissions
+        'manage_retail_procurement', 'manage_wholesale_procurement', 'view_procurement_history'
     ],
     'Manager': [
         'view_financial_reports', 'manage_inventory', 'process_sales', 'view_reports',
@@ -38,7 +40,9 @@ USER_PERMISSIONS = {
         'pause_resume_procurement', 'search_items',
         # All-access permissions for Managers
         'operate_all', 'manage_all_customers', 'manage_all_procurement',
-        'manage_all_stock_checks', 'manage_all_expiry'
+        'manage_all_stock_checks', 'manage_all_expiry',
+        # Specific procurement permissions
+        'manage_retail_procurement', 'manage_wholesale_procurement', 'view_procurement_history'
     ],
     'Pharmacist': [
         'manage_inventory', 'dispense_medication', 'process_sales', 'adjust_prices',
@@ -67,7 +71,7 @@ USER_PERMISSIONS = {
         'pause_resume_procurement', 'search_items',
         # Wholesale-only permissions
         'operate_wholesale', 'manage_wholesale_customers', 'manage_wholesale_procurement',
-        'manage_wholesale_stock_checks', 'manage_wholesale_expiry'
+        'manage_wholesale_stock_checks', 'manage_wholesale_expiry', 'view_procurement_history'
     ],
     'Wholesale Operator': [
         'manage_inventory', 'process_sales', 'adjust_prices', 'process_returns',
@@ -75,7 +79,7 @@ USER_PERMISSIONS = {
         'process_split_payments', 'search_items',
         # Wholesale-only permissions
         'operate_wholesale', 'manage_wholesale_customers', 'manage_wholesale_procurement',
-        'manage_wholesale_stock_checks', 'manage_wholesale_expiry'
+        'manage_wholesale_stock_checks', 'manage_wholesale_expiry', 'view_procurement_history'
     ],
     'Wholesale Salesperson': [
         'process_sales', 'view_sales_history', 'process_split_payments', 'search_items',

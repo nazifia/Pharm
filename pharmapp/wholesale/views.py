@@ -25,6 +25,12 @@ from django.db.models import Q
 from store.models import WholesaleItem  # Updated import path
 import logging
 
+# Import procurement permission functions
+from userauth.permissions import (
+    can_manage_wholesale_procurement,
+    can_view_procurement_history
+)
+
 logger = logging.getLogger(__name__)
 
 # Add this at the top of your views.py if not already present
@@ -2512,7 +2518,7 @@ def wholesale_transactions(request, customer_id):
 
 
 
-@user_passes_test(is_admin_or_manager)
+@user_passes_test(can_manage_wholesale_procurement)
 @login_required
 def add_wholesale_procurement(request):
     if request.user.is_authenticated:
@@ -2637,6 +2643,7 @@ def add_wholesale_procurement(request):
 
 
 
+@user_passes_test(can_manage_wholesale_procurement)
 @login_required
 def wholesale_procurement_form(request):
     if request.user.is_authenticated:
@@ -2653,6 +2660,8 @@ def wholesale_procurement_form(request):
         return redirect('store:index')
 
 
+@user_passes_test(can_view_procurement_history)
+@login_required
 def wholesale_procurement_list(request):
     if request.user.is_authenticated:
         procurements = (
@@ -2666,6 +2675,8 @@ def wholesale_procurement_list(request):
         return redirect('store:index')
 
 
+@user_passes_test(can_view_procurement_history)
+@login_required
 def search_wholesale_procurement(request):
     if request.user.is_authenticated:
         # Base query with calculated total and ordering
@@ -2689,6 +2700,7 @@ def search_wholesale_procurement(request):
         return redirect('store:index')
 
 
+@user_passes_test(can_view_procurement_history)
 @login_required
 def wholesale_procurement_detail(request, procurement_id):
     if request.user.is_authenticated:

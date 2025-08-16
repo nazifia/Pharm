@@ -162,9 +162,9 @@ class RoleBasedAccessMiddleware:
             'store:monthly_sales': ['Admin', 'Manager'],
             'store:sales_by_payment_method': ['Admin', 'Manager'],
 
-            # Procurement Management
-            'store:add_procurement': ['Admin', 'Manager', 'Pharm-Tech'],
-            'store:procurement_list': ['Admin', 'Manager', 'Pharm-Tech'],
+            # Procurement Management - Now handled by permission-based decorators in views
+            # 'store:add_procurement': ['Admin', 'Manager', 'Pharm-Tech'],
+            # 'store:procurement_list': ['Admin', 'Manager', 'Pharm-Tech'],
             'store:edit_procurement': ['Admin', 'Manager'],
             'store:delete_procurement': ['Admin', 'Manager'],
 

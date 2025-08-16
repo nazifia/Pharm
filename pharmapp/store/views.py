@@ -26,6 +26,12 @@ from django.utils import timezone
 import logging
 import hashlib
 
+# Import procurement permission functions
+from userauth.permissions import (
+    can_manage_retail_procurement,
+    can_view_procurement_history
+)
+
 logger = logging.getLogger(__name__)
 
 # Cache utility functions for search optimization
@@ -2881,7 +2887,7 @@ def delete_supplier(request, pk):
 
 
 
-@user_passes_test(is_admin)
+@user_passes_test(can_manage_retail_procurement)
 @login_required
 def add_procurement(request):
     if request.user.is_authenticated:
@@ -3054,6 +3060,7 @@ def add_procurement(request):
     else:
         return redirect('store:index')
 
+@user_passes_test(can_manage_retail_procurement)
 @login_required
 def procurement_form(request):
     if request.user.is_authenticated:
@@ -3119,6 +3126,7 @@ def search_store_items(request):
     else:
         return JsonResponse({'results': []})
 
+@user_passes_test(can_view_procurement_history)
 @login_required
 def procurement_list(request):
     if request.user.is_authenticated:
@@ -3132,6 +3140,7 @@ def procurement_list(request):
     else:
         return redirect('store:index')
 
+@user_passes_test(can_view_procurement_history)
 @login_required
 def search_procurement(request):
     if request.user.is_authenticated:
@@ -3160,6 +3169,7 @@ def search_procurement(request):
     else:
         return redirect('store:index')
 
+@user_passes_test(can_view_procurement_history)
 @login_required
 def procurement_detail(request, procurement_id):
     if request.user.is_authenticated:

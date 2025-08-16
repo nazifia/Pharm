@@ -199,7 +199,7 @@ def can_view_sales_history(user):
 
 def can_view_procurement_history(user):
     """Check if user can view procurement history"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharm-Tech']
+    return user.is_authenticated and user.has_permission('view_procurement_history')
 
 def can_manage_items(user):
     """Check if user can add and edit items"""
