@@ -106,6 +106,7 @@
                             <th>Date</th>
                             <th>Type</th>
                             <th>Amount</th>
+                            <th>User</th>
                             <th>Description</th>
                         </tr>
                     </thead>
@@ -114,7 +115,7 @@
                         <tr>
                             <td>{{ transaction.date|date:"M d, Y H:i" }}</td>
                             <td>
-                                <span class="badge 
+                                <span class="badge
                                     {% if transaction.transaction_type == 'deposit' %}badge-success
                                     {% elif transaction.transaction_type == 'purchase' %}badge-danger
                                     {% elif transaction.transaction_type == 'refund' %}badge-info
@@ -128,6 +129,13 @@
                                     {% else %}text-danger{% endif %}">
                                     {% if transaction.transaction_type == 'deposit' or transaction.transaction_type == 'refund' %}+{% else %}-{% endif %}₦{{ transaction.amount|floatformat:2|intcomma }}
                                 </strong>
+                            </td>
+                            <td>
+                                {% if transaction.user %}
+                                    <span class="badge badge-secondary">{{ transaction.user.username }}</span>
+                                {% else %}
+                                    <span class="text-muted">System</span>
+                                {% endif %}
                             </td>
                             <td>{{ transaction.description|default:"No description" }}</td>
                         </tr>

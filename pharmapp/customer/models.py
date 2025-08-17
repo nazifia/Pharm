@@ -31,12 +31,13 @@ class Wallet(models.Model):
     def __str__(self):
         return f"{self.customer.name}'s wallet - balance {self.balance}"
     
-    def add_funds(self, amount):
+    def add_funds(self, amount, user=None):
         self.balance += amount
         self.save()
         # Save transaction history
         TransactionHistory.objects.create(
             customer=self.customer,
+            user=user,
             transaction_type='deposit',
             amount=amount,
             description='Funds added to wallet'
@@ -74,12 +75,13 @@ class WholesaleCustomerWallet(models.Model):
     def __str__(self):
         return f"{self.customer.name}'s wallet - balance {self.balance}"
     
-    def add_funds(self, amount):
+    def add_funds(self, amount, user=None):
         self.balance += amount
         self.save()
         # Save transaction history
         TransactionHistory.objects.create(
             wholesale_customer=self.customer,
+            user=user,
             transaction_type='deposit',
             amount=amount,
             description='Funds added to wallet'
@@ -102,6 +104,7 @@ class TransactionHistory(models.Model):
 
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='transactions', null=True, blank=True)
     wholesale_customer = models.ForeignKey(WholesaleCustomer, on_delete=models.CASCADE, related_name='wholesale_transactions', null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, help_text="User who performed the transaction")
     transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     date = models.DateTimeField(default=timezone.now)

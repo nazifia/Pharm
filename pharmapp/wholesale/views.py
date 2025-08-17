@@ -461,6 +461,7 @@ def return_wholesale_item(request, pk):
                             # Log the refund transaction
                             TransactionHistory.objects.create(
                                 customer=sales.customer,
+                                user=request.user,
                                 transaction_type='refund',
                                 amount=refund_amount,
                                 description=f'Refund for {return_quantity} of {item.name}'
@@ -990,6 +991,7 @@ def select_wholesale_items(request, pk):
                     if total_cost > 0:
                         TransactionHistory.objects.create(
                             wholesale_customer=customer,
+                            user=request.user,
                             transaction_type='purchase',
                             amount=total_cost,
                             description='Purchase via select wholesale items'
@@ -1005,6 +1007,7 @@ def select_wholesale_items(request, pk):
                     if abs(total_cost) > 0:
                         TransactionHistory.objects.create(
                             wholesale_customer=customer,
+                            user=request.user,
                             transaction_type='refund',
                             amount=abs(total_cost),
                             description='Refund for returned items via select item'
@@ -1181,6 +1184,7 @@ def clear_wholesale_cart(request):
                                     # Create transaction history for the refund
                                     TransactionHistory.objects.create(
                                         customer=sale.wholesale_customer,
+                                        user=request.user,
                                         transaction_type='refund',
                                         amount=total_refund,
                                         description='Cart cleared - items returned'
@@ -1389,6 +1393,7 @@ def wholesale_receipt(request):
                                 # Create transaction history
                                 TransactionHistory.objects.create(
                                     wholesale_customer=sales.wholesale_customer,
+                                    user=request.user,
                                     transaction_type='purchase',
                                     amount=wallet_amount,
                                     description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
@@ -1474,6 +1479,7 @@ def wholesale_receipt(request):
                         from customer.models import TransactionHistory
                         TransactionHistory.objects.create(
                             wholesale_customer=sales.wholesale_customer,
+                            user=request.user,
                             transaction_type='purchase',
                             amount=sales.total_amount,
                             description=f'Purchase payment via {receipt.payment_method} (Receipt ID: {receipt.receipt_id})'
@@ -1762,6 +1768,7 @@ def return_wholesale_items_for_customer(request, pk):
                 if abs(total_refund) > 0:
                     TransactionHistory.objects.create(
                         wholesale_customer=customer,
+                        user=request.user,
                         transaction_type='refund',
                         amount=abs(total_refund),
                         description='Refund for returned items via select item'
@@ -2378,7 +2385,7 @@ def wholesale_customer_add_funds(request, pk):
             form = WholesaleCustomerAddFundsForm(request.POST)
             if form.is_valid():
                 amount = form.cleaned_data['amount']
-                wallet.add_funds(amount)
+                wallet.add_funds(amount, user=request.user)
                 messages.success(request, f'Funds successfully added to {wallet.customer.name}\'s wallet.')
                 return redirect('wholesale:wholesale_customers')
             else:

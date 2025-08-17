@@ -1049,6 +1049,7 @@ def receipt(request):
                         from customer.models import TransactionHistory
                         TransactionHistory.objects.create(
                             customer=sales.customer,
+                            user=request.user,
                             transaction_type='purchase',
                             amount=sales.total_amount,
                             description=f'Purchase payment via {receipt.payment_method} (Receipt ID: {receipt.receipt_id})'
@@ -1058,6 +1059,7 @@ def receipt(request):
                         from customer.models import TransactionHistory
                         TransactionHistory.objects.create(
                             customer=sales.customer,
+                            user=request.user,
                             transaction_type='purchase',
                             amount=sales.total_amount,
                             description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
@@ -2054,7 +2056,7 @@ def add_funds(request, pk):
             form = AddFundsForm(request.POST)
             if form.is_valid():
                 amount = form.cleaned_data['amount']
-                wallet.add_funds(amount)
+                wallet.add_funds(amount, user=request.user)
                 messages.success(request, f'Funds successfully added to {wallet.customer.name}\'s wallet.')
                 return redirect('store:customer_list')
             else:
@@ -2341,6 +2343,7 @@ def select_items(request, pk):
                     if abs(total_cost) > 0:
                         TransactionHistory.objects.create(
                             customer=customer,
+                            user=request.user,
                             transaction_type='refund',
                             amount=abs(total_cost),
                             description='Refund for returned items'
