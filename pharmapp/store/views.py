@@ -646,12 +646,13 @@ def update_cart_quantity(request, pk):
                 cart_item.item.stock += quantity_to_return
                 cart_item.item.save()
 
-                # Adjust DispensingLog entries
+                # Adjust DispensingLog entries - consider discounted amount
+                discounted_amount = (cart_item.item.price * quantity_to_return) - (cart_item.discount_amount or Decimal('0.00'))
                 DispensingLog.objects.filter(
                     user=request.user,
                     name=cart_item.item.name,
                     quantity=quantity_to_return,
-                    amount=cart_item.item.price * quantity_to_return
+                    amount=discounted_amount
                 ).delete()
 
                 # Update cart item quantity or remove it
@@ -712,21 +713,32 @@ def clear_cart(request):
                         receipts__isnull=True  # Pending sales have no receipts
                     ).distinct()
 
+                    # Track customers to avoid duplicate transaction history entries
+                    processed_customers = set()
+
                     for sale in sales_entries:
-                        if sale.customer:
+                        if sale.customer and sale.customer.id not in processed_customers:
                             try:
                                 wallet = sale.customer.wallet
                                 if wallet and total_refund > 0:
+                                    # For registered customers, provide automatic wallet refund when cart is cleared
                                     wallet.balance += total_refund
                                     wallet.save()
 
-                                    # Create transaction history for the refund
+                                    # Create transaction history noting the cart clear with wallet refund
                                     TransactionHistory.objects.create(
                                         customer=sale.customer,
+                                        user=request.user,
                                         transaction_type='refund',
                                         amount=total_refund,
-                                        description='Cart cleared - items returned'
+                                        description=f'Cart cleared - Refund for returned items (₦{total_refund})'
                                     )
+                                    messages.success(
+                                        request,
+                                        f'Cart cleared for customer {sale.customer.name}. Return value ₦{total_refund} refunded to wallet.'
+                                    )
+                                    # Mark this customer as processed to avoid duplicates
+                                    processed_customers.add(sale.customer.id)
                             except Wallet.DoesNotExist:
                                 messages.warning(
                                     request,
@@ -808,23 +820,23 @@ def receipt(request):
             payment_method = request.POST.get('payment_method')
             status = request.POST.get('status')
 
-            # If not provided in POST, try to get from user session (from select_items)
-            if not payment_method or not status:
-                from userauth.session_utils import get_user_payment_data
-                session_payment_data = get_user_payment_data(request)
-                if not payment_method:
-                    payment_method = session_payment_data.get('payment_method')
-                if not status:
-                    status = session_payment_data.get('payment_status')
-
-            # Final defaults if still not set
+        # If not provided in POST, try to get from user session (from select_items)
+        if not payment_method or not status:
+            from userauth.session_utils import get_user_payment_data
+            session_payment_data = get_user_payment_data(request)
+            if not payment_method:
+                payment_method = session_payment_data.get('payment_method')
             if not status:
-                status = 'Paid'  # Default to 'Paid' if not provided
+                status = session_payment_data.get('payment_status')
 
-            payment_method_1 = None
-            payment_method_2 = None
-            payment_amount_1 = Decimal('0')
-            payment_amount_2 = Decimal('0')
+        # Final defaults if still not set
+        if not status:
+            status = 'Paid'  # Default to 'Paid' if not provided
+
+        payment_method_1 = None
+        payment_method_2 = None
+        payment_amount_1 = Decimal('0')
+        payment_amount_2 = Decimal('0')
 
         # Dump all POST data for debugging
         print("\n\n==== ALL POST DATA: =====")
@@ -1054,16 +1066,31 @@ def receipt(request):
                             amount=sales.total_amount,
                             description=f'Purchase payment via {receipt.payment_method} (Receipt ID: {receipt.receipt_id})'
                         )
-                    # For wallet payments, create a single transaction history entry
-                    elif receipt.payment_method == 'Wallet':
+                    # For wallet payments, deduct from wallet and create transaction history
+                    elif receipt.payment_method == 'Wallet' and sales.customer:
                         from customer.models import TransactionHistory
-                        TransactionHistory.objects.create(
-                            customer=sales.customer,
-                            user=request.user,
-                            transaction_type='purchase',
-                            amount=sales.total_amount,
-                            description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
-                        )
+                        try:
+                            wallet = Wallet.objects.get(customer=sales.customer)
+                            # Check if wallet will go negative
+                            wallet_balance_before = wallet.balance
+                            wallet.balance -= sales.total_amount
+                            wallet.save()
+
+                            # Check if wallet went negative and set flag
+                            if wallet_balance_before >= 0 and wallet.balance < 0:
+                                receipt.wallet_went_negative = True
+                                receipt.save()
+
+                            # Create transaction history entry
+                            TransactionHistory.objects.create(
+                                customer=sales.customer,
+                                user=request.user,
+                                transaction_type='purchase',
+                                amount=sales.total_amount,
+                                description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                            )
+                        except Wallet.DoesNotExist:
+                            messages.warning(request, f'Wallet not found for customer {sales.customer.name}')
 
                 # Clear payment session data after successful receipt creation
                 from userauth.session_utils import delete_user_session_data
@@ -1170,6 +1197,8 @@ def receipt(request):
 
         # Get split payment details if this is a split payment
         split_payment_details = None
+        receipt_payments = None
+
         if payment_type == 'split':
             split_payment_details = {
                 'payment_method_1': payment_method_1,
@@ -1434,31 +1463,10 @@ def return_item(request, pk):
                         request.session['payment_method'] = payment_method
                         request.session['payment_status'] = status
 
-                        # Handle customer wallet refund if applicable
-                        if sales.customer:
-                            try:
-                                wallet = Wallet.objects.get(customer=sales.customer)
-                                wallet.balance += refund_amount
-                                wallet.save()
-
-                                # Create transaction history for the refund
-                                TransactionHistory.objects.create(
-                                    customer=sales.customer,
-                                    transaction_type='refund',
-                                    amount=refund_amount,
-                                    description=f'Refund for returned item: {item.name} (Qty: {return_quantity})'
-                                )
-
-                                messages.success(
-                                    request,
-                                    f'{return_quantity} of {item.name} successfully returned, and ₦{refund_amount} refunded to the wallet.'
-                                )
-                            except Wallet.DoesNotExist:
-                                messages.error(request, 'Customer wallet not found or not associated.')
-
+                        # Note: Wallet refund for registered customers is now handled in select_items function
                         messages.success(
                             request,
-                            f'{return_quantity} of {item.name} successfully returned.'
+                            f'{return_quantity} of {item.name} successfully returned (₦{refund_amount}).'
                         )
                         return redirect('store:store')
 
@@ -1492,9 +1500,10 @@ def delete_item(request, pk):
         return redirect('store:index')
 
 def get_daily_sales():
-    # Fetch daily sales data
+    # Fetch daily sales data - exclude returned sales
     regular_sales = (
         SalesItem.objects
+        .filter(sales__is_returned=False)  # Exclude returned sales
         .annotate(day=TruncDay('sales__date'))
         .values('day')
         .annotate(
@@ -1509,6 +1518,7 @@ def get_daily_sales():
 
     wholesale_sales = (
         WholesaleSalesItem.objects
+        .filter(sales__is_returned=False)  # Exclude returned wholesale sales
         .annotate(day=TruncDay('sales__date'))
         .values('day')
         .annotate(
@@ -1522,10 +1532,11 @@ def get_daily_sales():
     )
 
     # Get retail sales by payment method - using TruncDay to match the day format from sales queries
-    # First, get regular payment methods from receipts that aren't split payments
+    # First, get regular payment methods from receipts that aren't split payments and aren't returned
     payment_method_sales = (
         Receipt.objects
         .filter(Q(status='Paid') | Q(status='Unpaid'))  # Include both paid and unpaid receipts
+        .filter(is_returned=False)  # Exclude returned receipts
         .exclude(payment_method='Split')  # Exclude split payments, we'll handle them separately
         .annotate(day=TruncDay('date'))
         .values('day', 'payment_method')
@@ -1553,6 +1564,7 @@ def get_daily_sales():
     wholesale_payment_method_sales = (
         WholesaleReceipt.objects
         .filter(Q(status='Paid') | Q(status='Unpaid'))  # Include both paid and unpaid receipts
+        .filter(is_returned=False)  # Exclude returned wholesale receipts
         .exclude(payment_method='Split')  # Exclude split payments, we'll handle them separately
         .annotate(day=TruncDay('date'))
         .values('day', 'payment_method')
@@ -1567,6 +1579,7 @@ def get_daily_sales():
     wholesale_split_payment_sales = (
         WholesaleReceiptPayment.objects
         .filter(Q(receipt__status='Paid') | Q(receipt__status='Unpaid'))
+        .filter(receipt__is_returned=False)  # Exclude payments for returned receipts
         .annotate(day=TruncDay('date'))
         .values('day', 'payment_method')
         .annotate(
@@ -2206,21 +2219,31 @@ def select_items(request, pk):
                         cart_item.save()
 
                         # Calculate subtotal and log dispensing
-                        subtotal = (item.price * quantity)
-                        total_cost += subtotal
+                        base_subtotal = (item.price * quantity)
+                        # Get discount amount from cart item if it exists
+                        discount_amount = Decimal('0.00')
+                        try:
+                            cart_item = Cart.objects.get(user=request.user, item=item)
+                            discount_amount = cart_item.discount_amount or Decimal('0.00')
+                        except Cart.DoesNotExist:
+                            pass
 
-                        # Update or create WholesaleSalesItem
+                        discounted_subtotal = base_subtotal - discount_amount
+                        total_cost += discounted_subtotal
+
+                        # Update or create SalesItem
                         sales_item, created = SalesItem.objects.get_or_create(
                             sales=sales,
                             item=item,
-                            defaults={'quantity': quantity, 'price': item.price}
+                            defaults={'quantity': quantity, 'price': item.price, 'discount_amount': discount_amount}
                         )
                         if not created:
                             sales_item.quantity += quantity
+                            sales_item.discount_amount += discount_amount
                             sales_item.save()
 
-                        # Update the sales total amount instead of receipt
-                        sales.total_amount += subtotal
+                        # Update the sales total amount with discounted amount
+                        sales.total_amount += discounted_subtotal
                         sales.save()
 
                         # **Log Item Selection History (Purchase)**
@@ -2235,17 +2258,19 @@ def select_items(request, pk):
 
                     elif action == 'return':
                         # Handle return logic - find existing sales items for this customer and item
+                        quantity = Decimal(str(quantity))  # Convert string to Decimal
                         item.stock += quantity
                         item.save()
 
-                        # Find existing sales items for this customer and item
+                        # Find existing sales items for this customer and item (exclude already returned sales)
                         existing_sales_items = SalesItem.objects.filter(
                             sales__customer=customer,
+                            sales__is_returned=False,  # Only include non-returned sales
                             item=item
                         ).order_by('-sales__date')
 
                         if not existing_sales_items.exists():
-                            messages.warning(request, f"No purchase record found for {item.name} for this customer.")
+                            messages.warning(request, f"No purchase record found for {item.name} for this customer, or all purchases have already been returned.")
                             continue
 
                         # Calculate total available quantity to return
@@ -2317,42 +2342,104 @@ def select_items(request, pk):
 
                         total_cost -= total_refund_amount
 
+                        # Mark affected sales as returned and track return information
+                        from django.utils import timezone
+                        affected_sales = set()
+                        for sales_item in existing_sales_items:
+                            if sales_item.sales not in affected_sales:
+                                affected_sales.add(sales_item.sales)
+
+                        # Update return tracking for affected sales
+                        for sales in affected_sales:
+                            if not sales.is_returned:  # Only update if not already marked as returned
+                                sales.is_returned = True
+                                sales.return_date = timezone.now()
+                                sales.return_amount += total_refund_amount
+                                sales.return_processed_by = request.user
+                                sales.save()
+
                 except Item.DoesNotExist:
                     messages.warning(request, 'One of the selected items does not exist.')
                     return redirect('store:select_items', pk=pk)
 
-            # Update customer's wallet balance
-            try:
-                wallet = customer.wallet
-                if action == 'purchase':
-                    # Check if wallet will go negative
-                    wallet_balance_before = wallet.balance
-                    wallet.balance -= total_cost
+            # Handle return processing for registered customers
+            if action == 'return':
+                try:
+                    wallet = customer.wallet
+                    # Check if any of the returned items were originally paid with wallet
+                    wallet_refund_amount = Decimal('0.00')
+                    non_wallet_refund_amount = Decimal('0.00')
 
-                    # Store negative wallet flag in session for receipt generation
-                    if wallet_balance_before >= 0 and wallet.balance < 0:
-                        request.session['wallet_went_negative'] = True
+                    # Process each returned item to check original payment method
+                    for item_id, quantity in zip(item_ids, quantities):
+                        item = Item.objects.get(id=item_id)
+                        quantity = Decimal(str(quantity))  # Convert string to Decimal
+                        item_total = item.price * quantity
 
-                    # Allow negative balance but inform the user
-                    if wallet.balance < 0:
-                        messages.info(request, f'Customer {customer.name} now has a negative wallet balance of {wallet.balance}')
-                elif action == 'return':
-                    wallet.balance += abs(total_cost)
+                        # Find the most recent sales item for this item and customer
+                        sales_item = SalesItem.objects.filter(
+                            item=item,
+                            sales__customer=customer
+                        ).order_by('-sales__date').first()
 
-                    # Create transaction history for the return refund
-                    if abs(total_cost) > 0:
+                        if sales_item and sales_item.sales:
+                            # Check the payment method from the receipt
+                            receipt = sales_item.sales.receipts.first()
+                            if receipt:
+                                if receipt.payment_method == 'Wallet':
+                                    wallet_refund_amount += item_total
+                                elif receipt.payment_method == 'Split':
+                                    # For split payments, check if wallet was used
+                                    wallet_payments = receipt.receipt_payments.filter(payment_method='Wallet')
+                                    if wallet_payments.exists():
+                                        # Calculate proportional wallet refund
+                                        total_wallet_paid = sum(p.amount for p in wallet_payments)
+                                        wallet_proportion = total_wallet_paid / receipt.total_amount
+                                        wallet_refund_amount += item_total * wallet_proportion
+                                        non_wallet_refund_amount += item_total * (1 - wallet_proportion)
+                                    else:
+                                        non_wallet_refund_amount += item_total
+                                else:
+                                    # Cash, Transfer, or other non-wallet payment
+                                    non_wallet_refund_amount += item_total
+                            else:
+                                # No receipt found, assume non-wallet payment
+                                non_wallet_refund_amount += item_total
+                        else:
+                            # No sales record found, assume non-wallet payment
+                            non_wallet_refund_amount += item_total
+
+                    # Only refund to wallet if there was original wallet payment
+                    if wallet_refund_amount > 0:
+                        wallet.balance += wallet_refund_amount
+                        wallet.save()
+
+                        # Create transaction history for wallet refund
                         TransactionHistory.objects.create(
                             customer=customer,
                             user=request.user,
                             transaction_type='refund',
-                            amount=abs(total_cost),
-                            description='Refund for returned items'
+                            amount=wallet_refund_amount,
+                            description=f'Wallet refund for returned items (₦{wallet_refund_amount})'
                         )
+                        messages.success(request, f'Return processed. ₦{wallet_refund_amount} refunded to wallet.')
 
-                wallet.save()
-            except Wallet.DoesNotExist:
-                messages.warning(request, 'Customer does not have a wallet.')
-                return redirect('store:select_items', pk=pk)
+                    if non_wallet_refund_amount > 0:
+                        # Create transaction history for non-wallet refund (informational)
+                        TransactionHistory.objects.create(
+                            customer=customer,
+                            user=request.user,
+                            transaction_type='refund',
+                            amount=Decimal('0.00'),  # No wallet credit for non-wallet payments
+                            description=f'Return processed for non-wallet payment (₦{non_wallet_refund_amount}) - No wallet refund'
+                        )
+                        messages.info(request, f'₦{non_wallet_refund_amount} from non-wallet payments returned (no wallet refund).')
+
+                except Wallet.DoesNotExist:
+                    messages.warning(request, 'Customer does not have a wallet.')
+                    return redirect('store:select_items', pk=pk)
+
+            # Note: Wallet deduction for purchases now happens during receipt generation, not here
 
             # Store payment method and status in user-specific session for receipt generation
             from userauth.session_utils import set_user_payment_data
@@ -2617,11 +2704,20 @@ def dispensing_log_stats(request):
                     # Use the same filtered logs that are being displayed
                     # Use discounted amounts (amount field now contains discounted amount)
                     filtered_dispensing_sales = logs.filter(
-                        status='Dispensed'  # Only count dispensed items, not returns
+                        status='Dispensed'  # Only count dispensed items
                     ).aggregate(
                         total=Sum('amount')
                     )['total'] or Decimal('0')
-                    daily_total_sales = float(filtered_dispensing_sales)
+
+                    # Calculate total returns from dispensing logs in the same date range
+                    filtered_returns = logs.filter(
+                        status__in=['Returned', 'Partially Returned']  # Count all types of returns
+                    ).aggregate(
+                        total=Sum('amount')
+                    )['total'] or Decimal('0')
+
+                    # Net sales = Dispensed - Returned
+                    daily_total_sales = float(filtered_dispensing_sales - filtered_returns)
                 except Exception as e:
                     daily_total_sales = 0.0
 
@@ -2651,11 +2747,20 @@ def dispensing_log_stats(request):
                     # Calculate total sales from dispensing logs (matching the displayed data and date range)
                     # Use the same filtered logs that are being displayed
                     filtered_dispensing_sales_privileged = logs.filter(
-                        status='Dispensed'  # Only count dispensed items, not returns
+                        status='Dispensed'  # Only count dispensed items
                     ).aggregate(
                         total=Sum('amount')
                     )['total'] or Decimal('0')
-                    daily_total_sales_privileged = float(filtered_dispensing_sales_privileged)
+
+                    # Calculate total returns from dispensing logs in the same date range
+                    filtered_returns_privileged = logs.filter(
+                        status__in=['Returned', 'Partially Returned']  # Count all types of returns
+                    ).aggregate(
+                        total=Sum('amount')
+                    )['total'] or Decimal('0')
+
+                    # Net sales = Dispensed - Returned
+                    daily_total_sales_privileged = float(filtered_dispensing_sales_privileged - filtered_returns_privileged)
                 except Exception as e:
                     daily_total_sales_privileged = 0.0
 

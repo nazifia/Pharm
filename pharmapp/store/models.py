@@ -403,6 +403,11 @@ class Sales(models.Model):
     wholesale_customer = models.ForeignKey(WholesaleCustomer, on_delete=models.CASCADE, null=True, blank=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     date = models.DateField(default=datetime.now)
+    # Return tracking fields
+    is_returned = models.BooleanField(default=False, help_text="Indicates if this sale has been returned")
+    return_date = models.DateTimeField(null=True, blank=True, help_text="Date when the sale was returned")
+    return_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Total amount returned")
+    return_processed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='processed_returns', help_text="User who processed the return")
 
     def __str__(self):
         return f'{self.user} - {self.customer.name if self.customer else "WALK-IN CUSTOMER"} - {self.total_amount}'
@@ -413,7 +418,8 @@ class Sales(models.Model):
         super().save(*args, **kwargs)
 
     def calculate_total_amount(self):
-        self.total_amount = sum(item.price * item.quantity for item in self.sales_items.all())
+        # Calculate total using discounted amounts (subtotal property includes discount)
+        self.total_amount = sum(item.subtotal for item in self.sales_items.all())
         self.save()
 
 
@@ -461,6 +467,11 @@ class Receipt(models.Model):
         ('Unpaid', 'Unpaid'),
     ], default='Paid')
     wallet_went_negative = models.BooleanField(default=False, help_text="Indicates if customer's wallet went negative during this transaction")
+    # Return tracking fields
+    is_returned = models.BooleanField(default=False, help_text="Indicates if this receipt has been returned")
+    return_date = models.DateTimeField(null=True, blank=True, help_text="Date when the receipt was returned")
+    return_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Total amount returned")
+    return_processed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='processed_receipt_returns', help_text="User who processed the return")
 
     def __str__(self):
         name = self.customer.name if self.customer else "WALK-IN CUSTOMER"
@@ -519,6 +530,11 @@ class WholesaleReceipt(models.Model):
         ('Unpaid', 'Unpaid'),
     ], default='Paid')
     wallet_went_negative = models.BooleanField(default=False, help_text="Indicates if customer's wallet went negative during this transaction")
+    # Return tracking fields
+    is_returned = models.BooleanField(default=False, help_text="Indicates if this wholesale receipt has been returned")
+    return_date = models.DateTimeField(null=True, blank=True, help_text="Date when the wholesale receipt was returned")
+    return_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Total amount returned")
+    return_processed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='processed_wholesale_returns', help_text="User who processed the return")
 
     def __str__(self):
         name = self.wholesale_customer.name if self.wholesale_customer else "WALK-IN CUSTOMER"

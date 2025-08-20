@@ -127,15 +127,23 @@ class Command(BaseCommand):
             daily_transactions=Count('id')
         ).order_by('day')
         
-        # Payment method breakdown
-        receipts = Receipt.objects.filter(date__date__gte=start_date, date__date__lte=end_date)
-        wholesale_receipts = WholesaleReceipt.objects.filter(date__date__gte=start_date, date__date__lte=end_date)
-        
+        # Payment method breakdown - exclude returned receipts
+        receipts = Receipt.objects.filter(
+            date__date__gte=start_date,
+            date__date__lte=end_date,
+            is_returned=False  # Exclude returned receipts
+        )
+        wholesale_receipts = WholesaleReceipt.objects.filter(
+            date__date__gte=start_date,
+            date__date__lte=end_date,
+            is_returned=False  # Exclude returned wholesale receipts
+        )
+
         payment_methods = {}
         for receipt in receipts:
             method = receipt.payment_method
             payment_methods[method] = payment_methods.get(method, Decimal('0')) + receipt.total_amount
-        
+
         for receipt in wholesale_receipts:
             method = receipt.payment_method
             payment_methods[method] = payment_methods.get(method, Decimal('0')) + receipt.total_amount

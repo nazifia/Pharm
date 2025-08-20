@@ -469,28 +469,57 @@ class SalesDashboardAdmin(admin.ModelAdmin):
         this_month = today.replace(day=1)
         last_month = (this_month - timedelta(days=1)).replace(day=1)
 
-        # Daily sales
-        today_sales = DispensingLog.objects.filter(
+        # Daily sales (net of returns)
+        today_dispensed = DispensingLog.objects.filter(
             created_at__date=today,
             status='Dispensed'
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
 
-        yesterday_sales = DispensingLog.objects.filter(
+        today_returned = DispensingLog.objects.filter(
+            created_at__date=today,
+            status__in=['Returned', 'Partially Returned']
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        today_sales = today_dispensed - today_returned
+
+        yesterday_dispensed = DispensingLog.objects.filter(
             created_at__date=yesterday,
             status='Dispensed'
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
 
-        # Monthly sales
-        this_month_sales = DispensingLog.objects.filter(
+        yesterday_returned = DispensingLog.objects.filter(
+            created_at__date=yesterday,
+            status__in=['Returned', 'Partially Returned']
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        yesterday_sales = yesterday_dispensed - yesterday_returned
+
+        # Monthly sales (net of returns)
+        this_month_dispensed = DispensingLog.objects.filter(
             created_at__date__gte=this_month,
             status='Dispensed'
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
 
-        last_month_sales = DispensingLog.objects.filter(
+        this_month_returned = DispensingLog.objects.filter(
+            created_at__date__gte=this_month,
+            status__in=['Returned', 'Partially Returned']
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        this_month_sales = this_month_dispensed - this_month_returned
+
+        last_month_dispensed = DispensingLog.objects.filter(
             created_at__date__gte=last_month,
             created_at__date__lt=this_month,
             status='Dispensed'
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        last_month_returned = DispensingLog.objects.filter(
+            created_at__date__gte=last_month,
+            created_at__date__lt=this_month,
+            status__in=['Returned', 'Partially Returned']
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        last_month_sales = last_month_dispensed - last_month_returned
 
         # Top selling items
         top_items = DispensingLog.objects.filter(

@@ -452,23 +452,23 @@ def return_wholesale_item(request, pk):
                         sales.total_amount -= refund_amount
                         sales.save()
 
-                        # Process wallet refund if applicable
+                        # Handle return tracking without automatic wallet refund for registered wholesale customers
                         if sales.customer and hasattr(sales.customer, 'wholesale_customer_wallet'):
                             wallet = sales.customer.wholesale_customer_wallet
-                            wallet.balance += refund_amount
-                            wallet.save()
+                            # For registered wholesale customers, do NOT automatically refund to wallet
+                            # Only log the return without wallet credit
 
-                            # Log the refund transaction
+                            # Log the return transaction without wallet refund
                             TransactionHistory.objects.create(
                                 customer=sales.customer,
                                 user=request.user,
                                 transaction_type='refund',
-                                amount=refund_amount,
-                                description=f'Refund for {return_quantity} of {item.name}'
+                                amount=Decimal('0.00'),  # No wallet refund for registered customers
+                                description=f'Return processed for {return_quantity} of {item.name} (₦{refund_amount}) - No automatic wallet refund for registered wholesale customer'
                             )
                             messages.success(
                                 request,
-                                f'{return_quantity} of {item.name} successfully returned, and ₦{refund_amount} refunded to the wallet.'
+                                f'{return_quantity} of {item.name} successfully returned (₦{refund_amount}). No automatic wallet refund applied for registered wholesale customers.'
                             )
                         else:
                             messages.error(request, 'Customer wallet not found or not associated.')
@@ -859,21 +859,31 @@ def select_wholesale_items(request, pk):
                         cart_item.save()
 
                         # Calculate subtotal and log dispensing
-                        subtotal = (item.price * quantity)
-                        total_cost += subtotal
+                        base_subtotal = (item.price * quantity)
+                        # Get discount amount from cart item if it exists
+                        discount_amount = Decimal('0.00')
+                        try:
+                            cart_item = WholesaleCart.objects.get(user=request.user, item=item)
+                            discount_amount = cart_item.discount_amount or Decimal('0.00')
+                        except WholesaleCart.DoesNotExist:
+                            pass
+
+                        discounted_subtotal = base_subtotal - discount_amount
+                        total_cost += discounted_subtotal
 
                         # Update or create WholesaleSalesItem
                         sales_item, created = WholesaleSalesItem.objects.get_or_create(
                             sales=sales,
                             item=item,
-                            defaults={'quantity': quantity, 'price': item.price}
+                            defaults={'quantity': quantity, 'price': item.price, 'discount_amount': discount_amount}
                         )
                         if not created:
                             sales_item.quantity += quantity
+                            sales_item.discount_amount += discount_amount
                             sales_item.save()
 
-                        # Update the receipt
-                        receipt.total_amount += subtotal
+                        # Update the receipt with discounted amount
+                        receipt.total_amount += discounted_subtotal
                         receipt.save()
 
                         # **Log Item Selection History (Purchase)**
@@ -891,14 +901,15 @@ def select_wholesale_items(request, pk):
                         item.stock += quantity
                         item.save()
 
-                        # Find existing sales items for this customer and item
+                        # Find existing sales items for this customer and item (exclude already returned sales)
                         existing_sales_items = WholesaleSalesItem.objects.filter(
                             sales__wholesale_customer=customer,
+                            sales__is_returned=False,  # Only include non-returned sales
                             item=item
                         ).order_by('-sales__date')
 
                         if not existing_sales_items.exists():
-                            messages.warning(request, f"No purchase record found for {item.name} for this customer.")
+                            messages.warning(request, f"No purchase record found for {item.name} for this customer, or all purchases have already been returned.")
                             continue
 
                         # Calculate total available quantity to return
@@ -971,52 +982,103 @@ def select_wholesale_items(request, pk):
 
                         total_cost -= total_refund_amount
 
+                        # Mark affected wholesale sales as returned and track return information
+                        from django.utils import timezone
+                        affected_sales = set()
+                        for sales_item in existing_sales_items:
+                            if sales_item.sales not in affected_sales:
+                                affected_sales.add(sales_item.sales)
+
+                        # Update return tracking for affected wholesale sales
+                        for sales in affected_sales:
+                            if not sales.is_returned:  # Only update if not already marked as returned
+                                sales.is_returned = True
+                                sales.return_date = timezone.now()
+                                sales.return_amount += total_refund_amount
+                                sales.return_processed_by = request.user
+                                sales.save()
+
                 except WholesaleItem.DoesNotExist:
                     messages.warning(request, 'One of the selected items does not exist.')
                     return redirect('wholesale:select_wholesale_items', pk=pk)
 
-            # Update customer's wallet balance
-            try:
-                wallet = customer.wholesale_customer_wallet
-                if action == 'purchase':
-                    # Check if wallet will go negative
-                    wallet_balance_before = wallet.balance
-                    wallet.balance -= total_cost
+            # Handle return processing for registered wholesale customers
+            if action == 'return':
+                try:
+                    wallet = customer.wholesale_customer_wallet
+                    # Check if any of the returned items were originally paid with wallet
+                    wallet_refund_amount = Decimal('0.00')
+                    non_wallet_refund_amount = Decimal('0.00')
 
-                    # Store negative wallet flag in session for receipt generation
-                    if wallet_balance_before >= 0 and wallet.balance < 0:
-                        request.session['wallet_went_negative'] = True
+                    # Process each returned item to check original payment method
+                    for item_id, quantity in zip(item_ids, quantities):
+                        item = WholesaleItem.objects.get(id=item_id)
+                        item_total = item.price * quantity
 
-                    # Create transaction history for the purchase
-                    if total_cost > 0:
-                        TransactionHistory.objects.create(
-                            wholesale_customer=customer,
-                            user=request.user,
-                            transaction_type='purchase',
-                            amount=total_cost,
-                            description='Purchase via select wholesale items'
-                        )
+                        # Find the most recent wholesale sales item for this item and customer
+                        sales_item = WholesaleSalesItem.objects.filter(
+                            item=item,
+                            sales__wholesale_customer=customer
+                        ).order_by('-sales__date').first()
 
-                    # Allow negative balance but inform the user
-                    if wallet.balance < 0:
-                        messages.info(request, f'Customer {customer.name} now has a negative wallet balance of {wallet.balance}')
-                elif action == 'return':
-                    wallet.balance += abs(total_cost)
+                        if sales_item and sales_item.sales:
+                            # Check the payment method from the wholesale receipt
+                            receipt = sales_item.sales.wholesale_receipts.first()
+                            if receipt:
+                                if receipt.payment_method == 'Wallet':
+                                    wallet_refund_amount += item_total
+                                elif receipt.payment_method == 'Split':
+                                    # For split payments, check if wallet was used
+                                    wallet_payments = receipt.wholesale_receipt_payments.filter(payment_method='Wallet')
+                                    if wallet_payments.exists():
+                                        # Calculate proportional wallet refund
+                                        total_wallet_paid = sum(p.amount for p in wallet_payments)
+                                        wallet_proportion = total_wallet_paid / receipt.total_amount
+                                        wallet_refund_amount += item_total * wallet_proportion
+                                        non_wallet_refund_amount += item_total * (1 - wallet_proportion)
+                                    else:
+                                        non_wallet_refund_amount += item_total
+                                else:
+                                    # Cash, Transfer, or other non-wallet payment
+                                    non_wallet_refund_amount += item_total
+                            else:
+                                # No receipt found, assume non-wallet payment
+                                non_wallet_refund_amount += item_total
+                        else:
+                            # No sales record found, assume non-wallet payment
+                            non_wallet_refund_amount += item_total
 
-                    # Create transaction history for the return refund
-                    if abs(total_cost) > 0:
+                    # Only refund to wallet if there was original wallet payment
+                    if wallet_refund_amount > 0:
+                        wallet.balance += wallet_refund_amount
+                        wallet.save()
+
+                        # Create transaction history for wallet refund
                         TransactionHistory.objects.create(
                             wholesale_customer=customer,
                             user=request.user,
                             transaction_type='refund',
-                            amount=abs(total_cost),
-                            description='Refund for returned items via select item'
+                            amount=wallet_refund_amount,
+                            description=f'Wallet refund for returned items (₦{wallet_refund_amount})'
                         )
+                        messages.success(request, f'Return processed. ₦{wallet_refund_amount} refunded to wallet.')
 
-                wallet.save()
-            except WholesaleCustomerWallet.DoesNotExist:
-                messages.warning(request, 'Customer does not have a wallet.')
-                return redirect('wholesale:select_wholesale_items', pk=pk)
+                    if non_wallet_refund_amount > 0:
+                        # Create transaction history for non-wallet refund (informational)
+                        TransactionHistory.objects.create(
+                            wholesale_customer=customer,
+                            user=request.user,
+                            transaction_type='refund',
+                            amount=Decimal('0.00'),  # No wallet credit for non-wallet payments
+                            description=f'Return processed for non-wallet payment (₦{non_wallet_refund_amount}) - No wallet refund'
+                        )
+                        messages.info(request, f'₦{non_wallet_refund_amount} from non-wallet payments returned (no wallet refund).')
+                        messages.success(request, f'Return processed for ₦{abs(total_cost)}. Amount refunded to wallet.')
+                except WholesaleCustomerWallet.DoesNotExist:
+                    messages.warning(request, 'Customer does not have a wallet.')
+                    return redirect('wholesale:select_wholesale_items', pk=pk)
+
+            # Note: Wallet deduction for purchases now happens during receipt generation, not here
 
             # Store payment method and status in session for receipt generation
             payment_method = request.POST.get('payment_method', 'Cash')
@@ -1105,12 +1167,13 @@ def update_wholesale_cart_quantity(request, pk):
                 cart_item.item.stock += quantity_to_return
                 cart_item.item.save()
 
-                # Adjust DispensingLog entries
+                # Adjust DispensingLog entries - consider discounted amount
+                discounted_amount = (cart_item.item.price * quantity_to_return) - (cart_item.discount_amount or Decimal('0.00'))
                 DispensingLog.objects.filter(
                     user=request.user,
                     name=cart_item.item.name,
                     quantity=quantity_to_return,
-                    amount=cart_item.item.price * quantity_to_return
+                    amount=discounted_amount
                 ).delete()
 
                 # Update cart item quantity or remove it
@@ -1173,22 +1236,32 @@ def clear_wholesale_cart(request):
                         receipts__isnull=True  # Pending sales have no receipts
                     ).distinct()
 
+                    # Track customers to avoid duplicate transaction history entries
+                    processed_customers = set()
+
                     for sale in sales_entries:
-                        if sale.wholesale_customer:
+                        if sale.wholesale_customer and sale.wholesale_customer.id not in processed_customers:
                             try:
                                 wallet = sale.wholesale_customer.wholesale_customer_wallet
                                 if wallet and total_refund > 0:
+                                    # For registered wholesale customers, provide automatic wallet refund when cart is cleared
                                     wallet.balance += total_refund
                                     wallet.save()
 
-                                    # Create transaction history for the refund
+                                    # Create transaction history noting the cart clear with wallet refund
                                     TransactionHistory.objects.create(
-                                        customer=sale.wholesale_customer,
+                                        wholesale_customer=sale.wholesale_customer,
                                         user=request.user,
                                         transaction_type='refund',
                                         amount=total_refund,
-                                        description='Cart cleared - items returned'
+                                        description=f'Cart cleared - Refund for returned items (₦{total_refund})'
                                     )
+                                    messages.success(
+                                        request,
+                                        f'Cart cleared for customer {sale.wholesale_customer.name}. Return value ₦{total_refund} refunded to wallet.'
+                                    )
+                                    # Mark this customer as processed to avoid duplicates
+                                    processed_customers.add(sale.wholesale_customer.id)
                             except WholesaleCustomerWallet.DoesNotExist:
                                 messages.warning(
                                     request,
@@ -1471,11 +1544,35 @@ def wholesale_receipt(request):
                 print(f"Payment Method: {receipt.payment_method}")
                 print(f"Status: {receipt.status}\n")
 
-                # Create transaction history for non-wallet payments (to avoid duplicates)
+                # Handle wallet deduction and transaction history for non-split payments
                 if sales.wholesale_customer and payment_type != 'split':
-                    # Only create transaction history for non-wallet payments
-                    # Wallet payments already create their own transaction history above
-                    if receipt.payment_method != 'Wallet':
+                    if receipt.payment_method == 'Wallet':
+                        # For wallet payments, deduct from wallet and create transaction history
+                        try:
+                            wallet = WholesaleCustomerWallet.objects.get(customer=sales.wholesale_customer)
+                            # Check if wallet will go negative
+                            wallet_balance_before = wallet.balance
+                            wallet.balance -= sales.total_amount
+                            wallet.save()
+
+                            # Check if wallet went negative and set flag
+                            if wallet_balance_before >= 0 and wallet.balance < 0:
+                                receipt.wallet_went_negative = True
+                                receipt.save()
+
+                            # Create transaction history entry
+                            from customer.models import TransactionHistory
+                            TransactionHistory.objects.create(
+                                wholesale_customer=sales.wholesale_customer,
+                                user=request.user,
+                                transaction_type='purchase',
+                                amount=sales.total_amount,
+                                description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                            )
+                        except WholesaleCustomerWallet.DoesNotExist:
+                            messages.warning(request, f'Wallet not found for customer {sales.wholesale_customer.name}')
+                    else:
+                        # For non-wallet payments, only create transaction history
                         from customer.models import TransactionHistory
                         TransactionHistory.objects.create(
                             wholesale_customer=sales.wholesale_customer,
@@ -1708,7 +1805,15 @@ def return_wholesale_items_for_customer(request, pk):
                         else:
                             sales_item.save()
 
-                        refund_amount = (item.price * quantity)
+                        # Calculate refund amount considering discounts
+                        base_refund = (item.price * quantity)
+                        # Calculate proportional discount for the return
+                        proportional_discount = Decimal('0')
+                        if sales_item.discount_amount > 0 and sales_item.quantity > 0:
+                            discount_per_unit = sales_item.discount_amount / (sales_item.quantity + quantity)  # Include returned quantity
+                            proportional_discount = discount_per_unit * quantity
+
+                        refund_amount = base_refund - proportional_discount
                         sales.total_amount -= refund_amount
                         sales.save()
 
@@ -1717,7 +1822,8 @@ def return_wholesale_items_for_customer(request, pk):
                             name=item.name,
                             unit=unit,
                             quantity=quantity,
-                            amount=refund_amount,
+                            amount=refund_amount,  # This now includes discount consideration
+                            discount_amount=proportional_discount,
                             status='Partially Returned' if sales_item.quantity > 0 else 'Returned'  # Status based on remaining quantity
                         )
 
@@ -1758,26 +1864,7 @@ def return_wholesale_items_for_customer(request, pk):
             receipt.status = status
             receipt.save()
 
-            # Update customer's wallet balance
-            try:
-                wallet = customer.wholesale_customer_wallet
-                wallet.balance += abs(total_refund)
-                wallet.save()
-
-                # Create transaction history for the return refund
-                if abs(total_refund) > 0:
-                    TransactionHistory.objects.create(
-                        wholesale_customer=customer,
-                        user=request.user,
-                        transaction_type='refund',
-                        amount=abs(total_refund),
-                        description='Refund for returned items via select item'
-                    )
-
-            except WholesaleCustomerWallet.DoesNotExist:
-                messages.warning(request, 'Customer does not have a wallet.')
-                return redirect('wholesale:select_wholesale_items', pk=pk)
-
+            # Note: Wallet refund for registered wholesale customers is now handled in select_wholesale_items function
             messages.success(request, f'Action completed: Items returned successfully. Total refund: ₦{total_refund}')
             return redirect('wholesale:wholesale_cart')
 

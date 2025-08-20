@@ -469,15 +469,161 @@ class UserCartManager:
 def get_user_cart_manager(user, cart_type='retail'):
     """
     Get a cart manager for a specific user.
-    
+
     Args:
         user: The user object
         cart_type: 'retail' or 'wholesale'
-        
+
     Returns:
         UserCartManager: A cart manager instance
     """
     return UserCartManager(user, cart_type)
+
+
+class CustomerCartManager:
+    """
+    Context manager for customer-specific cart operations with session isolation.
+    """
+
+    def __init__(self, request, customer_id, cart_type='retail'):
+        self.request = request
+        self.user = request.user
+        self.customer_id = customer_id
+        self.cart_type = cart_type
+
+        # Set this customer as active for the session
+        from userauth.session_utils import set_active_customer
+        set_active_customer(request, customer_id, cart_type)
+
+    def get_items(self):
+        """Get cart items for this customer."""
+        return get_user_cart_items(self.user, self.cart_type)
+
+    def get_summary(self):
+        """Get cart summary for this customer."""
+        return get_user_cart_summary(self.user, self.cart_type)
+
+    def add_item(self, item, quantity, unit=None, price=None):
+        """Add item to customer's cart."""
+        return add_item_to_user_cart(self.user, item, quantity, unit, self.cart_type, price)
+
+    def remove_item(self, item_id):
+        """Remove item from customer's cart."""
+        return remove_item_from_user_cart(self.user, item_id, self.cart_type, self.request)
+
+    def update_quantity(self, item_id, quantity):
+        """Update item quantity in customer's cart."""
+        return update_cart_item_quantity(self.user, item_id, quantity, self.cart_type)
+
+    def clear(self):
+        """Clear customer's cart and session data."""
+        # Clear cart items
+        clear_user_cart(self.user, self.cart_type)
+
+        # Clear customer-specific session data
+        from userauth.session_utils import clear_customer_session_data
+        clear_customer_session_data(self.request, self.customer_id, self.cart_type)
+
+        return {'status': 'success', 'message': f'Customer {self.customer_id} cart cleared'}
+
+    def get_session_context(self):
+        """Get customer's session context."""
+        from userauth.session_utils import get_customer_cart_context
+        return get_customer_cart_context(self.request, self.customer_id, self.cart_type)
+
+    def set_session_context(self, context_data):
+        """Set customer's session context."""
+        from userauth.session_utils import set_customer_cart_context
+        set_customer_cart_context(self.request, self.customer_id, context_data, self.cart_type)
+
+    def switch_to_customer(self, new_customer_id):
+        """Switch to a different customer's cart session."""
+        # Clear current customer's active status
+        from userauth.session_utils import clear_active_customer, set_active_customer
+        clear_active_customer(self.request, self.cart_type)
+
+        # Set new customer as active
+        self.customer_id = new_customer_id
+        set_active_customer(self.request, new_customer_id, self.cart_type)
+
+        return f'Switched to customer {new_customer_id}'
+
+
+def get_customer_cart_manager(request, customer_id, cart_type='retail'):
+    """
+    Get a cart manager for a specific customer with session isolation.
+
+    Args:
+        request: The request object
+        customer_id: The customer ID
+        cart_type: 'retail' or 'wholesale'
+
+    Returns:
+        CustomerCartManager: A customer cart manager instance
+    """
+    return CustomerCartManager(request, customer_id, cart_type)
+
+
+def ensure_customer_cart_isolation(request, customer_id, cart_type='retail'):
+    """
+    Ensure that the current cart session is isolated for the specified customer.
+
+    Args:
+        request: The request object
+        customer_id: The customer ID
+        cart_type: 'retail' or 'wholesale'
+
+    Returns:
+        bool: True if isolation is properly set up
+    """
+    try:
+        from userauth.session_utils import get_active_customer, set_active_customer
+
+        # Check if we have a different active customer
+        current_active = get_active_customer(request, cart_type)
+
+        if current_active and current_active != customer_id:
+            # Different customer is active, need to switch
+            logger.info(f"Switching cart session from customer {current_active} to {customer_id}")
+
+            # Clear any existing cart items for the current user to prevent mixing
+            clear_user_cart(request.user, cart_type)
+
+        # Set the new customer as active
+        set_active_customer(request, customer_id, cart_type)
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error ensuring customer cart isolation: {e}")
+        return False
+
+
+def get_current_customer_context(request, cart_type='retail'):
+    """
+    Get the current customer context from session.
+
+    Args:
+        request: The request object
+        cart_type: 'retail' or 'wholesale'
+
+    Returns:
+        dict: Current customer context or None
+    """
+    try:
+        from userauth.session_utils import get_active_customer, get_customer_cart_context
+
+        customer_id = get_active_customer(request, cart_type)
+        if customer_id:
+            return {
+                'customer_id': customer_id,
+                'cart_context': get_customer_cart_context(request, customer_id, cart_type)
+            }
+        return None
+
+    except Exception as e:
+        logger.error(f"Error getting current customer context: {e}")
+        return None
 
 
 # Example usage:
