@@ -820,23 +820,23 @@ def receipt(request):
             payment_method = request.POST.get('payment_method')
             status = request.POST.get('status')
 
-        # If not provided in POST, try to get from user session (from select_items)
-        if not payment_method or not status:
-            from userauth.session_utils import get_user_payment_data
-            session_payment_data = get_user_payment_data(request)
-            if not payment_method:
-                payment_method = session_payment_data.get('payment_method')
+            # If not provided in POST, try to get from user session (from select_items)
+            if not payment_method or not status:
+                from userauth.session_utils import get_user_payment_data
+                session_payment_data = get_user_payment_data(request)
+                if not payment_method:
+                    payment_method = session_payment_data.get('payment_method')
+                if not status:
+                    status = session_payment_data.get('payment_status')
+
+            # Final defaults if still not set
             if not status:
-                status = session_payment_data.get('payment_status')
+                status = 'Paid'  # Default to 'Paid' if not provided
 
-        # Final defaults if still not set
-        if not status:
-            status = 'Paid'  # Default to 'Paid' if not provided
-
-        payment_method_1 = None
-        payment_method_2 = None
-        payment_amount_1 = Decimal('0')
-        payment_amount_2 = Decimal('0')
+            payment_method_1 = None
+            payment_method_2 = None
+            payment_amount_1 = Decimal('0')
+            payment_amount_2 = Decimal('0')
 
         # Dump all POST data for debugging
         print("\n\n==== ALL POST DATA: =====")
@@ -1197,8 +1197,6 @@ def receipt(request):
 
         # Get split payment details if this is a split payment
         split_payment_details = None
-        receipt_payments = None
-
         if payment_type == 'split':
             split_payment_details = {
                 'payment_method_1': payment_method_1,
@@ -2258,7 +2256,6 @@ def select_items(request, pk):
 
                     elif action == 'return':
                         # Handle return logic - find existing sales items for this customer and item
-                        quantity = Decimal(str(quantity))  # Convert string to Decimal
                         item.stock += quantity
                         item.save()
 
@@ -2366,75 +2363,20 @@ def select_items(request, pk):
             if action == 'return':
                 try:
                     wallet = customer.wallet
-                    # Check if any of the returned items were originally paid with wallet
-                    wallet_refund_amount = Decimal('0.00')
-                    non_wallet_refund_amount = Decimal('0.00')
-
-                    # Process each returned item to check original payment method
-                    for item_id, quantity in zip(item_ids, quantities):
-                        item = Item.objects.get(id=item_id)
-                        quantity = Decimal(str(quantity))  # Convert string to Decimal
-                        item_total = item.price * quantity
-
-                        # Find the most recent sales item for this item and customer
-                        sales_item = SalesItem.objects.filter(
-                            item=item,
-                            sales__customer=customer
-                        ).order_by('-sales__date').first()
-
-                        if sales_item and sales_item.sales:
-                            # Check the payment method from the receipt
-                            receipt = sales_item.sales.receipts.first()
-                            if receipt:
-                                if receipt.payment_method == 'Wallet':
-                                    wallet_refund_amount += item_total
-                                elif receipt.payment_method == 'Split':
-                                    # For split payments, check if wallet was used
-                                    wallet_payments = receipt.receipt_payments.filter(payment_method='Wallet')
-                                    if wallet_payments.exists():
-                                        # Calculate proportional wallet refund
-                                        total_wallet_paid = sum(p.amount for p in wallet_payments)
-                                        wallet_proportion = total_wallet_paid / receipt.total_amount
-                                        wallet_refund_amount += item_total * wallet_proportion
-                                        non_wallet_refund_amount += item_total * (1 - wallet_proportion)
-                                    else:
-                                        non_wallet_refund_amount += item_total
-                                else:
-                                    # Cash, Transfer, or other non-wallet payment
-                                    non_wallet_refund_amount += item_total
-                            else:
-                                # No receipt found, assume non-wallet payment
-                                non_wallet_refund_amount += item_total
-                        else:
-                            # No sales record found, assume non-wallet payment
-                            non_wallet_refund_amount += item_total
-
-                    # Only refund to wallet if there was original wallet payment
-                    if wallet_refund_amount > 0:
-                        wallet.balance += wallet_refund_amount
+                    # For registered customers, provide automatic wallet refund on returns
+                    if abs(total_cost) > 0:
+                        wallet.balance += abs(total_cost)
                         wallet.save()
 
-                        # Create transaction history for wallet refund
+                        # Create transaction history for the return refund
                         TransactionHistory.objects.create(
                             customer=customer,
                             user=request.user,
                             transaction_type='refund',
-                            amount=wallet_refund_amount,
-                            description=f'Wallet refund for returned items (₦{wallet_refund_amount})'
+                            amount=abs(total_cost),
+                            description=f'Refund for returned items (₦{abs(total_cost)})'
                         )
-                        messages.success(request, f'Return processed. ₦{wallet_refund_amount} refunded to wallet.')
-
-                    if non_wallet_refund_amount > 0:
-                        # Create transaction history for non-wallet refund (informational)
-                        TransactionHistory.objects.create(
-                            customer=customer,
-                            user=request.user,
-                            transaction_type='refund',
-                            amount=Decimal('0.00'),  # No wallet credit for non-wallet payments
-                            description=f'Return processed for non-wallet payment (₦{non_wallet_refund_amount}) - No wallet refund'
-                        )
-                        messages.info(request, f'₦{non_wallet_refund_amount} from non-wallet payments returned (no wallet refund).')
-
+                        messages.success(request, f'Return processed for ₦{abs(total_cost)}. Amount refunded to wallet.')
                 except Wallet.DoesNotExist:
                     messages.warning(request, 'Customer does not have a wallet.')
                     return redirect('store:select_items', pk=pk)
@@ -2704,20 +2646,11 @@ def dispensing_log_stats(request):
                     # Use the same filtered logs that are being displayed
                     # Use discounted amounts (amount field now contains discounted amount)
                     filtered_dispensing_sales = logs.filter(
-                        status='Dispensed'  # Only count dispensed items
+                        status='Dispensed'  # Only count dispensed items, not returns
                     ).aggregate(
                         total=Sum('amount')
                     )['total'] or Decimal('0')
-
-                    # Calculate total returns from dispensing logs in the same date range
-                    filtered_returns = logs.filter(
-                        status__in=['Returned', 'Partially Returned']  # Count all types of returns
-                    ).aggregate(
-                        total=Sum('amount')
-                    )['total'] or Decimal('0')
-
-                    # Net sales = Dispensed - Returned
-                    daily_total_sales = float(filtered_dispensing_sales - filtered_returns)
+                    daily_total_sales = float(filtered_dispensing_sales)
                 except Exception as e:
                     daily_total_sales = 0.0
 
@@ -2747,20 +2680,11 @@ def dispensing_log_stats(request):
                     # Calculate total sales from dispensing logs (matching the displayed data and date range)
                     # Use the same filtered logs that are being displayed
                     filtered_dispensing_sales_privileged = logs.filter(
-                        status='Dispensed'  # Only count dispensed items
+                        status='Dispensed'  # Only count dispensed items, not returns
                     ).aggregate(
                         total=Sum('amount')
                     )['total'] or Decimal('0')
-
-                    # Calculate total returns from dispensing logs in the same date range
-                    filtered_returns_privileged = logs.filter(
-                        status__in=['Returned', 'Partially Returned']  # Count all types of returns
-                    ).aggregate(
-                        total=Sum('amount')
-                    )['total'] or Decimal('0')
-
-                    # Net sales = Dispensed - Returned
-                    daily_total_sales_privileged = float(filtered_dispensing_sales_privileged - filtered_returns_privileged)
+                    daily_total_sales_privileged = float(filtered_dispensing_sales_privileged)
                 except Exception as e:
                     daily_total_sales_privileged = 0.0
 
