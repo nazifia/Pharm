@@ -17,7 +17,7 @@ from django.contrib import messages
 from django.db import transaction
 from datetime import datetime, timedelta
 from django.views.decorators.http import require_POST
-from django.db.models import Q, F, ExpressionWrapper, Sum, DecimalField
+from django.db.models import Q, F, ExpressionWrapper, Sum, DecimalField, Case, When, Subquery, OuterRef
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth import get_user_model
@@ -1466,6 +1466,21 @@ def return_item(request, pk):
                             request,
                             f'{return_quantity} of {item.name} successfully returned (₦{refund_amount}).'
                         )
+
+                        # Handle HTMX response for return processing
+                        if request.headers.get('HX-Request'):
+                            # Update daily and monthly sales data
+                            daily_sales = get_daily_sales()
+                            monthly_sales = get_monthly_sales_with_expenses()
+
+                            # Return updated dispensing log for HTMX requests
+                            context = {
+                                'logs': DispensingLog.objects.filter(user=request.user).order_by('-created_at'),
+                                'daily_sales': daily_sales,
+                                'monthly_sales': monthly_sales
+                            }
+                            return render(request, 'store/dispensing_log.html', context)
+
                         return redirect('store:store')
 
                 except Exception as e:
@@ -1498,33 +1513,50 @@ def delete_item(request, pk):
         return redirect('store:index')
 
 def get_daily_sales():
-    # Fetch daily sales data - exclude returned sales
-    regular_sales = (
-        SalesItem.objects
-        .filter(sales__is_returned=False)  # Exclude returned sales
-        .annotate(day=TruncDay('sales__date'))
+    # Use DispensingLog data to match the dispensing log page calculation
+    # This ensures both pages show the same daily sales values
+
+    # Get dispensed sales (positive amounts)
+    dispensed_sales = (
+        DispensingLog.objects
+        .filter(status='Dispensed')
+        .annotate(day=TruncDay('created_at'))
         .values('day')
         .annotate(
-            total_sales=Sum(F('price') * F('quantity') - F('discount_amount')),
-            total_cost=Sum(F('item__cost') * F('quantity')),
-            total_profit=ExpressionWrapper(
-                Sum(F('price') * F('quantity') - F('discount_amount')) - Sum(F('item__cost') * F('quantity')),
-                output_field=DecimalField()
+            total_sales=Sum('amount'),
+            # For cost calculation, we need to get the item cost
+            # Since DispensingLog doesn't have direct cost, we'll calculate it differently
+            total_cost=Sum(
+                Case(
+                    # Try to get cost from Item model if available
+                    When(name__in=Subquery(Item.objects.values('name')),
+                         then=F('quantity') * Subquery(
+                             Item.objects.filter(name=OuterRef('name')).values('cost')[:1]
+                         )),
+                    default=Decimal('0'),
+                    output_field=DecimalField()
+                )
             )
         )
     )
 
-    wholesale_sales = (
-        WholesaleSalesItem.objects
-        .filter(sales__is_returned=False)  # Exclude returned wholesale sales
-        .annotate(day=TruncDay('sales__date'))
+    # Get returned sales (negative amounts to subtract)
+    returned_sales = (
+        DispensingLog.objects
+        .filter(status__in=['Returned', 'Partially Returned'])
+        .annotate(day=TruncDay('created_at'))
         .values('day')
         .annotate(
-            total_sales=Sum(F('price') * F('quantity') - F('discount_amount')),
-            total_cost=Sum(F('item__cost') * F('quantity')),
-            total_profit=ExpressionWrapper(
-                Sum(F('price') * F('quantity') - F('discount_amount')) - Sum(F('item__cost') * F('quantity')),
-                output_field=DecimalField()
+            total_returns=Sum('amount'),
+            total_return_cost=Sum(
+                Case(
+                    When(name__in=Subquery(Item.objects.values('name')),
+                         then=F('quantity') * Subquery(
+                             Item.objects.filter(name=OuterRef('name')).values('cost')[:1]
+                         )),
+                    default=Decimal('0'),
+                    output_field=DecimalField()
+                )
             )
         )
     )
@@ -1605,19 +1637,23 @@ def get_daily_sales():
             return date_obj.date()
         return date_obj
 
-    # Add regular sales data
-    for sale in regular_sales:
+    # Add dispensed sales data (positive amounts)
+    for sale in dispensed_sales:
         day = normalize_date(sale['day'])
         combined_sales[day]['total_sales'] += sale['total_sales'] or Decimal('0.00')
         combined_sales[day]['total_cost'] += sale['total_cost'] or Decimal('0.00')
-        combined_sales[day]['total_profit'] += sale['total_profit'] or Decimal('0.00')
+        # Calculate profit as sales - cost
+        profit = (sale['total_sales'] or Decimal('0.00')) - (sale['total_cost'] or Decimal('0.00'))
+        combined_sales[day]['total_profit'] += profit
 
-    # Add wholesale sales data
-    for sale in wholesale_sales:
-        day = normalize_date(sale['day'])
-        combined_sales[day]['total_sales'] += sale['total_sales'] or Decimal('0.00')
-        combined_sales[day]['total_cost'] += sale['total_cost'] or Decimal('0.00')
-        combined_sales[day]['total_profit'] += sale['total_profit'] or Decimal('0.00')
+    # Subtract returned sales data (negative amounts)
+    for return_sale in returned_sales:
+        day = normalize_date(return_sale['day'])
+        combined_sales[day]['total_sales'] -= return_sale['total_returns'] or Decimal('0.00')
+        combined_sales[day]['total_cost'] -= return_sale['total_return_cost'] or Decimal('0.00')
+        # Subtract return profit as well
+        return_profit = (return_sale['total_returns'] or Decimal('0.00')) - (return_sale['total_return_cost'] or Decimal('0.00'))
+        combined_sales[day]['total_profit'] -= return_profit
 
     # Add retail payment method data (non-split payments)
     for sale in payment_method_sales:
@@ -2359,6 +2395,24 @@ def select_items(request, pk):
                     messages.warning(request, 'One of the selected items does not exist.')
                     return redirect('store:select_items', pk=pk)
 
+            # Add success message for return processing
+            if action == 'return':
+                messages.success(request, f'Items successfully returned and sales statistics updated.')
+
+            # Handle HTMX response for return processing
+            if action == 'return' and request.headers.get('HX-Request'):
+                # Update daily and monthly sales data
+                daily_sales = get_daily_sales()
+                monthly_sales = get_monthly_sales_with_expenses()
+
+                # Return updated dispensing log for HTMX requests
+                context = {
+                    'logs': DispensingLog.objects.filter(user=request.user).order_by('-created_at'),
+                    'daily_sales': daily_sales,
+                    'monthly_sales': monthly_sales
+                }
+                return render(request, 'store/dispensing_log.html', context)
+
             # Handle return processing for registered customers
             if action == 'return':
                 try:
@@ -2646,11 +2700,20 @@ def dispensing_log_stats(request):
                     # Use the same filtered logs that are being displayed
                     # Use discounted amounts (amount field now contains discounted amount)
                     filtered_dispensing_sales = logs.filter(
-                        status='Dispensed'  # Only count dispensed items, not returns
+                        status='Dispensed'  # Only count dispensed items
                     ).aggregate(
                         total=Sum('amount')
                     )['total'] or Decimal('0')
-                    daily_total_sales = float(filtered_dispensing_sales)
+
+                    # Calculate total returns from dispensing logs in the same date range
+                    filtered_returns = logs.filter(
+                        status__in=['Returned', 'Partially Returned']  # Count all types of returns
+                    ).aggregate(
+                        total=Sum('amount')
+                    )['total'] or Decimal('0')
+
+                    # Net sales = Dispensed - Returned
+                    daily_total_sales = float(filtered_dispensing_sales - filtered_returns)
                 except Exception as e:
                     daily_total_sales = 0.0
 
@@ -2680,11 +2743,20 @@ def dispensing_log_stats(request):
                     # Calculate total sales from dispensing logs (matching the displayed data and date range)
                     # Use the same filtered logs that are being displayed
                     filtered_dispensing_sales_privileged = logs.filter(
-                        status='Dispensed'  # Only count dispensed items, not returns
+                        status='Dispensed'  # Only count dispensed items
                     ).aggregate(
                         total=Sum('amount')
                     )['total'] or Decimal('0')
-                    daily_total_sales_privileged = float(filtered_dispensing_sales_privileged)
+
+                    # Calculate total returns from dispensing logs in the same date range
+                    filtered_returns_privileged = logs.filter(
+                        status__in=['Returned', 'Partially Returned']  # Count all types of returns
+                    ).aggregate(
+                        total=Sum('amount')
+                    )['total'] or Decimal('0')
+
+                    # Net sales = Dispensed - Returned
+                    daily_total_sales_privileged = float(filtered_dispensing_sales_privileged - filtered_returns_privileged)
                 except Exception as e:
                     daily_total_sales_privileged = 0.0
 

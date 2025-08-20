@@ -1002,6 +1002,20 @@ def select_wholesale_items(request, pk):
                     messages.warning(request, 'One of the selected items does not exist.')
                     return redirect('wholesale:select_wholesale_items', pk=pk)
 
+            # Handle HTMX response for return processing
+            if action == 'return' and request.headers.get('HX-Request'):
+                # Update daily and monthly sales data
+                daily_sales = get_daily_sales()
+                monthly_sales = get_monthly_sales_with_expenses()
+
+                # Return updated dispensing log for HTMX requests
+                context = {
+                    'logs': DispensingLog.objects.filter(user=request.user).order_by('-created_at'),
+                    'daily_sales': daily_sales,
+                    'monthly_sales': monthly_sales
+                }
+                return render(request, 'store/dispensing_log.html', context)
+
             # Handle return processing for registered wholesale customers
             if action == 'return':
                 try:
