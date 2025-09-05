@@ -886,15 +886,8 @@ def select_wholesale_items(request, pk):
                         receipt.total_amount += discounted_subtotal
                         receipt.save()
 
-                        # **Log Item Selection History (Purchase)**
-                        WholesaleSelectionHistory.objects.create(
-                            wholesale_customer=customer,
-                            user=request.user,
-                            item=item,
-                            quantity=quantity,
-                            action=action,
-                            unit_price=item.price,
-                        )
+                        # Note: WholesaleSelectionHistory for purchases is now created in wholesale_receipt function
+                        # to ensure it only happens when receipts are actually generated
 
                     elif action == 'return':
                         # Handle return logic - find existing sales items for this customer and item
@@ -1224,39 +1217,60 @@ def clear_wholesale_cart(request):
                         messages.info(request, 'Cart is already empty.')
                         return redirect('wholesale:wholesale_cart')
 
-                    # Calculate total amount to potentially refund
-                    total_refund = sum(
-                        item.item.price * item.quantity
-                        for item in cart_items
-                    )
+                    # Get wholesale customer from user-specific session if it exists
+                    from userauth.session_utils import get_user_customer_id
+                    customer_id = get_user_customer_id(request)
+                    current_wholesale_customer = None
+                    if customer_id:
+                        try:
+                            current_wholesale_customer = WholesaleCustomer.objects.get(id=customer_id)
+                        except WholesaleCustomer.DoesNotExist:
+                            pass
 
-                    for cart_item in cart_items:
-                        # Return items to stock
-                        cart_item.item.stock += cart_item.quantity
-                        cart_item.item.save()
-
-                        # Remove DispensingLog entries
-                        DispensingLog.objects.filter(
-                            user=request.user,
-                            name=cart_item.item.name,
-                            quantity=cart_item.quantity,
-                            status='Dispensed'  # Only remove dispensed logs
-                        ).delete()
-
-                    # Find any pending sales entries (those without receipts)
-                    sales_entries = Sales.objects.filter(
+                    # Check for completed sales (those WITH receipts) for the current wholesale customer
+                    completed_sales = Sales.objects.filter(
                         user=request.user,
-                        wholesale_customer__isnull=False,  # Only wholesale sales
-                        receipts__isnull=True  # Pending sales have no receipts
+                        wholesale_customer=current_wholesale_customer,
+                        wholesale_receipts__isnull=False  # Sales that have wholesale receipts (completed transactions)
                     ).distinct()
 
-                    # Track customers to avoid duplicate transaction history entries
-                    processed_customers = set()
+                    # Check for pending sales (those WITHOUT receipts) for the current wholesale customer
+                    pending_sales = Sales.objects.filter(
+                        user=request.user,
+                        wholesale_customer=current_wholesale_customer,
+                        wholesale_receipts__isnull=True  # Sales without wholesale receipts (incomplete transactions)
+                    ).distinct()
 
-                    for sale in sales_entries:
-                        if sale.wholesale_customer and sale.wholesale_customer.id not in processed_customers:
+                    # Only clear cart if there are completed sales (with receipts)
+                    # If there are only pending sales (without receipts), don't clear the cart
+                    if completed_sales.exists():
+                        # There are completed transactions with receipts - proceed with cart clearing
+
+                        # Calculate total amount to refund based on actual receipts (not cart items)
+                        total_refund = Decimal('0.00')
+                        for sale in completed_sales:
+                            # Only refund wallet payments (as per business logic)
+                            receipts = sale.wholesale_receipts.filter(payment_method='Wallet')
+                            for receipt in receipts:
+                                total_refund += receipt.total_amount
+
+                        for cart_item in cart_items:
+                            # Return items to stock
+                            cart_item.item.stock += cart_item.quantity
+                            cart_item.item.save()
+
+                            # Remove DispensingLog entries
+                            DispensingLog.objects.filter(
+                                user=request.user,
+                                name=cart_item.item.name,
+                                quantity=cart_item.quantity,
+                                status='Dispensed'  # Only remove dispensed logs
+                            ).delete()
+
+                        # Process refunds for the current wholesale customer only
+                        if current_wholesale_customer:
                             try:
-                                wallet = sale.wholesale_customer.wholesale_customer_wallet
+                                wallet = current_wholesale_customer.wholesale_customer_wallet
                                 if wallet and total_refund > 0:
                                     # For registered wholesale customers, provide automatic wallet refund when cart is cleared
                                     wallet.balance += total_refund
@@ -1264,7 +1278,7 @@ def clear_wholesale_cart(request):
 
                                     # Create transaction history noting the cart clear with wallet refund
                                     TransactionHistory.objects.create(
-                                        wholesale_customer=sale.wholesale_customer,
+                                        wholesale_customer=current_wholesale_customer,
                                         user=request.user,
                                         transaction_type='refund',
                                         amount=total_refund,
@@ -1272,28 +1286,60 @@ def clear_wholesale_cart(request):
                                     )
                                     messages.success(
                                         request,
-                                        f'Cart cleared for customer {sale.wholesale_customer.name}. Return value ₦{total_refund} refunded to wallet.'
+                                        f'Cart cleared for customer {current_wholesale_customer.name}. Return value ₦{total_refund} refunded to wallet.'
                                     )
-                                    # Mark this customer as processed to avoid duplicates
-                                    processed_customers.add(sale.wholesale_customer.id)
                             except WholesaleCustomerWallet.DoesNotExist:
                                 messages.warning(
                                     request,
-                                    f'Wallet not found for customer {sale.wholesale_customer.name}'
+                                    f'Wallet not found for customer {current_wholesale_customer.name}'
                                 )
 
-                        # Delete associated sales items first
-                        sale.wholesale_sales_items.all().delete()
-                        # Delete the sale
-                        sale.delete()
+                        # Clear cart items only when receipts exist
+                        cart_items.delete()
 
-                    # Clear cart items
-                    cart_items.delete()
+                        # Comprehensive cart session cleanup after clearing
+                        from store.cart_utils import cleanup_cart_session_after_receipt
+                        cleanup_summary = cleanup_cart_session_after_receipt(request, 'wholesale')
+                        logger.info(f"Wholesale cart session cleanup after cart clear: {cleanup_summary}")
 
-                    messages.success(
-                        request,
-                        'Cart cleared successfully. All items returned to stock and transactions reversed.'
-                    )
+                        messages.success(
+                            request,
+                            'Cart cleared successfully. All items returned to stock and transactions reversed.'
+                        )
+
+                    else:
+                        # No completed sales with receipts found
+                        if pending_sales.exists():
+                            # Clean up orphaned sales records without receipts, but DON'T clear the cart
+                            for sale in pending_sales:
+                                # Delete associated sales items first
+                                sale.wholesale_sales_items.all().delete()
+                                # Delete the orphaned sale
+                                sale.delete()
+
+                            messages.info(
+                                request,
+                                'No receipts were generated. Pending transactions cleaned up, but cart preserved.'
+                            )
+                        else:
+                            # No sales records at all - just return items to stock but don't clear cart
+                            for cart_item in cart_items:
+                                # Return items to stock
+                                cart_item.item.stock += cart_item.quantity
+                                cart_item.item.save()
+
+                                # Remove DispensingLog entries
+                                DispensingLog.objects.filter(
+                                    user=request.user,
+                                    name=cart_item.item.name,
+                                    quantity=cart_item.quantity,
+                                    status='Dispensed'
+                                ).delete()
+
+                            messages.info(
+                                request,
+                                'No transactions found. Items returned to stock, but cart preserved.'
+                            )
 
             except Exception as e:
                 messages.error(request, f'Error clearing cart: {str(e)}')
@@ -1636,6 +1682,18 @@ def wholesale_receipt(request):
                 discount_amount=cart_item.discount_amount,
                 status="Dispensed"
             )
+
+            # Create WholesaleSelectionHistory entry for purchase (only when receipt is generated)
+            if sales.wholesale_customer:
+                from store.models import WholesaleSelectionHistory
+                WholesaleSelectionHistory.objects.create(
+                    wholesale_customer=sales.wholesale_customer,
+                    user=request.user,
+                    item=cart_item.item,
+                    quantity=cart_item.quantity,
+                    action='purchase',
+                    unit_price=cart_item.item.price,
+                )
 
         request.session['receipt_data'] = {
             'total_price': float(total_price),
