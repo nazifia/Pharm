@@ -711,105 +711,88 @@ def clear_cart(request):
                         receipts__isnull=True  # Sales without receipts (incomplete transactions)
                     ).distinct()
 
-                    # Only clear cart if there are completed sales (with receipts)
-                    # If there are only pending sales (without receipts), don't clear the cart
-                    if completed_sales.exists():
-                        # There are completed transactions with receipts - proceed with cart clearing
+                    # Always clear cart (preserve existing functionality) but only process refunds when receipts exist
 
-                        # Calculate total amount to refund based on actual receipts (not cart items)
-                        total_refund = Decimal('0.00')
+                    # Calculate total amount to refund based on actual receipts (not cart items)
+                    total_refund = Decimal('0.00')
+                    if completed_sales.exists():
+                        # Only calculate refunds when there are completed sales with receipts
                         for sale in completed_sales:
                             # Only refund wallet payments (as per business logic)
                             receipts = sale.receipts.filter(payment_method='Wallet')
                             for receipt in receipts:
                                 total_refund += receipt.total_amount
 
-                        for cart_item in cart_items:
-                            # Return items to stock
-                            cart_item.item.stock += cart_item.quantity
-                            cart_item.item.save()
+                    # Always return items to stock and clear cart (preserve existing functionality)
+                    for cart_item in cart_items:
+                        # Return items to stock
+                        cart_item.item.stock += cart_item.quantity
+                        cart_item.item.save()
 
-                            # Remove DispensingLog entries
-                            DispensingLog.objects.filter(
-                                user=request.user,
-                                name=cart_item.item.name,
-                                quantity=cart_item.quantity,
-                                status='Dispensed'  # Only remove dispensed logs
-                            ).delete()
+                        # Remove DispensingLog entries (only if they exist)
+                        DispensingLog.objects.filter(
+                            user=request.user,
+                            name=cart_item.item.name,
+                            quantity=cart_item.quantity,
+                            status='Dispensed'  # Only remove dispensed logs
+                        ).delete()
 
-                        # Process refunds for the current customer only
-                        if current_customer:
-                            try:
-                                wallet = current_customer.wallet
-                                if wallet and total_refund > 0:
-                                    # For registered customers, provide automatic wallet refund when cart is cleared
-                                    wallet.balance += total_refund
-                                    wallet.save()
+                    # Process refunds ONLY when receipts exist and refund amount > 0
+                    if current_customer and total_refund > 0:
+                        try:
+                            wallet = current_customer.wallet
+                            if wallet:
+                                # For registered customers, provide automatic wallet refund when cart is cleared
+                                wallet.balance += total_refund
+                                wallet.save()
 
-                                    # Create transaction history noting the cart clear with wallet refund
-                                    TransactionHistory.objects.create(
-                                        customer=current_customer,
-                                        user=request.user,
-                                        transaction_type='refund',
-                                        amount=total_refund,
-                                        description=f'Cart cleared - Refund for returned items (₦{total_refund})'
-                                    )
-                                    messages.success(
-                                        request,
-                                        f'Cart cleared for customer {current_customer.name}. Return value ₦{total_refund} refunded to wallet.'
-                                    )
-                            except Wallet.DoesNotExist:
-                                messages.warning(
-                                    request,
-                                    f'Wallet not found for customer {current_customer.name}'
+                                # Create transaction history noting the cart clear with wallet refund
+                                TransactionHistory.objects.create(
+                                    customer=current_customer,
+                                    user=request.user,
+                                    transaction_type='refund',
+                                    amount=total_refund,
+                                    description=f'Cart cleared - Refund for returned items (₦{total_refund})'
                                 )
+                                messages.success(
+                                    request,
+                                    f'Cart cleared for customer {current_customer.name}. Return value ₦{total_refund} refunded to wallet.'
+                                )
+                        except Wallet.DoesNotExist:
+                            messages.warning(
+                                request,
+                                f'Wallet not found for customer {current_customer.name}'
+                            )
 
-                        # Clear cart items only when receipts exist
-                        cart_items.delete()
+                    # Always clear cart items (preserve existing functionality)
+                    cart_items.delete()
 
-                        # Comprehensive cart session cleanup after clearing
-                        from store.cart_utils import cleanup_cart_session_after_receipt
-                        cleanup_summary = cleanup_cart_session_after_receipt(request, 'retail')
-                        logger.info(f"Cart session cleanup after cart clear: {cleanup_summary}")
+                    # Comprehensive cart session cleanup after clearing
+                    from store.cart_utils import cleanup_cart_session_after_receipt
+                    cleanup_summary = cleanup_cart_session_after_receipt(request, 'retail')
+                    logger.info(f"Cart session cleanup after cart clear: {cleanup_summary}")
 
+                    # Clean up orphaned sales records without receipts
+                    if pending_sales.exists():
+                        for sale in pending_sales:
+                            # Delete associated sales items first
+                            sale.sales_items.all().delete()
+                            # Delete the orphaned sale
+                            sale.delete()
+
+                    # Provide appropriate success message
+                    if total_refund > 0:
                         messages.success(
                             request,
                             'Cart cleared successfully. All items returned to stock and transactions reversed.'
                         )
-
                     else:
-                        # No completed sales with receipts found
-                        if pending_sales.exists():
-                            # Clean up orphaned sales records without receipts, but DON'T clear the cart
-                            for sale in pending_sales:
-                                # Delete associated sales items first
-                                sale.sales_items.all().delete()
-                                # Delete the orphaned sale
-                                sale.delete()
+                        messages.success(
+                            request,
+                            'Cart cleared successfully. All items returned to stock.'
+                        )
 
-                            messages.info(
-                                request,
-                                'No receipts were generated. Pending transactions cleaned up, but cart preserved.'
-                            )
-                        else:
-                            # No sales records at all - just return items to stock but don't clear cart
-                            for cart_item in cart_items:
-                                # Return items to stock
-                                cart_item.item.stock += cart_item.quantity
-                                cart_item.item.save()
 
-                                # Remove DispensingLog entries
-                                DispensingLog.objects.filter(
-                                    user=request.user,
-                                    name=cart_item.item.name,
-                                    quantity=cart_item.quantity,
-                                    status='Dispensed'
-                                ).delete()
-
-                            messages.info(
-                                request,
-                                'No transactions found. Items returned to stock, but cart preserved.'
-                            )
 
             except Exception as e:
                 messages.error(request, f'Error clearing cart: {str(e)}')
