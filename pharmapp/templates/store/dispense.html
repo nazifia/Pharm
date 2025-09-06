@@ -46,6 +46,16 @@ Dispense Items - {{ block.super }}
     outline: none;
 }
 
+.input-group {
+    position: relative;
+}
+
+.input-group-text {
+    background: #e9ecef;
+    border-color: #e9ecef;
+    color: #6c757d;
+}
+
 .search-btn {
     border-radius: 25px;
     padding: 12px 30px;
@@ -144,6 +154,28 @@ Dispense Items - {{ block.super }}
     box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
 }
 
+/* HTMX loading states */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator {
+    display: inline;
+}
+
+.htmx-request .btn-text {
+    display: none;
+}
+
+/* Smooth transitions for dynamic content */
+#search-results-container {
+    transition: opacity 0.3s ease;
+}
+
+.htmx-swapping #search-results-container {
+    opacity: 0.5;
+}
+
 .no-results {
     text-align: center;
     padding: 3rem;
@@ -227,92 +259,53 @@ Dispense Items - {{ block.super }}
             </a>
         </div>
 
-        <!-- Search Form -->
+        <!-- Cart Summary Widget -->
+        {% include 'partials/cart_summary_widget.html' %}
+
+        <!-- Dynamic Search Form -->
         <div class="search-form">
-            <form method="POST" action="{% url 'store:dispense' %}">
-                {% csrf_token %}
-                <div class="row align-items-end">
-                    <div class="col-md-8">
-                        <label for="id_q" class="form-label font-weight-bold">Search Items:</label>
-                        {{ form.q.as_widget }}
+            <div class="row align-items-end">
+                <div class="col-md-12">
+                    <label for="search-input" class="form-label font-weight-bold">Search Items:</label>
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text"
+                               class="form-control search-input"
+                               id="search-input"
+                               name="q"
+                               placeholder="Search by item name or brand..."
+                               hx-get="{% url 'store:dispense_search_items' %}"
+                               hx-trigger="keyup changed delay:300ms"
+                               hx-target="#search-results-container"
+                               hx-swap="innerHTML"
+                               hx-indicator="#search-indicator"
+                               autocomplete="off">
                     </div>
-                    <div class="col-md-4">
-                        <button type="submit" class="btn btn-primary search-btn w-100">
-                            <i class="fas fa-search mr-2"></i>Search Items
-                        </button>
+                    <div id="search-indicator" class="htmx-indicator mt-2" style="display:none">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <small>Searching...</small>
+                        </div>
                     </div>
                 </div>
-            </form>
+            </div>
         </div>
 
-        <!-- Search Results -->
-        {% if results %}
+        <!-- Dynamic Search Results Container -->
         <div class="results-container">
-            <div class="results-header">
-                <i class="fas fa-list mr-2"></i>
-                Search Results ({{ results|length }} item{{ results|length|pluralize }} found)
-            </div>
-            
-            {% for item in results %}
-            <div class="item-card">
-                <div class="row align-items-center">
-                    <div class="col-md-8 item-info">
-                        <div class="item-name">{{ item.name|title }}</div>
-                        <div class="item-details">
-                            <strong>Form:</strong> {{ item.dosage_form|title }} | 
-                            <strong>Brand:</strong> {{ item.brand|default:"N/A" }} | 
-                            <strong>Unit:</strong> {{ item.unit }}
-                        </div>
-                        <div class="item-stock">
-                            <i class="fas fa-boxes mr-1"></i>
-                            {{ item.stock }} {{ item.unit }} Available
-                        </div>
-                        <div class="item-price">
-                            <i class="fas fa-tag mr-1"></i>
-                            ₦{{ item.price|floatformat:2 }} each
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <form method="POST" action="{% url 'store:add_to_cart' item.id %}">
-                            {% csrf_token %}
-                            <div class="quantity-form">
-                                <label for="quantity_{{ item.id }}" class="form-label mb-0">Qty:</label>
-                                <input type="number" 
-                                       name="quantity" 
-                                       id="quantity_{{ item.id }}"
-                                       class="form-control quantity-input" 
-                                       value="1" 
-                                       min="1" 
-                                       max="{{ item.stock }}"
-                                       required>
-                                <input type="hidden" name="unit" value="{{ item.unit }}">
-                                <button type="submit" class="btn btn-success add-to-cart-btn">
-                                    <i class="fas fa-cart-plus mr-1"></i>Add to Cart
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+            <div id="search-results-container">
+                <!-- Initial state - ready to search -->
+                <div class="no-results">
+                    <i class="fas fa-pills"></i>
+                    <h4>Ready to Search</h4>
+                    <p>Enter an item name or brand to start searching for items to dispense.</p>
                 </div>
             </div>
-            {% endfor %}
         </div>
-        {% elif request.method == 'POST' %}
-        <div class="results-container">
-            <div class="no-results">
-                <i class="fas fa-search"></i>
-                <h4>No items found</h4>
-                <p>Try searching with different keywords or check the spelling.</p>
-            </div>
-        </div>
-        {% else %}
-        <div class="results-container">
-            <div class="no-results">
-                <i class="fas fa-pills"></i>
-                <h4>Ready to Search</h4>
-                <p>Enter an item name or brand to start searching for items to dispense.</p>
-            </div>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

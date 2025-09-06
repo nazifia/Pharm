@@ -417,6 +417,8 @@ def edit_item(request, pk):
 
 @login_required
 def dispense(request):
+    print(f"DEBUG: STORE dispense view called by user: {request.user}")
+    print(f"DEBUG: Request path: {request.path}")
     if request.user.is_authenticated:
         if request.method == 'POST':
             form = dispenseForm(request.POST)
@@ -433,8 +435,36 @@ def dispense(request):
         if request.headers.get('HX-Request'):
             return render(request, 'partials/dispense_modal.html', {'form': form, 'results': results})
         else:
-            # Regular page request
-            return render(request, 'store/dispense.html', {'form': form, 'results': results})
+            # Regular page request - get cart summary for the new dynamic interface
+            cart_items = Cart.objects.filter(user=request.user)
+            cart_count = cart_items.count()
+            cart_total = sum(cart_item.subtotal for cart_item in cart_items)
+
+            context = {
+                'form': form,
+                'results': results,
+                'cart_count': cart_count,
+                'cart_total': cart_total
+            }
+            return render(request, 'store/dispense.html', context)
+    else:
+        return redirect('store:index')
+
+
+@login_required
+def dispense_search_items(request):
+    """HTMX endpoint for dynamic item search in dispensing"""
+    if request.user.is_authenticated:
+        query = request.GET.get('q', '').strip()
+        results = []
+
+        if query and len(query) >= 2:
+            # Use the same search logic as the original dispense view
+            results = Item.objects.filter(
+                Q(name__icontains=query) | Q(brand__icontains=query)
+            ).filter(stock__gt=0).order_by('name')[:50]  # Limit results for performance
+
+        return render(request, 'partials/dispense_search_results.html', {'results': results, 'query': query})
     else:
         return redirect('store:index')
 
@@ -552,12 +582,23 @@ def add_to_cart(request, pk):
             cart_items = Cart.objects.filter(user=request.user)
             total_price = sum(cart_item.subtotal for cart_item in cart_items)
 
-            return JsonResponse({
-                'cart_items_count': cart_items.count(),
-                'total_price': float(total_price),
-            })
+            # Check if this is from the dispensing page (has specific header or parameter)
+            if request.GET.get('from_dispense') or request.POST.get('from_dispense'):
+                # Return HTML fragment for cart summary widget update
+                context = {
+                    'cart_count': cart_items.count(),
+                    'cart_total': total_price,
+                    'success_message': f"{quantity} {item.unit} of {item.name} added to cart."
+                }
+                return render(request, 'partials/cart_summary_widget.html', context)
+            else:
+                # Return JSON for other HTMX requests
+                return JsonResponse({
+                    'cart_items_count': cart_items.count(),
+                    'total_price': float(total_price),
+                })
 
-        # Redirect to the wholesale cart page if not an HTMX request
+        # Redirect to the cart page if not an HTMX request
         return redirect('store:cart')
     else:
         return redirect('store:index')

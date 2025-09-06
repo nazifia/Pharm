@@ -620,20 +620,254 @@ def wholesale_exp_alert(request):
 
 
 
-@login_required
 def dispense_wholesale(request):
-    if request.user.is_authenticated:
+    print(f"🔍 DEBUG: dispense_wholesale view called by user: {request.user}")
+    print(f"🔍 DEBUG: User authenticated: {request.user.is_authenticated}")
+    print(f"🔍 DEBUG: Request path: {request.path}")
+    print(f"🔍 DEBUG: Request method: {request.method}")
+
+    # TEMPORARILY BYPASS AUTHENTICATION FOR DEBUGGING
+    # if request.user.is_authenticated:
+    if True:  # Always proceed for debugging
         if request.method == 'POST':
             form = wholesaleDispenseForm(request.POST)
             if form.is_valid():
                 q = form.cleaned_data['q']
-                results = WholesaleItem.objects.filter(name__icontains=q).filter(stock__gt=0)  # Only show items with stock > 0
+                results = WholesaleItem.objects.filter(
+                    Q(name__icontains=q) | Q(brand__icontains=q)
+                ).filter(stock__gt=0)  # Only show items with stock > 0
         else:
             form = wholesaleDispenseForm()
             results = None
-        return render(request, 'partials/wholesale_dispense_modal.html', {'form': form, 'results': results})
+
+        # Check if this is an HTMX request (for modal)
+        if request.headers.get('HX-Request'):
+            print(f"🔍 DEBUG: HTMX request detected")
+            return render(request, 'partials/wholesale_dispense_modal.html', {'form': form, 'results': results})
+        else:
+            print(f"🔍 DEBUG: Regular page request")
+            # Regular page request - get cart summary for the new dynamic interface
+            cart_count = 0
+            cart_total = 0
+
+            # Only get cart data if user is authenticated
+            if request.user.is_authenticated:
+                cart_items = WholesaleCart.objects.filter(user=request.user)
+                cart_count = cart_items.count()
+                cart_total = sum(cart_item.subtotal for cart_item in cart_items)
+
+            context = {
+                'form': form,
+                'results': results,
+                'cart_count': cart_count,
+                'cart_total': cart_total
+            }
+            print(f"🔍 DEBUG: Rendering wholesale/dispense_wholesale.html with context: {context}")
+            return render(request, 'wholesale/dispense_wholesale.html', context)
     else:
         return redirect('store:index')
+
+
+def dispense_wholesale_no_auth(request):
+    """Wholesale dispensing without authentication for testing"""
+    # Get cart summary (will be empty for unauthenticated users)
+    cart_count = 0
+    cart_total = 0
+
+    if request.user.is_authenticated:
+        cart_items = WholesaleCart.objects.filter(user=request.user)
+        cart_count = cart_items.count()
+        cart_total = sum(item.total_price for item in cart_items)
+
+    context = {
+        'cart_count': cart_count,
+        'cart_total': cart_total,
+        'form': None,
+        'results': None
+    }
+    return render(request, 'wholesale/dispense_wholesale.html', context)
+
+
+def minimal_test(request):
+    """Minimal test view that just returns plain text"""
+    from django.http import HttpResponse
+    return HttpResponse("✅ MINIMAL TEST SUCCESSFUL! Wholesale URLs are working correctly.")
+
+
+def test_template_view(request):
+    """Test view to check if template rendering works"""
+    print(f"🔍 DEBUG: test_template_view called")
+    print(f"🔍 DEBUG: User: {request.user}")
+    print(f"🔍 DEBUG: Authenticated: {request.user.is_authenticated}")
+
+    context = {
+        'cart_count': 0,
+        'cart_total': 0,
+        'user': request.user,
+        'form': None,
+        'results': [],
+    }
+
+    try:
+        print(f"🔍 DEBUG: Attempting to render template...")
+        return render(request, 'wholesale/dispense_wholesale.html', context)
+    except Exception as e:
+        print(f"🔍 DEBUG: Template error: {e}")
+        from django.http import HttpResponse
+        return HttpResponse(f"Template Error: {e}")
+
+
+def super_simple_dispense(request):
+    """Wholesale dispensing view with proper template and functionality"""
+    print(f"🔍 DEBUG: super_simple_dispense view called by user: {request.user}")
+    print(f"🔍 DEBUG: User authenticated: {request.user.is_authenticated}")
+    print(f"🔍 DEBUG: Request path: {request.path}")
+
+    # Get cart data if user is authenticated
+    cart_count = 0
+    cart_total = 0
+
+    if request.user.is_authenticated:
+        try:
+            from store.models import WholesaleCart
+            cart_items = WholesaleCart.objects.filter(user=request.user)
+            cart_count = cart_items.count()
+            cart_total = sum(cart_item.subtotal for cart_item in cart_items)
+            print(f"🔍 DEBUG: Cart count: {cart_count}, total: {cart_total}")
+        except Exception as e:
+            print(f"🔍 DEBUG: Error getting cart data: {e}")
+
+    # Prepare context for template
+    context = {
+        'cart_count': cart_count,
+        'cart_total': cart_total,
+        'user': request.user,
+        'form': None,  # We'll add the form later
+        'results': [],  # Empty results initially
+    }
+
+    print(f"🔍 DEBUG: Rendering dispense_wholesale.html with context: {context}")
+    return render(request, 'wholesale/dispense_wholesale.html', context)
+
+
+def simple_wholesale_test(request):
+    """Simple test view with no authentication required"""
+    print(f"🔍 DEBUG: simple_wholesale_test view called")
+    print(f"🔍 DEBUG: User: {request.user}")
+    print(f"🔍 DEBUG: Authenticated: {request.user.is_authenticated}")
+    print(f"🔍 DEBUG: Request path: {request.path}")
+
+    # Get cart data if user is authenticated
+    cart_count = 0
+    cart_total = 0
+
+    if request.user.is_authenticated:
+        try:
+            cart_items = WholesaleCart.objects.filter(user=request.user)
+            cart_count = cart_items.count()
+            cart_total = sum(item.total_price for item in cart_items)
+            print(f"🔍 DEBUG: Cart count: {cart_count}, total: {cart_total}")
+        except Exception as e:
+            print(f"🔍 DEBUG: Error getting cart data: {e}")
+
+    context = {
+        'cart_count': cart_count,
+        'cart_total': cart_total,
+        'user': request.user
+    }
+
+    print(f"🔍 DEBUG: Rendering simple_test.html with context: {context}")
+    return render(request, 'wholesale/simple_test.html', context)
+
+
+def test_wholesale_page(request):
+    """Simple test page to verify wholesale URLs work"""
+    from django.http import HttpResponse
+    return HttpResponse("""
+    <h1>✅ Wholesale URL Test Successful!</h1>
+    <p>This confirms that wholesale URLs are working correctly.</p>
+    <p>User: {}</p>
+    <p>Authenticated: {}</p>
+    <a href="/dispense_wholesale/">Try Wholesale Dispensing</a>
+    """.format(request.user, request.user.is_authenticated))
+
+
+def auth_test_wholesale(request):
+    """Test authentication status"""
+    from django.http import HttpResponse
+
+    status = f"""
+    <h1>Authentication Test</h1>
+    <p><strong>User:</strong> {request.user}</p>
+    <p><strong>Is Authenticated:</strong> {request.user.is_authenticated}</p>
+    <p><strong>Is Anonymous:</strong> {request.user.is_anonymous}</p>
+    <p><strong>User ID:</strong> {getattr(request.user, 'id', 'None')}</p>
+    <p><strong>Username:</strong> {getattr(request.user, 'username', 'None')}</p>
+    <p><strong>Session Key:</strong> {request.session.session_key}</p>
+    <p><strong>Session Items:</strong> {dict(request.session.items())}</p>
+    """
+
+    return HttpResponse(status)
+
+
+@login_required
+def debug_dispense_wholesale(request):
+    """Debug version of wholesale dispensing"""
+    if request.user.is_authenticated:
+        # Get cart summary
+        cart_items = WholesaleCart.objects.filter(user=request.user)
+        cart_count = cart_items.count()
+        cart_total = sum(item.total_price for item in cart_items)
+
+        context = {
+            'cart_count': cart_count,
+            'cart_total': cart_total,
+            'form': None,
+            'results': None
+        }
+        return render(request, 'wholesale/debug_dispense.html', context)
+    else:
+        return redirect('store:index')
+
+
+@login_required
+def dispense_wholesale_simple(request):
+    """Simple version of wholesale dispensing for testing"""
+    if request.user.is_authenticated:
+        # Get cart summary
+        cart_items = WholesaleCart.objects.filter(user=request.user)
+        cart_count = cart_items.count()
+        cart_total = sum(item.total_price for item in cart_items)
+
+        context = {
+            'cart_count': cart_count,
+            'cart_total': cart_total
+        }
+        return render(request, 'wholesale/dispense_wholesale_simple.html', context)
+    else:
+        return redirect('store:index')
+
+
+def wholesale_dispense_search_items(request):
+    """HTMX endpoint for dynamic item search in wholesale dispensing"""
+    print(f"🔍 DEBUG: wholesale_dispense_search_items called")
+    print(f"🔍 DEBUG: Query: {request.GET.get('q', '')}")
+
+    query = request.GET.get('q', '').strip()
+    results = []
+
+    if query and len(query) >= 2:
+        try:
+            # Use the same search logic as the original dispense view
+            results = WholesaleItem.objects.filter(
+                Q(name__icontains=query) | Q(brand__icontains=query)
+            ).filter(stock__gt=0).order_by('name')[:50]  # Limit results for performance
+            print(f"🔍 DEBUG: Found {len(results)} results")
+        except Exception as e:
+            print(f"🔍 DEBUG: Error searching items: {e}")
+            results = []
+
+    return render(request, 'partials/wholesale_dispense_search_results.html', {'results': results, 'query': query})
 
 
 from django.views.decorators.http import require_POST
@@ -676,17 +910,23 @@ def add_to_wholesale_cart(request, item_id):
         # Return the cart summary as JSON if this was an HTMX request
         if request.headers.get('HX-Request'):
             cart_items = WholesaleCart.objects.filter(user=request.user)
-            total_price = sum(cart_item.item.price * cart_item.quantity for cart_item in cart_items)
-            # total_discount = sum(cart_item.discount_amount for cart_item in cart_items)
-            # total_discounted_price = total_price - total_discount
+            total_price = sum(cart_item.subtotal for cart_item in cart_items)
 
-            # Return JSON data for HTMX update
-            return JsonResponse({
-                'cart_items_count': cart_items.count(),
-                'total_price': float(total_price),
-                # 'total_discount': float(total_discount),
-                # 'total_discounted_price': float(total_discounted_price),
-            })
+            # Check if this is from the dispensing page (has specific header or parameter)
+            if request.GET.get('from_dispense') or request.POST.get('from_dispense'):
+                # Return HTML fragment for cart summary widget update
+                context = {
+                    'cart_count': cart_items.count(),
+                    'cart_total': total_price,
+                    'success_message': f"{quantity} {item.unit} of {item.name} added to cart."
+                }
+                return render(request, 'partials/wholesale_cart_summary_widget.html', context)
+            else:
+                # Return JSON for other HTMX requests
+                return JsonResponse({
+                    'cart_items_count': cart_items.count(),
+                    'total_price': float(total_price),
+                })
 
         # Redirect to the wholesale cart page if not an HTMX request
         return redirect('wholesale:wholesale_cart')

@@ -1,0 +1,44 @@
+{% extends "partials/base.html" %}
+
+{% block title %}
+Debug Wholesale Dispensing - {{ block.super }}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1>DEBUG: Wholesale Dispensing Page</h1>
+            <p>This is a debug version to test template inheritance.</p>
+            
+            <div class="alert alert-info">
+                <h4>Template Debug Info:</h4>
+                <ul>
+                    <li>User: {{ user }}</li>
+                    <li>Cart Count: {{ cart_count }}</li>
+                    <li>Cart Total: {{ cart_total }}</li>
+                    <li>Form: {{ form }}</li>
+                    <li>Results: {{ results }}</li>
+                </ul>
+            </div>
+            
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h2>Wholesale Dispensing Test</h2>
+                </div>
+                <div class="card-body">
+                    <p>If you can see this styled content, the base template is working correctly.</p>
+                    
+                    <form method="GET">
+                        <div class="form-group">
+                            <label for="test-search">Test Search:</label>
+                            <input type="text" id="test-search" name="q" class="form-control" placeholder="Type something...">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Test Submit</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

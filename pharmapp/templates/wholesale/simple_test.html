@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Wholesale Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; padding: 20px; }
+        .test-container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .success-badge { background: #28a745; color: white; padding: 10px 20px; border-radius: 5px; display: inline-block; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="test-container">
+            <div class="success-badge">
+                <i class="fas fa-check-circle"></i> TEMPLATE TEST SUCCESSFUL
+            </div>
+            
+            <h1 class="text-success">
+                <i class="fas fa-warehouse"></i> 
+                Simple Wholesale Dispensing Test
+            </h1>
+            
+            <div class="alert alert-success">
+                <h4>✅ This template is working correctly!</h4>
+                <p>If you can see this styled content, then:</p>
+                <ul>
+                    <li>The view is being called correctly</li>
+                    <li>The template is rendering properly</li>
+                    <li>Bootstrap CSS is loading</li>
+                    <li>Font Awesome icons are working</li>
+                </ul>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h5><i class="fas fa-search"></i> Search Test</h5>
+                        </div>
+                        <div class="card-body">
+                            <form>
+                                <div class="form-group">
+                                    <label for="test-search">Search Wholesale Items:</label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text">
+                                                <i class="fas fa-search"></i>
+                                            </span>
+                                        </div>
+                                        <input type="text" id="test-search" class="form-control" placeholder="Type to search...">
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-success">
+                                    <i class="fas fa-search"></i> Search Items
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h5><i class="fas fa-shopping-cart"></i> Cart Summary</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Cart Count:</strong> {{ cart_count|default:0 }}</p>
+                            <p><strong>Cart Total:</strong> ₦{{ cart_total|default:0|floatformat:2 }}</p>
+                            <p><strong>User:</strong> {{ user }}</p>
+                            <p><strong>Authenticated:</strong> {{ user.is_authenticated }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3>Debug Information:</h3>
+                <div class="alert alert-info">
+                    <p><strong>Template:</strong> wholesale/simple_test.html</p>
+                    <p><strong>View:</strong> simple_wholesale_test</p>
+                    <p><strong>URL:</strong> /simple_wholesale_test/</p>
+                    <p><strong>Context Variables:</strong></p>
+                    <ul>
+                        <li>cart_count: {{ cart_count|default:"Not provided" }}</li>
+                        <li>cart_total: {{ cart_total|default:"Not provided" }}</li>
+                        <li>user: {{ user|default:"Not provided" }}</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <a href="/dispense_wholesale/" class="btn btn-primary">
+                    <i class="fas fa-arrow-right"></i> Try Original Wholesale Dispensing
+                </a>
+                <a href="/dispense_wholesale_no_auth/" class="btn btn-secondary">
+                    <i class="fas fa-unlock"></i> Try No-Auth Version
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        console.log('✅ Simple test template loaded successfully');
+        document.getElementById('test-search').focus();
+    </script>
+</body>
+</html>

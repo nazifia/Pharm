@@ -1,0 +1,157 @@
+<div id="cart-summary-widget" class="cart-summary-widget">
+    <div class="cart-summary-content">
+        <div class="cart-icon-section">
+            <i class="fas fa-shopping-cart cart-icon"></i>
+            {% if cart_count > 0 %}
+                <span class="cart-badge">{{ cart_count }}</span>
+            {% endif %}
+        </div>
+        <div class="cart-details">
+            <div class="cart-count">
+                {{ cart_count }} item{{ cart_count|pluralize }} in cart
+            </div>
+            <div class="cart-total">
+                Total: ₦{{ cart_total|floatformat:2 }}
+            </div>
+        </div>
+        <div class="cart-actions">
+            {% if cart_count > 0 %}
+                <a href="{% url 'store:cart' %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-eye mr-1"></i>View Cart
+                </a>
+            {% else %}
+                <span class="text-muted">Cart is empty</span>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if success_message %}
+    <div class="cart-success-message">
+        <i class="fas fa-check-circle text-success mr-1"></i>
+        {{ success_message }}
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.cart-summary-widget {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.cart-summary-widget:hover {
+    border-color: #007bff;
+    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.1);
+}
+
+.cart-summary-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.cart-icon-section {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.cart-icon {
+    font-size: 1.5rem;
+    color: #007bff;
+}
+
+.cart-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #dc3545;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.cart-details {
+    flex: 1;
+    text-align: center;
+}
+
+.cart-count {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.25rem;
+}
+
+.cart-total {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #28a745;
+}
+
+.cart-actions {
+    display: flex;
+    align-items: center;
+}
+
+.cart-success-message {
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 5px;
+    color: #155724;
+    font-size: 0.9rem;
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading indicator styles */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator {
+    display: inline;
+}
+
+.htmx-request .btn-text {
+    display: none;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .cart-summary-content {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .cart-details {
+        order: 1;
+    }
+    
+    .cart-icon-section {
+        order: 2;
+    }
+    
+    .cart-actions {
+        order: 3;
+        justify-content: center;
+    }
+}
+</style>

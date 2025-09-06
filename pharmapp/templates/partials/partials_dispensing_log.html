@@ -21,37 +21,11 @@
             {{ log.get_status_display }}
         </span>
     </td>
-    <td>
-        {% with return_info=log.return_summary %}
-            {% if return_info.return_type == 'fully_returned' %}
-                <div class="text-danger">
-                    <i class="fas fa-undo"></i>
-                    <small>{{ return_info.status_display }}</small>
-                    <br><small class="text-muted">100% returned</small>
-                </div>
-            {% elif return_info.return_type == 'partially_returned' %}
-                <div class="text-warning">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <small>{{ return_info.status_display }}</small>
-                </div>
-            {% elif return_info.return_type == 'separate_returns' %}
-                <div class="text-warning">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <small>{{ return_info.status_display }}</small>
-                    <br><small class="text-muted">{{ return_info.return_percentage|floatformat:1 }}% returned</small>
-                </div>
-            {% elif return_info.return_type == 'no_returns' %}
-                <span class="text-muted"><small>{{ return_info.status_display }}</small></span>
-            {% else %}
-                <span class="text-muted"><small>{{ return_info.status_display }}</small></span>
-            {% endif %}
-        {% endwith %}
-    </td>
     <td>{{ log.created_at|date:"M d, Y H:i" }}</td>
 </tr>
 {% empty %}
 <tr>
-    <td style="text-align: center;" colspan="9">
+    <td style="text-align: center;" colspan="8">
         <div class="text-muted py-3">
             <i class="fas fa-search fa-2x mb-2"></i>
             <br>

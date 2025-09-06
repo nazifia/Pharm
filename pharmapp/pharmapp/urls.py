@@ -16,8 +16,8 @@ def serve_sw(request):
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('wholesale/', include('wholesale.urls', namespace='wholesale')),
     path('', include('store.urls')),
-    path('', include('wholesale.urls')),
     path('', include('userauth.urls')),
     path('chat/', include('chat.urls')),
     path('notebook/', include('notebook.urls')),

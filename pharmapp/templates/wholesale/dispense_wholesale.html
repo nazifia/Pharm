@@ -1,0 +1,321 @@
+{% extends "partials/base.html" %}
+{% load static %}
+
+{% block title %}
+Dispense Wholesale Items - {{ block.super }}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Simplified Wholesale Dispense Page Styles */
+.dispense-container {
+    margin-top: 1rem;
+}
+
+.dispense-header {
+    background: linear-gradient(135deg, #28a745, #20c997);
+}
+
+.search-input:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+.input-group-text {
+    background: #e9ecef;
+    border-color: #e9ecef;
+    color: #6c757d;
+}
+
+.search-btn {
+    border-radius: 25px;
+    padding: 12px 30px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.search-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.results-container {
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    overflow: hidden;
+}
+
+.results-header {
+    background: #f8f9fa;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+}
+
+.item-card {
+    border: none;
+    border-bottom: 1px solid #f1f1f1;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.item-card:hover {
+    background: #f8f9fa;
+    transform: translateX(5px);
+}
+
+.item-card:last-child {
+    border-bottom: none;
+}
+
+.item-info {
+    flex: 1;
+}
+
+.item-name {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+}
+
+.item-details {
+    color: #6c757d;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.item-stock {
+    color: #28a745;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.item-price {
+    color: #007bff;
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.quantity-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.quantity-input {
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+    padding: 5px;
+}
+
+.add-to-cart-btn {
+    border-radius: 20px;
+    padding: 8px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.add-to-cart-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+}
+
+/* HTMX loading states */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator {
+    display: inline;
+}
+
+.htmx-request .btn-text {
+    display: none;
+}
+
+/* Smooth transitions for dynamic content */
+#search-results-container {
+    transition: opacity 0.3s ease;
+}
+
+.htmx-swapping #search-results-container {
+    opacity: 0.5;
+}
+
+.no-results {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #6c757d;
+}
+
+.no-results i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #dee2e6;
+}
+
+.no-results h4 {
+    margin-bottom: 1rem;
+    color: #495057;
+}
+
+.quick-actions {
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.quick-actions .btn {
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .dispense-container {
+        padding: 1rem;
+        margin-top: 0.5rem;
+    }
+    
+    .dispense-header {
+        padding: 1rem;
+        margin: -1rem -1rem 1rem -1rem;
+    }
+    
+    .item-card {
+        padding: 1rem;
+    }
+    
+    .item-card .row {
+        flex-direction: column;
+    }
+    
+    .quantity-form {
+        margin-top: 1rem;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .quantity-input {
+        width: 80px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card dispense-container">
+        <div class="card-header dispense-header text-white">
+            <h1 class="mb-0">
+                <i class="fas fa-warehouse mr-3"></i>
+                Dispense Wholesale Items
+            </h1>
+            <p class="mb-0 mt-2">Search and add wholesale items to cart for dispensing</p>
+        </div>
+        <div class="card-body">
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+            <h6 class="mb-3">Quick Actions:</h6>
+            <a href="{% url 'wholesale:wholesale_cart' %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-shopping-cart"></i> View Wholesale Cart
+            </a>
+            <a href="{% url 'wholesale:wholesales' %}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-warehouse"></i> Wholesale Interface
+            </a>
+            <a href="{% url 'wholesale:add_to_wholesale' %}" class="btn btn-success btn-sm">
+                <i class="fas fa-plus"></i> Add New Wholesale Item
+            </a>
+        </div>
+
+        <!-- Cart Summary Widget -->
+        {% include 'partials/wholesale_cart_summary_widget.html' with cart_count=cart_count cart_total=cart_total %}
+
+        <!-- Dynamic Search Form -->
+        <div class="form-group mb-4">
+            <label for="search-input" class="font-weight-bold">Search Wholesale Items:</label>
+            <div class="input-group">
+                <div class="input-group-prepend">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                </div>
+                <input type="text"
+                       class="form-control search-input"
+                       id="search-input"
+                       name="q"
+                       placeholder="Search by item name or brand..."
+                       hx-get="{% url 'wholesale:wholesale_dispense_search_items' %}"
+                       hx-trigger="keyup changed delay:300ms"
+                       hx-target="#search-results-container"
+                       hx-swap="innerHTML"
+                       hx-indicator="#search-indicator"
+                       autocomplete="off">
+            </div>
+            <div id="search-indicator" class="htmx-indicator mt-2" style="display:none">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm text-success mr-2" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <small>Searching...</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic Search Results Container -->
+        <div class="results-container">
+            <div id="search-results-container">
+                <!-- Initial state - ready to search -->
+                <div class="no-results">
+                    <i class="fas fa-warehouse"></i>
+                    <h4>Ready to Search</h4>
+                    <p>Enter an item name or brand to start searching for wholesale items to dispense.</p>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Wholesale dispensing page loaded');
+
+    // Ensure HTMX is loaded
+    if (typeof htmx === 'undefined') {
+        console.error('HTMX is not loaded!');
+    } else {
+        console.log('HTMX is loaded and ready');
+    }
+
+    // Add focus to search input
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.focus();
+        console.log('Search input focused');
+    }
+
+    // Add HTMX event listeners for better UX
+    document.body.addEventListener('htmx:beforeRequest', function(event) {
+        console.log('HTMX request starting:', event.detail.requestConfig.path);
+    });
+
+    document.body.addEventListener('htmx:afterRequest', function(event) {
+        console.log('HTMX request completed:', event.detail.xhr.status);
+    });
+
+    document.body.addEventListener('htmx:responseError', function(event) {
+        console.error('HTMX error:', event.detail.xhr.status, event.detail.xhr.responseText);
+    });
+});
+</script>
+{% endblock %}

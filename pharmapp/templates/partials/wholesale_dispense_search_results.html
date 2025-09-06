@@ -1,0 +1,74 @@
+{% if results %}
+<div class="results-header">
+    <i class="fas fa-list mr-2"></i>
+    Search Results ({{ results|length }} item{{ results|length|pluralize }} found)
+</div>
+
+{% for item in results %}
+<div class="item-card">
+    <div class="row align-items-center">
+        <div class="col-md-8 item-info">
+            <div class="item-name">{{ item.name|title }}</div>
+            <div class="item-details">
+                <strong>Form:</strong> {{ item.dosage_form|title }} | 
+                <strong>Brand:</strong> {{ item.brand|default:"N/A" }} | 
+                <strong>Unit:</strong> {{ item.unit }}
+            </div>
+            <div class="item-stock">
+                <i class="fas fa-boxes mr-1"></i>
+                {{ item.stock }} {{ item.unit }} Available
+            </div>
+            <div class="item-price">
+                <i class="fas fa-tag mr-1"></i>
+                ₦{{ item.price|floatformat:2 }} each
+            </div>
+        </div>
+        <div class="col-md-4">
+            <form method="POST"
+                  action="{% url 'wholesale:add_to_wholesale_cart' item.id %}"
+                  hx-post="{% url 'wholesale:add_to_wholesale_cart' item.id %}?from_dispense=true"
+                  hx-target="#wholesale-cart-summary-widget"
+                  hx-swap="outerHTML"
+                  hx-indicator="#loading-indicator-{{ item.id }}">
+                {% csrf_token %}
+                <div class="quantity-form">
+                    <label for="quantity_{{ item.id }}" class="form-label mb-0">Qty:</label>
+                    <input type="number" 
+                           name="quantity" 
+                           id="quantity_{{ item.id }}"
+                           class="form-control quantity-input" 
+                           value="0.5" 
+                           min="0.5" 
+                           step="0.5"
+                           max="{{ item.stock }}"
+                           required>
+                    <input type="hidden" name="unit" value="{{ item.unit }}">
+                    <input type="hidden" name="from_dispense" value="true">
+                    <button type="submit" class="btn btn-success add-to-cart-btn">
+                        <span id="loading-indicator-{{ item.id }}" class="htmx-indicator">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </span>
+                        <span class="btn-text">
+                            <i class="fas fa-cart-plus mr-1"></i>Add to Cart
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% elif query %}
+<div class="no-results">
+    <i class="fas fa-search"></i>
+    <h4>No items found</h4>
+    <p>No wholesale items found for "{{ query }}". Try searching with different keywords or check the spelling.</p>
+</div>
+{% else %}
+<div class="no-results">
+    <i class="fas fa-warehouse"></i>
+    <h4>Ready to Search</h4>
+    <p>Enter an item name or brand to start searching for wholesale items to dispense.</p>
+</div>
+{% endif %}

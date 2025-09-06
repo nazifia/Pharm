@@ -139,7 +139,12 @@
     hx-get="{% url 'wholesale:add_to_wholesale' %}" hx-target="#addItemModal .modal-content" hx-trigger="click"><i
         class="fa fa-plus "></i> Add New Item</a>
 
-<a class="btn btn-success btn-sm" href="{% url 'wholesale:wholesale_cart' %}" type="button">Dispense Wholesale</a>
+<a class="btn btn-success btn-sm" href="{% url 'wholesale:dispense_wholesale' %}" type="button">
+    <i class="fas fa-pills mr-1"></i>Dispense Wholesale
+</a>
+<a class="btn btn-info btn-sm" href="{% url 'wholesale:wholesale_cart' %}" type="button">
+    <i class="fas fa-shopping-cart mr-1"></i>View Cart
+</a>
 
 <a class="btn btn-warning btn-sm float-right mx-1" href="{% url 'wholesale:wholesale_transfer_request_list' %}">Requests History</a>
 <a class="btn btn-info btn-sm float-right" href="{% url 'wholesale:pending_wholesale_transfer_requests' %}">Pending Requests</a>
