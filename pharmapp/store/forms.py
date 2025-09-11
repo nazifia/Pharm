@@ -339,3 +339,114 @@ class StoreSettingsForm(forms.ModelForm):
         widgets = {
             'low_stock_threshold': forms.NumberInput(attrs={'class': 'form-control'})
         }
+
+
+class AdvancedProcurementSearchForm(forms.Form):
+    """Advanced search form for procurement with multiple filter options"""
+    supplier = forms.ModelChoiceField(
+        queryset=None,  # Will be set dynamically in the view
+        required=False,
+        empty_label='All Suppliers',
+        widget=forms.Select(attrs={
+            'class': 'form-control'
+        }),
+        label='Supplier'
+    )
+    date_from = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date',
+            'style': 'background-color: rgb(196, 253, 253);'
+        }),
+        label='From Date'
+    )
+    date_to = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control',
+            'type': 'date',
+            'style': 'background-color: rgb(196, 253, 253);'
+        }),
+        label='To Date'
+    )
+    status = forms.ChoiceField(
+        choices=[('', 'All Status'), ('draft', 'Draft'), ('completed', 'Completed')],
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-control'
+        }),
+        label='Status'
+    )
+    min_amount = forms.DecimalField(
+        required=False,
+        max_digits=10,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Minimum amount',
+            'step': '0.01'
+        }),
+        label='Min Amount (₦)'
+    )
+    max_amount = forms.DecimalField(
+        required=False,
+        max_digits=10,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Maximum amount',
+            'step': '0.01'
+        }),
+        label='Max Amount (₦)'
+    )
+
+    def __init__(self, *args, **kwargs):
+        supplier_queryset = kwargs.pop('supplier_queryset', None)
+        super().__init__(*args, **kwargs)
+        if supplier_queryset is not None:
+            self.fields['supplier'].queryset = supplier_queryset
+
+
+class SupplierAnalyticsFilterForm(forms.Form):
+    """Form for filtering supplier analytics by date range"""
+    year = forms.ChoiceField(
+        choices=[],  # Will be populated dynamically
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-control'
+        }),
+        label='Year'
+    )
+    month = forms.ChoiceField(
+        choices=[
+            ('', 'All Months'),
+            ('1', 'January'), ('2', 'February'), ('3', 'March'),
+            ('4', 'April'), ('5', 'May'), ('6', 'June'),
+            ('7', 'July'), ('8', 'August'), ('9', 'September'),
+            ('10', 'October'), ('11', 'November'), ('12', 'December')
+        ],
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-control'
+        }),
+        label='Month'
+    )
+    supplier = forms.ModelChoiceField(
+        queryset=None,  # Will be set dynamically in the view
+        required=False,
+        empty_label='All Suppliers',
+        widget=forms.Select(attrs={
+            'class': 'form-control'
+        }),
+        label='Supplier'
+    )
+
+    def __init__(self, *args, **kwargs):
+        supplier_queryset = kwargs.pop('supplier_queryset', None)
+        year_choices = kwargs.pop('year_choices', [])
+        super().__init__(*args, **kwargs)
+        if supplier_queryset is not None:
+            self.fields['supplier'].queryset = supplier_queryset
+        if year_choices:
+            self.fields['year'].choices = [('', 'All Years')] + year_choices

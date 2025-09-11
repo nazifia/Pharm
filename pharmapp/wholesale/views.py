@@ -3076,15 +3076,27 @@ def search_wholesale_procurement(request):
 
         # Get search parameters from the request
         name_query = request.GET.get('name', '').strip()
+        status_query = request.GET.get('status', '').strip()
 
         # Apply filters if search parameters are provided
         if name_query:
             procurements = procurements.filter(supplier__name__icontains=name_query)
 
-        # Render the filtered results
-        return render(request, 'partials/search_wholesale_procurement.html', {
+        if status_query:
+            procurements = procurements.filter(status=status_query)
+
+        context = {
             'procurements': procurements,
-        })
+            'search_query': name_query,
+            'status_filter': status_query,
+        }
+
+        # Check if this is an HTMX request for partial update
+        if request.headers.get('HX-Request'):
+            return render(request, 'partials/search_wholesale_procurement.html', context)
+        else:
+            # Return full page for direct access
+            return render(request, 'wholesale/search_wholesale_procurement.html', context)
     else:
         return redirect('store:index')
 

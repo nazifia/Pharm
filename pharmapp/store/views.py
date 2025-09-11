@@ -17,7 +17,7 @@ from django.contrib import messages
 from django.db import transaction
 from datetime import datetime, timedelta
 from django.views.decorators.http import require_POST
-from django.db.models import Q, F, ExpressionWrapper, Sum, DecimalField, Case, When, Subquery, OuterRef
+from django.db.models import Q, F, ExpressionWrapper, Sum, Count, DecimalField, Case, When, Subquery, OuterRef
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth import get_user_model
@@ -4987,3 +4987,685 @@ def check_stock_notifications(request):
         return redirect('store:notification_list')
     else:
         return redirect('store:index')
+
+
+# ============================================================================
+# SUPPLIER ANALYTICS AND ENHANCED SEARCH VIEWS
+# ============================================================================
+
+@login_required
+@user_passes_test(can_view_procurement_history)
+def supplier_monthly_analytics(request):
+    """
+    View to display monthly purchase totals from each supplier
+    """
+    if request.user.is_authenticated:
+        from datetime import datetime
+        from django.db.models import Sum, Count
+        from django.db.models.functions import TruncMonth
+
+        # Get filter parameters
+        year = request.GET.get('year')
+        month = request.GET.get('month')
+        supplier_id = request.GET.get('supplier')
+
+        # Base querysets for both retail and wholesale procurement
+        retail_procurements = Procurement.objects.filter(status='completed')
+        wholesale_procurements = WholesaleProcurement.objects.filter(status='completed')
+
+        # Apply filters
+        if year:
+            retail_procurements = retail_procurements.filter(date__year=year)
+            wholesale_procurements = wholesale_procurements.filter(date__year=year)
+
+        if month:
+            retail_procurements = retail_procurements.filter(date__month=month)
+            wholesale_procurements = wholesale_procurements.filter(date__month=month)
+
+        if supplier_id:
+            retail_procurements = retail_procurements.filter(supplier_id=supplier_id)
+            wholesale_procurements = wholesale_procurements.filter(supplier_id=supplier_id)
+
+        # Calculate monthly totals for retail procurement
+        retail_monthly_data = (
+            retail_procurements
+            .annotate(month=TruncMonth('date'))
+            .values('month', 'supplier__name', 'supplier__id')
+            .annotate(
+                total_amount=Sum('total'),
+                procurement_count=Count('id')
+            )
+            .order_by('-month', 'supplier__name')
+        )
+
+        # Calculate monthly totals for wholesale procurement
+        wholesale_monthly_data = (
+            wholesale_procurements
+            .annotate(month=TruncMonth('date'))
+            .values('month', 'supplier__name', 'supplier__id')
+            .annotate(
+                total_amount=Sum('total'),
+                procurement_count=Count('id')
+            )
+            .order_by('-month', 'supplier__name')
+        )
+
+        # Combine and organize data by month and supplier
+        combined_data = {}
+
+        # Process retail data
+        for item in retail_monthly_data:
+            month_key = item['month'].strftime('%Y-%m')
+            supplier_key = f"{item['supplier__id']}_{item['supplier__name']}"
+
+            if month_key not in combined_data:
+                combined_data[month_key] = {}
+
+            if supplier_key not in combined_data[month_key]:
+                combined_data[month_key][supplier_key] = {
+                    'supplier_id': item['supplier__id'],
+                    'supplier_name': item['supplier__name'],
+                    'retail_total': Decimal('0.00'),
+                    'wholesale_total': Decimal('0.00'),
+                    'retail_count': 0,
+                    'wholesale_count': 0,
+                    'grand_total': Decimal('0.00')
+                }
+
+            combined_data[month_key][supplier_key]['retail_total'] = item['total_amount'] or Decimal('0.00')
+            combined_data[month_key][supplier_key]['retail_count'] = item['procurement_count']
+
+        # Process wholesale data
+        for item in wholesale_monthly_data:
+            month_key = item['month'].strftime('%Y-%m')
+            supplier_key = f"{item['supplier__id']}_{item['supplier__name']}"
+
+            if month_key not in combined_data:
+                combined_data[month_key] = {}
+
+            if supplier_key not in combined_data[month_key]:
+                combined_data[month_key][supplier_key] = {
+                    'supplier_id': item['supplier__id'],
+                    'supplier_name': item['supplier__name'],
+                    'retail_total': Decimal('0.00'),
+                    'wholesale_total': Decimal('0.00'),
+                    'retail_count': 0,
+                    'wholesale_count': 0,
+                    'grand_total': Decimal('0.00')
+                }
+
+            combined_data[month_key][supplier_key]['wholesale_total'] = item['total_amount'] or Decimal('0.00')
+            combined_data[month_key][supplier_key]['wholesale_count'] = item['procurement_count']
+
+        # Calculate grand totals
+        for month_key in combined_data:
+            for supplier_key in combined_data[month_key]:
+                supplier_data = combined_data[month_key][supplier_key]
+                supplier_data['grand_total'] = supplier_data['retail_total'] + supplier_data['wholesale_total']
+
+        # Get all suppliers for filter dropdown
+        suppliers = Supplier.objects.all().order_by('name')
+
+        # Get available years for filter
+        current_year = datetime.now().year
+        years = list(range(current_year - 5, current_year + 1))
+
+        # Months for filter
+        months = [
+            (1, 'January'), (2, 'February'), (3, 'March'), (4, 'April'),
+            (5, 'May'), (6, 'June'), (7, 'July'), (8, 'August'),
+            (9, 'September'), (10, 'October'), (11, 'November'), (12, 'December')
+        ]
+
+        context = {
+            'combined_data': combined_data,
+            'suppliers': suppliers,
+            'years': years,
+            'months': months,
+            'selected_year': year,
+            'selected_month': month,
+            'selected_supplier': supplier_id,
+        }
+
+        return render(request, 'store/supplier_monthly_analytics.html', context)
+    else:
+        return redirect('store:index')
+
+
+@login_required
+@user_passes_test(can_view_procurement_history)
+def supplier_performance_dashboard(request):
+    """
+    Dashboard view showing supplier performance metrics and top suppliers
+    """
+    if request.user.is_authenticated:
+        from datetime import datetime, timedelta
+        from django.db.models import Sum, Count, Avg
+
+        # Get date range (default to last 12 months)
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=365)
+
+        # Override with user-provided dates if available
+        if request.GET.get('start_date'):
+            start_date = datetime.strptime(request.GET.get('start_date'), '%Y-%m-%d').date()
+        if request.GET.get('end_date'):
+            end_date = datetime.strptime(request.GET.get('end_date'), '%Y-%m-%d').date()
+
+        # Calculate supplier performance for retail procurement
+        retail_supplier_stats = (
+            Procurement.objects
+            .filter(status='completed', date__range=[start_date, end_date])
+            .values('supplier__id', 'supplier__name')
+            .annotate(
+                total_amount=Sum('total'),
+                procurement_count=Count('id'),
+                avg_amount=Avg('total')
+            )
+            .order_by('-total_amount')
+        )
+
+        # Calculate supplier performance for wholesale procurement
+        wholesale_supplier_stats = (
+            WholesaleProcurement.objects
+            .filter(status='completed', date__range=[start_date, end_date])
+            .values('supplier__id', 'supplier__name')
+            .annotate(
+                total_amount=Sum('total'),
+                procurement_count=Count('id'),
+                avg_amount=Avg('total')
+            )
+            .order_by('-total_amount')
+        )
+
+        # Combine retail and wholesale data
+        combined_supplier_stats = {}
+
+        # Process retail data
+        for stat in retail_supplier_stats:
+            supplier_id = stat['supplier__id']
+            if supplier_id not in combined_supplier_stats:
+                combined_supplier_stats[supplier_id] = {
+                    'supplier_name': stat['supplier__name'],
+                    'retail_total': Decimal('0.00'),
+                    'wholesale_total': Decimal('0.00'),
+                    'retail_count': 0,
+                    'wholesale_count': 0,
+                    'retail_avg': Decimal('0.00'),
+                    'wholesale_avg': Decimal('0.00'),
+                    'grand_total': Decimal('0.00'),
+                    'total_count': 0
+                }
+
+            combined_supplier_stats[supplier_id]['retail_total'] = stat['total_amount'] or Decimal('0.00')
+            combined_supplier_stats[supplier_id]['retail_count'] = stat['procurement_count']
+            combined_supplier_stats[supplier_id]['retail_avg'] = stat['avg_amount'] or Decimal('0.00')
+
+        # Process wholesale data
+        for stat in wholesale_supplier_stats:
+            supplier_id = stat['supplier__id']
+            if supplier_id not in combined_supplier_stats:
+                combined_supplier_stats[supplier_id] = {
+                    'supplier_name': stat['supplier__name'],
+                    'retail_total': Decimal('0.00'),
+                    'wholesale_total': Decimal('0.00'),
+                    'retail_count': 0,
+                    'wholesale_count': 0,
+                    'retail_avg': Decimal('0.00'),
+                    'wholesale_avg': Decimal('0.00'),
+                    'grand_total': Decimal('0.00'),
+                    'total_count': 0
+                }
+
+            combined_supplier_stats[supplier_id]['wholesale_total'] = stat['total_amount'] or Decimal('0.00')
+            combined_supplier_stats[supplier_id]['wholesale_count'] = stat['procurement_count']
+            combined_supplier_stats[supplier_id]['wholesale_avg'] = stat['avg_amount'] or Decimal('0.00')
+
+        # Calculate grand totals and sort
+        for supplier_id in combined_supplier_stats:
+            stats = combined_supplier_stats[supplier_id]
+            stats['grand_total'] = stats['retail_total'] + stats['wholesale_total']
+            stats['total_count'] = stats['retail_count'] + stats['wholesale_count']
+
+        # Sort by grand total (descending)
+        sorted_suppliers = sorted(
+            combined_supplier_stats.items(),
+            key=lambda x: x[1]['grand_total'],
+            reverse=True
+        )
+
+        # Get top 10 suppliers
+        top_suppliers = sorted_suppliers[:10]
+
+        # Calculate overall statistics
+        total_procurement_value = sum(stats['grand_total'] for _, stats in sorted_suppliers)
+        total_procurements = sum(stats['total_count'] for _, stats in sorted_suppliers)
+        active_suppliers_count = len(sorted_suppliers)
+
+        context = {
+            'top_suppliers': top_suppliers,
+            'all_suppliers': sorted_suppliers,
+            'total_procurement_value': total_procurement_value,
+            'total_procurements': total_procurements,
+            'active_suppliers_count': active_suppliers_count,
+            'start_date': start_date,
+            'end_date': end_date,
+        }
+
+        return render(request, 'store/supplier_performance_dashboard.html', context)
+    else:
+        return redirect('store:index')
+
+
+@login_required
+@user_passes_test(can_view_procurement_history)
+def enhanced_procurement_search(request):
+    """
+    Enhanced search view with advanced filtering capabilities
+    """
+    if request.user.is_authenticated:
+        from datetime import datetime
+        from django.db.models import Q, Sum
+
+        # Get search parameters
+        search_query = request.GET.get('search', '').strip()
+        supplier_id = request.GET.get('supplier')
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        min_amount = request.GET.get('min_amount')
+        max_amount = request.GET.get('max_amount')
+        status = request.GET.get('status')
+        procurement_type = request.GET.get('type', 'all')  # 'retail', 'wholesale', or 'all'
+
+        # Initialize querysets
+        retail_procurements = Procurement.objects.all()
+        wholesale_procurements = WholesaleProcurement.objects.all()
+
+        # Apply search filters
+        if search_query:
+            retail_procurements = retail_procurements.filter(
+                Q(supplier__name__icontains=search_query) |
+                Q(items__item_name__icontains=search_query)
+            ).distinct()
+
+            wholesale_procurements = wholesale_procurements.filter(
+                Q(supplier__name__icontains=search_query) |
+                Q(items__item_name__icontains=search_query)
+            ).distinct()
+
+        if supplier_id:
+            retail_procurements = retail_procurements.filter(supplier_id=supplier_id)
+            wholesale_procurements = wholesale_procurements.filter(supplier_id=supplier_id)
+
+        if start_date:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+            retail_procurements = retail_procurements.filter(date__gte=start_date_obj)
+            wholesale_procurements = wholesale_procurements.filter(date__gte=start_date_obj)
+
+        if end_date:
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+            retail_procurements = retail_procurements.filter(date__lte=end_date_obj)
+            wholesale_procurements = wholesale_procurements.filter(date__lte=end_date_obj)
+
+        if status:
+            retail_procurements = retail_procurements.filter(status=status)
+            wholesale_procurements = wholesale_procurements.filter(status=status)
+
+        # Apply amount filters
+        if min_amount:
+            try:
+                min_amount_decimal = Decimal(min_amount)
+                retail_procurements = retail_procurements.filter(total__gte=min_amount_decimal)
+                wholesale_procurements = wholesale_procurements.filter(total__gte=min_amount_decimal)
+            except (ValueError, TypeError):
+                pass
+
+        if max_amount:
+            try:
+                max_amount_decimal = Decimal(max_amount)
+                retail_procurements = retail_procurements.filter(total__lte=max_amount_decimal)
+                wholesale_procurements = wholesale_procurements.filter(total__lte=max_amount_decimal)
+            except (ValueError, TypeError):
+                pass
+
+        # Annotate with calculated totals and order by date
+        retail_procurements = (
+            retail_procurements
+            .annotate(calculated_total=Sum('items__subtotal'))
+            .order_by('-date')
+        )
+
+        wholesale_procurements = (
+            wholesale_procurements
+            .annotate(calculated_total=Sum('items__subtotal'))
+            .order_by('-date')
+        )
+
+        # Filter by procurement type
+        results = []
+        if procurement_type in ['all', 'retail']:
+            for procurement in retail_procurements:
+                results.append({
+                    'id': procurement.id,
+                    'type': 'retail',
+                    'supplier_name': procurement.supplier.name,
+                    'date': procurement.date,
+                    'total': procurement.calculated_total or procurement.total,
+                    'status': procurement.status,
+                    'created_by': procurement.created_by.username if procurement.created_by else 'Unknown',
+                    'items_count': procurement.items.count()
+                })
+
+        if procurement_type in ['all', 'wholesale']:
+            for procurement in wholesale_procurements:
+                results.append({
+                    'id': procurement.id,
+                    'type': 'wholesale',
+                    'supplier_name': procurement.supplier.name,
+                    'date': procurement.date,
+                    'total': procurement.calculated_total or procurement.total,
+                    'status': procurement.status,
+                    'created_by': procurement.created_by.username if procurement.created_by else 'Unknown',
+                    'items_count': procurement.items.count()
+                })
+
+        # Sort combined results by date (newest first)
+        results.sort(key=lambda x: x['date'], reverse=True)
+
+        # Pagination
+        from django.core.paginator import Paginator
+        paginator = Paginator(results, 20)  # Show 20 results per page
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+
+        # Get all suppliers for filter dropdown
+        suppliers = Supplier.objects.all().order_by('name')
+
+        # Calculate summary statistics
+        total_results = len(results)
+        total_value = sum(result['total'] or Decimal('0.00') for result in results)
+
+        context = {
+            'page_obj': page_obj,
+            'suppliers': suppliers,
+            'search_query': search_query,
+            'selected_supplier': supplier_id,
+            'start_date': start_date,
+            'end_date': end_date,
+            'min_amount': min_amount,
+            'max_amount': max_amount,
+            'selected_status': status,
+            'selected_type': procurement_type,
+            'total_results': total_results,
+            'total_value': total_value,
+            'status_choices': [('draft', 'Draft'), ('completed', 'Completed')],
+            'type_choices': [('all', 'All'), ('retail', 'Retail'), ('wholesale', 'Wholesale')],
+        }
+
+        return render(request, 'store/enhanced_procurement_search.html', context)
+    else:
+        return redirect('store:index')
+
+
+@login_required
+@user_passes_test(can_view_procurement_history)
+def supplier_comparison_view(request):
+    """
+    View to compare multiple suppliers side by side
+    """
+    if request.user.is_authenticated:
+        from datetime import datetime, timedelta
+        from django.db.models import Sum, Count, Avg, Min, Max
+
+        # Get selected suppliers for comparison
+        supplier_ids = request.GET.getlist('suppliers')
+        if not supplier_ids:
+            # If no suppliers selected, show form to select suppliers
+            suppliers = Supplier.objects.all().order_by('name')
+            return render(request, 'store/supplier_comparison_select.html', {'suppliers': suppliers})
+
+        # Get date range (default to last 12 months)
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=365)
+
+        if request.GET.get('start_date'):
+            start_date = datetime.strptime(request.GET.get('start_date'), '%Y-%m-%d').date()
+        if request.GET.get('end_date'):
+            end_date = datetime.strptime(request.GET.get('end_date'), '%Y-%m-%d').date()
+
+        comparison_data = []
+
+        for supplier_id in supplier_ids:
+            try:
+                supplier = Supplier.objects.get(id=supplier_id)
+
+                # Get retail procurement stats
+                retail_stats = (
+                    Procurement.objects
+                    .filter(
+                        supplier_id=supplier_id,
+                        status='completed',
+                        date__range=[start_date, end_date]
+                    )
+                    .aggregate(
+                        total_amount=Sum('total'),
+                        procurement_count=Count('id'),
+                        avg_amount=Avg('total'),
+                        min_amount=Min('total'),
+                        max_amount=Max('total'),
+                        first_procurement=Min('date'),
+                        last_procurement=Max('date')
+                    )
+                )
+
+                # Get wholesale procurement stats
+                wholesale_stats = (
+                    WholesaleProcurement.objects
+                    .filter(
+                        supplier_id=supplier_id,
+                        status='completed',
+                        date__range=[start_date, end_date]
+                    )
+                    .aggregate(
+                        total_amount=Sum('total'),
+                        procurement_count=Count('id'),
+                        avg_amount=Avg('total'),
+                        min_amount=Min('total'),
+                        max_amount=Max('total'),
+                        first_procurement=Min('date'),
+                        last_procurement=Max('date')
+                    )
+                )
+
+                # Combine stats
+                retail_total = retail_stats['total_amount'] or Decimal('0.00')
+                wholesale_total = wholesale_stats['total_amount'] or Decimal('0.00')
+                grand_total = retail_total + wholesale_total
+
+                retail_count = retail_stats['procurement_count'] or 0
+                wholesale_count = wholesale_stats['procurement_count'] or 0
+                total_count = retail_count + wholesale_count
+
+                # Calculate overall average
+                overall_avg = grand_total / total_count if total_count > 0 else Decimal('0.00')
+
+                # Get first and last procurement dates
+                first_dates = [d for d in [retail_stats['first_procurement'], wholesale_stats['first_procurement']] if d]
+                last_dates = [d for d in [retail_stats['last_procurement'], wholesale_stats['last_procurement']] if d]
+
+                first_procurement = min(first_dates) if first_dates else None
+                last_procurement = max(last_dates) if last_dates else None
+
+                comparison_data.append({
+                    'supplier': supplier,
+                    'retail_total': retail_total,
+                    'wholesale_total': wholesale_total,
+                    'grand_total': grand_total,
+                    'retail_count': retail_count,
+                    'wholesale_count': wholesale_count,
+                    'total_count': total_count,
+                    'retail_avg': retail_stats['avg_amount'] or Decimal('0.00'),
+                    'wholesale_avg': wholesale_stats['avg_amount'] or Decimal('0.00'),
+                    'overall_avg': overall_avg,
+                    'retail_min': retail_stats['min_amount'] or Decimal('0.00'),
+                    'retail_max': retail_stats['max_amount'] or Decimal('0.00'),
+                    'wholesale_min': wholesale_stats['min_amount'] or Decimal('0.00'),
+                    'wholesale_max': wholesale_stats['max_amount'] or Decimal('0.00'),
+                    'first_procurement': first_procurement,
+                    'last_procurement': last_procurement,
+                })
+
+            except Supplier.DoesNotExist:
+                continue
+
+        # Sort by grand total (descending)
+        comparison_data.sort(key=lambda x: x['grand_total'], reverse=True)
+
+        context = {
+            'comparison_data': comparison_data,
+            'start_date': start_date,
+            'end_date': end_date,
+            'selected_suppliers': supplier_ids,
+        }
+
+        return render(request, 'store/supplier_comparison.html', context)
+    else:
+        return redirect('store:index')
+
+
+@login_required
+def quick_supplier_search(request):
+    """
+    AJAX endpoint for quick supplier search with autocomplete
+    """
+    if request.user.is_authenticated:
+        query = request.GET.get('q', '').strip()
+        results = []
+
+        if query and len(query) >= 2:
+            suppliers = Supplier.objects.filter(
+                Q(name__icontains=query) |
+                Q(phone__icontains=query) |
+                Q(contact_info__icontains=query)
+            ).order_by('name')[:10]
+
+            for supplier in suppliers:
+                results.append({
+                    'id': supplier.id,
+                    'name': supplier.name,
+                    'phone': supplier.phone or '',
+                    'contact_info': supplier.contact_info or '',
+                })
+
+        return JsonResponse({'results': results})
+    else:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+
+@login_required
+def quick_procurement_search(request):
+    """
+    AJAX endpoint for quick procurement search
+    """
+    if request.user.is_authenticated:
+        query = request.GET.get('q', '').strip()
+        procurement_type = request.GET.get('type', 'all')
+        results = []
+
+        if query and len(query) >= 2:
+            # Search retail procurements
+            if procurement_type in ['all', 'retail']:
+                retail_procurements = Procurement.objects.filter(
+                    Q(supplier__name__icontains=query) |
+                    Q(items__item_name__icontains=query)
+                ).distinct().order_by('-date')[:5]
+
+                for procurement in retail_procurements:
+                    results.append({
+                        'id': procurement.id,
+                        'type': 'retail',
+                        'supplier_name': procurement.supplier.name,
+                        'date': procurement.date.strftime('%Y-%m-%d'),
+                        'total': float(procurement.total or 0),
+                        'status': procurement.status,
+                        'url': f"/procurement_detail/{procurement.id}/"
+                    })
+
+            # Search wholesale procurements
+            if procurement_type in ['all', 'wholesale']:
+                wholesale_procurements = WholesaleProcurement.objects.filter(
+                    Q(supplier__name__icontains=query) |
+                    Q(items__item_name__icontains=query)
+                ).distinct().order_by('-date')[:5]
+
+                for procurement in wholesale_procurements:
+                    results.append({
+                        'id': procurement.id,
+                        'type': 'wholesale',
+                        'supplier_name': procurement.supplier.name,
+                        'date': procurement.date.strftime('%Y-%m-%d'),
+                        'total': float(procurement.total or 0),
+                        'status': procurement.status,
+                        'url': f"/wholesale/wholesale_procurement_detail/{procurement.id}/"
+                    })
+
+        # Sort by date (newest first)
+        results.sort(key=lambda x: x['date'], reverse=True)
+
+        return JsonResponse({'results': results[:10]})  # Limit to 10 results
+    else:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+
+@login_required
+def supplier_stats_api(request, supplier_id):
+    """
+    API endpoint to get quick statistics for a specific supplier
+    """
+    if request.user.is_authenticated:
+        try:
+            supplier = Supplier.objects.get(id=supplier_id)
+
+            # Get retail procurement stats
+            retail_stats = Procurement.objects.filter(
+                supplier=supplier,
+                status='completed'
+            ).aggregate(
+                total_amount=Sum('total'),
+                count=Count('id')
+            )
+
+            # Get wholesale procurement stats
+            wholesale_stats = WholesaleProcurement.objects.filter(
+                supplier=supplier,
+                status='completed'
+            ).aggregate(
+                total_amount=Sum('total'),
+                count=Count('id')
+            )
+
+            # Calculate totals
+            retail_total = retail_stats['total_amount'] or Decimal('0.00')
+            wholesale_total = wholesale_stats['total_amount'] or Decimal('0.00')
+            grand_total = retail_total + wholesale_total
+
+            retail_count = retail_stats['count'] or 0
+            wholesale_count = wholesale_stats['count'] or 0
+            total_count = retail_count + wholesale_count
+
+            return JsonResponse({
+                'supplier_id': supplier.id,
+                'supplier_name': supplier.name,
+                'retail_total': float(retail_total),
+                'wholesale_total': float(wholesale_total),
+                'grand_total': float(grand_total),
+                'retail_count': retail_count,
+                'wholesale_count': wholesale_count,
+                'total_count': total_count,
+                'average_order_value': float(grand_total / total_count) if total_count > 0 else 0.0
+            })
+
+        except Supplier.DoesNotExist:
+            return JsonResponse({'error': 'Supplier not found'}, status=404)
+    else:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)

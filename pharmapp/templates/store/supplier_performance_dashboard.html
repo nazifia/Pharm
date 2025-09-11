@@ -1,0 +1,288 @@
+{% extends "partials/base.html" %}
+{% load crispy_forms_tags %}
+{% load math_filters %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-tachometer-alt mr-2"></i>Supplier Performance Dashboard
+        </h1>
+        <div class="btn-group" role="group">
+            <a href="{% url 'store:supplier_monthly_analytics' %}" class="btn btn-info btn-sm">
+                <i class="fas fa-chart-line mr-1"></i>Monthly Analytics
+            </a>
+            <a href="{% url 'store:enhanced_procurement_search' %}" class="btn btn-success btn-sm">
+                <i class="fas fa-search mr-1"></i>Advanced Search
+            </a>
+            <a href="{% url 'store:supplier_comparison' %}" class="btn btn-warning btn-sm">
+                <i class="fas fa-balance-scale mr-1"></i>Compare Suppliers
+            </a>
+        </div>
+    </div>
+
+    <!-- Date Range Filter -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-calendar mr-2"></i>Date Range Filter
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row">
+                <div class="col-md-4">
+                    <label for="start_date" class="form-label">Start Date</label>
+                    <input type="date" name="start_date" id="start_date" class="form-control" 
+                           value="{{ start_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="end_date" class="form-label">End Date</label>
+                    <input type="date" name="end_date" id="end_date" class="form-control" 
+                           value="{{ end_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fas fa-filter mr-1"></i>Apply Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Procurement Value
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                ₦{{ total_procurement_value|floatformat:2 }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Total Procurements
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ total_procurements }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-shopping-cart fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Active Suppliers
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ active_suppliers_count }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-users fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Average per Procurement
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                ₦{% if total_procurements > 0 %}{{ total_procurement_value|div:total_procurements|floatformat:2 }}{% else %}0.00{% endif %}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-bar fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top 10 Suppliers -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-trophy mr-2"></i>Top 10 Suppliers by Total Value
+            </h6>
+        </div>
+        <div class="card-body">
+            {% if top_suppliers %}
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Rank</th>
+                                <th>Supplier</th>
+                                <th>Retail Total</th>
+                                <th>Wholesale Total</th>
+                                <th>Grand Total</th>
+                                <th>Total Orders</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for supplier_id, stats in top_suppliers %}
+                                <tr>
+                                    <td class="text-center">
+                                        <span class="badge badge-primary">{{ forloop.counter }}</span>
+                                    </td>
+                                    <td class="font-weight-bold">{{ stats.supplier_name }}</td>
+                                    <td class="text-right">
+                                        <span class="badge badge-info">₦{{ stats.retail_total|floatformat:2 }}</span>
+                                    </td>
+                                    <td class="text-right">
+                                        <span class="badge badge-success">₦{{ stats.wholesale_total|floatformat:2 }}</span>
+                                    </td>
+                                    <td class="text-right">
+                                        <span class="badge badge-primary font-weight-bold">₦{{ stats.grand_total|floatformat:2 }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge badge-secondary">{{ stats.total_count }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <a href="{% url 'store:supplier_comparison' %}?suppliers={{ supplier_id }}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye mr-1"></i>View Details
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Supplier Data Available</h5>
+                    <p class="text-muted">No procurement data found for the selected date range.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- All Suppliers Performance -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-list mr-2"></i>All Suppliers Performance
+            </h6>
+            <button class="btn btn-sm btn-outline-primary" type="button" data-toggle="collapse" 
+                    data-target="#allSuppliersTable" aria-expanded="false">
+                <i class="fas fa-chevron-down mr-1"></i>Show/Hide
+            </button>
+        </div>
+        <div class="collapse" id="allSuppliersTable">
+            <div class="card-body">
+                {% if all_suppliers %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Supplier</th>
+                                    <th>Retail Total</th>
+                                    <th>Wholesale Total</th>
+                                    <th>Grand Total</th>
+                                    <th>Retail Orders</th>
+                                    <th>Wholesale Orders</th>
+                                    <th>Total Orders</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for supplier_id, stats in all_suppliers %}
+                                    <tr>
+                                        <td>{{ stats.supplier_name }}</td>
+                                        <td class="text-right">₦{{ stats.retail_total|floatformat:2 }}</td>
+                                        <td class="text-right">₦{{ stats.wholesale_total|floatformat:2 }}</td>
+                                        <td class="text-right font-weight-bold">₦{{ stats.grand_total|floatformat:2 }}</td>
+                                        <td class="text-center">{{ stats.retail_count }}</td>
+                                        <td class="text-center">{{ stats.wholesale_count }}</td>
+                                        <td class="text-center">{{ stats.total_count }}</td>
+                                        <td class="text-center">
+                                            <a href="{% url 'store:supplier_comparison' %}?suppliers={{ supplier_id }}" 
+                                               class="btn btn-sm btn-outline-info">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.badge {
+    font-size: 0.9em;
+}
+
+.table th {
+    background-color: #f8f9fc;
+    border-color: #e3e6f0;
+    font-weight: 600;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.card-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+}
+
+.border-left-primary {
+    border-left: 0.25rem solid #4e73df !important;
+}
+
+.border-left-success {
+    border-left: 0.25rem solid #1cc88a !important;
+}
+
+.border-left-info {
+    border-left: 0.25rem solid #36b9cc !important;
+}
+
+.border-left-warning {
+    border-left: 0.25rem solid #f6c23e !important;
+}
+</style>
+{% endblock %}

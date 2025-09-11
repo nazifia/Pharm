@@ -1,0 +1,256 @@
+{% extends "partials/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-search mr-2"></i>Search Wholesale Procurement
+        </h1>
+        <div class="btn-group" role="group">
+            <a href="{% url 'wholesale:add_wholesale_procurement' %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus mr-1"></i>New Procurement
+            </a>
+            <a href="{% url 'wholesale:wholesale_procurement_list' %}" class="btn btn-info btn-sm">
+                <i class="fas fa-list mr-1"></i>All Procurements
+            </a>
+        </div>
+    </div>
+
+    <!-- Search Form -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-filter mr-2"></i>Search Filters
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row" id="searchForm">
+                <div class="col-md-6">
+                    <label for="name" class="form-label">Supplier Name</label>
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text">
+                                <i class="fas fa-building"></i>
+                            </span>
+                        </div>
+                        <input type="text" 
+                               name="name" 
+                               id="name"
+                               class="form-control" 
+                               placeholder="Search by supplier name..." 
+                               value="{{ request.GET.name }}"
+                               hx-get="{% url 'wholesale:search_wholesale_procurement' %}"
+                               hx-trigger="keyup changed delay:300ms"
+                               hx-target="#procurement-results"
+                               hx-indicator="#search-indicator">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label for="status" class="form-label">Status</label>
+                    <select name="status" id="status" class="form-control"
+                            hx-get="{% url 'wholesale:search_wholesale_procurement' %}"
+                            hx-trigger="change"
+                            hx-target="#procurement-results"
+                            hx-include="#searchForm"
+                            hx-indicator="#search-indicator">
+                        <option value="">All Statuses</option>
+                        <option value="draft" {% if request.GET.status == 'draft' %}selected{% endif %}>Draft</option>
+                        <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>Completed</option>
+                        <option value="cancelled" {% if request.GET.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fas fa-search mr-1"></i>Search
+                    </button>
+                </div>
+            </form>
+            
+            <!-- Search Indicator -->
+            <div id="search-indicator" class="htmx-indicator mt-2" style="display:none">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm text-primary mr-2" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <small class="text-muted">Searching...</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Results -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-list mr-2"></i>Search Results
+            </h6>
+        </div>
+        <div class="card-body">
+            <div id="procurement-results">
+                {% include "partials/search_wholesale_procurement.html" %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    {% if procurements %}
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-chart-bar mr-2"></i>Search Summary
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 text-center">
+                    <div class="border-left-primary p-3">
+                        <h4 class="text-primary font-weight-bold">{{ procurements.count }}</h4>
+                        <p class="text-muted mb-0">Total Results</p>
+                    </div>
+                </div>
+                <div class="col-md-3 text-center">
+                    <div class="border-left-success p-3">
+                        <h4 class="text-success font-weight-bold">
+                            {% with completed_count=procurements|length %}
+                                {% for procurement in procurements %}
+                                    {% if procurement.status == 'completed' %}{{ forloop.counter0|add:1 }}{% endif %}
+                                {% endfor %}
+                            {% endwith %}
+                        </h4>
+                        <p class="text-muted mb-0">Completed</p>
+                    </div>
+                </div>
+                <div class="col-md-3 text-center">
+                    <div class="border-left-warning p-3">
+                        <h4 class="text-warning font-weight-bold">
+                            {% for procurement in procurements %}
+                                {% if procurement.status == 'pending' %}{{ forloop.counter0|add:1 }}{% endif %}
+                            {% endfor %}
+                        </h4>
+                        <p class="text-muted mb-0">Pending</p>
+                    </div>
+                </div>
+                <div class="col-md-3 text-center">
+                    <div class="border-left-info p-3">
+                        <h4 class="text-info font-weight-bold">
+                            ₦{% for procurement in procurements %}{{ procurement.calculated_total|default:procurement.total|add:0 }}{% if not forloop.last %}+{% endif %}{% endfor %}
+                        </h4>
+                        <p class="text-muted mb-0">Total Value</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.border-left-primary {
+    border-left: 0.25rem solid #4e73df !important;
+}
+
+.border-left-success {
+    border-left: 0.25rem solid #1cc88a !important;
+}
+
+.border-left-warning {
+    border-left: 0.25rem solid #f6c23e !important;
+}
+
+.border-left-info {
+    border-left: 0.25rem solid #36b9cc !important;
+}
+
+.card-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+}
+
+.htmx-indicator {
+    opacity: 0;
+    transition: opacity 200ms ease-in;
+}
+
+.htmx-indicator.htmx-request {
+    opacity: 1;
+}
+
+.table th {
+    background-color: #f8f9fc;
+    border-color: #e3e6f0;
+    font-weight: 600;
+}
+
+.status-completed {
+    color: #1cc88a;
+    font-weight: bold;
+}
+
+.status-pending {
+    color: #f6c23e;
+    font-weight: bold;
+}
+
+.status-draft {
+    color: #858796;
+    font-weight: bold;
+}
+
+.status-cancelled {
+    color: #e74a3b;
+    font-weight: bold;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-submit form when filters change
+    const statusSelect = document.getElementById('status');
+    const nameInput = document.getElementById('name');
+
+    // Clear search when name input is empty
+    nameInput.addEventListener('input', function() {
+        if (this.value.trim() === '') {
+            // Trigger search with empty query to show all results
+            htmx.trigger(this, 'keyup');
+        }
+    });
+});
+
+// Export to CSV function
+function exportToCSV() {
+    const table = document.querySelector('.table');
+    if (!table) {
+        alert('No data to export');
+        return;
+    }
+
+    let csv = [];
+    const rows = table.querySelectorAll('tr');
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = [];
+        const cols = rows[i].querySelectorAll('td, th');
+
+        for (let j = 0; j < cols.length - 1; j++) { // Exclude actions column
+            let cellText = cols[j].innerText.replace(/\n/g, ' ').replace(/,/g, ';');
+            row.push('"' + cellText + '"');
+        }
+        csv.push(row.join(','));
+    }
+
+    const csvContent = csv.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', 'wholesale_procurement_search_' + new Date().toISOString().split('T')[0] + '.csv');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+</script>
+{% endblock %}

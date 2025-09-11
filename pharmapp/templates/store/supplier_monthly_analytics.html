@@ -1,0 +1,174 @@
+{% extends "partials/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-chart-line mr-2"></i>Supplier Monthly Analytics
+        </h1>
+        <div class="btn-group" role="group">
+            <a href="{% url 'store:supplier_performance_dashboard' %}" class="btn btn-info btn-sm">
+                <i class="fas fa-tachometer-alt mr-1"></i>Performance Dashboard
+            </a>
+            <a href="{% url 'store:enhanced_procurement_search' %}" class="btn btn-success btn-sm">
+                <i class="fas fa-search mr-1"></i>Advanced Search
+            </a>
+            <a href="{% url 'store:supplier_comparison' %}" class="btn btn-warning btn-sm">
+                <i class="fas fa-balance-scale mr-1"></i>Compare Suppliers
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Form -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-filter mr-2"></i>Filter Options
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row">
+                <div class="col-md-3">
+                    <label for="year" class="form-label">Year</label>
+                    <select name="year" id="year" class="form-control">
+                        <option value="">All Years</option>
+                        {% for year in years %}
+                            <option value="{{ year }}" {% if year|stringformat:"s" == selected_year %}selected{% endif %}>
+                                {{ year }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="month" class="form-label">Month</label>
+                    <select name="month" id="month" class="form-control">
+                        <option value="">All Months</option>
+                        {% for month_num, month_name in months %}
+                            <option value="{{ month_num }}" {% if month_num|stringformat:"s" == selected_month %}selected{% endif %}>
+                                {{ month_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="supplier" class="form-label">Supplier</label>
+                    <select name="supplier" id="supplier" class="form-control">
+                        <option value="">All Suppliers</option>
+                        {% for supplier in suppliers %}
+                            <option value="{{ supplier.id }}" {% if supplier.id|stringformat:"s" == selected_supplier %}selected{% endif %}>
+                                {{ supplier.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fas fa-search mr-1"></i>Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Analytics Results -->
+    {% if combined_data %}
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-chart-bar mr-2"></i>Monthly Purchase Analytics
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Month</th>
+                                <th>Supplier</th>
+                                <th>Retail Total</th>
+                                <th>Wholesale Total</th>
+                                <th>Grand Total</th>
+                                <th>Retail Orders</th>
+                                <th>Wholesale Orders</th>
+                                <th>Total Orders</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for month, suppliers in combined_data.items %}
+                                {% for supplier_key, data in suppliers.items %}
+                                    <tr>
+                                        <td class="font-weight-bold">{{ month }}</td>
+                                        <td>
+                                            <a href="{% url 'store:supplier_comparison' %}?suppliers={{ data.supplier_id }}" 
+                                               class="text-decoration-none">
+                                                {{ data.supplier_name }}
+                                            </a>
+                                        </td>
+                                        <td class="text-right">
+                                            <span class="badge badge-info">₦{{ data.retail_total|floatformat:2 }}</span>
+                                        </td>
+                                        <td class="text-right">
+                                            <span class="badge badge-success">₦{{ data.wholesale_total|floatformat:2 }}</span>
+                                        </td>
+                                        <td class="text-right">
+                                            <span class="badge badge-primary font-weight-bold">₦{{ data.grand_total|floatformat:2 }}</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge badge-secondary">{{ data.retail_count }}</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge badge-secondary">{{ data.wholesale_count }}</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge badge-dark">{{ data.retail_count|add:data.wholesale_count }}</span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="card shadow mb-4">
+            <div class="card-body text-center">
+                <div class="py-5">
+                    <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Data Available</h5>
+                    <p class="text-muted">No procurement data found for the selected filters. Try adjusting your filter criteria.</p>
+                    <a href="{% url 'store:supplier_monthly_analytics' %}" class="btn btn-primary">
+                        <i class="fas fa-refresh mr-1"></i>Reset Filters
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.badge {
+    font-size: 0.9em;
+}
+
+.table th {
+    background-color: #f8f9fc;
+    border-color: #e3e6f0;
+    font-weight: 600;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.btn-group .btn {
+    margin-left: 5px;
+}
+
+.card-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+}
+</style>
+{% endblock %}

@@ -12,3 +12,16 @@ def mul(value, arg):
         return float(value) * float(arg)
     except (ValueError, TypeError):
         return ''
+
+@register.filter
+def div(value, arg):
+    """
+    Divides the value by the argument.
+    Usage: {{ value|div:arg }}
+    """
+    try:
+        if float(arg) == 0:
+            return 0
+        return float(value) / float(arg)
+    except (ValueError, TypeError):
+        return ''

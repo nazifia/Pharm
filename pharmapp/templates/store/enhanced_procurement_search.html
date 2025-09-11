@@ -1,0 +1,260 @@
+{% extends "partials/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-search mr-2"></i>Enhanced Procurement Search
+        </h1>
+        <div class="btn-group" role="group">
+            <a href="{% url 'store:supplier_monthly_analytics' %}" class="btn btn-info btn-sm">
+                <i class="fas fa-chart-line mr-1"></i>Monthly Analytics
+            </a>
+            <a href="{% url 'store:supplier_performance_dashboard' %}" class="btn btn-success btn-sm">
+                <i class="fas fa-tachometer-alt mr-1"></i>Performance Dashboard
+            </a>
+            <a href="{% url 'store:supplier_comparison' %}" class="btn btn-warning btn-sm">
+                <i class="fas fa-balance-scale mr-1"></i>Compare Suppliers
+            </a>
+        </div>
+    </div>
+
+    <!-- Advanced Search Form -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-filter mr-2"></i>Advanced Search Filters
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="get" id="searchForm">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="search" class="form-label">Search Term</label>
+                        <input type="text" name="search" id="search" class="form-control" 
+                               placeholder="Search by supplier name or item name..." 
+                               value="{{ search_query }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="supplier" class="form-label">Supplier</label>
+                        <select name="supplier" id="supplier" class="form-control">
+                            <option value="">All Suppliers</option>
+                            {% for supplier in suppliers %}
+                                <option value="{{ supplier.id }}" {% if supplier.id|stringformat:"s" == selected_supplier %}selected{% endif %}>
+                                    {{ supplier.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-3">
+                        <label for="start_date" class="form-label">Start Date</label>
+                        <input type="date" name="start_date" id="start_date" class="form-control" 
+                               value="{{ start_date }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="end_date" class="form-label">End Date</label>
+                        <input type="date" name="end_date" id="end_date" class="form-control" 
+                               value="{{ end_date }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="status" class="form-label">Status</label>
+                        <select name="status" id="status" class="form-control">
+                            <option value="">All Statuses</option>
+                            {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if value == selected_status %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="type" class="form-label">Type</label>
+                        <select name="type" id="type" class="form-control">
+                            {% for value, label in type_choices %}
+                                <option value="{{ value }}" {% if value == selected_type %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-3">
+                        <label for="min_amount" class="form-label">Min Amount (₦)</label>
+                        <input type="number" name="min_amount" id="min_amount" class="form-control" 
+                               step="0.01" placeholder="0.00" value="{{ min_amount }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="max_amount" class="form-label">Max Amount (₦)</label>
+                        <input type="number" name="max_amount" id="max_amount" class="form-control" 
+                               step="0.01" placeholder="0.00" value="{{ max_amount }}">
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary mr-2">
+                            <i class="fas fa-search mr-1"></i>Search
+                        </button>
+                        <a href="{% url 'store:enhanced_procurement_search' %}" class="btn btn-secondary">
+                            <i class="fas fa-refresh mr-1"></i>Reset
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Search Results Summary -->
+    {% if page_obj %}
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-list mr-2"></i>Search Results
+                    <span class="badge badge-primary ml-2">{{ total_results }} results</span>
+                    <span class="badge badge-success ml-2">Total Value: ₦{{ total_value|floatformat:2 }}</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Type</th>
+                                <th>Supplier</th>
+                                <th>Date</th>
+                                <th>Total Amount</th>
+                                <th>Status</th>
+                                <th>Created By</th>
+                                <th>Items Count</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for result in page_obj %}
+                                <tr>
+                                    <td class="font-weight-bold">{{ result.id }}</td>
+                                    <td>
+                                        {% if result.type == 'retail' %}
+                                            <span class="badge badge-info">Retail</span>
+                                        {% else %}
+                                            <span class="badge badge-success">Wholesale</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ result.supplier_name }}</td>
+                                    <td>{{ result.date|date:"M d, Y" }}</td>
+                                    <td class="text-right">
+                                        <span class="badge badge-primary">₦{{ result.total|floatformat:2 }}</span>
+                                    </td>
+                                    <td>
+                                        {% if result.status == 'completed' %}
+                                            <span class="badge badge-success">{{ result.status|title }}</span>
+                                        {% else %}
+                                            <span class="badge badge-warning">{{ result.status|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ result.created_by }}</td>
+                                    <td class="text-center">
+                                        <span class="badge badge-secondary">{{ result.items_count }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if result.type == 'retail' %}
+                                            <a href="{% url 'store:procurement_detail' result.id %}" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye mr-1"></i>View
+                                            </a>
+                                        {% else %}
+                                            <a href="{% url 'wholesale:wholesale_procurement_detail' result.id %}" 
+                                               class="btn btn-sm btn-outline-success">
+                                                <i class="fas fa-eye mr-1"></i>View
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if page_obj.has_other_pages %}
+                    <nav aria-label="Search results pagination">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">
+                                        Previous
+                                    </a>
+                                </li>
+                            {% endif %}
+
+                            {% for num in page_obj.paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}">
+                                            {{ num }}
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">
+                                        Next
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <div class="card shadow mb-4">
+            <div class="card-body text-center">
+                <div class="py-5">
+                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No Results Found</h5>
+                    <p class="text-muted">No procurement records match your search criteria. Try adjusting your filters.</p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.badge {
+    font-size: 0.9em;
+}
+
+.table th {
+    background-color: #f8f9fc;
+    border-color: #e3e6f0;
+    font-weight: 600;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.card-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+}
+
+.pagination .page-link {
+    color: #5a5c69;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #4e73df;
+    border-color: #4e73df;
+}
+</style>
+{% endblock %}

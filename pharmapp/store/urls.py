@@ -117,4 +117,15 @@ urlpatterns = [
     path('notifications/count/', views.notification_count_api, name='notification_count_api'),
     path('notifications/dismiss/<int:notification_id>/', views.dismiss_notification, name='dismiss_notification'),
     path('notifications/check-stock/', views.check_stock_notifications, name='check_stock_notifications'),
+
+    # Supplier Analytics and Enhanced Search URLs
+    path('supplier-analytics/', views.supplier_monthly_analytics, name='supplier_monthly_analytics'),
+    path('supplier-performance/', views.supplier_performance_dashboard, name='supplier_performance_dashboard'),
+    path('procurement-search/', views.enhanced_procurement_search, name='enhanced_procurement_search'),
+    path('supplier-comparison/', views.supplier_comparison_view, name='supplier_comparison'),
+
+    # AJAX Search APIs
+    path('api/quick-supplier-search/', views.quick_supplier_search, name='quick_supplier_search'),
+    path('api/quick-procurement-search/', views.quick_procurement_search, name='quick_procurement_search'),
+    path('api/supplier-stats/<int:supplier_id>/', views.supplier_stats_api, name='supplier_stats_api'),
 ]
