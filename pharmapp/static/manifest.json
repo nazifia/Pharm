@@ -1,11 +1,24 @@
 {
-    "name": "Pharmacy Management System",
-    "short_name": "PharmApp",
+    "name": "Nazz Tech - Pharmacy Management System",
+    "short_name": "Nazz Tech",
+    "description": "Advanced pharmacy management system by Nazz Tech",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#ffffff",
-    "theme_color": "#4285f4",
+    "background_color": "#4A90E2",
+    "theme_color": "#4A90E2",
     "icons": [
+        {
+            "src": "/static/img/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "/static/img/nazz-tech-favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "maskable"
+        },
         {
             "src": "/static/img/icon-192x192.png",
             "sizes": "192x192",
