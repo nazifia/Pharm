@@ -1,0 +1,283 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block title %}Monthly Customer Performance{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Monthly Customer Performance Report</h6>
+                    <div class="dropdown no-arrow">
+                        <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink"
+                            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in"
+                            aria-labelledby="dropdownMenuLink">
+                            <div class="dropdown-header">Export Options:</div>
+                            <a class="dropdown-item" href="#" onclick="exportToCSV()">Export to CSV</a>
+                            <a class="dropdown-item" href="#" onclick="window.print()">Print Report</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter Form -->
+                <div class="card-body">
+                    <form method="GET" class="mb-4">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="start_date">Start Date:</label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" 
+                                       value="{{ start_date|date:'Y-m-d' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="end_date">End Date:</label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" 
+                                       value="{{ end_date|date:'Y-m-d' }}">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary mr-2">
+                                    <i class="fas fa-filter"></i> Filter
+                                </button>
+                                <a href="{% url 'store:monthly_customer_performance' %}" class="btn btn-secondary">
+                                    <i class="fas fa-refresh"></i> Reset
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- Summary Cards -->
+                    <div class="row mb-4">
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-primary shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                                Total Customers</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ summary.total_customers }}
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-users fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-success shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                                Total Revenue</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                ₦{{ summary.total_revenue|floatformat:2 }}
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-secondary shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">
+                                                Total Profit</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                ₦{{ summary.total_profit|floatformat:2 }}
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-coins fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-info shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                                Total Transactions</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ summary.total_transactions }}
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-shopping-cart fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-warning shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                                Avg Revenue/Customer</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                ₦{{ summary.avg_revenue_per_customer|floatformat:2 }}
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Performance Data -->
+                    {% for month, data in monthly_performance %}
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                {{ month|date:"F Y" }} 
+                                <span class="badge badge-primary ml-2">{{ data.total_customers }} customers</span>
+                                <span class="badge badge-success ml-2">₦{{ data.month_total|floatformat:2 }}</span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- Retail Customers -->
+                            {% if data.retail_customers %}
+                            <h6 class="text-primary">Retail Customers</h6>
+                            <div class="table-responsive mb-4">
+                                <table class="table table-hover">
+                                    <thead class="table-primary">
+                                        <tr>
+                                            <th>Customer Name</th>
+                                            <th>Total Amount</th>
+                                            <th>Profit</th>
+                                            <th>Transactions</th>
+                                            <th>Items Purchased</th>
+                                            <th>Avg Transaction</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for customer in data.retail_customers %}
+                                        <tr>
+                                            <td>{{ customer.customer_name }}</td>
+                                            <td>₦{{ customer.total_amount|floatformat:2 }}</td>
+                                            <td>₦{{ customer.profit|floatformat:2 }}</td>
+                                            <td>{{ customer.transaction_count }}</td>
+                                            <td>{{ customer.total_items }}</td>
+                                            <td>₦{{ customer.avg_transaction|floatformat:2 }}</td>
+                                            <td>
+                                                {% if customer.customer_id %}
+                                                <a href="{% url 'store:customer_history' customer.customer_id %}" 
+                                                   class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye"></i> View History
+                                                </a>
+                                                {% else %}
+                                                <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% endif %}
+
+                            <!-- Wholesale Customers -->
+                            {% if data.wholesale_customers %}
+                            <h6 class="text-info">Wholesale Customers</h6>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-info">
+                                        <tr>
+                                            <th>Customer Name</th>
+                                            <th>Total Amount</th>
+                                            <th>Transactions</th>
+                                            <th>Items Purchased</th>
+                                            <th>Avg Transaction</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for customer in data.wholesale_customers %}
+                                        <tr>
+                                            <td>{{ customer.customer_name }}</td>
+                                            <td>₦{{ customer.total_amount|floatformat:2 }}</td>
+                                            <td>₦{{ customer.profit|floatformat:2 }}</td>
+                                            <td>{{ customer.transaction_count }}</td>
+                                            <td>{{ customer.total_items }}</td>
+                                            <td>₦{{ customer.avg_transaction|floatformat:2 }}</td>
+                                            <td>
+                                                {% if customer.customer_id %}
+                                                <a href="{% url 'wholesale:wholesale_customer_history' customer.customer_id %}" 
+                                                   class="btn btn-sm btn-outline-info">
+                                                    <i class="fas fa-eye"></i> View History
+                                                </a>
+                                                {% else %}
+                                                <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="alert alert-info text-center">
+                        <i class="fas fa-info-circle"></i>
+                        No customer performance data found for the selected period.
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportToCSV() {
+    // Simple CSV export functionality
+    let csv = 'Month,Customer Name,Customer Type,Total Amount,Transactions,Items Purchased,Avg Transaction\n';
+    
+    {% for month, data in monthly_performance %}
+        {% for customer in data.retail_customers %}
+            csv += '"{{ month|date:"F Y" }}","{{ customer.customer_name }}","Retail","{{ customer.total_amount }}","{{ customer.transaction_count }}","{{ customer.total_items }}","{{ customer.avg_transaction }}"\n';
+        {% endfor %}
+        {% for customer in data.wholesale_customers %}
+            csv += '"{{ month|date:"F Y" }}","{{ customer.customer_name }}","Wholesale","{{ customer.total_amount }}","{{ customer.transaction_count }}","{{ customer.total_items }}","{{ customer.avg_transaction }}"\n';
+        {% endfor %}
+    {% endfor %}
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', 'monthly_customer_performance.csv');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+</script>
+{% endblock %}

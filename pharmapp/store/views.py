@@ -1810,6 +1810,234 @@ def get_monthly_expenses():
     )
     return {entry['month']: entry['total_expense'] for entry in expenses}
 
+
+def get_monthly_customer_performance(start_date=None, end_date=None):
+    """
+    Get customer performance data aggregated by month.
+    Returns both retail and wholesale customer performance.
+    """
+    from django.db.models import Q, F, Sum, Count, Avg, Max, Min
+    from django.db.models.functions import TruncMonth
+    from collections import defaultdict
+
+    # Set default date range if not provided
+    if not start_date:
+        start_date = timezone.now().date().replace(day=1, month=1)  # Start of current year
+    if not end_date:
+        end_date = timezone.now().date()
+
+    # Retail customer performance
+    retail_performance = (
+        SalesItem.objects
+        .filter(
+            sales__date__gte=start_date,
+            sales__date__lte=end_date,
+            sales__is_returned=False  # Exclude returned items
+        )
+        .annotate(month=TruncMonth('sales__date'))
+        .values('sales__customer__id', 'sales__customer__name', 'month')
+        .annotate(
+            total_amount=Sum(F('price') * F('quantity') - F('discount_amount')),
+            total_cost=Sum(F('item__cost') * F('quantity')),
+            profit=Sum(F('price') * F('quantity') - F('discount_amount') - F('item__cost') * F('quantity')),
+            transaction_count=Count('sales', distinct=True),
+            total_items=Sum('quantity'),
+            avg_transaction=Avg(F('price') * F('quantity') - F('discount_amount'))
+        )
+        .order_by('month', '-total_amount')
+    )
+
+    # Wholesale customer performance
+    wholesale_performance = (
+        WholesaleSalesItem.objects
+        .filter(
+            sales__date__gte=start_date,
+            sales__date__lte=end_date,
+            sales__is_returned=False  # Exclude returned items
+        )
+        .annotate(month=TruncMonth('sales__date'))
+        .values('sales__wholesale_customer__id', 'sales__wholesale_customer__name', 'month')
+        .annotate(
+            total_amount=Sum(F('price') * F('quantity') - F('discount_amount')),
+            total_cost=Sum(F('item__cost') * F('quantity')),
+            profit=Sum(F('price') * F('quantity') - F('discount_amount') - F('item__cost') * F('quantity')),
+            transaction_count=Count('sales', distinct=True),
+            total_items=Sum('quantity'),
+            avg_transaction=Avg(F('price') * F('quantity') - F('discount_amount'))
+        )
+        .order_by('month', '-total_amount')
+    )
+
+    # Combine and structure the data
+    combined_performance = defaultdict(lambda: {
+        'retail_customers': [],
+        'wholesale_customers': [],
+        'month_total': Decimal('0.00'),
+        'month_profit': Decimal('0.00'),
+        'total_customers': 0
+    })
+
+    # Process retail customers
+    for item in retail_performance:
+        month = item['month']
+        customer_data = {
+            'customer_id': item['sales__customer__id'],
+            'customer_name': item['sales__customer__name'],
+            'customer_type': 'retail',
+            'total_amount': item['total_amount'] or Decimal('0.00'),
+            'total_cost': item.get('total_cost') or Decimal('0.00'),
+            'profit': item.get('profit') or Decimal('0.00'),
+            'transaction_count': item['transaction_count'],
+            'total_items': item['total_items'] or 0,
+            'avg_transaction': item['avg_transaction'] or Decimal('0.00')
+        }
+        combined_performance[month]['retail_customers'].append(customer_data)
+        combined_performance[month]['month_total'] += customer_data['total_amount']
+        combined_performance[month]['month_profit'] += customer_data['profit']
+        combined_performance[month]['total_customers'] += 1
+
+    # Process wholesale customers
+    for item in wholesale_performance:
+        month = item['month']
+        customer_data = {
+            'customer_id': item['sales__wholesale_customer__id'],
+            'customer_name': item['sales__wholesale_customer__name'],
+            'customer_type': 'wholesale',
+            'total_amount': item['total_amount'] or Decimal('0.00'),
+            'total_cost': item.get('total_cost') or Decimal('0.00'),
+            'profit': item.get('profit') or Decimal('0.00'),
+            'transaction_count': item['transaction_count'],
+            'total_items': item['total_items'] or 0,
+            'avg_transaction': item['avg_transaction'] or Decimal('0.00')
+        }
+        combined_performance[month]['wholesale_customers'].append(customer_data)
+        combined_performance[month]['month_total'] += customer_data['total_amount']
+        combined_performance[month]['month_profit'] += customer_data['profit']
+        combined_performance[month]['total_customers'] += 1
+
+    # Convert to sorted list
+    return sorted(combined_performance.items(), key=lambda x: x[0], reverse=True)
+
+
+def get_yearly_customer_performance(start_year=None, end_year=None):
+    """
+    Get customer performance data aggregated by year.
+    Returns both retail and wholesale customer performance.
+    """
+    from django.db.models import Q, F, Sum, Count, Avg, Max, Min
+    from django.db.models.functions import TruncYear
+    from collections import defaultdict
+
+    # Set default year range if not provided
+    current_year = timezone.now().year
+    if not start_year:
+        start_year = current_year - 2  # Last 3 years by default
+    if not end_year:
+        end_year = current_year
+
+    start_date = timezone.datetime(start_year, 1, 1).date()
+    end_date = timezone.datetime(end_year, 12, 31).date()
+
+    # Retail customer performance
+    retail_performance = (
+        SalesItem.objects
+        .filter(
+            sales__date__gte=start_date,
+            sales__date__lte=end_date,
+            sales__is_returned=False  # Exclude returned items
+        )
+        .annotate(year=TruncYear('sales__date'))
+        .values('sales__customer__id', 'sales__customer__name', 'year')
+        .annotate(
+            total_amount=Sum(F('price') * F('quantity') - F('discount_amount')),
+            total_cost=Sum(F('item__cost') * F('quantity')),
+            profit=Sum(F('price') * F('quantity') - F('discount_amount') - F('item__cost') * F('quantity')),
+            transaction_count=Count('sales', distinct=True),
+            total_items=Sum('quantity'),
+            avg_transaction=Avg(F('price') * F('quantity') - F('discount_amount')),
+            first_purchase=Min('sales__date'),
+            last_purchase=Max('sales__date')
+        )
+        .order_by('year', '-total_amount')
+    )
+
+    # Wholesale customer performance
+    wholesale_performance = (
+        WholesaleSalesItem.objects
+        .filter(
+            sales__date__gte=start_date,
+            sales__date__lte=end_date,
+            sales__is_returned=False  # Exclude returned items
+        )
+        .annotate(year=TruncYear('sales__date'))
+        .values('sales__wholesale_customer__id', 'sales__wholesale_customer__name', 'year')
+        .annotate(
+            total_amount=Sum(F('price') * F('quantity') - F('discount_amount')),
+            total_cost=Sum(F('item__cost') * F('quantity')),
+            profit=Sum(F('price') * F('quantity') - F('discount_amount') - F('item__cost') * F('quantity')),
+            transaction_count=Count('sales', distinct=True),
+            total_items=Sum('quantity'),
+            avg_transaction=Avg(F('price') * F('quantity') - F('discount_amount')),
+            first_purchase=Min('sales__date'),
+            last_purchase=Max('sales__date')
+        )
+        .order_by('year', '-total_amount')
+    )
+
+    # Combine and structure the data
+    combined_performance = defaultdict(lambda: {
+        'retail_customers': [],
+        'wholesale_customers': [],
+        'year_total': Decimal('0.00'),
+        'year_profit': Decimal('0.00'),
+        'total_customers': 0
+    })
+
+    # Process retail customers
+    for item in retail_performance:
+        year = item['year']
+        customer_data = {
+            'customer_id': item['sales__customer__id'],
+            'customer_name': item['sales__customer__name'],
+            'customer_type': 'retail',
+            'total_amount': item['total_amount'] or Decimal('0.00'),
+            'total_cost': item.get('total_cost') or Decimal('0.00'),
+            'profit': item.get('profit') or Decimal('0.00'),
+            'transaction_count': item['transaction_count'],
+            'total_items': item['total_items'] or 0,
+            'avg_transaction': item['avg_transaction'] or Decimal('0.00'),
+            'first_purchase': item['first_purchase'],
+            'last_purchase': item['last_purchase']
+        }
+        combined_performance[year]['retail_customers'].append(customer_data)
+        combined_performance[year]['year_total'] += customer_data['total_amount']
+        combined_performance[year]['year_profit'] += customer_data['profit']
+        combined_performance[year]['total_customers'] += 1
+
+    # Process wholesale customers
+    for item in wholesale_performance:
+        year = item['year']
+        customer_data = {
+            'customer_id': item['sales__wholesale_customer__id'],
+            'customer_name': item['sales__wholesale_customer__name'],
+            'customer_type': 'wholesale',
+            'total_amount': item['total_amount'] or Decimal('0.00'),
+            'total_cost': item.get('total_cost') or Decimal('0.00'),
+            'profit': item.get('profit') or Decimal('0.00'),
+            'transaction_count': item['transaction_count'],
+            'total_items': item['total_items'] or 0,
+            'avg_transaction': item['avg_transaction'] or Decimal('0.00'),
+            'first_purchase': item['first_purchase'],
+            'last_purchase': item['last_purchase']
+        }
+        combined_performance[year]['wholesale_customers'].append(customer_data)
+        combined_performance[year]['year_total'] += customer_data['total_amount']
+        combined_performance[year]['year_profit'] += customer_data['profit']
+        combined_performance[year]['total_customers'] += 1
+
+    # Convert to sorted list
+    return sorted(combined_performance.items(), key=lambda x: x[0], reverse=True)
+
 def get_monthly_sales_with_expenses():
     # Fetch regular sales data per month
     regular_sales = (
@@ -2079,6 +2307,119 @@ def monthly_sales(request):
         monthly_sales = get_monthly_sales_with_expenses()  # Now includes expenses
         context = {'monthly_sales': monthly_sales}
         return render(request, 'store/monthly_sales.html', context)
+    else:
+        return redirect('store:index')
+
+
+@user_passes_test(is_admin)
+def monthly_customer_performance(request):
+    """View for displaying monthly customer performance data"""
+    if request.user.is_authenticated:
+        # Get date range from request parameters
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+
+        start_date = None
+        end_date = None
+
+        if start_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        if end_date_str:
+            try:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        # Get customer performance data
+        monthly_performance = get_monthly_customer_performance(start_date, end_date)
+
+        # Calculate summary statistics
+        total_customers = 0
+        total_revenue = Decimal('0.00')
+        total_profit = Decimal('0.00')
+        total_transactions = 0
+
+        for month, data in monthly_performance:
+            total_customers += data['total_customers']
+            total_revenue += data['month_total']
+            # accumulate profit if present
+            total_profit += data.get('month_profit', Decimal('0.00'))
+            for customer in data['retail_customers'] + data['wholesale_customers']:
+                total_transactions += customer['transaction_count']
+
+        context = {
+            'monthly_performance': monthly_performance,
+            'start_date': start_date,
+            'end_date': end_date,
+            'summary': {
+                'total_customers': total_customers,
+                'total_revenue': total_revenue,
+                    'total_transactions': total_transactions,
+                    'total_profit': total_profit,
+                    'avg_revenue_per_customer': total_revenue / total_customers if total_customers > 0 else Decimal('0.00')
+            }
+        }
+        return render(request, 'store/monthly_customer_performance.html', context)
+    else:
+        return redirect('store:index')
+
+
+@user_passes_test(is_admin)
+def yearly_customer_performance(request):
+    """View for displaying yearly customer performance data"""
+    if request.user.is_authenticated:
+        # Get year range from request parameters
+        start_year_str = request.GET.get('start_year')
+        end_year_str = request.GET.get('end_year')
+
+        start_year = None
+        end_year = None
+
+        if start_year_str:
+            try:
+                start_year = int(start_year_str)
+            except ValueError:
+                pass
+
+        if end_year_str:
+            try:
+                end_year = int(end_year_str)
+            except ValueError:
+                pass
+
+        # Get customer performance data
+        yearly_performance = get_yearly_customer_performance(start_year, end_year)
+
+        # Calculate summary statistics
+        total_customers = 0
+        total_revenue = Decimal('0.00')
+        total_profit = Decimal('0.00')
+        total_transactions = 0
+
+        for year, data in yearly_performance:
+            total_customers += data['total_customers']
+            total_revenue += data['year_total']
+            total_profit += data.get('year_profit', Decimal('0.00'))
+            for customer in data['retail_customers'] + data['wholesale_customers']:
+                total_transactions += customer['transaction_count']
+
+        context = {
+            'yearly_performance': yearly_performance,
+            'start_year': start_year,
+            'end_year': end_year,
+            'summary': {
+                'total_customers': total_customers,
+                'total_revenue': total_revenue,
+                    'total_transactions': total_transactions,
+                    'total_profit': total_profit,
+                    'avg_revenue_per_customer': total_revenue / total_customers if total_customers > 0 else Decimal('0.00')
+            }
+        }
+        return render(request, 'store/yearly_customer_performance.html', context)
     else:
         return redirect('store:index')
 
@@ -3003,7 +3344,10 @@ def customer_history(request, customer_id):
             'history_data': history_data,
         }
 
-        return render(request, 'partials/customer_history.html', context)
+        if request.headers.get('HX-Request'):
+            return render(request, 'partials/customer_history.html', context)
+        else:
+            return render(request, 'store/customer_history.html', context)
     return redirect('store:index')
 
 

@@ -153,7 +153,10 @@ class Command(BaseCommand):
             date__gte=start_date,
             date__lte=end_date
         ).aggregate(total_expenses=Sum('amount'))
-        
+
+        # Customer performance data
+        customer_performance = self.get_customer_performance_data(start_date, end_date)
+
         return {
             'period': {'start': start_date, 'end': end_date},
             'sales_summary': total_sales,
@@ -164,7 +167,54 @@ class Command(BaseCommand):
             'daily_sales': list(daily_sales),
             'payment_methods': payment_methods,
             'expenses': expenses['total_expenses'] or Decimal('0'),
-            'profit': net_sales - (expenses['total_expenses'] or Decimal('0'))
+            'profit': net_sales - (expenses['total_expenses'] or Decimal('0')),
+            'customer_performance': customer_performance
+        }
+
+    def get_customer_performance_data(self, start_date, end_date):
+        """Get customer performance data for the specified period"""
+        from django.db.models import F, Sum, Count, Avg
+        from customer.models import Customer, WholesaleCustomer
+
+        # Retail customer performance
+        retail_customers = (
+            SalesItem.objects
+            .filter(
+                sales__date__gte=start_date,
+                sales__date__lte=end_date,
+                sales__is_returned=False
+            )
+            .values('sales__customer__id', 'sales__customer__name')
+            .annotate(
+                total_amount=Sum(F('price') * F('quantity') - F('discount_amount')),
+                transaction_count=Count('sales', distinct=True),
+                total_items=Sum('quantity'),
+                avg_transaction=Avg(F('price') * F('quantity') - F('discount_amount'))
+            )
+            .order_by('-total_amount')[:20]  # Top 20 customers
+        )
+
+        # Wholesale customer performance
+        wholesale_customers = (
+            WholesaleSalesItem.objects
+            .filter(
+                sales__date__gte=start_date,
+                sales__date__lte=end_date,
+                sales__is_returned=False
+            )
+            .values('sales__wholesale_customer__id', 'sales__wholesale_customer__name')
+            .annotate(
+                total_amount=Sum(F('price') * F('quantity') - F('discount_amount')),
+                transaction_count=Count('sales', distinct=True),
+                total_items=Sum('quantity'),
+                avg_transaction=Avg(F('price') * F('quantity') - F('discount_amount'))
+            )
+            .order_by('-total_amount')[:20]  # Top 20 customers
+        )
+
+        return {
+            'retail_customers': list(retail_customers),
+            'wholesale_customers': list(wholesale_customers)
         }
 
     def display_console_report(self, data, period, start_date, end_date):
@@ -199,7 +249,22 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING("\n💳 PAYMENT METHODS"))
         for method, amount in data['payment_methods'].items():
             self.stdout.write(f"{method}: ₦{amount:,.2f}")
-        
+
+        # Customer Performance
+        self.stdout.write(self.style.WARNING("\n🏅 TOP PERFORMING CUSTOMERS"))
+
+        # Top Retail Customers
+        if data['customer_performance']['retail_customers']:
+            self.stdout.write("Retail Customers:")
+            for i, customer in enumerate(data['customer_performance']['retail_customers'][:5], 1):
+                self.stdout.write(f"  {i}. {customer['sales__customer__name']}: ₦{customer['total_amount']:,.2f} ({customer['transaction_count']} transactions)")
+
+        # Top Wholesale Customers
+        if data['customer_performance']['wholesale_customers']:
+            self.stdout.write("Wholesale Customers:")
+            for i, customer in enumerate(data['customer_performance']['wholesale_customers'][:5], 1):
+                self.stdout.write(f"  {i}. {customer['sales__wholesale_customer__name']}: ₦{customer['total_amount']:,.2f} ({customer['transaction_count']} transactions)")
+
         self.stdout.write(self.style.SUCCESS(f"\n{'='*60}"))
 
     def generate_csv_report(self, data, period, start_date, end_date, output_dir):
@@ -211,7 +276,7 @@ class Command(BaseCommand):
         
         # Sales summary CSV
         summary_file = os.path.join(output_dir, f'sales_summary_{period}_{timestamp}.csv')
-        with open(summary_file, 'w', newline='') as csvfile:
+        with open(summary_file, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(['Metric', 'Value'])
             writer.writerow(['Period Start', start_date])
@@ -226,7 +291,7 @@ class Command(BaseCommand):
         
         # Top items CSV
         items_file = os.path.join(output_dir, f'top_items_{period}_{timestamp}.csv')
-        with open(items_file, 'w', newline='') as csvfile:
+        with open(items_file, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(['Rank', 'Item Name', 'Total Amount', 'Quantity Sold', 'Transactions'])
             for i, item in enumerate(data['top_items'], 1):
@@ -237,7 +302,7 @@ class Command(BaseCommand):
         
         # Staff performance CSV
         staff_file = os.path.join(output_dir, f'staff_performance_{period}_{timestamp}.csv')
-        with open(staff_file, 'w', newline='') as csvfile:
+        with open(staff_file, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(['Rank', 'Staff Name', 'Total Sales', 'Items Sold', 'Avg Transaction'])
             for i, user in enumerate(data['sales_by_user'], 1):
@@ -246,6 +311,33 @@ class Command(BaseCommand):
                     i, name, f"₦{user['total_sales']:,.2f}",
                     user['total_items'], f"₦{user['avg_transaction'] or 0:,.2f}"
                 ])
+
+        # Customer performance CSV
+        customer_file = os.path.join(output_dir, f'customer_performance_{period}_{timestamp}.csv')
+        with open(customer_file, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['Rank', 'Customer Name', 'Customer Type', 'Total Amount', 'Transactions', 'Items Purchased', 'Avg Transaction'])
+
+            # Retail customers
+            for i, customer in enumerate(data['customer_performance']['retail_customers'], 1):
+                writer.writerow([
+                    i, customer['sales__customer__name'], 'Retail',
+                    f"₦{customer['total_amount']:,.2f}",
+                    customer['transaction_count'],
+                    customer['total_items'],
+                    f"₦{customer['avg_transaction'] or 0:,.2f}"
+                ])
+
+            # Wholesale customers
+            for i, customer in enumerate(data['customer_performance']['wholesale_customers'], 1):
+                writer.writerow([
+                    i + len(data['customer_performance']['retail_customers']),
+                    customer['sales__wholesale_customer__name'], 'Wholesale',
+                    f"₦{customer['total_amount']:,.2f}",
+                    customer['transaction_count'],
+                    customer['total_items'],
+                    f"₦{customer['avg_transaction'] or 0:,.2f}"
+                ])
         
         self.stdout.write(
             self.style.SUCCESS(f"\nCSV reports generated in '{output_dir}' directory:")
@@ -253,3 +345,4 @@ class Command(BaseCommand):
         self.stdout.write(f"- {summary_file}")
         self.stdout.write(f"- {items_file}")
         self.stdout.write(f"- {staff_file}")
+        self.stdout.write(f"- {customer_file}")

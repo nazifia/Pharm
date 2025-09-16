@@ -1,0 +1,7 @@
+Rank,Customer Name,Customer Type,Total Amount,Transactions,Items Purchased,Avg Transaction
+1,Test Customer,Retail,"₦6,100.00",8,13,₦762.50
+2,NAZIFI AHMAD M,Retail,"₦4,029.60",3,3,"₦1,343.20"
+3,,Retail,"₦3,950.00",3,19,₦564.29
+4,Test Customer Preserved,Retail,₦500.00,1,5,₦500.00
+5,Test Customer Simple,Retail,₦200.00,1,2,₦200.00
+6,,Wholesale,"₦29,967.00",2,8.5,"₦5,993.40"
