@@ -2,16 +2,20 @@
 <div class="container mt-4" id="transfer-messages">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2>Transfer Wholesale Items</h2>
-    <div>
-      <a href="#" class="btn btn-primary btn-sm">New Wholesale Procurement</a>
-      <a href="#" class="btn btn-info btn-sm">Procurement List</a>
-      <a href="#" class="btn btn-secondary btn-sm">Wholesale Items</a>
-      <a href="#" class="btn btn-secondary btn-sm">Dashboard</a>
-    </div>
   </div>
+
+  <!-- Search Field -->
+  <div class="mb-3">
+    <input type="text" name="search" id="search" style="width: 300px; background-color: lightblue;" class="form-control" placeholder="Search Items..."
+           hx-get="{% url 'wholesale:transfer_multiple_wholesale_items' %}"
+           hx-target="#wholesale-items"
+           hx-trigger="keyup changed delay:500ms">
+  </div>
+
+  <!-- Messages (errors or successes) -->
   <div class="mt-3">
     {% for message in messages %}
-      <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
+      <div class="alert alert-{{ message.tags }}">{{ message }}</div>
     {% endfor %}
   </div>
   <form id="transfer-form" method="post"
@@ -19,7 +23,7 @@
         hx-target="#transfer-messages"
         hx-swap="outerHTML">
     {% csrf_token %}
-    <table class="table shadow table-hover table-responsive">
+    <table class="table table-bordered shadow table-hover table-responsive">
       <thead class="table-secondary">
         <tr>
           <th>
@@ -35,6 +39,7 @@
           <th>Transfer Unit</th>
           <th>Unit Conversion</th>
           <th>Markup (%)</th>
+          <th>Price Override</th>
           <th>Destination</th>
         </tr>
       </thead>
@@ -43,6 +48,7 @@
         <tr id="wholesale-item-{{ item.id }}">
           <td>
             <input type="checkbox" name="select_{{ item.id }}" class="item-checkbox">
+            <input type="hidden" name="cost_{{ item.id }}" value="{{ item.cost }}">
           </td>
           <td>{{ item.name|upper }}</td>
           <td>{{ item.dosage_form }}</td>
@@ -50,7 +56,7 @@
           <td>{{ item.unit }}</td>
           <td>{{ item.stock }}</td>
           <td>
-            <input type="number" name="quantity_{{ item.id }}" style="width:100px;" class="form-control" min="0" value="0">
+            <input type="number" name="quantity_{{ item.id }}" style="width:100px;" class="form-control" min="0" value="0" step="0.5">
           </td>
           <td>
             <select name="transfer_unit_{{ item.id }}" style="width:130px;" class="form-control unit-select" data-item-id="{{ item.id }}">
@@ -112,6 +118,22 @@
             </select>
           </td>
           <td>
+            <div class="form-check mb-1">
+              <input type="checkbox" class="form-check-input price-override-checkbox" id="price_override_{{ item.id }}" name="price_override_{{ item.id }}">
+              <label class="form-check-label" for="price_override_{{ item.id }}">Override</label>
+            </div>
+            <div class="mb-1">
+              <small class="text-muted">Calculated: <span class="calculated-price" id="calculated_price_{{ item.id }}">0.00</span></small>
+            </div>
+            <div class="input-group" style="width:150px;">
+              <input type="number" name="manual_price_{{ item.id }}" class="form-control manual-price" min="0" value="0" step="0.01" placeholder="Enter selling price">
+              <div class="input-group-append">
+                <span class="input-group-text">₦</span>
+              </div>
+            </div>
+            <small class="text-muted d-block mt-1">Enter price to override calculated value</small>
+          </td>
+          <td>
             <select name="destination_{{ item.id }}" class="form-control" style="width:130px;">
               <option value="">Select</option>
               <option value="retail">Retail</option>
@@ -132,20 +154,25 @@
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
     const itemCheckboxes = document.querySelectorAll('.item-checkbox');
 
-    // Add event listener to the "Select All" checkbox
-    selectAllCheckbox.addEventListener('change', function() {
-      const isChecked = this.checked;
+    if (selectAllCheckbox) {
+      // Add event listener to the "Select All" checkbox
+      selectAllCheckbox.addEventListener('change', function() {
+        const isChecked = this.checked;
 
-      // Update all item checkboxes
-      itemCheckboxes.forEach(function(checkbox) {
-        checkbox.checked = isChecked;
+        // Update all item checkboxes
+        itemCheckboxes.forEach(function(checkbox) {
+          checkbox.checked = isChecked;
+        });
       });
-    });
 
-    // Add event listeners to individual checkboxes to update "Select All" state
-    itemCheckboxes.forEach(function(checkbox) {
-      checkbox.addEventListener('change', updateSelectAllCheckbox);
-    });
+      // Add event listeners to individual checkboxes to update "Select All" state
+      itemCheckboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', updateSelectAllCheckbox);
+      });
+
+      // Initial update of the select-all checkbox state
+      updateSelectAllCheckbox();
+    }
 
     // Function to update the "Select All" checkbox based on individual checkboxes
     function updateSelectAllCheckbox() {
@@ -207,4 +234,6 @@
     }
   });
 </script>
+{% include "partials/_transfer_price_calc.js.html" %}
+
 {% endblock %}

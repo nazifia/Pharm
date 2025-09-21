@@ -96,7 +96,7 @@
             <small class="text-muted conversion-label">1 {{ item.unit }} = <span class="conversion-value">1</span> <span class="target-unit">{{ item.unit }}</span></small>
           </td>
           <td>
-            <select name="markup_{{ item.id }}" style="width:150px;" class="form-control markup-select" data-item-id="{{ item.id }}" onchange="triggerPriceCalculation(this)">
+            <select name="markup_{{ item.id }}" style="width:150px;" class="form-control markup-select" data-item-id="{{ item.id }}">
               <option value="0">Select Markup</option>
               <option value="2.5">2.5% markup</option>
               <option value="5">5% markup</option>
@@ -513,4 +513,5 @@
     });
   };
 </script>
+{% include "partials/_transfer_price_calc.js.html" %}
 {% endblock %}

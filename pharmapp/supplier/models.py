@@ -186,7 +186,8 @@ class ProcurementItem(models.Model):
             name=self.item_name,
             brand=self.brand,
             dosage_form=self.dosage_form,
-            unit=self.unit
+            unit=self.unit,
+            cost_price=self.cost_price
         )
 
         if existing_items.exists():
@@ -285,7 +286,8 @@ class WholesaleProcurementItem(models.Model):
             name=self.item_name,
             brand=self.brand,
             dosage_form=self.dosage_form,
-            unit=self.unit
+            unit=self.unit,
+            cost_price=self.cost_price
         )
 
         if existing_items.exists():

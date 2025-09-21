@@ -23,9 +23,19 @@
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2>Transfer Store Items</h2>
   </div>
+
+  <!-- Search Field -->
+  <div class="mb-3">
+    <input type="text" name="search" id="search" style="width: 300px; background-color: lightblue;" class="form-control" placeholder="Search Items..."
+           hx-get="{% url 'store:transfer_multiple_store_items' %}"
+           hx-target="#store-items"
+           hx-trigger="keyup changed delay:500ms">
+  </div>
+
+  <!-- Messages (errors or successes) -->
   <div class="mt-3">
     {% for message in messages %}
-      <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
+      <div class="alert alert-{{ message.tags }}">{{ message }}</div>
     {% endfor %}
   </div>
   <form id="transfer-form" method="post"
@@ -33,7 +43,7 @@
         hx-target="#transfer-messages"
         hx-swap="outerHTML">
     {% csrf_token %}
-    <table class="table shadow table-hover table-responsive">
+    <table class="table table-bordered shadow table-hover table-responsive">
       <thead class="table-secondary">
         <tr>
           <th>
@@ -44,8 +54,8 @@
           <th>D/form</th>
           <th>Brand</th>
           <th>Unit</th>
-          <th>Stock Qty</th>
-          <th>Qty to Transfer</th>
+          <th>Stock</th>
+          <th>R/Qty</th>
           <th>Transfer Unit</th>
           <th>Unit Conversion</th>
           <th>Markup (%)</th>
@@ -57,10 +67,10 @@
         {% for item in store_items %}
         <tr id="store-item-{{ item.id }}">
           <td>
-            <input type="checkbox" name="select_{{ item.id }}" class="item-checkbox">
+            <input type="checkbox" name="select_{{ item.id }}">
             <input type="hidden" name="cost_{{ item.id }}" value="{{ item.cost_price }}">
           </td>
-          <td>{{ item.name|upper }}</td>
+          <td>{{ item.name|upper }}<br><small class="text-muted">Cost: ₦{{ item.cost_price }}</small></td>
           <td>{{ item.dosage_form }}</td>
           <td>{{ item.brand }}</td>
           <td>{{ item.unit }}</td>
@@ -79,11 +89,11 @@
             </select>
           </td>
           <td>
-            <input type="number" name="unit_conversion_{{ item.id }}" style="width:100px;" class="form-control unit-conversion" min="1" value="1" step="0.01">
+            <input type="number" name="unit_conversion_{{ item.id }}" style="width:100px;" class="form-control unit-conversion" value="1" step="0.1">
             <small class="text-muted conversion-label">1 {{ item.unit }} = <span class="conversion-value">1</span> <span class="target-unit">{{ item.unit }}</span></small>
           </td>
           <td>
-            <select name="markup_{{ item.id }}" style="width:150px;" class="form-control markup-select" data-item-id="{{ item.id }}" onchange="triggerPriceCalculation(this)">
+            <select name="markup_{{ item.id }}" style="width:150px;" class="form-control markup-select" data-item-id="{{ item.id }}">
               <option value="0">Select Markup</option>
               <option value="2.5">2.5% markup</option>
               <option value="5">5% markup</option>
@@ -159,136 +169,8 @@
 </div>
 
 <script>
-  // Global function to trigger price calculation from inline event handlers
-  function triggerPriceCalculation(selectElement) {
-    console.log('Direct markup change triggered for:', selectElement.name);
-    console.log('New value:', selectElement.value);
-    const row = selectElement.closest('tr');
-    if (row) {
-      // Get the item ID from the select name
-      const itemId = selectElement.name.split('_')[1];
-      console.log('Item ID:', itemId);
 
-      // Get the cost input
-      const costInput = row.querySelector('input[name="cost_' + itemId + '"]');
-      console.log('Cost input value:', costInput ? costInput.value : 'not found');
 
-      // Calculate the selling price
-      calculateSellingPrice(row);
-    } else {
-      console.error('Could not find row for select element:', selectElement);
-    }
-  }
-
-  // Global function to trigger price calculation from inline event handlers
-  function triggerPriceCalculation(selectElement) {
-    console.log('Direct markup change triggered for:', selectElement.name);
-    console.log('New value:', selectElement.value);
-    const row = selectElement.closest('tr');
-    if (row) {
-      // Get the item ID from the select name
-      const itemId = selectElement.name.split('_')[1];
-      console.log('Item ID:', itemId);
-
-      // Get the cost input
-      const costInput = row.querySelector('input[name="cost_' + itemId + '"]');
-      console.log('Cost input value:', costInput ? costInput.value : 'not found');
-
-      // Calculate the selling price
-      calculateSellingPrice(row);
-    } else {
-      console.error('Could not find row for select element:', selectElement);
-    }
-  }
-
-  // Define the calculateSellingPrice function globally with full implementation
-  window.calculateSellingPrice = function(row) {
-    console.log('Global calculateSellingPrice called with row:', row);
-
-    if (!row) {
-      console.error('No row provided to calculateSellingPrice');
-      return;
-    }
-
-    // Get the item ID from the select checkbox
-    const selectCheckbox = row.querySelector('input[name^="select_"]');
-    if (!selectCheckbox) {
-      console.error('No select checkbox found in row');
-      return;
-    }
-
-    const itemId = selectCheckbox.name.split('_')[1];
-    console.log('Calculating price for item ID:', itemId);
-
-    // Get the required elements
-    const costInput = row.querySelector('input[name="cost_' + itemId + '"]');
-    const markupSelect = row.querySelector('select[name="markup_' + itemId + '"]');
-    const calculatedPriceSpan = row.querySelector('#calculated_price_' + itemId);
-    const manualPriceInput = row.querySelector('input[name="manual_price_' + itemId + '"]');
-    const unitConversionInput = row.querySelector('input[name="unit_conversion_' + itemId + '"]');
-    const overrideCheckbox = row.querySelector('.price-override-checkbox');
-
-    console.log('Cost input:', costInput);
-    console.log('Markup select:', markupSelect);
-    console.log('Calculated price span:', calculatedPriceSpan);
-
-    if (costInput && markupSelect && calculatedPriceSpan) {
-      console.log('Cost input value:', costInput.value);
-      console.log('Markup select value:', markupSelect.value);
-
-      // Parse the cost value
-      let cost = 0;
-      try {
-        cost = parseFloat(costInput.value.replace(/,/g, '')) || 0;
-      } catch (e) {
-        console.error('Error parsing cost:', e);
-        cost = 0;
-      }
-
-      // Parse the markup value
-      const markup = parseFloat(markupSelect.value) || 0;
-
-      // Parse the unit conversion value
-      const unitConversion = parseFloat(unitConversionInput?.value || 1);
-
-      console.log('Parsed cost:', cost);
-      console.log('Parsed markup:', markup);
-      console.log('Parsed unit conversion:', unitConversion);
-
-      // Adjust cost based on unit conversion
-      let adjustedCost = cost;
-      if (unitConversion !== 1) {
-        adjustedCost = cost / unitConversion;
-      }
-
-      console.log('Adjusted cost:', adjustedCost);
-
-      // Calculate selling price
-      const sellingPrice = adjustedCost + (adjustedCost * markup / 100);
-
-      console.log('Calculated selling price:', sellingPrice);
-
-      // Update the calculated price display
-      calculatedPriceSpan.textContent = sellingPrice.toFixed(2);
-
-      // Get the current manual price value
-      const currentManualPrice = parseFloat(manualPriceInput.value) || 0;
-
-      // If the manual price is 0 or matches the previous calculated price, update it
-      // This ensures we don't overwrite a user's manual entry
-      if (currentManualPrice === 0 || Math.abs(currentManualPrice - sellingPrice) < 0.01) {
-        manualPriceInput.value = sellingPrice.toFixed(2);
-      }
-
-      // Always check the override checkbox to ensure the manual price is used
-      overrideCheckbox.checked = true;
-    } else {
-      console.error('Missing required elements for calculation');
-      if (!costInput) console.error('Cost input missing');
-      if (!markupSelect) console.error('Markup select missing');
-      if (!calculatedPriceSpan) console.error('Calculated price span missing');
-    }
-  };
 
   document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM fully loaded and parsed');
@@ -310,6 +192,9 @@
     itemCheckboxes.forEach(function(checkbox) {
       checkbox.addEventListener('change', updateSelectAllCheckbox);
     });
+
+    // Initial update of the select-all checkbox state
+    updateSelectAllCheckbox();
 
     // Function to update the "Select All" checkbox based on individual checkboxes
     function updateSelectAllCheckbox() {
@@ -359,79 +244,7 @@
 
     // The calculateSellingPrice function is now defined globally
 
-    // Calculate initial selling prices
-    setTimeout(() => {
-      console.log('Calculating initial selling prices');
-      document.querySelectorAll('tr').forEach(function(row) {
-        if (row.querySelector('input[name^="select_"]')) {
-          // Set a default markup value if none is selected
-          const itemId = row.querySelector('input[name^="select_"]').name.split('_')[1];
-          const markupSelect = row.querySelector('select[name="markup_' + itemId + '"]');
 
-          // Log the current state of the markup select
-          console.log('Initial markup select value for item', itemId, ':', markupSelect ? markupSelect.value : 'not found');
-
-          // Calculate the selling price
-          calculateSellingPrice(row);
-        }
-      });
-    }, 500); // Delay to ensure all elements are loaded
-
-    // Recalculate selling price when markup changes
-    document.querySelectorAll('select[name^="markup_"]').forEach(function(select) {
-      select.addEventListener('change', function() {
-        console.log('Markup changed to:', this.value);
-        const row = this.closest('tr');
-        // Force a small delay to ensure the markup value is updated
-        setTimeout(() => {
-          calculateSellingPrice(row);
-        }, 50);
-      });
-    });
-
-    // Recalculate selling price when unit changes
-    document.querySelectorAll('select[name^="transfer_unit_"]').forEach(function(select) {
-      select.addEventListener('change', function() {
-        setTimeout(() => {
-          const row = this.closest('tr');
-          calculateSellingPrice(row);
-        }, 100); // Small delay to allow unit conversion to update
-      });
-    });
-
-    // Add event listeners to manual price inputs
-    document.querySelectorAll('input[name^="manual_price_"]').forEach(function(input) {
-      // Add input event listener to validate and format the manual price
-      input.addEventListener('input', function() {
-        const value = this.value;
-
-        // Get the row and item ID
-        const row = this.closest('tr');
-        const itemId = row.id.replace('store-item-', '');
-
-        // Always ensure the override checkbox is checked
-        const overrideCheckbox = row.querySelector('.price-override-checkbox');
-        overrideCheckbox.checked = true;
-
-        // Ensure the value is a valid number
-        if (value && !isNaN(parseFloat(value))) {
-          // Format to 2 decimal places only when the user has finished typing
-          // This prevents the cursor from jumping to the end while typing
-          if (value.indexOf('.') !== -1 && value.split('.')[1].length > 2) {
-            const formattedValue = parseFloat(value).toFixed(2);
-            this.value = formattedValue;
-          }
-        }
-
-        console.log('Manual price updated for item', itemId, 'to', this.value);
-      });
-
-      // Add focus event listener to select all text for easy editing
-      input.addEventListener('focus', function() {
-        // Select all text for easy replacement
-        this.select();
-      });
-    });
 
     function updateConversionLabel() {
       const itemId = this.getAttribute('data-item-id');
@@ -452,27 +265,7 @@
       targetUnitSpan.textContent = targetUnit;
       conversionLabel.innerHTML = `1 ${sourceUnit} = <span class="conversion-value">${conversionValue}</span> <span class="target-unit">${targetUnit}</span>`;
     }
-
-    // Final calculation of all prices to ensure they're displayed correctly
-    setTimeout(() => {
-      console.log('Final calculation of all prices');
-      document.querySelectorAll('tr').forEach(function(row) {
-        if (row.querySelector('input[name^="select_"]')) {
-          calculateSellingPrice(row);
-        }
-      });
-    }, 1000);
   });
-
-  // Trigger calculations when the page is fully loaded
-  window.onload = function() {
-    console.log('Window fully loaded');
-    // Calculate all prices again after window load
-    document.querySelectorAll('tr').forEach(function(row) {
-      if (row.querySelector('input[name^="select_"]')) {
-        calculateSellingPrice(row);
-      }
-    });
-  };
 </script>
+{% include "partials/_transfer_price_calc.js.html" %}
 {% endblock %}

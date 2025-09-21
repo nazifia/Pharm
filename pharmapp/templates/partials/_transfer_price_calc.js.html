@@ -1,0 +1,217 @@
+<script>
+  // Shared price calculation logic for transfer tables (store/wholesale)
+  (function() {
+    console.log('Price calculation script loaded');
+
+    function calculateSellingPrice(row) {
+      if (!row) {
+        console.log('No row provided to calculateSellingPrice');
+        return;
+      }
+
+      const selectCheckbox = row.querySelector('input[name^="select_"]');
+      if (!selectCheckbox) {
+        console.log('No select checkbox found in row');
+        return;
+      }
+
+      const itemId = selectCheckbox.name.split('_')[1];
+      console.log('Calculating price for item ID:', itemId);
+
+      const costInput = row.querySelector('input[name="cost_' + itemId + '"]');
+      const markupSelect = row.querySelector('select[name="markup_' + itemId + '"]');
+      const calculatedPriceSpan = row.querySelector('#calculated_price_' + itemId);
+      const manualPriceInput = row.querySelector('input[name="manual_price_' + itemId + '"]');
+      const unitConversionInput = row.querySelector('input[name="unit_conversion_' + itemId + '"]');
+      const overrideCheckbox = row.querySelector('.price-override-checkbox');
+
+      console.log('Elements found:', {
+        costInput: !!costInput,
+        markupSelect: !!markupSelect,
+        calculatedPriceSpan: !!calculatedPriceSpan,
+        manualPriceInput: !!manualPriceInput,
+        unitConversionInput: !!unitConversionInput,
+        overrideCheckbox: !!overrideCheckbox
+      });
+
+      if (!(costInput && markupSelect && calculatedPriceSpan)) {
+        console.log('Missing required elements for calculation');
+        return;
+      }
+
+      let cost = 0;
+      try {
+        cost = parseFloat((costInput.value || '0').toString().replace(/,/g, '')) || 0;
+      } catch(e) {
+        console.log('Error parsing cost:', e);
+        cost = 0;
+      }
+
+      const markup = parseFloat(markupSelect.value || '0') || 0;
+      const unitConversion = parseFloat((unitConversionInput && unitConversionInput.value) || '1') || 1;
+
+      console.log('Values:', { cost, markup, unitConversion });
+
+      const adjustedCost = unitConversion !== 0 ? cost / unitConversion : cost;
+      const sellingPrice = adjustedCost + (adjustedCost * markup / 100);
+
+      console.log('Calculated selling price:', sellingPrice);
+
+      calculatedPriceSpan.textContent = sellingPrice.toFixed(2);
+
+      if (manualPriceInput) {
+        const currentManual = parseFloat(manualPriceInput.value || '0') || 0;
+        if (currentManual === 0 || Math.abs(currentManual - sellingPrice) < 0.01) {
+          manualPriceInput.value = sellingPrice.toFixed(2);
+        }
+      }
+      if (overrideCheckbox) overrideCheckbox.checked = true;
+    }
+
+    // Make function globally available
+    window.calculateSellingPrice = calculateSellingPrice;
+
+    function initializePriceCalculation() {
+      console.log('Initializing price calculation');
+
+      // Initial calculate with longer delay
+      setTimeout(function() {
+        console.log('Running initial price calculations');
+        document.querySelectorAll('tr').forEach(function(row){
+          if (row.querySelector('input[name^="select_"]')) {
+            console.log('Calculating for row:', row);
+            calculateSellingPrice(row);
+          }
+        });
+      }, 300);
+
+      // Use event delegation for markup changes to handle dynamically loaded content
+      document.removeEventListener('change', handleMarkupChange);
+      document.addEventListener('change', function(e) {
+        if (e.target && e.target.name && e.target.name.startsWith('markup_')) {
+          console.log('Markup changed to:', e.target.value);
+          const row = e.target.closest('tr');
+          setTimeout(function(){ calculateSellingPrice(row); }, 50);
+        }
+      });
+
+      // Use event delegation for unit changes
+      document.removeEventListener('change', handleUnitChange);
+      document.addEventListener('change', function(e) {
+        if (e.target && e.target.name && e.target.name.startsWith('transfer_unit_')) {
+          const row = e.target.closest('tr');
+          setTimeout(function(){ calculateSellingPrice(row); }, 120);
+        }
+      });
+
+      // Use event delegation for unit conversion changes
+      document.removeEventListener('input', handleConversionChange);
+      document.addEventListener('input', function(e) {
+        if (e.target && e.target.classList.contains('unit-conversion')) {
+          const row = e.target.closest('tr');
+          setTimeout(function(){ calculateSellingPrice(row); }, 100);
+        }
+      });
+
+      // Use event delegation for manual price input
+      document.removeEventListener('input', handleManualPriceChange);
+      document.addEventListener('input', function(e) {
+        if (e.target && e.target.name && e.target.name.startsWith('manual_price_')) {
+          const row = e.target.closest('tr');
+          const override = row.querySelector('.price-override-checkbox');
+          if (override) override.checked = true;
+        }
+      });
+    }
+
+    function handleMarkupChange(e) {
+      // This function is kept for reference but we use inline delegation above
+    }
+
+    function handleUnitChange(e) {
+      // This function is kept for reference but we use inline delegation above
+    }
+
+    function handleConversionChange(e) {
+      // This function is kept for reference but we use inline delegation above
+    }
+
+    function handleManualPriceChange(e) {
+      // This function is kept for reference but we use inline delegation above
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM loaded, setting up price calculation');
+      initializePriceCalculation();
+    });
+
+    // Handle HTMX content swaps
+    document.addEventListener('htmx:afterSwap', function(e) {
+      console.log('HTMX content swapped, target:', e.detail.target);
+      console.log('HTMX content swapped, re-initializing price calculation');
+
+      // Check if the swapped content contains our target elements
+      if (e.detail.target && (e.detail.target.id === 'store-items' || e.detail.target.id === 'wholesale-items')) {
+        console.log('Target is our items container, reinitializing...');
+        setTimeout(function() {
+          initializePriceCalculation();
+        }, 100);
+      }
+    });
+
+    // Handle HTMX content settlement (backup)
+    document.addEventListener('htmx:afterSettle', function(e) {
+      console.log('HTMX content settled, ensuring price calculation is working');
+
+      // Check if the settled content contains our target elements
+      if (e.detail.target && (e.detail.target.id === 'store-items' || e.detail.target.id === 'wholesale-items')) {
+        console.log('Target is our items container, running calculations...');
+        setTimeout(function() {
+          document.querySelectorAll('tr').forEach(function(row){
+            if (row.querySelector('input[name^="select_"]')) {
+              calculateSellingPrice(row);
+            }
+          });
+        }, 200);
+      }
+    });
+
+    // Handle HTMX before swap to prepare
+    document.addEventListener('htmx:beforeSwap', function(e) {
+      console.log('HTMX before swap, target:', e.detail.target);
+    });
+
+    // Also run calculations when window loads
+    window.addEventListener('load', function() {
+      console.log('Window loaded, running price calculations again');
+      setTimeout(function() {
+        document.querySelectorAll('tr').forEach(function(row){
+          if (row.querySelector('input[name^="select_"]')) {
+            calculateSellingPrice(row);
+          }
+        });
+      }, 500);
+    });
+
+    // Additional backup: periodically check and recalculate if needed
+    setInterval(function() {
+      // Only run if there are elements that need calculation but don't have calculated prices
+      const rowsNeedingCalculation = document.querySelectorAll('tr').length;
+      const calculatedPrices = document.querySelectorAll('[id^="calculated_price_"]').length;
+
+      if (rowsNeedingCalculation > 0 && calculatedPrices > 0) {
+        // Check if any calculated price shows 0.00 when it shouldn't
+        document.querySelectorAll('[id^="calculated_price_"]').forEach(function(span) {
+          if (span.textContent === '0.00') {
+            const row = span.closest('tr');
+            if (row && row.querySelector('input[name^="select_"]')) {
+              console.log('Found uncalculated price, recalculating...');
+              calculateSellingPrice(row);
+            }
+          }
+        });
+      }
+    }, 2000); // Check every 2 seconds
+  })();
+</script>
+

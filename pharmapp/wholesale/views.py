@@ -2505,6 +2505,9 @@ def transfer_multiple_wholesale_items(request):
                         markup = float(request.POST.get(f'markup_{item.id}', 0))
                         transfer_unit = request.POST.get(f'transfer_unit_{item.id}', item.unit)
                         unit_conversion = float(request.POST.get(f'unit_conversion_{item.id}', 1))
+                        price_override = request.POST.get(f'price_override_{item.id}') == 'on'
+                        manual_price = float(request.POST.get(f'manual_price_{item.id}', 0)) if price_override else 0
+
                     except (ValueError, TypeError):
                         errors.append(f"Invalid input for {item.name}.")
                         continue
@@ -2547,7 +2550,10 @@ def transfer_multiple_wholesale_items(request):
 
                     # Use the adjusted cost for price calculations
                     cost = adjusted_cost
-                    new_price = cost + (cost * Decimal(markup) / Decimal(100))
+                    if price_override:
+                        new_price = Decimal(str(manual_price))
+                    else:
+                        new_price = cost + (cost * Decimal(markup) / Decimal(100))
 
                     # Calculate the final destination quantity (source quantity * conversion factor)
                     dest_qty = Decimal(str(qty)) * dest_qty_per_source
@@ -2573,8 +2579,8 @@ def transfer_multiple_wholesale_items(request):
                             brand=item.brand,
                             unit=transfer_unit,  # Use the selected transfer unit
                             dosage_form=item.dosage_form,
+                            cost_price=cost,
                             defaults={
-                                "cost_price": cost,
                                 "subtotal": cost * dest_qty,
                                 "stock": 0,
                                 "expiry_date": item.exp_date,
@@ -2585,8 +2591,11 @@ def transfer_multiple_wholesale_items(request):
                     dest_item.stock += dest_qty
                     if destination == "retail":
                         dest_item.cost = cost
-                        dest_item.markup = markup
-                        dest_item.price = new_price
+                        if price_override:
+                            dest_item.price = new_price
+                        else:
+                            dest_item.markup = markup
+                            dest_item.price = new_price
                     else:  # destination == "store"
                         dest_item.cost_price = cost
                         dest_item.subtotal = dest_item.cost_price * dest_item.stock

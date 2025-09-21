@@ -3,8 +3,9 @@
     <tr id="store-item-{{ item.id }}">
       <td>
         <input type="checkbox" name="select_{{ item.id }}" class="item-checkbox">
+        <input type="hidden" name="cost_{{ item.id }}" value="{{ item.cost_price }}">
       </td>
-      <td>{{ item.name|upper }}</td>
+      <td>{{ item.name|upper }}<br><small class="text-muted">Cost: ₦{{ item.cost_price }}</small></td>
       <td>{{ item.dosage_form }}</td>
       <td>{{ item.brand }}</td>
       <td>{{ item.unit }}</td>
@@ -70,6 +71,22 @@
           <option value="97.5">97.5% markup</option>
           <option value="100">100% markup</option>
         </select>
+      </td>
+      <td>
+        <div class="form-check mb-1">
+          <input type="checkbox" class="form-check-input price-override-checkbox" id="price_override_{{ item.id }}" name="price_override_{{ item.id }}">
+          <label class="form-check-label" for="price_override_{{ item.id }}">Override</label>
+        </div>
+        <div class="mb-1">
+          <small class="text-muted">Calculated: <span class="calculated-price" id="calculated_price_{{ item.id }}">0.00</span></small>
+        </div>
+        <div class="input-group" style="width:150px;">
+          <input type="number" name="manual_price_{{ item.id }}" class="form-control manual-price" min="0" value="0" step="0.01" placeholder="Enter selling price">
+          <div class="input-group-append">
+            <span class="input-group-text">₦</span>
+          </div>
+        </div>
+        <small class="text-muted d-block mt-1">Enter price to override calculated value</small>
       </td>
       <td>
         <select name="destination_{{ item.id }}" class="form-control" style="width:130px;">
