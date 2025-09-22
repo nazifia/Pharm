@@ -121,6 +121,16 @@ class DispensingLogSearchForm(forms.Form):
         }),
         label='Item Name'
     )
+    brand = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Search by brand...',
+            'autocomplete': 'off'
+        }),
+        label='Brand'
+    )
     date_from = forms.DateField(
         required=False,
         widget=forms.DateInput(attrs={

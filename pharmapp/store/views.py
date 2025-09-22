@@ -2902,6 +2902,10 @@ def dispensing_log(request):
             if item_name := search_form.cleaned_data.get('item_name'):
                 logs = logs.filter(name__istartswith=item_name)
 
+            # Filter by brand (search by first few letters)
+            if brand := search_form.cleaned_data.get('brand'):
+                logs = logs.filter(brand__istartswith=brand)
+
             # Filter by date range
             date_from = search_form.cleaned_data.get('date_from')
             date_to = search_form.cleaned_data.get('date_to')
@@ -3016,6 +3020,10 @@ def dispensing_log_stats(request):
             # Filter by item name (search by first few letters)
             if item_name := request.GET.get('item_name'):
                 logs = logs.filter(name__istartswith=item_name)
+
+            # Filter by brand (search by first few letters)
+            if brand := request.GET.get('brand'):
+                logs = logs.filter(brand__istartswith=brand)
 
             # Filter by date range - this is the key change to make stats match search results
             date_from_filter = request.GET.get('date_from')
