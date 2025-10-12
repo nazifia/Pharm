@@ -135,11 +135,11 @@
                 </tbody>
             </table>
             <div class="totals" style="text-align: right;">
-                <h6>Total Price: ₦{{ total_price|floatformat:2:intcomma }}</h6>
+                <h6>Total Price: ₦{{ total_price|floatformat:2|intcomma }}</h6>
                 {% if total_discount %}}
-                <h6>Discount: ₦{{ total_discount|floatformat:2:intcomma }}</h6>
+                <h6>Discount: ₦{{ total_discount|floatformat:2|intcomma }}</h6>
                 {% endif %}
-                <h4>Total Payable: ₦{{ total_discounted_price|floatformat:2:intcomma }}</h4>
+                <h4>Total Payable: ₦{{ total_discounted_price|floatformat:2|intcomma }}</h4>
             </div>
 
             <!-- Debug Summary - Remove in production -->

@@ -206,5 +206,41 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// HTMX Event Listeners for Modal handling
+// Show modal after HTMX loads the edit form
+document.addEventListener('htmx:afterSwap', function(event) {
+    // Check if the target is the edit modal content
+    if (event.detail.target.closest('#editWholesaleItemModal')) {
+        $('#editWholesaleItemModal').modal('show');
+    }
+    // Check if the target is the return modal content
+    if (event.detail.target.closest('#returnWholesaleItemModal')) {
+        $('#returnWholesaleItemModal').modal('show');
+    }
+});
+
+// Close modal and refresh page after successful form submission
+document.addEventListener('htmx:afterRequest', function(event) {
+    // Check if the request was successful and it was a form submission (POST/PUT)
+    if (event.detail.successful && event.detail.xhr.status === 200) {
+        const editModal = document.querySelector('#editWholesaleItemModal');
+        const returnModal = document.querySelector('#returnWholesaleItemModal');
+
+        if (editModal && $(editModal).hasClass('show')) {
+            // Close the modal
+            $(editModal).modal('hide');
+            // Refresh the page to show updated data
+            location.reload();
+        }
+
+        if (returnModal && $(returnModal).hasClass('show')) {
+            // Close the modal
+            $(returnModal).modal('hide');
+            // Refresh the page to show updated data
+            location.reload();
+        }
+    }
+});
 </script>
 {% endblock %}

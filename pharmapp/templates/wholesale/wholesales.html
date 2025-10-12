@@ -258,13 +258,15 @@
                 {% for item in items %}
                 <tr>
                     <td>
-                        <a class="btn btn-sm btn-info" data-toggle="modal" data-target="#editWholesaleModal"
+                        <a href="{% url 'wholesale:edit_wholesale_item' item.id %}" class="btn btn-sm btn-info edit-wholesale-btn"
                             hx-get="{% url 'wholesale:edit_wholesale_item' item.id %}"
-                            hx-target="#editWholesaleModal .modal-content">Edit</a>
+                            hx-target="#editWholesaleModal .modal-content"
+                            hx-swap="innerHTML">Edit</a>
 
-                        <a class="btn btn-sm btn-warning" data-toggle="modal" data-target="#returnWholesaleItemModal"
+                        <a href="{% url 'wholesale:return_wholesale_item' item.id %}" class="btn btn-sm btn-warning return-wholesale-btn"
                             hx-get="{% url 'wholesale:return_wholesale_item' item.id %}"
-                            hx-target="#returnWholesaleItemModal .modal-content">Return</a>
+                            hx-target="#returnWholesaleItemModal .modal-content"
+                            hx-swap="innerHTML">Return</a>
 
                         {% if user|can_delete_items %}
                         <a href="{% url 'wholesale:delete_wholesale_item' item.id %}"
@@ -378,6 +380,44 @@
             setTimeout(() => loadingDiv.remove(), 3000);
         });
     }
+</script>
+
+<!-- HTMX Event Listeners for Modal handling -->
+<script>
+    // Show modal after HTMX loads the edit form
+    document.addEventListener('htmx:afterSwap', function(event) {
+        // Check if the target is the edit modal content
+        if (event.detail.target.closest('#editWholesaleModal')) {
+            $('#editWholesaleModal').modal('show');
+        }
+        // Check if the target is the return modal content
+        if (event.detail.target.closest('#returnWholesaleItemModal')) {
+            $('#returnWholesaleItemModal').modal('show');
+        }
+    });
+
+    // Close modal and refresh page after successful form submission
+    document.addEventListener('htmx:afterRequest', function(event) {
+        // Check if the request was successful and it was a form submission (POST/PUT)
+        if (event.detail.successful && event.detail.xhr.status === 200) {
+            const editModal = document.querySelector('#editWholesaleModal');
+            const returnModal = document.querySelector('#returnWholesaleItemModal');
+
+            if (editModal && $(editModal).hasClass('show')) {
+                // Close the modal
+                $(editModal).modal('hide');
+                // Refresh the page to show updated data
+                location.reload();
+            }
+
+            if (returnModal && $(returnModal).hasClass('show')) {
+                // Close the modal
+                $(returnModal).modal('hide');
+                // Refresh the page to show updated data
+                location.reload();
+            }
+        }
+    });
 </script>
 
 {% endblock %}

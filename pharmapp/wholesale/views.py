@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponse
 from django.contrib import messages
 from django.utils.timezone import now, timezone
 from datetime import timedelta, datetime
@@ -358,6 +359,8 @@ def edit_wholesale_item(request, pk):
     if request.user.is_authenticated:
         from userauth.permissions import can_manage_items
         if not can_manage_items(request.user):
+            if request.headers.get('HX-Request'):
+                return HttpResponse("Permission denied", status=403)
             messages.error(request, 'You do not have permission to edit wholesale items.')
             return redirect('wholesale:wholesales')
         item = get_object_or_404(WholesaleItem, id=pk)
@@ -386,10 +389,24 @@ def edit_wholesale_item(request, pk):
                 form.save()
 
                 messages.success(request, f'{item.name} updated successfully')
+                
+                # Handle HTMX response - close modal and refresh page
+                if request.headers.get('HX-Request'):
+                    # Return a simple response with a script to close modal and refresh
+                    response_content = """
+                    <script>
+                        window.location.reload();
+                    </script>
+                    """
+                    return HttpResponse(response_content)
+                
                 return redirect('wholesale:wholesales')
             else:
                 print("Form errors:", form.errors)  # Debugging output
                 messages.error(request, 'Failed to update item')
+                # If form has errors, re-render the modal with errors
+                if request.headers.get('HX-Request'):
+                    return render(request, 'partials/edit_wholesale_item.html', {'form': form, 'item': item})
         else:
             form = addWholesaleForm(instance=item)
 
@@ -978,8 +995,9 @@ def wholesale_customer_history(request, customer_id):
 def select_wholesale_items(request, pk):
     if request.user.is_authenticated:
         customer = get_object_or_404(WholesaleCustomer, id=pk)
-        # Store wholesale customer ID in session for later use
-        request.session['wholesale_customer_id'] = customer.id
+        # Store customer ID in user-specific session for later use (same as retail)
+        from userauth.session_utils import set_user_customer_id
+        set_user_customer_id(request, customer.id)
 
         # Check if this is a return action request
         action = request.GET.get('action', 'purchase')
@@ -1382,12 +1400,30 @@ def wholesale_cart(request):
         total_price = base_total  # Total before discount
         total_discounted_price = base_total - total_discount  # Total after discount
         final_total = total_discounted_price
+
+        # Get wholesale customer from user-specific session if it exists (same as retail)
+        from userauth.session_utils import get_user_customer_id
+        wholesale_customer = None
+        customer_id = get_user_customer_id(request)
+        if customer_id:
+            try:
+                wholesale_customer = WholesaleCustomer.objects.get(id=customer_id)
+            except WholesaleCustomer.DoesNotExist:
+                pass
+
+        # Define available payment methods and statuses
+        payment_methods = ["Cash", "Wallet", "Transfer"]
+        statuses = ["Paid", "Unpaid"]
+
         return render(request, 'wholesale/wholesale_cart.html', {
             'cart_items': cart_items,
             'total_discount': total_discount,
             'total_price': total_price,
             'total_discounted_price': total_discounted_price,
             'final_total': final_total,
+            'wholesale_customer': wholesale_customer,
+            'payment_methods': payment_methods,
+            'statuses': statuses,
         })
     else:
         return redirect('store:index')
@@ -1635,12 +1671,13 @@ def wholesale_receipt(request):
         total_discounted_price = total_price - total_discount
         final_total = total_discounted_price if total_discount > 0 else total_price
 
-        # Get wholesale customer ID from session if it exists
-        wholesale_customer_id = request.session.get('wholesale_customer_id')
+        # Get customer ID from user-specific session if it exists (same pattern as retail)
+        from userauth.session_utils import get_user_customer_id
+        customer_id = get_user_customer_id(request)
         wholesale_customer = None
-        if wholesale_customer_id:
+        if customer_id:
             try:
-                wholesale_customer = WholesaleCustomer.objects.get(id=wholesale_customer_id)
+                wholesale_customer = WholesaleCustomer.objects.get(id=customer_id)
             except WholesaleCustomer.DoesNotExist:
                 pass
 
@@ -1650,6 +1687,8 @@ def wholesale_receipt(request):
             wholesale_customer=wholesale_customer,
             total_amount=final_total
         )
+        
+
 
         try:
             receipt = WholesaleReceipt.objects.filter(sales=sales).first()
@@ -1692,7 +1731,7 @@ def wholesale_receipt(request):
                 import uuid
                 receipt_id = str(uuid.uuid4())[:5]  # Use first 5 characters of a UUID
 
-                # Create the receipt WITHOUT payment method and status first
+                # Create the receipt
                 receipt = WholesaleReceipt.objects.create(
                     sales=sales,
                     receipt_id=receipt_id,
@@ -1996,6 +2035,25 @@ def wholesale_receipt(request):
         # Fetch receipt payments directly
         wholesale_receipt_payments = receipt.wholesale_receipt_payments.all() if receipt.payment_method == 'Split' else None
 
+        # Debug: Check the final state before rendering
+        print(f"\n=== FINAL DEBUG BEFORE TEMPLATE RENDERING ===")
+        print(f"Final receipt.wholesale_customer: {receipt.wholesale_customer}")
+        print(f"Final sales.wholesale_customer: {sales.wholesale_customer}")
+        
+        # Force refresh to make sure we have latest data
+        receipt.refresh_from_db()
+        sales.refresh_from_db()
+        
+        print(f"After refresh - receipt.wholesale_customer: {receipt.wholesale_customer}")
+        print(f"After refresh - sales.wholesale_customer: {sales.wholesale_customer}")
+        
+        if receipt.wholesale_customer:
+            print(f"Customer name should display: {receipt.wholesale_customer.name}")
+        else:
+            print("WARNING: receipt.wholesale_customer is None - will show 'Walk-in Customer'")
+        
+        print("="*50)
+
         # Render to the wholesale_receipt template
         response = render(request, 'wholesale/wholesale_receipt.html', {
             'receipt': receipt,
@@ -2017,10 +2075,13 @@ def wholesale_receipt(request):
         # Now clear the cart after rendering the receipt
         cart_items.delete()
 
-        # Comprehensive cart session cleanup after receipt generation
+        # Clear session data AFTER receipt is fully created and rendered
+        # This ensures wholesale_customer_id is available during receipt creation
         from store.cart_utils import cleanup_cart_session_after_receipt
         cleanup_summary = cleanup_cart_session_after_receipt(request, 'wholesale')
         logger.info(f"Wholesale cart session cleanup after receipt: {cleanup_summary}")
+
+        print(f"Debug - Session keys after receipt cleanup: {list(request.session.keys())}")
 
         return response
     else:
@@ -3858,31 +3919,20 @@ def send_to_wholesale_cashier(request):
                 messages.error(request, "Your wholesale cart is empty. Cannot send payment request.")
                 return redirect('wholesale:wholesale_cart')
             
-            # Get wholesale customer info (from session or from the cart customer)
+            # Get customer info (same pattern as retail)
             from customer.models import WholesaleCustomer
+            from userauth.session_utils import get_user_customer_id
             wholesale_customer = None
-            
-            # Try to get wholesale customer from session first
-            try:
-                from userauth.session_utils import get_user_session_data
-                customer_id = get_user_session_data(request, 'wholesale_customer_id')
-                if customer_id:
+            customer_id = get_user_customer_id(request)
+            if customer_id:
+                try:
                     wholesale_customer = WholesaleCustomer.objects.get(id=customer_id)
-            except (ImportError, WholesaleCustomer.DoesNotExist):
-                pass
-            
-            # If not found, try to get from the cart items' customer
-            if not wholesale_customer:
-                cart_items = WholesaleCart.objects.filter(user=request.user)
-                if cart_items.exists():
-                    # Use the customer associated with the first cart item
-                    first_cart_item = cart_items.first()
-                    if hasattr(first_cart_item, 'wholesale_customer') and first_cart_item.wholesale_customer:
-                        wholesale_customer = first_cart_item.wholesale_customer
+                except WholesaleCustomer.DoesNotExist:
+                    pass
             
             # Calculate total amount
             total_amount = sum(item.subtotal for item in cart_items)
-            
+
             # Create wholesale payment request
             from store.models import PaymentRequest, PaymentRequestItem
             payment_request = PaymentRequest.objects.create(
@@ -4150,7 +4200,23 @@ def reject_wholesale_payment_request(request, request_id):
                     payment_item.wholesale_item.stock += payment_item.quantity
                     payment_item.wholesale_item.save()
             
-            messages.success(request, f'Wholesale payment request {request_id} rejected and items returned to stock.')
+            # Clear the wholesale cart for the dispenser whose payment request was rejected
+            try:
+                # Clear all wholesale cart items for the original dispenser
+                from store.models import WholesaleCart
+                WholesaleCart.objects.filter(user=payment_request.dispenser).delete()
+                
+                # Comprehensive wholesale cart session cleanup for the dispenser
+                from store.cart_utils import cleanup_cart_session_after_receipt
+                # We need to create a mock request object for the cart cleanup
+                # Since we can't access the original dispenser's request,
+                # we'll clear the cart items directly
+                logger.info(f"Cleared wholesale cart for user {payment_request.dispenser.username} after wholesale payment request rejection")
+                
+            except Exception as e:
+                logger.warning(f"Error clearing wholesale cart after payment request rejection: {e}")
+            
+            messages.success(request, f'Wholesale payment request {request_id} rejected, items returned to stock, and cart cleared.')
             return redirect('wholesale:wholesale_cashier_dashboard')
             
         except PaymentRequest.DoesNotExist:
@@ -4207,7 +4273,7 @@ def complete_wholesale_payment_request(request, request_id):
                     wholesale_customer=payment_request.wholesale_customer,
                     total_amount=payment_request.total_amount
                 )
-                
+
                 # Create wholesale receipt
                 receipt = WholesaleReceipt.objects.create(
                     wholesale_customer=payment_request.wholesale_customer,

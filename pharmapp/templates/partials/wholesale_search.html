@@ -1,13 +1,15 @@
 {% load permission_tags %}
 {% for item in items %}
 <tr>
-    <td><a class="btn btn-sm btn-info" data-toggle="modal" data-target="#editWholesaleItemModal"
+    <td><a href="{% url 'wholesale:edit_wholesale_item' item.id %}" class="btn btn-sm btn-info edit-wholesale-btn"
             hx-get="{% url 'wholesale:edit_wholesale_item' item.id %}"
-            hx-target="#editWholesaleItemModal .modal-content">Edit</a>
+            hx-target="#editWholesaleModal .modal-content"
+            hx-swap="innerHTML">Edit</a>
 
-        <a class="btn btn-sm btn-warning" data-toggle="modal" data-target="#returnWholesaleItemModal"
+        <a href="{% url 'wholesale:return_wholesale_item' item.id %}" class="btn btn-sm btn-warning return-wholesale-btn"
             hx-get="{% url 'wholesale:return_wholesale_item' item.id %}"
-            hx-target="#returnWholesaleItemModal .modal-content">Return</a>
+            hx-target="#returnWholesaleItemModal .modal-content"
+            hx-swap="innerHTML">Return</a>
 
         {% if user|can_delete_items %}
         <a href="{% url 'wholesale:delete_wholesale_item' item.id %}"

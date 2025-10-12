@@ -275,12 +275,15 @@
                 {% for item in items %}
                 <tr>
                     <td>
-                        <a class="btn btn-sm btn-info" data-toggle="modal" data-target="#editModal"
-                            hx-get="{% url 'store:edit_item' item.id %}" hx-target="#editModal .modal-content">Edit</a>
+                        <a href="{% url 'store:edit_item' item.id %}" class="btn btn-sm btn-info edit-item-btn"
+                            hx-get="{% url 'store:edit_item' item.id %}"
+                            hx-target="#editModal .modal-content"
+                            hx-swap="innerHTML">Edit</a>
 
-                        <a class="btn btn-sm btn-warning" data-toggle="modal" data-target="#returnItemModal"
+                        <a href="{% url 'store:return_item' item.id %}" class="btn btn-sm btn-warning return-item-btn"
                             hx-get="{% url 'store:return_item' item.id %}"
-                            hx-target="#returnItemModal .modal-content">Return</a>
+                            hx-target="#returnItemModal .modal-content"
+                            hx-swap="innerHTML">Return</a>
 
                         {% if user|can_delete_items %}
                         <a href="{% url 'store:delete_item' item.id %}"
@@ -392,6 +395,42 @@
             setTimeout(() => loadingDiv.remove(), 3000);
         });
     }
+
+    // HTMX Event Listeners for Modal handling
+    // Show modal after HTMX loads the edit form
+    document.addEventListener('htmx:afterSwap', function(event) {
+        // Check if the target is the edit modal content
+        if (event.detail.target.closest('#editModal')) {
+            $('#editModal').modal('show');
+        }
+        // Check if the target is the return modal content
+        if (event.detail.target.closest('#returnItemModal')) {
+            $('#returnItemModal').modal('show');
+        }
+    });
+
+    // Close modal and refresh page after successful form submission
+    document.addEventListener('htmx:afterRequest', function(event) {
+        // Check if the request was successful and it was a form submission (POST/PUT)
+        if (event.detail.successful && event.detail.xhr.status === 200) {
+            const editModal = document.querySelector('#editModal');
+            const returnModal = document.querySelector('#returnItemModal');
+
+            if (editModal && $(editModal).hasClass('show')) {
+                // Close the modal
+                $(editModal).modal('hide');
+                // Refresh the page to show updated data
+                location.reload();
+            }
+
+            if (returnModal && $(returnModal).hasClass('show')) {
+                // Close the modal
+                $(returnModal).modal('hide');
+                // Refresh the page to show updated data
+                location.reload();
+            }
+        }
+    });
 </script>
 
 {% endblock %}

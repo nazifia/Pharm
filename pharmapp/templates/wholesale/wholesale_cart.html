@@ -544,11 +544,16 @@
 
                     <div class="form-group">
                         <label for="buyer_name"><strong>Buyer's Name:</strong></label>
-                        <input type="text" name="buyer_name" id="buyer_name" class="form-control" placeholder="WALK-IN CUSTOMER">
+                        <input type="text" name="buyer_name" id="buyer_name" class="form-control" 
+                            value="{% if wholesale_customer %}{{ wholesale_customer.name }}{% endif %}"
+                            {% if wholesale_customer %}readonly{% endif %}
+                            placeholder="WALK-IN CUSTOMER">
                     </div>
                     <div class="form-group">
                         <label for="buyer_address"><strong>Buyer's Address:</strong></label>
-                        <input type="text" name="buyer_address" id="buyer_address" class="form-control" placeholder="Address">
+                        <input type="text" name="buyer_address" id="buyer_address" class="form-control" 
+                            value="{% if wholesale_customer %}{{ wholesale_customer.address }}{% endif %}"
+                            placeholder="Address">
                     </div>
                     <div class="text-center mt-4">
                         <button type="submit" class="btn btn-primary" id="submitButton">

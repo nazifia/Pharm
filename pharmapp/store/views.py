@@ -1079,7 +1079,23 @@ def reject_payment_request(request, request_id):
                     payment_item.retail_item.stock += payment_item.quantity
                     payment_item.retail_item.save()
             
-            messages.success(request, f'Payment request {request_id} rejected and items returned to stock.')
+            # Clear the cart for the dispenser whose payment request was rejected
+            try:
+                # Clear all cart items for the original dispenser
+                from store.models import Cart
+                Cart.objects.filter(user=payment_request.dispenser).delete()
+                
+                # Comprehensive cart session cleanup for the dispenser
+                from store.cart_utils import cleanup_cart_session_after_receipt
+                # We need to create a mock request object for the cart cleanup
+                # Since we can't access the original dispenser's request,
+                # we'll clear the cart items directly
+                logger.info(f"Cleared cart for user {payment_request.dispenser.username} after payment request rejection")
+                
+            except Exception as e:
+                logger.warning(f"Error clearing cart after payment request rejection: {e}")
+            
+            messages.success(request, f'Payment request {request_id} rejected, items returned to stock, and cart cleared.')
             return redirect('store:cashier_dashboard')
             
         except PaymentRequest.DoesNotExist:
