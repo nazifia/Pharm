@@ -391,6 +391,34 @@
                 </div>
             </li>
 
+            <!-- Payment Operations -->
+            <li class="nav-item">
+                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePayments"
+                    aria-expanded="true" aria-controls="collapsePayments">
+                    <i class="fas fa-fw fa-credit-card"></i>
+                    <span>Payment Operations</span>
+                </a>
+                <div id="collapsePayments" class="collapse" aria-labelledby="headingPayments" data-parent="#accordionSidebar">
+                    <div class="bg-white py-2 collapse-inner rounded">
+                        <h6 class="collapse-header">Cashier Operations:</h6>
+                        {% if user|can_process_payments %}
+                        <a class="collapse-item" href="{% url 'store:cashier_dashboard' %}">
+                            <i class="fas fa-cash-register"></i> Cashier Dashboard</a>
+                        {% endif %}
+                        {% if user|is_cashier %}
+                        <a class="collapse-item" href="{% url 'store:cashier_dashboard' %}">
+                            <i class="fas fa-cash-register"></i> My Cashier Dashboard</a>
+                        {% endif %}
+                        <div class="collapse-divider"></div>
+                        <h6 class="collapse-header">Payment Requests:</h6>
+                        {% if user|can_operate_retail %}
+                        <a class="collapse-item" href="{% url 'store:payment_requests' %}">
+                            <i class="fas fa-receipt"></i> My Payment Requests</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </li>
+
             <!-- Divider -->
             <hr class="sidebar-divider">
 

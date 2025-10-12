@@ -1,0 +1,67 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>My Payment Requests</h2>
+    
+    {% if payment_requests %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Request ID</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Total Amount</th>
+                        <th>Status</th>
+                        <th>Notes</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for request in payment_requests %}
+                        <tr>
+                            <td><strong>{{ request.request_id }}</strong></td>
+                            <td>{{ request.created_at|date:"M d, Y H:i" }}</td>
+                            <td>
+                                {% if request.customer %}
+                                    {{ request.customer.name }}
+                                {% else %}
+                                    Walk-in Customer
+                                {% endif %}
+                            </td>
+                            <td>₦{{ request.total_amount|floatformat:2 }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if request.status == 'pending' %}badge-warning
+                                    {% elif request.status == 'accepted' %}badge-info
+                                    {% elif request.status == 'completed' %}badge-success
+                                    {% elif request.status == 'rejected' %}badge-danger
+                                    {% else %}badge-secondary{% endif %}">
+                                    {{ request.get_status_display }}
+                                </span>
+                            </td>
+                            <td>{{ request.notes|truncatewords:10 }}</td>
+                            <td>
+                                <a href="{% url 'store:payment_request_detail' request.request_id %}" 
+                                   class="btn btn-sm btn-primary">View Details</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> You haven't sent any payment requests yet.
+        </div>
+    {% endif %}
+    
+    <div class="mt-3">
+        <a href="{% url 'store:cart' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Cart
+        </a>
+    </div>
+</div>
+{% endblock %}

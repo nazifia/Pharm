@@ -11,6 +11,7 @@ USER_TYPE = [
     ('Pharmacist', 'Pharmacist'),
     ('Pharm-Tech', 'Pharm-Tech'),
     ('Salesperson', 'Salesperson'),
+    ('Cashier', 'Cashier'),
     ('Wholesale Manager', 'Wholesale Manager'),
     ('Wholesale Operator', 'Wholesale Operator'),
     ('Wholesale Salesperson', 'Wholesale Salesperson'),
@@ -85,6 +86,10 @@ USER_PERMISSIONS = {
         'process_sales', 'view_sales_history', 'process_split_payments', 'search_items',
         # Wholesale-only permissions
         'operate_wholesale', 'manage_wholesale_customers', 'manage_wholesale_expiry'
+    ],
+    'Cashier': [
+        'process_sales', 'view_sales_history', 'process_split_payments', 'search_items',
+        'access_cashier_dashboard', 'process_payment_requests', 'view_payment_requests'
     ]
 }
 

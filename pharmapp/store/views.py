@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, JsonResponse
 from django.db.models.functions import TruncMonth, TruncDay
 from django.shortcuts import get_object_or_404, render, redirect
+from django.utils import timezone
 from django.urls import reverse
 from customer.models import Wallet, Customer, WholesaleCustomer, WholesaleCustomerWallet, TransactionHistory
 from django.forms import formset_factory
@@ -842,6 +843,343 @@ def clear_cart(request):
         return redirect('store:cart')
     return redirect('store:index')
 
+
+
+@transaction.atomic
+@login_required
+def send_to_cashier(request):
+    """Send payment request to cashier/billing-point/pay-point"""
+    if request.user.is_authenticated:
+        try:
+            # Get cart items
+            cart_items = Cart.objects.filter(user=request.user)
+            if not cart_items.exists():
+                messages.error(request, "Your cart is empty. Cannot send payment request.")
+                return redirect('store:cart')
+
+            # Get customer info
+            from userauth.session_utils import get_user_customer_id
+            customer = None
+            customer_id = get_user_customer_id(request)
+            if customer_id:
+                try:
+                    customer = Customer.objects.get(id=customer_id)
+                except Customer.DoesNotExist:
+                    pass
+
+            # Calculate total amount
+            total_amount = sum(item.subtotal for item in cart_items)
+            
+            # Create payment request
+            payment_request = PaymentRequest.objects.create(
+                dispenser=request.user,
+                customer=customer,
+                payment_type='retail',
+                total_amount=total_amount,
+                notes=request.POST.get('notes', ''),
+                status='pending'
+            )
+
+            # Create payment request items
+            for cart_item in cart_items:
+                PaymentRequestItem.objects.create(
+                    payment_request=payment_request,
+                    item_name=cart_item.item.name,
+                    brand=cart_item.brand,
+                    dosage_form=str(cart_item.dosage_form.dosage_form) if cart_item.dosage_form else '',
+                    unit=cart_item.unit,
+                    quantity=cart_item.quantity,
+                    unit_price=cart_item.price,
+                    discount_amount=cart_item.discount_amount,
+                    subtotal=cart_item.subtotal,
+                    retail_item=cart_item.item
+                )
+
+            # Create notification for available cashiers
+            from store.models import Notification
+            available_cashiers = Cashier.objects.filter(is_active=True)
+            for cashier in available_cashiers:
+                notification = Notification.objects.create(
+                    user=cashier.user,
+                    notification_type='payment_request',
+                    priority='high',
+                    title=f'New Payment Request {payment_request.request_id}',
+                    message=f'Payment request of ₦{total_amount} from {request.user.username} pending your review.',
+                    related_payment_request=payment_request
+                )
+
+            # Mark cart items as sent to cashier (optional status change)
+            cart_items.update(status='sent_to_cashier')  # You'll need to add this field to Cart model
+            
+            messages.success(request, f'Payment request {payment_request.request_id} sent to cashier successfully.')
+            return redirect('store:payment_requests')
+            
+        except Exception as e:
+            messages.error(request, f'Error sending payment request: {str(e)}')
+            return redirect('store:cart')
+    
+    return redirect('store:index')
+
+
+@login_required
+def payment_requests(request):
+    """Show dispenser's payment requests history"""
+    if request.user.is_authenticated:
+        payment_requests = PaymentRequest.objects.filter(dispenser=request.user).order_by('-created_at')
+        
+        return render(request, 'store/payment_requests.html', {
+            'payment_requests': payment_requests,
+        })
+    
+    return redirect('store:index')
+
+
+@login_required
+def payment_request_detail(request, request_id):
+    """Show payment request details"""
+    if request.user.is_authenticated:
+        try:
+            payment_request = PaymentRequest.objects.get(request_id=request_id)
+            
+            # Check if user is authorized (either the dispenser or a cashier)
+            if payment_request.dispenser != request.user and not hasattr(request.user, 'cashier'):
+                messages.error(request, 'You are not authorized to view this payment request.')
+                return redirect('store:payment_requests')
+            
+            return render(request, 'store/payment_request_detail.html', {
+                'payment_request': payment_request,
+            })
+            
+        except PaymentRequest.DoesNotExist:
+            messages.error(request, 'Payment request not found.')
+            return redirect('store:payment_requests')
+    
+    return redirect('store:index')
+
+
+@login_required
+def cashier_dashboard(request):
+    """Cashier dashboard showing pending payment requests"""
+    if request.user.is_authenticated:
+        try:
+            cashier = request.user.cashier
+            if not cashier.is_active:
+                messages.error(request, 'Your cashier account is deactivated.')
+                return redirect('store:index')
+            
+            # Get pending payment requests
+            pending_requests = PaymentRequest.objects.filter(status='pending').order_by('-created_at')
+            my_requests = PaymentRequest.objects.filter(cashier=cashier).exclude(status='pending').order_by('-created_at')
+            
+            # Calculate statistics
+            stats = {
+                'pending_count': pending_requests.count(),
+                'completed_today_count': my_requests.filter(status='completed', completed_at__date=timezone.now().date()).count(),
+                'total_processed_count': my_requests.count(),
+                'total_value': my_requests.aggregate(total=models.Sum('total_amount'))['total'] or 0,
+            }
+            
+            return render(request, 'store/cashier_dashboard.html', {
+                'pending_requests': pending_requests,
+                'my_requests': my_requests,
+                'cashier': cashier,
+                'stats': stats,
+            })
+            
+        except Cashier.DoesNotExist:
+            # Check if user is an admin/manager who can see cashier dashboard
+            if request.user.is_superuser or (hasattr(request.user, 'profile') and
+                request.user.profile and request.user.profile.user_type in ['Admin', 'Manager']):
+                # Show all pending requests for admin/manager
+                pending_requests = PaymentRequest.objects.filter(status='pending').order_by('-created_at')
+                all_requests = PaymentRequest.objects.all().exclude(status='pending').order_by('-created_at')
+
+                # Calculate statistics for admin/manager
+                stats = {
+                    'pending_count': pending_requests.count(),
+                    'completed_today_count': all_requests.filter(status='completed', completed_at__date=timezone.now().date()).count(),
+                    'total_processed_count': all_requests.count(),
+                    'total_value': all_requests.aggregate(total=models.Sum('total_amount'))['total'] or 0,
+                }
+
+                return render(request, 'store/cashier_dashboard.html', {
+                    'pending_requests': pending_requests,
+                    'my_requests': all_requests,
+                    'is_admin': True,
+                    'stats': stats,
+                })
+            else:
+                messages.error(request, 'You need to be a cashier to access this page.')
+                return redirect('store:index')
+    
+    return redirect('store:index')
+
+
+@transaction.atomic
+@login_required
+def accept_payment_request(request, request_id):
+    """Accept a payment request"""
+    if request.user.is_authenticated:
+        try:
+            payment_request = PaymentRequest.objects.get(request_id=request_id)
+            
+            # Check if user is a cashier or admin
+            if not (hasattr(request.user, 'cashier') or request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and request.user.profile and 
+                 request.user.profile.user_type in ['Admin', 'Manager'])):
+                messages.error(request, 'You are not authorized to accept payment requests.')
+                return redirect('store:cashier_dashboard')
+            
+            if payment_request.status != 'pending':
+                messages.error(request, 'This payment request has already been processed.')
+                return redirect('store:cashier_dashboard')
+            
+            # Assign to cashier if not admin
+            if hasattr(request.user, 'cashier'):
+                payment_request.cashier = request.user.cashier
+            
+            payment_request.status = 'accepted'
+            payment_request.accepted_at = timezone.now()
+            payment_request.save()
+            
+            messages.success(request, f'Payment request {request_id} accepted successfully.')
+            return redirect('store:cashier_dashboard')
+            
+        except PaymentRequest.DoesNotExist:
+            messages.error(request, 'Payment request not found.')
+            return redirect('store:cashier_dashboard')
+    
+    return redirect('store:index')
+
+
+@login_required
+def reject_payment_request(request, request_id):
+    """Reject a payment request"""
+    if request.user.is_authenticated:
+        try:
+            payment_request = PaymentRequest.objects.get(request_id=request_id)
+            
+            # Check if user is a cashier or admin
+            if not (hasattr(request.user, 'cashier') or request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and request.user.profile and 
+                 request.user.profile.user_type in ['Admin', 'Manager'])):
+                messages.error(request, 'You are not authorized to reject payment requests.')
+                return redirect('store:cashier_dashboard')
+            
+            if payment_request.status != 'pending':
+                messages.error(request, 'This payment request has already been processed.')
+                return redirect('store:cashier_dashboard')
+            
+            payment_request.status = 'rejected'
+            payment_request.save()
+            
+            # Return items to stock and clear cart
+            for payment_item in payment_request.items.all():
+                if payment_item.retail_item:
+                    payment_item.retail_item.stock += payment_item.quantity
+                    payment_item.retail_item.save()
+            
+            messages.success(request, f'Payment request {request_id} rejected and items returned to stock.')
+            return redirect('store:cashier_dashboard')
+            
+        except PaymentRequest.DoesNotExist:
+            messages.error(request, 'Payment request not found.')
+            return redirect('store:cashier_dashboard')
+    
+    return redirect('store:index')
+
+
+@transaction.atomic
+@login_required
+def complete_payment_request(request, request_id):
+    """Complete a payment request and generate receipt"""
+    if request.user.is_authenticated:
+        try:
+            payment_request = PaymentRequest.objects.get(request_id=request_id)
+            
+            # Check if user is the assigned cashier or admin
+            if not (hasattr(request.user, 'cashier') or request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and request.user.profile and 
+                 request.user.profile.user_type in ['Admin', 'Manager'])):
+                messages.error(request, 'You are not authorized to complete this payment request.')
+                return redirect('store:cashier_dashboard')
+            
+            if payment_request.status != 'accepted':
+                messages.error(request, 'This payment request must be accepted first.')
+                return redirect('store:cashier_dashboard')
+            
+            if request.method == 'POST':
+                payment_method = request.POST.get('payment_method')
+                payment_status = request.POST.get('payment_status', 'Paid')
+                
+                if not payment_method:
+                    messages.error(request, 'Payment method is required.')
+                    return redirect('store:cashier_dashboard')
+                
+                # Create sales and receipt
+                sales = Sales.objects.create(
+                    user=payment_request.dispenser,
+                    customer=payment_request.customer,
+                    total_amount=payment_request.total_amount
+                )
+                
+                receipt = Receipt.objects.create(
+                    customer=payment_request.customer,
+                    sales=sales,
+                    buyer_name=payment_request.customer.name if payment_request.customer else 'WALK-IN CUSTOMER',
+                    buyer_address=payment_request.customer.address if payment_request.customer else '',
+                    total_amount=payment_request.total_amount,
+                    payment_method=payment_method,
+                    status=payment_status
+                )
+                
+                # Create sales items from payment request items
+                for payment_item in payment_request.items.all():
+                    if payment_item.retail_item:
+                        SalesItem.objects.create(
+                            sales=sales,
+                            item=payment_item.retail_item,
+                            price=payment_item.unit_price,
+                            quantity=payment_item.quantity,
+                            discount_amount=payment_item.discount_amount,
+                            brand=payment_item.brand
+                        )
+                        
+                        # Update stock
+                        payment_item.retail_item.stock -= payment_item.quantity
+                        payment_item.retail_item.save()
+                        
+                        # Create dispensing log
+                        DispensingLog.objects.create(
+                            user=payment_request.dispenser,
+                            name=payment_item.item_name,
+                            brand=payment_item.brand,
+                            unit=payment_item.unit,
+                            quantity=payment_item.quantity,
+                            amount=payment_item.subtotal,
+                            discount_amount=payment_item.discount_amount,
+                            status='Dispensed'
+                        )
+                
+                # Update payment request
+                payment_request.status = 'completed'
+                payment_request.completed_at = timezone.now()
+                payment_request.receipt = receipt
+                payment_request.save()
+                
+                messages.success(request, f'Payment request {request_id} completed successfully. Receipt generated.')
+                return redirect('store:receipt_detail', receipt_id=receipt.receipt_id)
+            
+            # Show payment completion form
+            return render(request, 'store/complete_payment_request.html', {
+                'payment_request': payment_request,
+            })
+            
+        except PaymentRequest.DoesNotExist:
+            messages.error(request, 'Payment request not found.')
+            return redirect('store:cashier_dashboard')
+    
+    return redirect('store:index')
 
 
 @transaction.atomic

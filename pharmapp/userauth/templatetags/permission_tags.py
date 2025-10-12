@@ -46,6 +46,35 @@ def can_approve_stock_check(user):
 
 
 @register.filter
+def is_cashier(user):
+    """
+    Template filter to check if a user is a cashier.
+    Usage: {% if user|is_cashier %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    # Check if user has a cashier profile
+    return hasattr(user, 'cashier')
+
+
+@register.filter
+def can_process_payments(user):
+    """
+    Template filter to check if a user can process payments (cashier functionality).
+    Usage: {% if user|can_process_payments %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (user.is_superuser or
+            (hasattr(user, 'profile') and
+             user.profile and
+             user.profile.user_type in ['Admin', 'Manager', 'Cashier']) or
+            hasattr(user, 'cashier'))
+
+
+@register.filter
 def can_view_financial_data(user):
     """
     Template filter to check if a user can view financial data.
@@ -204,6 +233,92 @@ def user_role(user):
 
 
 @register.filter
+def can_access_payment_requests(user):
+    """
+    Template filter to check if a user can access payment requests.
+    Usage: {% if user|can_access_payment_requests %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (hasattr(user, 'profile') and
+            user.profile and
+            user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Salesperson'])
+
+
+@register.filter
+def can_access_cashier_dashboard(user):
+    """
+    Template filter to check if a user can access cashier dashboard.
+    Usage: {% if user|can_access_cashier_dashboard %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return user.is_superuser or (hasattr(user, 'profile') and
+                               user.profile and
+                               user.profile.user_type in ['Admin', 'Manager'])
+
+
+@register.filter
+def can_access_payment_requests(user):
+    """
+    Template filter to check if a user can access payment requests.
+    Usage: {% if user|can_access_payment_requests %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (hasattr(user, 'profile') and
+            user.profile and
+            user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Salesperson'])
+
+
+@register.filter
+def can_access_cashier_dashboard(user):
+    """
+    Template filter to check if a user can access cashier dashboard.
+    Usage: {% if user|can_access_cashier_dashboard %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (user.is_superuser or
+            (hasattr(user, 'profile') and
+             user.profile and
+             user.profile.user_type in ['Admin', 'Manager']))
+
+
+@register.filter
+def is_cashier(user):
+    """
+    Template filter to check if a user is a cashier.
+    Usage: {% if user|is_cashier %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    # Check if user has a cashier profile
+    return hasattr(user, 'cashier')
+
+
+@register.filter
+def can_process_payments(user):
+    """
+    Template filter to check if a user can process payments (cashier functionality).
+    Usage: {% if user|can_process_payments %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (user.is_superuser or
+            (hasattr(user, 'profile') and
+             user.profile and
+             user.profile.user_type in ['Admin', 'Manager', 'Cashier']) or
+            hasattr(user, 'cashier'))
+
+
+@register.filter
 def can_delete_items(user):
     """
     Template filter to check if a user can delete items.
@@ -217,6 +332,136 @@ def can_delete_items(user):
             user.profile.user_type in ['Admin', 'Manager'])
 
 
+@register.filter
+def can_access_payment_requests(user):
+    """
+    Template filter to check if a user can access payment requests.
+    Usage: {% if user|can_access_payment_requests %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (hasattr(user, 'profile') and
+            user.profile and
+            user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Salesperson'])
+
+
+@register.filter
+def can_access_payment_requests(user):
+    """
+    Template filter to check if a user can access payment requests.
+    Usage: {% if user|can_access_payment_requests %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (hasattr(user, 'profile') and
+            user.profile and
+            user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Salesperson'])
+
+
+@register.filter
+def can_access_cashier_dashboard(user):
+    """
+    Template filter to check if a user can access cashier dashboard.
+    Usage: {% if user|can_access_cashier_dashboard %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (user.is_superuser or
+            (hasattr(user, 'profile') and
+             user.profile and
+             user.profile.user_type in ['Admin', 'Manager']))
+
+
+@register.filter
+def is_cashier(user):
+    """
+    Template filter to check if a user is a cashier.
+    Usage: {% if user|is_cashier %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    # Check if user has a cashier profile
+    return hasattr(user, 'cashier')
+
+
+@register.filter
+def can_process_payments(user):
+    """
+    Template filter to check if a user can process payments (cashier functionality).
+    Usage: {% if user|can_process_payments %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (user.is_superuser or
+            (hasattr(user, 'profile') and
+             user.profile and
+             user.profile.user_type in ['Admin', 'Manager', 'Cashier']) or
+            hasattr(user, 'cashier'))
+
+
+@register.filter
+def can_access_payment_requests(user):
+    """
+    Template filter to check if a user can access payment requests.
+    Usage: {% if user|can_access_payment_requests %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (hasattr(user, 'profile') and
+            user.profile and
+            user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Salesperson'])
+
+
+@register.filter
+def can_access_cashier_dashboard(user):
+    """
+    Template filter to check if a user can access cashier dashboard.
+    Usage: {% if user|can_access_cashier_dashboard %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (user.is_superuser or
+            (hasattr(user, 'profile') and
+             user.profile and
+             user.profile.user_type in ['Admin', 'Manager']))
+
+
+@register.filter
+def is_cashier(user):
+    """
+    Template filter to check if a user is a cashier.
+    Usage: {% if user|is_cashier %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    # Check if user has a cashier profile
+    return hasattr(user, 'cashier')
+
+
+@register.filter
+def can_process_payments(user):
+    """
+    Template filter to check if a user can process payments (cashier functionality).
+    Usage: {% if user|can_process_payments %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (user.is_superuser or
+            (hasattr(user, 'profile') and
+             user.profile and
+             user.profile.user_type in ['Admin', 'Manager', 'Cashier']) or
+            hasattr(user, 'cashier'))
+
+
 @register.inclusion_tag('userauth/partials/permission_check.html')
 def check_permission(user, permission, content=""):
     """
@@ -227,3 +472,61 @@ def check_permission(user, permission, content=""):
         'has_permission': user.has_permission(permission) if user and user.is_authenticated else False,
         'content': content
     }
+
+
+@register.filter
+def can_access_payment_requests(user):
+    """
+    Template filter to check if a user can access payment requests.
+    Usage: {% if user|can_access_payment_requests %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (hasattr(user, 'profile') and
+            user.profile and
+            user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Salesperson'])
+
+
+@register.filter
+def can_access_cashier_dashboard(user):
+    """
+    Template filter to check if a user can access cashier dashboard.
+    Usage: {% if user|can_access_cashier_dashboard %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (user.is_superuser or
+            (hasattr(user, 'profile') and
+             user.profile and
+             user.profile.user_type in ['Admin', 'Manager']))
+
+
+@register.filter
+def is_cashier(user):
+    """
+    Template filter to check if a user is a cashier.
+    Usage: {% if user|is_cashier %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    # Check if user has a cashier profile
+    return hasattr(user, 'cashier')
+
+
+@register.filter
+def can_process_payments(user):
+    """
+    Template filter to check if a user can process payments (cashier functionality).
+    Usage: {% if user|can_process_payments %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    return (user.is_superuser or
+            (hasattr(user, 'profile') and
+             user.profile and
+             user.profile.user_type in ['Admin', 'Manager', 'Cashier']) or
+            hasattr(user, 'cashier'))

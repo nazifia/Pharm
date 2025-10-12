@@ -405,12 +405,44 @@
                 <form method="POST" action="{% url 'store:receipt' %}" id="paymentForm" enctype="multipart/form-data">
                     {% csrf_token %}
 
+                    <!-- Payment Routing Options -->
                     <div class="form-group">
-                        <label for="payment_type"><strong>Payment Type:</strong></label>
-                        <select name="payment_type" id="payment_type" class="form-control" onchange="togglePaymentOptions()">
-                            <option value="single">Single Payment Method</option>
-                            <option value="split">Split Payment</option>
-                        </select>
+                        <label><strong>Payment Processing Option:</strong></label>
+                        <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                            <label class="btn btn-outline-primary active">
+                                <input type="radio" name="payment_routing" value="direct" id="payment_routing_direct" checked>
+                                Process Directly
+                            </label>
+                            <label class="btn btn-outline-primary">
+                                <input type="radio" name="payment_routing" value="cashier" id="payment_routing_cashier">
+                                Send to Cashier
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">
+                            <strong>Process Directly:</strong> Complete payment and receipt generation immediately<br>
+                            <strong>Send to Cashier:</strong> Send payment request to cashier/billing-point for processing
+                        </small>
+                    </div>
+
+                    <div id="direct_payment_options">
+                        <div class="form-group">
+                            <label for="payment_type"><strong>Payment Type:</strong></label>
+                            <select name="payment_type" id="payment_type" class="form-control" onchange="togglePaymentOptions()">
+                                <option value="single">Single Payment Method</option>
+                                <option value="split">Split Payment</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="cashier_payment_options" style="display: none;">
+                        <div class="form-group">
+                            <label for="notes"><strong>Notes for Cashier:</strong></label>
+                            <textarea name="notes" id="notes" class="form-control" rows="3" placeholder="Enter any notes or special instructions for the cashier..."></textarea>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Important:</strong> By clicking "Send to Cashier", your cart will be locked and sent to an available cashier for payment processing. You will not be able to modify the cart after sending.
+                        </div>
                     </div>
 
                     <!-- Single Payment Method Options -->
@@ -536,13 +568,71 @@
                             placeholder="Address">
                     </div>
                     <div class="text-center mt-4">
-                        <button type="submit" class="btn btn-primary">Generate Receipt</button>
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <div id="direct_payment_button">
+                            <button type="submit" class="btn btn-primary">Generate Receipt</button>
+                        </div>
+                        <div id="cashier_payment_button" style="display: none;">
+                            <button type="button" class="btn btn-warning" onclick="sendToCashier()">Send to Cashier</button>
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        </div>
+                        <div id="cancel_buttons">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        </div>
                     </div>
                 </form>
             </div>
 
             <script>
+                function togglePaymentRouting() {
+                    var routingOption = document.querySelector('input[name="payment_routing"]:checked').value;
+                    
+                    if (routingOption === 'direct') {
+                        document.getElementById('direct_payment_options').style.display = 'block';
+                        document.getElementById('cashier_payment_options').style.display = 'none';
+                        document.getElementById('direct_payment_button').style.display = 'block';
+                        document.getElementById('cashier_payment_button').style.display = 'none';
+                        document.getElementById('cancel_buttons').style.display = 'none';
+                        
+                        // Enable payment form submission
+                        document.getElementById('paymentForm').setAttribute('action', "{% url 'store:receipt' %}");
+                    } else {
+                        document.getElementById('direct_payment_options').style.display = 'none';
+                        document.getElementById('cashier_payment_options').style.display = 'block';
+                        document.getElementById('direct_payment_button').style.display = 'none';
+                        document.getElementById('cashier_payment_button').style.display = 'block';
+                        document.getElementById('cancel_buttons').style.display = 'none';
+                        
+                        // Disable form submission to cashier
+                        document.getElementById('paymentForm').removeAttribute('action');
+                    }
+                }
+
+                function sendToCashier() {
+                    var form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = "{% url 'store:send_to_cashier' %}";
+                    
+                    // Add CSRF token
+                    var csrfInput = document.createElement('input');
+                    csrfInput.type = 'hidden';
+                    csrfInput.name = 'csrfmiddlewaretoken';
+                    csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                    form.appendChild(csrfInput);
+                    
+                    // Add notes
+                    var notes = document.getElementById('notes').value;
+                    if (notes) {
+                        var notesInput = document.createElement('input');
+                        notesInput.type = 'hidden';
+                        notesInput.name = 'notes';
+                        notesInput.value = notes;
+                        form.appendChild(notesInput);
+                    }
+                    
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+
                 function togglePaymentOptions() {
                     var paymentType = document.getElementById('payment_type').value;
                     if (paymentType === 'single') {
@@ -607,6 +697,17 @@
                     }
                     {% endif %}
                 }
+
+                // Add event listeners for payment routing
+                document.addEventListener('DOMContentLoaded', function() {
+                    var routingRadios = document.querySelectorAll('input[name="payment_routing"]');
+                    routingRadios.forEach(function(radio) {
+                        radio.addEventListener('change', togglePaymentRouting);
+                    });
+                    
+                    // Initialize with direct payment selected
+                    togglePaymentRouting();
+                });
             </script>
         </div>
     </div>

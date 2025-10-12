@@ -181,6 +181,12 @@ class WholesaleItem(models.Model):
 
 
 class Cart(models.Model):
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('sent_to_cashier', 'Sent to Cashier'),
+        ('processed', 'Processed'),
+    ]
+    
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
     dosage_form = models.ForeignKey(Formulation, on_delete=models.CASCADE, blank=True, null=True)
@@ -191,6 +197,7 @@ class Cart(models.Model):
     discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Discount amount to be subtracted from subtotal")
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     cart_id = ShortUUIDField(unique=True, length=5, max_length=50, prefix='CID: ', alphabet='1234567890')
 
     def __str__(self):
@@ -967,6 +974,85 @@ class WholesaleSettings(models.Model):
         return settings
 
 
+# Cashier/Billing-Point/Pay-Point Models
+class Cashier(models.Model):
+    """Model for cashier/billing-point/pay-point users"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    cashier_id = ShortUUIDField(unique=True, length=8, max_length=50, prefix='CSH:', alphabet='1234567890')
+    name = models.CharField(max_length=200)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=datetime.now)
+    
+    def __str__(self):
+        return f"{self.name} ({self.cashier_id})"
+
+
+class PaymentRequest(models.Model):
+    """Model for payment requests sent to cashier/billing-point/pay-point"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    PAYMENT_TYPE_CHOICES = [
+        ('retail', 'Retail'),
+        ('wholesale', 'Wholesale'),
+    ]
+    
+    request_id = ShortUUIDField(unique=True, length=8, max_length=50, prefix='PRQ:', alphabet='1234567890')
+    dispenser = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payment_requests')
+    cashier = models.ForeignKey(Cashier, on_delete=models.CASCADE, related_name='received_requests', null=True, blank=True)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)
+    wholesale_customer = models.ForeignKey(WholesaleCustomer, on_delete=models.CASCADE, null=True, blank=True)
+    payment_type = models.CharField(max_length=20, choices=PAYMENT_TYPE_CHOICES)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    notes = models.TextField(blank=True, null=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Payment processing
+    receipt = models.ForeignKey('Receipt', on_delete=models.CASCADE, null=True, blank=True, related_name='payment_request')
+    wholesale_receipt = models.ForeignKey('WholesaleReceipt', on_delete=models.CASCADE, null=True, blank=True, related_name='payment_request')
+    
+    def __str__(self):
+        return f"Payment Request {self.request_id} - {self.get_status_display()}"
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['dispenser', '-created_at']),
+            models.Index(fields=['cashier', '-created_at']),
+        ]
+
+
+class PaymentRequestItem(models.Model):
+    """Items included in a payment request"""
+    payment_request = models.ForeignKey(PaymentRequest, on_delete=models.CASCADE, related_name='items')
+    item_name = models.CharField(max_length=200)
+    brand = models.CharField(max_length=200, blank=True, null=True)
+    dosage_form = models.CharField(max_length=200, blank=True, null=True)
+    unit = models.CharField(max_length=50)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2)
+    
+    # Link to original item for reference
+    retail_item = models.ForeignKey(Item, on_delete=models.SET_NULL, null=True, blank=True)
+    wholesale_item = models.ForeignKey(WholesaleItem, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.item_name} - {self.quantity} {self.unit}"
+
+
 class Notification(models.Model):
     """System notifications for users"""
     NOTIFICATION_TYPES = [
@@ -975,6 +1061,7 @@ class Notification(models.Model):
         ('expiry_alert', 'Expiry Alert'),
         ('system_message', 'System Message'),
         ('procurement_alert', 'Procurement Alert'),
+        ('payment_request', 'Payment Request'),
     ]
 
     PRIORITY_LEVELS = [
@@ -994,6 +1081,7 @@ class Notification(models.Model):
     # Related objects
     related_item = models.ForeignKey(Item, on_delete=models.CASCADE, null=True, blank=True)
     related_wholesale_item = models.ForeignKey(WholesaleItem, on_delete=models.CASCADE, null=True, blank=True)
+    related_payment_request = models.ForeignKey(PaymentRequest, on_delete=models.CASCADE, null=True, blank=True)
 
     # Status fields
     is_read = models.BooleanField(default=False)
