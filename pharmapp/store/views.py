@@ -1,5 +1,6 @@
 from django.views.decorators.http import require_http_methods
 from django.core.cache import cache
+from django.core.paginator import Paginator
 from django.db import transaction, IntegrityError
 from collections import defaultdict
 from decimal import Decimal
@@ -2688,7 +2689,17 @@ def monthly_sales(request):
 def daily_sales(request):
     if request.user.is_authenticated:
         daily_sales = get_daily_sales()  # Already sorted by date in descending order
-        context = {'daily_sales': daily_sales}
+        
+        # Add pagination
+        paginator = Paginator(daily_sales, 10)  # Show 10 days per page
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+        
+        context = {
+            'daily_sales': page_obj,
+            'is_paginated': paginator.num_pages > 1,
+            'page_obj': page_obj
+        }
         return render(request, 'store/daily_sales.html', context)
     else:
         return redirect('store:index')

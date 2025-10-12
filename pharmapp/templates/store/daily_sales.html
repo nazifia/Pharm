@@ -12,7 +12,8 @@
 
     <!-- Custom styles for this template-->
     <link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet">
-    <!-- <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}"> -->
+    <!-- Bootstrap CSS for pagination -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script> -->
     <script src="{% static 'js/demo/chart.min.js' %}"></script>
     <style>
@@ -24,6 +25,14 @@
 
         .table {
             color: #333;
+        }
+
+        .pagination-container {
+            margin-top: 20px;
+        }
+
+        .pagination {
+            justify-content: center;
         }
 
         .chart-container {
@@ -109,6 +118,49 @@
                     {% endfor %}
                 </tbody>
             </table>
+            
+            <!-- Pagination Controls -->
+            {% if is_paginated %}
+            <div class="pagination-container">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination">
+                        {% if daily_sales.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ daily_sales.previous_page_number }}" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in daily_sales.paginator.page_range %}
+                            {% if daily_sales.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > daily_sales.number|add:'-3' and num < daily_sales.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if daily_sales.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ daily_sales.next_page_number }}" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                
+                <div class="text-center mt-2">
+                    <small class="text-muted">
+                        Showing {{ daily_sales.start_index }} - {{ daily_sales.end_index }} of {{ daily_sales.paginator.count }} days
+                    </small>
+                </div>
+            </div>
+            {% endif %}
             {% else %}
             <h4>No Sales for the Day</h4>
             <a href="{{ request.META.HTTP_REFERER }}" class="btn btn-secondary form-control" style="width: 100%;">Go
