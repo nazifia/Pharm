@@ -398,7 +398,15 @@
 
                 // Submit with a small delay to ensure all DOM updates are complete
                 setTimeout(() => {
-                    paymentForm.submit();
+                    // Check if this is a send to cashier request
+                var paymentType = document.getElementById('payment_type').value;
+                if (paymentType === 'send_to_cashier') {
+                    e.preventDefault();
+                    sendToCashierWithNotes();
+                    return false;
+                }
+                
+                paymentForm.submit();
                 }, 100);
             });
         }
@@ -426,7 +434,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>SELECT PAYMENT METHOD</h3>
+                <h3>PAYMENT & PROCESSING OPTIONS</h3>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -436,10 +444,11 @@
                     {% csrf_token %}
 
                     <div class="form-group">
-                        <label for="payment_type"><strong>Payment Type:</strong></label>
+                        <label for="payment_type"><strong>Payment Options:</strong></label>
                         <select name="payment_type" id="payment_type" class="form-control" onchange="togglePaymentOptions()">
-                            <option value="single">Single Payment Method</option>
-                            <option value="split">Split Payment</option>
+                            <option value="single">Generate Receipt - Single Payment</option>
+                            <option value="split">Generate Receipt - Split Payment</option>
+                            <option value="send_to_cashier">Send to Cashier for Payment Processing</option>
                         </select>
                     </div>
 
@@ -453,12 +462,32 @@
                                 <option value="Wallet" {% if wholesale_customer %}selected{% endif %}>Customer Wallet</option>
                             </select>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" id="single_payment_status">
                             <label for="status"><strong>Payment Status:</strong></label>
                             <select name="status" id="status" class="form-control" required data-original-name="status">
                                 <option value="Paid" selected>Paid</option>
                                 <option value="Unpaid">Unpaid</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <!-- Send to Cashier Options -->
+                    <div id="send_to_cashier_options" style="display: none;">
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-info-circle mr-2"></i>Send to Cashier Information</h6>
+                            <p>When you send this cart to cashier:</p>
+                            <ul>
+                                <li>Your cart items will be processed by available cashiers</li>
+                                <li>The cashier will verify items and complete the payment</li>
+                                <li>A receipt will be generated once payment is completed</li>
+                                <li>Your cart will be automatically cleared after processing</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="cashier_notes"><strong>Notes for Cashier (Optional)</strong></label>
+                            <textarea name="cashier_notes" id="cashier_notes" class="form-control" rows="3" 
+                                      placeholder="Add any special instructions or notes for the cashier..."></textarea>
                         </div>
                     </div>
 
@@ -522,7 +551,10 @@
                         <input type="text" name="buyer_address" id="buyer_address" class="form-control" placeholder="Address">
                     </div>
                     <div class="text-center mt-4">
-                        <button type="submit" class="btn btn-primary">Generate Receipt</button>
+                        <button type="submit" class="btn btn-primary" id="submitButton">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            <span id="submitButtonText">Generate Receipt</span>
+                        </button>
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                     </div>
                 </form>
@@ -531,15 +563,28 @@
             <script>
                 function togglePaymentOptions() {
                     var paymentType = document.getElementById('payment_type').value;
+                    // Hide all option sections first
+                    document.getElementById('single_payment_options').style.display = 'none';
+                    document.getElementById('single_payment_status').style.display = 'none';
+                    document.getElementById('split_payment_options').style.display = 'none';
+                    document.getElementById('send_to_cashier_options').style.display = 'none';
+                    
                     if (paymentType === 'single') {
                         document.getElementById('single_payment_options').style.display = 'block';
-                        document.getElementById('split_payment_options').style.display = 'none';
-                    } else {
-                        document.getElementById('single_payment_options').style.display = 'none';
+                        document.getElementById('single_payment_status').style.display = 'block';
+                        // Reset submit button text
+                        document.getElementById('submitButtonText').textContent = 'Generate Receipt';
+                    } else if (paymentType === 'split') {
                         document.getElementById('split_payment_options').style.display = 'block';
                         // Initialize the remaining amount
                         var totalPrice = parseFloat('{{ total_price }}');
                         document.getElementById('remaining_amount').textContent = totalPrice.toFixed(2);
+                        // Reset submit button text
+                        document.getElementById('submitButtonText').textContent = 'Generate Receipt';
+                    } else if (paymentType === 'send_to_cashier') {
+                        document.getElementById('send_to_cashier_options').style.display = 'block';
+                        // Update submit button text
+                        document.getElementById('submitButtonText').textContent = 'Send to Cashier';
                     }
                 }
 
@@ -592,6 +637,55 @@
                         document.querySelector('button[type="submit"]').disabled = false;
                     }
                     {% endif %}
+                }
+
+                function sendToCashier() {
+                    if (confirm('Send this wholesale cart to cashier for payment processing?')) {
+                        // Create a form and submit it
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '{% url "wholesale:send_to_wholesale_cashier" %}';
+                        
+                        // Add CSRF token
+                        const csrfToken = document.createElement('input');
+                        csrfToken.type = 'hidden';
+                        csrfToken.name = 'csrfmiddlewaretoken';
+                        csrfToken.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                        form.appendChild(csrfToken);
+                        
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                }
+
+                function sendToCashierWithNotes() {
+                    // Send to cashier with optional notes
+                    if (confirm('Send this wholesale cart to cashier for payment processing?')) {
+                        // Create a form and submit it
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '{% url "wholesale:send_to_wholesale_cashier" %}';
+                        
+                        // Add CSRF token
+                        const csrfToken = document.createElement('input');
+                        csrfToken.type = 'hidden';
+                        csrfToken.name = 'csrfmiddlewaretoken';
+                        csrfToken.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                        form.appendChild(csrfToken);
+                        
+                        // Add cashier notes if provided
+                        const cashiersNotes = document.getElementById('cashier_notes');
+                        if (cashiersNotes && cashiersNotes.value.trim()) {
+                            const notesInput = document.createElement('input');
+                            notesInput.type = 'hidden';
+                            notesInput.name = 'notes';
+                            notesInput.value = cashiersNotes.value.trim();
+                            form.appendChild(notesInput);
+                        }
+                        
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
                 }
             </script>
         </div>

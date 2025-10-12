@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Wholesale Payment Request</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-money-check-alt mr-2"></i>
+                            Complete Wholesale Payment Request
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        {% if messages %}
+                            <div class="alert-container mb-4">
+                                {% for message in messages %}
+                                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                        {{ message }}
+                                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <div class="alert alert-info">
+                            <h5>Payment Request Details</h5>
+                            <p><strong>Request ID:</strong> {{ payment_request.request_id }}</p>
+                            <p><strong>Customer:</strong>
+                                {% if payment_request.wholesale_customer %}
+                                    {{ payment_request.wholesale_customer.name }}
+                                {% else %}
+                                    Walk-in Customer
+                                {% endif %}
+                            </p>
+                            <p><strong>Total Amount:</strong> <span class="text-primary">₦{{ payment_request.total_amount|floatformat:2 }}</span></p>
+                            <p><strong>Dispenser:</strong> {{ payment_request.dispenser.username }}</p>
+                            <p><strong>Items Count:</strong> {{ payment_request.items.count }}</p>
+                        </div>
+
+                        <div class="table-responsive mb-4">
+                            <h6>Items in Request</h6>
+                            <table class="table table-sm table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Item Name</th>
+                                        <th>Brand</th>
+                                        <th>Unit</th>
+                                        <th>Quantity</th>
+                                        <th>Unit Price</th>
+                                        <th>Discount</th>
+                                        <th>Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in payment_request.items.all %}
+                                    <tr>
+                                        <td>{{ item.item_name }}</td>
+                                        <td>{{ item.brand|default:"-" }}</td>
+                                        <td>{{ item.unit }}</td>
+                                        <td>{{ item.quantity }}</td>
+                                        <td>₦{{ item.unit_price|floatformat:2 }}</td>
+                                        <td>₦{{ item.discount_amount|floatformat:2 }}</td>
+                                        <td><strong>₦{{ item.subtotal|floatformat:2 }}</strong></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr class="table-info">
+                                        <td colspan="6"><strong>Total Amount:</strong></td>
+                                        <td><strong>₦{{ payment_request.total_amount|floatformat:2 }}</strong></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        <form method="POST">
+                            {% csrf_token %}
+                            
+                            <!-- Payment Type Selection -->
+                            <div class="form-group">
+                                <label for="payment_type"><strong>Payment Type *</strong></label>
+                                <select name="payment_type" id="payment_type" class="form-control" onchange="togglePaymentOptions()" required>
+                                    <option value="single">Single Payment Method</option>
+                                    <option value="split">Split Payment</option>
+                                </select>
+                            </div>
+
+                            <!-- Single Payment Options -->
+                            <div id="single_payment_options">
+                                <div class="form-group">
+                                    <label for="payment_method"><strong>Payment Method *</strong></label>
+                                    <select name="payment_method" id="payment_method" class="form-control">
+                                        <option value="">Select Payment Method</option>
+                                        <option value="Cash">Cash</option>
+                                        <option value="Transfer">Bank Transfer</option>
+                                        {% if payment_request.wholesale_customer %}
+                                        <option value="Wallet">Customer Wallet</option>
+                                        {% endif %}
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="payment_status"><strong>Payment Status *</strong></label>
+                                    <select name="payment_status" id="payment_status" class="form-control">
+                                        <option value="Paid" selected>Paid</option>
+                                        <option value="Unpaid">Unpaid</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Split Payment Options -->
+                            <div id="split_payment_options" style="display: none;">
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-info-circle mr-2"></i>Split Payment Mode</h6>
+                                    <p>Distribute the total amount (₦{{ payment_request.total_amount|floatformat:2 }}) between two payment methods.</p>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="card mb-3">
+                                            <div class="card-header">
+                                                First Payment
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="form-group">
+                                                    <label for="payment_method_1"><strong>Payment Method</strong></label>
+                                                    <select name="payment_method_1" id="payment_method_1" class="form-control" onchange="validateWalletPayment()">
+                                                        <option value="">Select Method</option>
+                                                        <option value="Cash">Cash</option>
+                                                        <option value="Transfer">Bank Transfer</option>
+                                                        {% if payment_request.wholesale_customer %}
+                                                        <option value="Wallet">Customer Wallet</option>
+                                                        {% endif %}
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="payment_amount_1"><strong>Amount</strong></label>
+                                                    <input type="number" step="0.01" class="form-control" id="payment_amount_1" name="payment_amount_1"
+                                                           placeholder="Enter amount" min="0" max="{{ payment_request.total_amount }}"
+                                                           oninput="updateRemainingAmount()">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <div class="card mb-3">
+                                            <div class="card-header">
+                                                Second Payment
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="form-group">
+                                                    <label for="payment_method_2"><strong>Payment Method</strong></label>
+                                                    <select name="payment_method_2" id="payment_method_2" class="form-control" onchange="validateWalletPayment()">
+                                                        <option value="">Select Method</option>
+                                                        <option value="Cash">Cash</option>
+                                                        <option value="Transfer">Bank Transfer</option>
+                                                        {% if payment_request.wholesale_customer %}
+                                                        <option value="Wallet">Customer Wallet</option>
+                                                        {% endif %}
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="payment_amount_2"><strong>Amount</strong></label>
+                                                    <div class="input-group">
+                                                        <input type="number" step="0.01" class="form-control" id="payment_amount_2" name="payment_amount_2" 
+                                                               placeholder="Remaining amount" readonly>
+                                                        <div class="input-group-append">
+                                                            <span class="input-group-text">Remaining</span>
+                                                        </div>
+                                                    </div>
+                                                    <small class="text-muted">This amount is automatically calculated</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="alert alert-secondary">
+                                    <strong>Total Amount:</strong> ₦{{ payment_request.total_amount|floatformat:2 }}<br>
+                                    <strong>Remaining to Allocate:</strong> <span id="remaining_amount_display" class="text-primary">₦{{ payment_request.total_amount|floatformat:2 }}</span>
+                                </div>
+                            </div>
+
+                            {% if payment_request.wholesale_customer %}
+                            <div class="form-group">
+                                <label><strong>Customer Wallet Information</strong></label>
+                                <div class="bg-light p-3 rounded">
+                                    <p><strong>Available Balance:</strong> ₦{{ payment_request.wholesale_customer.wholesale_customer_wallet.balance|floatformat:2 }}</p>
+                                    <p class="text-muted">
+                                        <i class="fas fa-info-circle mr-1"></i>
+                                        If "Wallet" is selected as payment method, this amount will be deducted.
+                                    </p>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if payment_request.notes %}
+                            <div class="form-group">
+                                <label><strong>Original Notes:</strong></label>
+                                <div class="bg-light p-3 rounded">
+                                    {{ payment_request.notes }}
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <div class="form-group">
+                                <label for="notes"><strong>Completion Notes (Optional)</strong></label>
+                                <textarea name="notes" id="notes" class="form-control" rows="3" 
+                                          placeholder="Add any notes about this payment completion..."></textarea>
+                            </div>
+
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle mr-2"></i>
+                                <strong>Important:</strong> Once completed, this payment request will be finalized and a wholesale receipt will be generated. The wholesale cart items will be automatically cleared.
+                            </div>
+
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="confirmComplete" required>
+                                    <label class="form-check-label" for="confirmComplete">
+                                        I confirm that I have verified the payment details and am ready to complete this wholesale payment request.
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between">
+                                <a href="{% url 'wholesale:wholesale_cashier_dashboard' %}" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left mr-2"></i>
+                                    Back to Dashboard
+                                </a>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-check-circle mr-2"></i>
+                                    Complete Payment Request
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Payment type toggle function
+        function togglePaymentOptions() {
+            const paymentType = document.getElementById('payment_type').value;
+            const singleOptions = document.getElementById('single_payment_options');
+            const splitOptions = document.getElementById('split_payment_options');
+
+            if (paymentType === 'single') {
+                singleOptions.style.display = 'block';
+                splitOptions.style.display = 'none';
+                // Make single payment fields required
+                document.getElementById('payment_method').setAttribute('required', 'required');
+                document.getElementById('payment_status').setAttribute('required', 'required');
+                // Remove required from split payment fields
+                document.getElementById('payment_method_1').removeAttribute('required');
+                document.getElementById('payment_method_2').removeAttribute('required');
+                document.getElementById('payment_amount_1').removeAttribute('required');
+            } else if (paymentType === 'split') {
+                singleOptions.style.display = 'none';
+                splitOptions.style.display = 'block';
+                // Remove required from single payment fields
+                document.getElementById('payment_method').removeAttribute('required');
+                document.getElementById('payment_status').removeAttribute('required');
+                // Make split payment fields required
+                document.getElementById('payment_method_1').setAttribute('required', 'required');
+                document.getElementById('payment_method_2').setAttribute('required', 'required');
+                document.getElementById('payment_amount_1').setAttribute('required', 'required');
+                // Initialize remaining amount
+                updateRemainingAmount();
+            }
+        }
+
+        // Update remaining amount for split payments
+        function updateRemainingAmount() {
+            const totalAmount = {{ payment_request.total_amount|floatformat:2 }};
+            const firstPaymentAmount = parseFloat(document.getElementById('payment_amount_1').value) || 0;
+            const remaining = totalAmount - firstPaymentAmount;
+            
+            // Update the remaining amount display
+            document.getElementById('remaining_amount_display').textContent = `₦${remaining.toFixed(2)}`;
+            
+            // Update the second payment amount field
+            document.getElementById('payment_amount_2').value = remaining.toFixed(2);
+            
+            // Validate wallet payments
+            validateWalletPayment();
+        }
+
+        // Validate wallet payments
+        function validateWalletPayment() {
+            {% if payment_request.wholesale_customer %}
+            const walletBalance = {{ payment_request.wholesale_customer.wholesale_customer_wallet.balance|floatformat:2 }};
+            const paymentType = document.getElementById('payment_type').value;
+            let totalWalletAmount = 0;
+            let alertShown = false;
+            
+            if (paymentType === 'single') {
+                const paymentMethod = document.getElementById('payment_method').value;
+                if (paymentMethod === 'Wallet') {
+                    totalWalletAmount = {{ payment_request.total_amount|floatformat:2 }};
+                }
+            } else if (paymentType === 'split') {
+                const paymentMethod1 = document.getElementById('payment_method_1').value;
+                const paymentMethod2 = document.getElementById('payment_method_2').value;
+                const paymentAmount1 = parseFloat(document.getElementById('payment_amount_1').value) || 0;
+                
+                if (paymentMethod1 === 'Wallet') {
+                    totalWalletAmount += paymentAmount1;
+                }
+                if (paymentMethod2 === 'Wallet') {
+                    totalWalletAmount += (parseFloat(document.getElementById('payment_amount_2').value) || 0);
+                }
+            }
+            
+            const errorMsg = document.getElementById('wallet-error-msg');
+            if (!errorMsg) {
+                const errorDiv = document.createElement('div');
+                errorDiv.id = 'wallet-error-msg';
+                errorDiv.className = 'alert alert-warning mt-2';
+                errorDiv.style.display = 'none';
+                errorDiv.innerHTML = '<strong>Wallet Balance Warning:</strong> <span id="wallet-warning-text"></span>';
+                document.querySelector('form').insertBefore(errorDiv, document.getElementById('confirmComplete'));
+            }
+            
+            const warningText = document.getElementById('wallet-warning-text');
+            if (totalWalletAmount > walletBalance) {
+                warningText.textContent = `Total wallet payment (₦${totalWalletAmount.toFixed(2)}) exceeds available balance (₦${walletBalance.toFixed(2)}). This will result in a negative balance.`;
+                errorMsg.style.display = 'block';
+            } else {
+                errorMsg.style.display = 'none';
+            }
+            {% endif %}
+        }
+
+        // Disable form submission if checkbox is not checked
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const confirmCheckbox = document.getElementById('confirmComplete');
+            if (!confirmCheckbox.checked) {
+                e.preventDefault();
+                alert('Please confirm that you have verified the payment details.');
+                return false;
+            }
+
+            const paymentType = document.getElementById('payment_type').value;
+
+            // Validate single payment
+            if (paymentType === 'single') {
+                const paymentMethod = document.getElementById('payment_method').value;
+                const paymentStatus = document.getElementById('payment_status').value;
+
+                if (!paymentMethod) {
+                    e.preventDefault();
+                    alert('Please select a payment method.');
+                    return false;
+                }
+
+                if (!paymentStatus) {
+                    e.preventDefault();
+                    alert('Please select a payment status.');
+                    return false;
+                }
+            }
+
+            // Validate split payment amounts
+            if (paymentType === 'split') {
+                const paymentMethod1 = document.getElementById('payment_method_1').value;
+                const paymentMethod2 = document.getElementById('payment_method_2').value;
+                const firstAmount = parseFloat(document.getElementById('payment_amount_1').value) || 0;
+                const secondAmount = parseFloat(document.getElementById('payment_amount_2').value) || 0;
+                const totalAmount = {{ payment_request.total_amount|floatformat:2 }};
+
+                if (!paymentMethod1) {
+                    e.preventDefault();
+                    alert('Please select the first payment method.');
+                    return false;
+                }
+
+                if (!paymentMethod2) {
+                    e.preventDefault();
+                    alert('Please select the second payment method.');
+                    return false;
+                }
+
+                if (firstAmount <= 0) {
+                    e.preventDefault();
+                    alert('Please enter a valid amount for the first payment.');
+                    return false;
+                }
+
+                if (Math.abs((firstAmount + secondAmount) - totalAmount) > 0.01) {
+                    e.preventDefault();
+                    alert('Payment amounts must total exactly ₦' + totalAmount.toFixed(2) + '. Current total: ₦' + (firstAmount + secondAmount).toFixed(2));
+                    return false;
+                }
+            }
+        });
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            togglePaymentOptions();
+        });
+    </script>
+
+    <style>
+        .card {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-radius: 10px;
+        }
+        
+        .table {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .form-control:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+        }
+    </style>
+</body>
+</html>

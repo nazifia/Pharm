@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.utils.timezone import now
+from django.utils.timezone import now, timezone
 from datetime import timedelta, datetime
 from decimal import Decimal
 from django.db.models import Sum, Q, F
@@ -612,10 +612,10 @@ def wholesale_exp_alert(request):
 
 
 def dispense_wholesale(request):
-    print(f"🔍 DEBUG: dispense_wholesale view called by user: {request.user}")
-    print(f"🔍 DEBUG: User authenticated: {request.user.is_authenticated}")
-    print(f"🔍 DEBUG: Request path: {request.path}")
-    print(f"🔍 DEBUG: Request method: {request.method}")
+    print(f"DEBUG: dispense_wholesale view called by user: {request.user}")
+    print(f"DEBUG: User authenticated: {request.user.is_authenticated}")
+    print(f"DEBUG: Request path: {request.path}")
+    print(f"DEBUG: Request method: {request.method}")
 
     # TEMPORARILY BYPASS AUTHENTICATION FOR DEBUGGING
     # if request.user.is_authenticated:
@@ -633,10 +633,10 @@ def dispense_wholesale(request):
 
         # Check if this is an HTMX request (for modal)
         if request.headers.get('HX-Request'):
-            print(f"🔍 DEBUG: HTMX request detected")
+            print(f"DEBUG: HTMX request detected")
             return render(request, 'partials/wholesale_dispense_modal.html', {'form': form, 'results': results})
         else:
-            print(f"🔍 DEBUG: Regular page request")
+            print(f"DEBUG: Regular page request")
             # Regular page request - get cart summary for the new dynamic interface
             cart_count = 0
             cart_total = 0
@@ -653,7 +653,7 @@ def dispense_wholesale(request):
                 'cart_count': cart_count,
                 'cart_total': cart_total
             }
-            print(f"🔍 DEBUG: Rendering wholesale/dispense_wholesale.html with context: {context}")
+            print(f"DEBUG: Rendering wholesale/dispense_wholesale.html with context: {context}")
             return render(request, 'wholesale/dispense_wholesale.html', context)
     else:
         return redirect('store:index')
@@ -687,9 +687,9 @@ def minimal_test(request):
 
 def test_template_view(request):
     """Test view to check if template rendering works"""
-    print(f"🔍 DEBUG: test_template_view called")
-    print(f"🔍 DEBUG: User: {request.user}")
-    print(f"🔍 DEBUG: Authenticated: {request.user.is_authenticated}")
+    print(f"DEBUG: test_template_view called")
+    print(f"DEBUG: User: {request.user}")
+    print(f"DEBUG: Authenticated: {request.user.is_authenticated}")
 
     context = {
         'cart_count': 0,
@@ -700,19 +700,19 @@ def test_template_view(request):
     }
 
     try:
-        print(f"🔍 DEBUG: Attempting to render template...")
+        print(f"DEBUG: Attempting to render template...")
         return render(request, 'wholesale/dispense_wholesale.html', context)
     except Exception as e:
-        print(f"🔍 DEBUG: Template error: {e}")
+        print(f"DEBUG: Template error: {e}")
         from django.http import HttpResponse
         return HttpResponse(f"Template Error: {e}")
 
 
 def super_simple_dispense(request):
     """Wholesale dispensing view with proper template and functionality"""
-    print(f"🔍 DEBUG: super_simple_dispense view called by user: {request.user}")
-    print(f"🔍 DEBUG: User authenticated: {request.user.is_authenticated}")
-    print(f"🔍 DEBUG: Request path: {request.path}")
+    print(f"DEBUG: super_simple_dispense view called by user: {request.user}")
+    print(f"DEBUG: User authenticated: {request.user.is_authenticated}")
+    print(f"DEBUG: Request path: {request.path}")
 
     # Get cart data if user is authenticated
     cart_count = 0
@@ -724,9 +724,9 @@ def super_simple_dispense(request):
             cart_items = WholesaleCart.objects.filter(user=request.user)
             cart_count = cart_items.count()
             cart_total = sum(cart_item.subtotal for cart_item in cart_items)
-            print(f"🔍 DEBUG: Cart count: {cart_count}, total: {cart_total}")
+            print(f"DEBUG: Cart count: {cart_count}, total: {cart_total}")
         except Exception as e:
-            print(f"🔍 DEBUG: Error getting cart data: {e}")
+            print(f"DEBUG: Error getting cart data: {e}")
 
     # Prepare context for template
     context = {
@@ -737,16 +737,16 @@ def super_simple_dispense(request):
         'results': [],  # Empty results initially
     }
 
-    print(f"🔍 DEBUG: Rendering dispense_wholesale.html with context: {context}")
+    print(f"DEBUG: Rendering dispense_wholesale.html with context: {context}")
     return render(request, 'wholesale/dispense_wholesale.html', context)
 
 
 def simple_wholesale_test(request):
     """Simple test view with no authentication required"""
-    print(f"🔍 DEBUG: simple_wholesale_test view called")
-    print(f"🔍 DEBUG: User: {request.user}")
-    print(f"🔍 DEBUG: Authenticated: {request.user.is_authenticated}")
-    print(f"🔍 DEBUG: Request path: {request.path}")
+    print(f"DEBUG: simple_wholesale_test view called")
+    print(f"DEBUG: User: {request.user}")
+    print(f"DEBUG: Authenticated: {request.user.is_authenticated}")
+    print(f"DEBUG: Request path: {request.path}")
 
     # Get cart data if user is authenticated
     cart_count = 0
@@ -757,9 +757,9 @@ def simple_wholesale_test(request):
             cart_items = WholesaleCart.objects.filter(user=request.user)
             cart_count = cart_items.count()
             cart_total = sum(item.total_price for item in cart_items)
-            print(f"🔍 DEBUG: Cart count: {cart_count}, total: {cart_total}")
+            print(f"DEBUG: Cart count: {cart_count}, total: {cart_total}")
         except Exception as e:
-            print(f"🔍 DEBUG: Error getting cart data: {e}")
+            print(f"DEBUG: Error getting cart data: {e}")
 
     context = {
         'cart_count': cart_count,
@@ -767,7 +767,7 @@ def simple_wholesale_test(request):
         'user': request.user
     }
 
-    print(f"🔍 DEBUG: Rendering simple_test.html with context: {context}")
+    print(f"DEBUG: Rendering simple_test.html with context: {context}")
     return render(request, 'wholesale/simple_test.html', context)
 
 
@@ -841,8 +841,8 @@ def dispense_wholesale_simple(request):
 
 def wholesale_dispense_search_items(request):
     """HTMX endpoint for dynamic item search in wholesale dispensing"""
-    print(f"🔍 DEBUG: wholesale_dispense_search_items called")
-    print(f"🔍 DEBUG: Query: {request.GET.get('q', '')}")
+    print(f"DEBUG: wholesale_dispense_search_items called")
+    print(f"DEBUG: Query: {request.GET.get('q', '')}")
 
     query = request.GET.get('q', '').strip()
     results = []
@@ -853,9 +853,9 @@ def wholesale_dispense_search_items(request):
             results = WholesaleItem.objects.filter(
                 Q(name__icontains=query) | Q(brand__icontains=query)
             ).filter(stock__gt=0).order_by('name')[:50]  # Limit results for performance
-            print(f"🔍 DEBUG: Found {len(results)} results")
+            print(f"DEBUG: Found {len(results)} results")
         except Exception as e:
-            print(f"🔍 DEBUG: Error searching items: {e}")
+            print(f"DEBUG: Error searching items: {e}")
             results = []
 
     return render(request, 'partials/wholesale_dispense_search_results.html', {'results': results, 'query': query})
@@ -1916,12 +1916,20 @@ def wholesale_receipt(request):
         }
         request.session['receipt_id'] = str(receipt.receipt_id)
 
-        cart_items.delete()
-
-        # Comprehensive cart session cleanup after receipt generation
-        from store.cart_utils import cleanup_cart_session_after_receipt
-        cleanup_summary = cleanup_cart_session_after_receipt(request, 'wholesale')
-        logger.info(f"Wholesale cart session cleanup after receipt: {cleanup_summary}")
+        # Store cart items for receipt rendering before clearing
+        cart_items_for_receipt = []
+        for cart_item in cart_items:
+            cart_items_for_receipt.append({
+                'name': cart_item.item.name,
+                'brand': cart_item.item.brand,
+                'dosage_form': cart_item.item.dosage_form,
+                'unit': cart_item.item.unit,
+                'quantity': cart_item.quantity,
+                'price': cart_item.item.price,
+                'discount_amount': cart_item.discount_amount,
+                'subtotal': cart_item.item.price * cart_item.quantity,
+                'discounted_subtotal': (cart_item.item.price * cart_item.quantity) - cart_item.discount_amount
+            })
 
         daily_sales_data = get_daily_sales()
         monthly_sales_data = get_monthly_sales_with_expenses()
@@ -1989,7 +1997,7 @@ def wholesale_receipt(request):
         wholesale_receipt_payments = receipt.wholesale_receipt_payments.all() if receipt.payment_method == 'Split' else None
 
         # Render to the wholesale_receipt template
-        return render(request, 'wholesale/wholesale_receipt.html', {
+        response = render(request, 'wholesale/wholesale_receipt.html', {
             'receipt': receipt,
             'wholesale_sales_items': wholesale_sales_items,
             'total_price': total_price,
@@ -2003,7 +2011,18 @@ def wholesale_receipt(request):
             'split_payment_details': split_payment_details,
             'wholesale_receipt_payments': wholesale_receipt_payments,
             'payment_type': payment_type,
+            'sales': sales,  # Add sales object for template access
         })
+
+        # Now clear the cart after rendering the receipt
+        cart_items.delete()
+
+        # Comprehensive cart session cleanup after receipt generation
+        from store.cart_utils import cleanup_cart_session_after_receipt
+        cleanup_summary = cleanup_cart_session_after_receipt(request, 'wholesale')
+        logger.info(f"Wholesale cart session cleanup after receipt: {cleanup_summary}")
+
+        return response
     else:
         return redirect('store:index')
 
@@ -2197,8 +2216,13 @@ def search_wholesale_receipts(request):
 @login_required
 def wholesale_receipt_detail(request, receipt_id):
     if request.user.is_authenticated:
-        # Retrieve the existing receipt
-        receipt = get_object_or_404(WholesaleReceipt, receipt_id=receipt_id)
+        try:
+            # Retrieve the existing receipt
+            receipt = get_object_or_404(WholesaleReceipt, receipt_id=receipt_id)
+        except Exception as e:
+            logger.error(f"Error retrieving wholesale receipt {receipt_id}: {e}")
+            messages.error(request, f"Error retrieving receipt: {receipt_id}")
+            return redirect('wholesale:wholesale_receipt_list')
 
         # Preserve the receipt status as set by the user
 
@@ -3817,6 +3841,553 @@ def complete_wholesale_customer_history(request, customer_id):
         }
 
         return render(request, 'wholesale/complete_wholesale_customer_history.html', context)
+    return redirect('store:index')
+
+
+# Wholesale Cashier Functions - Adapted from Retail Implementation
+
+@transaction.atomic
+@login_required
+def send_to_wholesale_cashier(request):
+    """Send wholesale payment request to cashier/billing-point/pay-point"""
+    if request.user.is_authenticated:
+        try:
+            # Get wholesale cart items
+            cart_items = WholesaleCart.objects.filter(user=request.user)
+            if not cart_items.exists():
+                messages.error(request, "Your wholesale cart is empty. Cannot send payment request.")
+                return redirect('wholesale:wholesale_cart')
+            
+            # Get wholesale customer info (from session or from the cart customer)
+            from customer.models import WholesaleCustomer
+            wholesale_customer = None
+            
+            # Try to get wholesale customer from session first
+            try:
+                from userauth.session_utils import get_user_session_data
+                customer_id = get_user_session_data(request, 'wholesale_customer_id')
+                if customer_id:
+                    wholesale_customer = WholesaleCustomer.objects.get(id=customer_id)
+            except (ImportError, WholesaleCustomer.DoesNotExist):
+                pass
+            
+            # If not found, try to get from the cart items' customer
+            if not wholesale_customer:
+                cart_items = WholesaleCart.objects.filter(user=request.user)
+                if cart_items.exists():
+                    # Use the customer associated with the first cart item
+                    first_cart_item = cart_items.first()
+                    if hasattr(first_cart_item, 'wholesale_customer') and first_cart_item.wholesale_customer:
+                        wholesale_customer = first_cart_item.wholesale_customer
+            
+            # Calculate total amount
+            total_amount = sum(item.subtotal for item in cart_items)
+            
+            # Create wholesale payment request
+            from store.models import PaymentRequest, PaymentRequestItem
+            payment_request = PaymentRequest.objects.create(
+                dispenser=request.user,
+                customer=None,  # Not using retail customer for wholesale
+                wholesale_customer=wholesale_customer,
+                payment_type='wholesale',
+                total_amount=total_amount,
+                notes=request.POST.get('notes', ''),
+                status='pending'
+            )
+            
+            # Create payment request items
+            for cart_item in cart_items:
+                PaymentRequestItem.objects.create(
+                    payment_request=payment_request,
+                    item_name=cart_item.item.name,
+                    brand=cart_item.item.brand,
+                    dosage_form=str(cart_item.dosage_form.dosage_form) if cart_item.dosage_form else '',
+                    unit=cart_item.unit,
+                    quantity=cart_item.quantity,
+                    unit_price=cart_item.price,
+                    discount_amount=cart_item.discount_amount,
+                    subtotal=cart_item.subtotal,
+                    retail_item=None,  # Not using retail items
+                    wholesale_item=cart_item.item
+                )
+            
+            # Create notification for available cashiers
+            from store.models import Notification, Cashier
+            available_cashiers = Cashier.objects.filter(is_active=True)
+            for cashier in available_cashiers:
+                notification = Notification.objects.create(
+                    user=cashier.user,
+                    notification_type='payment_request',
+                    priority='high',
+                    title=f'New Wholesale Payment Request {payment_request.request_id}',
+                    message=f'Wholesale payment request of ₦{total_amount} from {request.user.username} pending your review.',
+                    related_payment_request=payment_request
+                )
+            
+            # Mark cart items as sent to cashier (optional status change)
+            # cart_items.update(status='sent_to_cashier')  # You'll need to add this field to WholesaleCart model
+            
+            messages.success(request, f'Wholesale payment request {payment_request.request_id} sent to cashier successfully.')
+            return redirect('wholesale:wholesale_payment_requests')
+            
+        except Exception as e:
+            messages.error(request, f'Error sending wholesale payment request: {str(e)}')
+            return redirect('wholesale:wholesale_cart')
+    
+    return redirect('store:index')
+
+
+@login_required
+def wholesale_payment_requests(request):
+    """Show dispenser's wholesale payment requests history"""
+    if request.user.is_authenticated:
+        from store.models import PaymentRequest
+        payment_requests = PaymentRequest.objects.filter(dispenser=request.user, payment_type='wholesale').order_by('-created_at')
+        
+        return render(request, 'wholesale/wholesale_payment_requests.html', {
+            'payment_requests': payment_requests,
+        })
+    
+    return redirect('store:index')
+
+
+@login_required
+def wholesale_payment_request_detail(request, request_id):
+    """Show wholesale payment request details"""
+    if request.user.is_authenticated:
+        try:
+            from store.models import PaymentRequest
+            payment_request = PaymentRequest.objects.get(request_id=request_id, payment_type='wholesale')
+            
+            # Check if user is authorized (either the dispenser or a cashier)
+            if payment_request.dispenser != request.user and not hasattr(request.user, 'cashier'):
+                messages.error(request, 'You are not authorized to view this wholesale payment request.')
+                return redirect('wholesale:wholesale_payment_requests')
+            
+            return render(request, 'wholesale/wholesale_payment_request_detail.html', {
+                'payment_request': payment_request,
+            })
+            
+        except PaymentRequest.DoesNotExist:
+            messages.error(request, 'Wholesale payment request not found.')
+            return redirect('wholesale:wholesale_payment_requests')
+    
+    return redirect('store:index')
+
+
+@login_required
+def wholesale_cashier_dashboard(request):
+    """Enhanced wholesale cashier dashboard with comprehensive payment management"""
+    if request.user.is_authenticated:
+        try:
+            from django.db.models import Count, Sum, Avg
+            from store.models import Cashier, PaymentRequest
+            
+            # Check if user is a cashier
+            cashier = None
+            is_admin = False
+            
+            try:
+                cashier = request.user.cashier
+                if not cashier.is_active:
+                    messages.error(request, 'Your cashier account is deactivated.')
+                    return redirect('store:index')
+            except Cashier.DoesNotExist:
+                # Check if user is an admin/manager who can see cashier dashboard
+                if request.user.is_superuser or (hasattr(request.user, 'profile') and
+                    request.user.profile and request.user.profile.user_type in ['Admin', 'Manager']):
+                    is_admin = True
+                else:
+                    messages.error(request, 'You need to be a cashier or admin/manager to access this page.')
+                    return redirect('store:index')
+            
+            # Get pending wholesale payment requests (accessible by all authorized users)
+            pending_requests = PaymentRequest.objects.filter(status='pending', payment_type='wholesale').order_by('-created_at')
+            
+            # Filter requests by cashier if this is a specific cashier (not admin)
+            if cashier and not is_admin:
+                my_requests = PaymentRequest.objects.filter(cashier=cashier, payment_type='wholesale').exclude(status='pending').order_by('-created_at')
+                cashier_display_name = cashier.name
+            else:
+                # For admins, show all processed requests
+                my_requests = PaymentRequest.objects.filter(payment_type='wholesale').exclude(status='pending').order_by('-created_at')
+                cashier_display_name = "Admin View" if is_admin else request.user.get_full_name() or request.user.username
+            
+            # Calculate comprehensive statistics
+            all_processed = PaymentRequest.objects.filter(payment_type='wholesale', status='completed')
+            
+            stats = {
+                'pending_count': pending_requests.count(),
+                'completed_today_count': all_processed.filter(completed_at__date=timezone.now().date()).count(),
+                'total_processed_count': my_requests.count(),
+                'total_value': my_requests.aggregate(total=Sum('total_amount'))['total'] or Decimal('0'),
+                'pending_value': pending_requests.aggregate(total=Sum('total_amount'))['total'] or Decimal('0'),
+                'average_transaction': my_requests.aggregate(avg=Avg('total_amount'))['avg'] or Decimal('0'),
+                'high_value_count': pending_requests.filter(total_amount__gte=Decimal('50000')).count(),
+            }
+            
+            # Get recent activity feed
+            recent_activity = PaymentRequest.objects.filter(payment_type='wholesale').order_by('-created_at')[:10]
+            
+            # Add recent notifications for cashiers
+            if cashier and not is_admin:
+                from store.models import Notification
+                recent_notifications = Notification.objects.filter(
+                    user=request.user,
+                    notification_type='payment_request'
+                ).order_by('-created_at')[:5]
+            else:
+                recent_notifications = []
+            
+            # Get today's statistics
+            today = timezone.now().date()
+            today_stats = {
+                'today_pending': pending_requests.filter(created_at__date=today).count(),
+                'today_completed': all_processed.filter(completed_at__date=today).count(),
+                'today_value': all_processed.filter(completed_at__date=today).aggregate(
+                    total=Sum('total_amount')
+                )['total'] or Decimal('0'),
+            }
+            
+            # Quick summary for dashboard
+            summary = {
+                'total_requests_today': today_stats['today_pending'] + today_stats['today_completed'],
+                'pending_percentage': (pending_requests.count() / max(pending_requests.count() + all_processed.count(), 1)) * 100,
+                'payment_trend': 'up' if today_stats['today_completed'] > all_processed.filter(completed_at__date=today - timezone.timedelta(days=1)).count() else 'down',
+            }
+            
+            # Get accepted wholesale payment requests
+            accepted_requests = PaymentRequest.objects.filter(status='accepted', payment_type='wholesale').order_by('-accepted_at')
+            # Filter for specific cashier if not admin
+            if cashier and not is_admin:
+                accepted_requests = accepted_requests.filter(cashier=cashier)
+            
+            return render(request, 'wholesale/wholesale_cashier_dashboard.html', {
+                'pending_requests': pending_requests,
+                'accepted_requests': accepted_requests,
+                'my_requests': my_requests,
+                'cashier': cashier,
+                'is_admin': is_admin,
+                'stats': stats,
+                'recent_activity': recent_activity,
+                'recent_notifications': recent_notifications,
+                'cashier_display_name': cashier_display_name,
+                'today_stats': today_stats,
+                'summary': summary,
+            })
+            
+        except Exception as e:
+            logger.error(f"Error loading wholesale cashier dashboard: {str(e)}")
+            messages.error(request, f'Error loading wholesale cashier dashboard: {str(e)}')
+            return redirect('store:index')
+    
+    return redirect('store:index')
+
+
+@login_required
+def accept_wholesale_payment_request(request, request_id):
+    """Accept a wholesale payment request"""
+    if request.user.is_authenticated:
+        try:
+            from store.models import PaymentRequest, Cashier
+            payment_request = PaymentRequest.objects.get(request_id=request_id, payment_type='wholesale')
+            
+            # Check if user is a cashier or admin
+            if not (hasattr(request.user, 'cashier') or request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and request.user.profile and 
+                 request.user.profile.user_type in ['Admin', 'Manager'])):
+                messages.error(request, 'You are not authorized to accept wholesale payment requests.')
+                return redirect('wholesale:wholesale_cashier_dashboard')
+            
+            if payment_request.status != 'pending':
+                messages.error(request, 'This wholesale payment request has already been processed.')
+                return redirect('wholesale:wholesale_cashier_dashboard')
+            
+            # Assign to cashier if not admin
+            if hasattr(request.user, 'cashier'):
+                payment_request.cashier = request.user.cashier
+            
+            payment_request.status = 'accepted'
+            payment_request.accepted_at = timezone.now()
+            payment_request.save()
+            
+            messages.success(request, f'Wholesale payment request {request_id} accepted successfully.')
+            return redirect('wholesale:wholesale_cashier_dashboard')
+            
+        except PaymentRequest.DoesNotExist:
+            messages.error(request, 'Wholesale payment request not found.')
+            return redirect('wholesale:wholesale_cashier_dashboard')
+    
+    return redirect('store:index')
+
+
+@login_required
+def reject_wholesale_payment_request(request, request_id):
+    """Reject a wholesale payment request"""
+    if request.user.is_authenticated:
+        try:
+            from store.models import PaymentRequest, Cashier
+            payment_request = PaymentRequest.objects.get(request_id=request_id, payment_type='wholesale')
+            
+            # Check if user is a cashier or admin
+            if not (hasattr(request.user, 'cashier') or request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and request.user.profile and 
+                 request.user.profile.user_type in ['Admin', 'Manager'])):
+                messages.error(request, 'You are not authorized to reject wholesale payment requests.')
+                return redirect('wholesale:wholesale_cashier_dashboard')
+            
+            if payment_request.status != 'pending':
+                messages.error(request, 'This wholesale payment request has already been processed.')
+                return redirect('wholesale:wholesale_cashier_dashboard')
+            
+            # Update status
+            payment_request.status = 'rejected'
+            payment_request.save()
+            
+            # Return items to stock and clear cart
+            for payment_item in payment_request.items.all():
+                if payment_item.wholesale_item:
+                    payment_item.wholesale_item.stock += payment_item.quantity
+                    payment_item.wholesale_item.save()
+            
+            messages.success(request, f'Wholesale payment request {request_id} rejected and items returned to stock.')
+            return redirect('wholesale:wholesale_cashier_dashboard')
+            
+        except PaymentRequest.DoesNotExist:
+            messages.error(request, 'Wholesale payment request not found.')
+            return redirect('wholesale:wholesale_cashier_dashboard')
+    
+    return redirect('store:index')
+
+
+@transaction.atomic
+@login_required
+def complete_wholesale_payment_request(request, request_id):
+    """Complete a wholesale payment request and generate wholesale receipt"""
+    if request.user.is_authenticated:
+        try:
+            from store.models import PaymentRequest, Sales, Receipt, SalesItem, DispensingLog, Cashier, WholesaleReceiptPayment, WholesaleReceipt
+            from customer.models import WholesaleCustomer, WholesaleCustomerWallet, TransactionHistory
+            from decimal import Decimal
+            payment_request = PaymentRequest.objects.get(request_id=request_id, payment_type='wholesale')
+            
+            # Check if user is the assigned cashier or admin
+            if not (hasattr(request.user, 'cashier') or request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and request.user.profile and 
+                 request.user.profile.user_type in ['Admin', 'Manager'])):
+                messages.error(request, 'You are not authorized to complete this wholesale payment request.')
+                return redirect('wholesale:wholesale_cashier_dashboard')
+            
+            if payment_request.status != 'accepted':
+                messages.error(request, 'This wholesale payment request must be accepted first.')
+                return redirect('wholesale:wholesale_cashier_dashboard')
+            
+            
+            
+            if request.method == 'POST':
+                payment_method = request.POST.get('payment_method')
+                payment_status = request.POST.get('payment_status', 'Paid')
+                payment_type = request.POST.get('payment_type', 'single')
+                
+                if not payment_method:
+                    messages.error(request, 'Payment method is required.')
+                    return redirect('wholesale:wholesale_cashier_dashboard')
+                
+                # Validate payment method for split payments
+                if payment_type == 'split':
+                    payment_method_1 = request.POST.get('payment_method_1')
+                    payment_method_2 = request.POST.get('payment_method_2')
+                    if not payment_method_1 or not payment_method_2:
+                        messages.error(request, 'Both payment methods are required for split payments.')
+                        return redirect('wholesale:wholesale_cashier_dashboard')
+                
+                # Create wholesale sales and receipt
+                sales = Sales.objects.create(
+                    user=payment_request.dispenser,
+                    wholesale_customer=payment_request.wholesale_customer,
+                    total_amount=payment_request.total_amount
+                )
+                
+                # Create wholesale receipt
+                receipt = WholesaleReceipt.objects.create(
+                    wholesale_customer=payment_request.wholesale_customer,
+                    sales=sales,
+                    buyer_name=payment_request.wholesale_customer.name if payment_request.wholesale_customer else 'WALK-IN CUSTOMER',
+                    buyer_address=payment_request.wholesale_customer.address if payment_request.wholesale_customer else '',
+                    total_amount=payment_request.total_amount,
+                    payment_method=payment_method if payment_type != 'split' else 'Split',
+                    status=payment_status
+                )
+                
+                # Handle wallet payments for registered wholesale customers
+                wallet_went_negative = False
+                if payment_request.wholesale_customer:
+                    if payment_type == 'single' and payment_method == 'Wallet':
+                        wallet = WholesaleCustomerWallet.objects.get(customer=payment_request.wholesale_customer)
+                        wallet_balance_before = wallet.balance
+                        wallet.balance -= payment_request.total_amount
+                        wallet.save()
+                        
+                        # Check if wallet went negative
+                        if wallet_balance_before >= 0 and wallet.balance < 0:
+                            wallet_went_negative = True
+                            receipt.wallet_went_negative = True
+                            receipt.save()
+                        
+                        # Create transaction history
+                        TransactionHistory.objects.create(
+                            wholesale_customer=payment_request.wholesale_customer,
+                            user=request.user,
+                            transaction_type='purchase',
+                            amount=payment_request.total_amount,
+                            description=f'Wholesale purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                        )
+                        
+                    elif payment_type == 'split':
+                        # Handle split payment with wallet
+                        payment_amount_1 = Decimal(request.POST.get('payment_amount_1', '0'))
+                        payment_amount_2 = Decimal(request.POST.get('payment_amount_2', '0'))
+                        
+                        if payment_method_1 == 'Wallet' or payment_method_2 == 'Wallet':
+                            wallet = WholesaleCustomerWallet.objects.get(customer=payment_request.wholesale_customer)
+                            
+                            if payment_method_1 == 'Wallet':
+                                wallet_balance_before = wallet.balance
+                                wallet.balance -= payment_amount_1
+                                wallet.save()
+                                if wallet_balance_before >= 0 and wallet.balance < 0:
+                                    wallet_went_negative = True
+                                    receipt.wallet_went_negative = True
+                                    receipt.save()
+                                
+                                TransactionHistory.objects.create(
+                                    wholesale_customer=payment_request.wholesale_customer,
+                                    user=request.user,
+                                    transaction_type='purchase',
+                                    amount=payment_amount_1,
+                                    description=f'Wholesale purchase payment from wallet - Payment 1 (Receipt ID: {receipt.receipt_id})'
+                                )
+                            
+                            if payment_method_2 == 'Wallet':
+                                wallet_balance_before = wallet.balance
+                                wallet.balance -= payment_amount_2
+                                wallet.save()
+                                if wallet_balance_before >= 0 and wallet.balance < 0:
+                                    wallet_went_negative = True
+                                    receipt.wallet_went_negative = True
+                                    receipt.save()
+                                
+                                TransactionHistory.objects.create(
+                                    wholesale_customer=payment_request.wholesale_customer,
+                                    user=request.user,
+                                    transaction_type='purchase',
+                                    amount=payment_amount_2,
+                                    description=f'Wholesale purchase payment from wallet - Payment 2 (Receipt ID: {receipt.receipt_id})'
+                                )
+                
+                # Create WholesaleSalesItem records from payment request items
+                for payment_item in payment_request.items.all():
+                    if payment_item.wholesale_item:
+                        # Create wholesale sales item
+                        WholesaleSalesItem.objects.create(
+                            sales=sales,
+                            item=payment_item.wholesale_item,
+                            price=payment_item.unit_price,
+                            quantity=payment_item.quantity,
+                            discount_amount=payment_item.discount_amount,
+                            brand=payment_item.brand
+                        )
+                        
+                        # Update stock
+                        payment_item.wholesale_item.stock -= payment_item.quantity
+                        payment_item.wholesale_item.save()
+                        
+                        # Create dispensing log for wholesale
+                        DispensingLog.objects.create(
+                            user=payment_request.dispenser,
+                            name=payment_item.item_name,
+                            brand=payment_item.brand,
+                            dosage_form=None,  # Could be added if needed
+                            unit=payment_item.unit,
+                            quantity=payment_item.quantity,
+                            amount=payment_item.subtotal,
+                            discount_amount=payment_item.discount_amount,
+                            status='Dispensed'
+                        )
+                
+                # Create split payment records if this is a split payment
+                if payment_type == 'split':
+                    payment_amount_1 = Decimal(request.POST.get('payment_amount_1', '0'))
+                    payment_amount_2 = Decimal(request.POST.get('payment_amount_2', '0'))
+                    
+                    WholesaleReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=payment_amount_1,
+                        payment_method=payment_method_1,
+                        status='Paid',
+                        date=receipt.date
+                    )
+                    
+                    WholesaleReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=payment_amount_2,
+                        payment_method=payment_method_2,
+                        status='Paid',
+                        date=receipt.date
+                    )
+                else:
+                    # For single payments, also create a payment record for consistency
+                    WholesaleReceiptPayment.objects.create(
+                        receipt=receipt,
+                        amount=receipt.total_amount,
+                        payment_method=payment_method,
+                        status='Paid',
+                        date=receipt.date
+                    )
+                
+                # Update payment request and link to wholesale receipt
+                payment_request.status = 'completed'
+                payment_request.completed_at = timezone.now()
+                payment_request.wholesale_receipt = receipt  # Link the wholesale receipt
+                payment_request.notes = request.POST.get('notes', '')  # Save cashier notes
+                payment_request.save()
+                
+                # Clear the original wholesale cart items that were used to create this payment request
+                try:
+                    cart_items = WholesaleCart.objects.filter(user=payment_request.dispenser)
+                    # Remove cart items that correspond to the payment request items
+                    for payment_item in payment_request.items.all():
+                        if payment_item.wholesale_item:
+                            cart_items.filter(item=payment_item.wholesale_item).delete()
+                    
+                    # Comprehensive cart session cleanup after receipt generation
+                    from store.cart_utils import cleanup_cart_session_after_receipt
+                    cleanup_summary = cleanup_cart_session_after_receipt(request, 'wholesale')
+                    logger.info(f"Wholesale cart session cleanup after payment request completion: {cleanup_summary}")
+                except Exception as e:
+                    logger.warning(f"Error clearing wholesale cart after payment request completion: {e}")
+                
+                # Inform about negative wallet balance if applicable
+                if wallet_went_negative:
+                    messages.warning(request, f'The customer wallet went negative during this payment transaction.')
+                
+                messages.success(request, f'Wholesale payment request {request_id} completed successfully. Receipt generated.')
+                return redirect('wholesale:wholesale_receipt_detail', receipt_id=receipt.receipt_id)
+            
+            else:
+                # Show payment completion form for GET requests
+                return render(request, 'wholesale/complete_wholesale_payment_request.html', {
+                    'payment_request': payment_request,
+                })
+            
+        except PaymentRequest.DoesNotExist:
+            messages.error(request, 'Wholesale payment request not found.')
+            return redirect('wholesale:wholesale_cashier_dashboard')
+        except Exception as e:
+            logger.error(f"Error completing wholesale payment request: {e}")
+            messages.error(request, f'Error processing payment request: {str(e)}')
+            return redirect('wholesale:wholesale_cashier_dashboard')
+    
     return redirect('store:index')
 
 

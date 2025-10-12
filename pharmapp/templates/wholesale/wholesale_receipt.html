@@ -20,6 +20,19 @@
 <body>
     <div id="receipt" class="receipt-container">
         <header>
+            <!-- Debug Information - Remove in production -->
+            <div style="display: none; background: #f8f9fa; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
+                <h4>Debug Info:</h4>
+                <p><strong>Receipt ID:</strong> {{ receipt.receipt_id }}</p>
+                <p><strong>Payment Method:</strong> {{ receipt.payment_method }}</p>
+                <p><strong>Status:</strong> {{ receipt.status }}</p>
+                <p><strong>Calculated Status:</strong> {{ receipt.calculated_status }}</p>
+                <p><strong>Total Amount:</strong> {{ receipt.total_amount }}</p>
+                <p><strong>Sales Items Count:</strong> {{ wholesale_sales_items|length }}</p>
+                <p><strong>Has Sales Object:</strong> {% if sales %}{{ sales.id }}{% else %}No sales object found{% endif %}</p>
+                <p><strong>Customer:</strong> {% if receipt.wholesale_customer %}{{ receipt.wholesale_customer.name }}{% else %}Walk-in Customer{% endif %}</p>
+            </div>
+        <header>
             <div class="receipt-head">
                 <h3>Nazz Pharmacy</h3>
                 <p>No. 123 FTH Jibia Bypass, Katsina</p>
@@ -114,15 +127,31 @@
                             <td>₦{{ item.price|multiply:item.quantity|floatformat:2|intcomma }}</td>
                         </tr>
                         {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">No items found in this receipt</td>
+                        </tr>
                     {% endif %}
                 </tbody>
             </table>
             <div class="totals" style="text-align: right;">
-                <h6>Total Price: ₦{{ total_price|floatformat:2|intcomma }}</h6>
-                {% if total_discount %}
-                <h6>Discount: ₦{{ total_discount|floatformat:2|intcomma }}</h6>
+                <h6>Total Price: ₦{{ total_price|floatformat:2:intcomma }}</h6>
+                {% if total_discount %}}
+                <h6>Discount: ₦{{ total_discount|floatformat:2:intcomma }}</h6>
                 {% endif %}
-                <h4>Total Payable: ₦{{ total_discounted_price|floatformat:2|intcomma }}</h4>
+                <h4>Total Payable: ₦{{ total_discounted_price|floatformat:2:intcomma }}</h4>
+            </div>
+
+            <!-- Debug Summary - Remove in production -->
+            <div style="display: none; background: #f8f9fa; padding: 10px; margin: 20px; border-radius: 5px;">
+                <h4>Context Summary:</h4>
+                <p><strong>User Authenticated:</strong> {{ request.user.is_authenticated }}</p>
+                <p><strong>Sales Items Available:</strong> {{ wholesale_sales_items|length }}</p>
+                <p><strong>Has Sales Object:</strong> {% if sales %}{{ sales.id }}{% else %}No sales object found{% endif %}</p>
+                <p><strong>Total Price:</strong> {{ total_price }}</p>
+                <p><strong>Discount:</strong> {{ total_discount|floatformat:2|intcomma }}</p>
+                <h4>Total Payable:</strong> {{ total_discounted_price|floatformat:2|intcomma }}</h4>
+                <p><strong>Buyer Name Available:</strong> {% if receipt.wholesale_customer.name %}}Yes{% else %}No{% endif %}</p>
             </div>
         </div>
 

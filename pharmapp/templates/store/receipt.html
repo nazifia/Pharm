@@ -20,6 +20,19 @@
     <div id="receipt" class="receipt-container">
         {% block content %}
         <header>
+            <!-- Debug Information - Remove in production -->
+            <div style="display: none; background: #f8f9fa; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
+                <h4>Debug Info:</h4>
+                <p><strong>Receipt ID:</strong> {{ receipt.receipt_id }}</p>
+                <p><strong>Payment Method:</strong> {{ receipt.payment_method }}</p>
+                <p><strong>Status:</strong> {{ receipt.status }}</p>
+                <p><strong>Calculated Status:</strong> {{ receipt.calculated_status }}</p>
+                <p><strong>Total Amount:</strong> {{ receipt.total_amount }}</p>
+                <p><strong>Sales Items Count:</strong> {{ sales_items|length }}</p>
+                <p><strong>Has Sales:</strong> {% if sales %}Yes{% else %}No{% endif %}</p>
+                <p><strong>Customer:</strong> {% if receipt.customer %}{{ receipt.customer.name }}{% else %}Walk-in Customer{% endif %}</p>
+            </div>
+        <header>
             <div class="receipt-head">
                 <h3>Nazz Pharmacy</h3>
                 <p>No. 123 FTH Jibia Bypass, Katsina</p>
@@ -88,6 +101,14 @@
         </form>
 
         {% if sales_items %}
+            <!-- Debug Sales Items -->
+            <div style="display: none; background: #f8f9fa; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
+                <h4>Sales Items Debug:</h4>
+                <p><strong>Sales Items Found:</strong> {{ sales_items|length }}</p>
+                {% for item in sales_items %}
+                    <p>- {{ item.item.name }} (ID: {{ item.item.id }}) - {{ item.quantity }} @ ₦{{ item.price }}</p>
+                {% endfor %}
+            </div>
         <div class="table-responsive mt-3">
             <table class="table">
                 <thead>
@@ -316,7 +337,7 @@
                     cell.style.display = originalBrandDisplayValues[index];
                 });
 
-                document.title = originalTitle;
+                document.title = 'Receipt - {{ receipt.receipt_id }}';
             }, 100);
         }
 
@@ -337,6 +358,47 @@
             document.title = 'Receipt - {{ receipt.receipt_id }}';
         };
     </script>
-</body>
 
-</html>
+    <!-- Debug Summary - Remove in production -->
+    <div style="display: none; background: #f8f9fa; padding: 10px; margin: 20px; border-radius: 5px;">
+        <h4>Context Summary:</h4>
+        <p><strong>User Authenticated:</strong> {{ request.user.is_authenticated }}</p>
+        <p><strong>Sales Items Available:</strong> {{ sales_items|length }}</p>
+        <p><strong>Has Sales Object:</strong> {% if sales %}{{ sales.id }}{% else %}No sales object found{% endif %}</p>
+        <p><strong>Total Price:</strong> {{ total_price }}</p>
+        <p><strong>Total Discounted Price:</strong> {{ total_discounted_price }}</p>
+        <p><strong>Buyer Name Available:</strong> {% if receipt.buyer_name %}Yes{% else %}No{% endif %}</p>
+    </div>
+
+        {% endblock %}
+    </div>
+            const receipt = document.getElementById('receipt');
+            const options = {
+                margin: 10,
+                filename: 'Receipt_{{ receipt.receipt_id }}.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().from(receipt).set(options).save();
+        }
+
+        window.onafterprint = function() {
+            document.title = 'Receipt - {{ receipt_id }}';
+        };
+    </script>
+
+    <!-- Debug Summary - Remove in production -->
+    <div style="display: none; background: #f8f9f9; padding: 10px; margin: 20px; border-radius: 5px;">
+        <h4>Context Summary:</h4>
+            <p><strong>User Authenticated:</strong> {{ request.user.is_authenticated }}</p>
+            <p><strong>Sales Items Available:</strong> {{ sales_items|length }}</p>
+            <p><strong>Has Sales Object:</strong> {% if sales %}{{ sales.id }}{% else %}No sales object found{% endif %}</p>
+            <p><strong>Total Price:</strong> {{ total_price }}</p>
+            <p><strong>Total Discounted Price:</strong> {{ total_discounted_price }}</p>
+            <p><strong>Buyer Name Available:</strong> {% if receipt.buyer_name %}Yes{% else %}No{% endif %}</p>
+        </div>
+
+        {% endblock %}
+    </div>

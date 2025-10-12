@@ -183,11 +183,7 @@
                                     </p>
                                 </div>
                                 <div class="text-right">
-                                    <span class="badge 
-                                        {% if request.status == 'accepted' %}badge-info
-                                        {% elif request.status == 'completed' %}badge-success
-                                        {% elif request.status == 'rejected' %}badge-danger
-                                        {% else %}badge-secondary{% endif %}">
+                                    <span class="badge badge-{{ request.status }}">
                                         {{ request.get_status_display }}
                                     </span>
                                     {% if request.status == 'accepted' %}
@@ -231,3 +227,4 @@
     </div>
 </div>
 {% endblock %}
+

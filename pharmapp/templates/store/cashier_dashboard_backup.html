@@ -1,0 +1,229 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>
+                {% if is_admin %}
+                    <i class="fas fa-chart-line"></i> Admin Dashboard - Payment Requests
+                {% else %}
+                    <i class="fas fa-cash-register"></i> Cashier Dashboard
+                {% endif %}
+            </h2>
+            {% if not is_admin %}
+                <span class="badge badge-primary">Cashier: {{ cashier.name }}</span>
+                <span class="badge badge-success">ID: {{ cashier.cashier_id }}</span>
+            {% endif %}
+        </div>
+        <div>
+            <div class="btn-group" role="group">
+                <a href="{% url 'store:payment_requests' %}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-list"></i> My Requests
+                </a>
+                <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mt-4 mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row align-items-center no-gutters">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Pending Requests
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ stats.pending_count }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row align-items-center no-gutters">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Completed Today
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ stats.completed_today_count }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row align-items-center no-gutters">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Total Processed
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ stats.total_processed_count }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clipboard-list fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row align-items-center no-gutters">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Total Value
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                ₦{{ stats.total_value|floatformat:2 }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-money-bill-wave fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <!-- Pending Requests -->
+        <div class="col-md-6">
+            <h4><i class="fas fa-clock"></i> Pending Payment Requests</h4>
+            {% if pending_requests %}
+                <div class="list-group">
+                    {% for request in pending_requests %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">{{ request.request_id }}</h6>
+                                    <p class="mb-1">
+                                        <strong>From:</strong> {{ request.dispenser.username }}<br>
+                                        <strong>Customer:</strong> 
+                                        {% if request.customer %}
+                                            {{ request.customer.name }}
+                                        {% else %}
+                                            Walk-in
+                                        {% endif %}<br>
+                                        <strong>Amount:</strong> ₦{{ request.total_amount|floatformat:2 }}
+                                    </p>
+                                    {% if request.notes %}
+                                        <small class="text-muted">{{ request.notes|truncatewords:15 }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="text-right">
+                                    <div class="btn-group-vertical" role="group">
+                                        <a href="{% url 'store:accept_payment_request' request.request_id %}" 
+                                           class="btn btn-sm btn-success mb-1">Accept</a>
+                                        <a href="{% url 'store:reject_payment_request' request.request_id %}" 
+                                           class="btn btn-sm btn-danger mb-1">Reject</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <small class="text-muted">{{ request.created_at|date:"M d, Y H:i" }}</small>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-check-circle"></i> No pending payment requests.
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- My Requests / Processed Requests -->
+        <div class="col-md-6">
+            <h4><i class="fas fa-history"></i> 
+                {% if is_admin %}
+                    Processed Requests
+                {% else %}
+                    My Processed Requests
+                {% endif %}
+            </h4>
+            {% if my_requests %}
+                <div class="list-group">
+                    {% for request in my_requests %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">{{ request.request_id }}</h6>
+                                    <p class="mb-1">
+                                        <strong>From:</strong> {{ request.dispenser.username }}<br>
+                                        <strong>Customer:</strong> 
+                                        {% if request.customer %}
+                                            {{ request.customer.name }}
+                                        {% else %}
+                                            Walk-in
+                                        {% endif %}<br>
+                                        <strong>Amount:</strong> ₦{{ request.total_amount|floatformat:2 }}
+                                    </p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="badge badge-{{ request.status }}">
+                                        {{ request.get_status_display }}
+                                    </span>
+                                    {% if request.status == 'accepted' %}
+                                        <br><br>
+                                        <a href="{% url 'store:complete_payment_request' request.request_id %}" 
+                                           class="btn btn-sm btn-primary">Complete Payment</a>
+                                    {% elif request.status == 'completed' and request.receipt %}
+                                        <br><br>
+                                        <a href="{% url 'store:receipt_detail' request.receipt.receipt_id %}" 
+                                           class="btn btn-sm btn-outline-primary">View Receipt</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <small class="text-muted">
+                                {% if request.completed_at %}
+                                    {{ request.completed_at|date:"M d, Y H:i" }}
+                                {% elif request.accepted_at %}
+                                    Accepted: {{ request.accepted_at|date:"M d, Y H:i" }}
+                                {% endif %}
+                            </small>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 
+                    {% if is_admin %}
+                        No processed requests yet.
+                    {% else %}
+                        You haven't processed any requests yet.
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="mt-4">
+        <a href="{% url 'store:index' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

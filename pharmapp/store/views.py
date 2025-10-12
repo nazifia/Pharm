@@ -1654,21 +1654,26 @@ def receipt(request):
         receipt_payments = receipt.receipt_payments.all() if receipt.payment_method == 'Split' else None
 
         # Render to the receipt template
-        return render(request, 'store/receipt.html', {
-            'receipt': receipt,
-            'sales_items': sales_items,
-            'total_price': total_price,
-            'total_discount': total_discount,
-            'total_discounted_price': total_discounted_price,
-            'daily_sales': daily_sales_data,
-            'monthly_sales': monthly_sales_data,
-            'logs': DispensingLog.objects.filter(user=request.user),
-            'payment_methods': payment_methods,
-            'statuses': statuses,
-            'split_payment_details': split_payment_details,
-            'receipt_payments': receipt_payments,
-            'payment_type': payment_type,
-        })
+        try:
+            return render(request, 'store/receipt.html', {
+                'receipt': receipt,
+                'sales_items': sales_items,
+                'total_price': total_price,
+                'total_discount': total_discount,
+                'total_discounted_price': total_discounted_price,
+                'daily_sales': daily_sales_data,
+                'monthly_sales': monthly_sales_data,
+                'logs': DispensingLog.objects.filter(user=request.user),
+                'payment_methods': payment_methods,
+                'statuses': statuses,
+                'split_payment_details': split_payment_details,
+                'receipt_payments': receipt_payments,
+                'payment_type': payment_type,
+            })
+        except Exception as e:
+            logger.error(f"Error rendering receipt detail for {receipt_id}: {e}")
+            messages.error(request, f"Error displaying receipt: {receipt_id}")
+            return redirect('store:receipt_list')
     else:
         return redirect('store:index')
 
@@ -1677,8 +1682,23 @@ def receipt(request):
 @login_required
 def receipt_detail(request, receipt_id):
     if request.user.is_authenticated:
-        # Retrieve the existing receipt
-        receipt = get_object_or_404(Receipt, receipt_id=receipt_id)
+        # First check if this receipt ID belongs to a wholesale receipt
+        try:
+            wholesale_receipt = WholesaleReceipt.objects.filter(receipt_id=receipt_id).first()
+            if wholesale_receipt:
+                # This is a wholesale receipt, redirect to wholesale receipt detail
+                messages.info(request, 'This is a wholesale receipt. Redirecting to wholesale receipt view.')
+                return redirect('wholesale:wholesale_receipt_detail', receipt_id=receipt_id)
+        except Exception as e:
+            logger.error(f"Error checking for wholesale receipt {receipt_id}: {e}")
+
+        try:
+            # Retrieve the existing retail receipt
+            receipt = get_object_or_404(Receipt, receipt_id=receipt_id)
+        except Exception as e:
+            logger.error(f"Error retrieving receipt {receipt_id}: {e}")
+            messages.error(request, f"Receipt not found: {receipt_id}")
+            return redirect('store:receipt_list')
 
         # Respect the user's selected payment status - don't force to "Paid"
         print(f"Receipt {receipt.receipt_id} status: {receipt.status}")
@@ -1702,9 +1722,13 @@ def receipt_detail(request, receipt_id):
 
             # Check if we have stored split payment details for this receipt
             stored_details = None
-            if request.session.get('split_payment_receipt_id') == receipt.receipt_id:
-                stored_details = request.session.get('split_payment_details')
-                print(f"Found stored split payment details: {stored_details}")
+            try:
+                if request.session.get('split_payment_receipt_id') == receipt.receipt_id:
+                    stored_details = request.session.get('split_payment_details')
+                    print(f"Found stored split payment details: {stored_details}")
+            except Exception as e:
+                logger.error(f"Error accessing session data for receipt {receipt_id}: {e}")
+                stored_details = None
 
             if stored_details:
                 # Use the stored payment details

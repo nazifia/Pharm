@@ -1,0 +1,337 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>
+                        <i class="fas fa-cash-register mr-2"></i>
+                        Wholesale Cashier Dashboard
+                        {% if cashier %}
+                            <small class="text-muted">- {{ cashier.name }}</small>
+                        {% endif %}
+                    </h2>
+                    <div>
+                        <a href="{% url 'store:index' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-home mr-2"></i>Main Dashboard
+                        </a>
+                    </div>
+                </div>
+
+                {% if messages %}
+                    <div class="alert-container mb-4">
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <!-- Statistics Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5>Pending Requests</h5>
+                                        <h3>{{ stats.pending_count }}</h3>
+                                    </div>
+                                    <div>
+                                        <i class="fas fa-clock fa-2x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5>Completed Today</h5>
+                                        <h3>{{ stats.completed_today_count }}</h3>
+                                    </div>
+                                    <div>
+                                        <i class="fas fa-check-circle fa-2x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5>Total Processed</h5>
+                                        <h3>{{ stats.total_processed_count }}</h3>
+                                    </div>
+                                    <div>
+                                        <i class="fas fa-chart-line fa-2x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5>Total Value</h5>
+                                        <h3>₦{{ stats.total_value|floatformat:0 }}</h3>
+                                    </div>
+                                    <div>
+                                        <i class="fas fa-naira-sign fa-2x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Pending Requests -->
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header bg-warning">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-hourglass-half mr-2"></i>
+                                    Pending ({{ pending_requests.count }})
+                                </h5>
+                            </div>
+                            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                {% if pending_requests %}
+                                    {% for request in pending_requests %}
+                                    <div class="border-bottom pb-3 mb-3">
+                                        <div class="row">
+                                            <div class="col-8">
+                                                <h6>{{ request.request_id }}</h6>
+                                                <small class="text-muted">
+                                                    {{ request.created_at|date:"Y-m-d H:i" }} | 
+                                                    {{ request.get_payment_type_display }}
+                                                </small>
+                                                <div>
+                                                    <strong>Customer:</strong>
+                                                    {% if request.wholesale_customer %}
+                                                        {{ request.wholesale_customer.name }}
+                                                    {% else %}
+                                                        Walk-in Customer
+                                                    {% endif %}
+                                                </div>
+                                                <div>
+                                                    <strong>Items:</strong> {{ request.items.count }} |
+                                                    <strong>Total:</strong> ₦{{ request.total_amount|floatformat:2 }}
+                                                </div>
+                                            </div>
+                                            <div class="col-4 text-right">
+                                                {% if not is_admin or not cashier %}
+                                                <button class="btn btn-success btn-sm mb-2" 
+                                                        onclick="acceptRequest('{{ request.request_id }}')">
+                                                    <i class="fas fa-check mr-1"></i>Accept
+                                                </button>
+                                                {% endif %}
+                                                <button class="btn btn-danger btn-sm mb-2" 
+                                                        onclick="rejectRequest('{{ request.request_id }}')">
+                                                    <i class="fas fa-times mr-1"></i>Reject
+                                                </button>
+                                                <br>
+                                                <a href="{% url 'wholesale:wholesale_payment_request_detail' request.request_id %}" 
+                                                   class="btn btn-info btn-sm">
+                                                    <i class="fas fa-eye mr-1"></i>View
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-3x mb-3"></i>
+                                        <p>No pending wholesale requests at the moment.</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Accepted Requests -->
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header bg-info">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-check-circle mr-2"></i>
+                                    Accepted ({{ accepted_requests.count }})
+                                </h5>
+                            </div>
+                            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                {% if accepted_requests %}
+                                    {% for request in accepted_requests %}
+                                    <div class="border-bottom pb-3 mb-3">
+                                        <div class="row">
+                                            <div class="col-8">
+                                                <h6>{{ request.request_id }}</h6>
+                                                <small class="text-muted">
+                                                    {{ request.accepted_at|date:"Y-m-d H:i" }} | 
+                                                    {{ request.get_payment_type_display }}
+                                                </small>
+                                                <div>
+                                                    <strong>Customer:</strong>
+                                                    {% if request.wholesale_customer %}
+                                                        {{ request.wholesale_customer.name }}
+                                                    {% else %}
+                                                        Walk-in Customer
+                                                    {% endif %}
+                                                </div>
+                                                <div>
+                                                    <strong>₦{{ request.total_amount|floatformat:2 }}</strong>
+                                                </div>
+                                            </div>
+                                            <div class="col-4 text-right">
+                                                <button class="btn btn-primary btn-sm mb-2" 
+                                                        onclick="processPayment('{{ request.request_id }}')">
+                                                    <i class="fas fa-money-check-alt mr-1"></i>Complete
+                                                </button>
+                                                <br>
+                                                <a href="{% url 'wholesale:wholesale_payment_request_detail' request.request_id %}" 
+                                                   class="btn btn-info btn-sm">
+                                                    <i class="fas fa-eye mr-1"></i>View
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-center text-muted py-4">
+                                        <i class="fas fa-clock fa-3x mb-3"></i>
+                                        <p>No accepted requests to process.</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- My Completed Requests -->
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header bg-success">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-history mr-2"></i>
+                                    Processed ({{ my_requests.count }})
+                                </h5>
+                            </div>
+                            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                {% if my_requests %}
+                                    {% for request in my_requests %}
+                                    <div class="border-bottom pb-3 mb-3">
+                                        <div class="row">
+                                            <div class="col-8">
+                                                <h6>{{ request.request_id }}</h6>
+                                                <small class="text-muted">
+                                                    {{ request.completed_at|date:"Y-m-d H:i" }} | 
+                                                    {{ request.get_payment_type_display }}
+                                                </small>
+                                                <div>
+                                                    <strong>Customer:</strong>
+                                                    {% if request.wholesale_customer %}
+                                                        {{ request.wholesale_customer.name }}
+                                                    {% else %}
+                                                        Walk-in Customer
+                                                    {% endif %}
+                                                </div>
+                                                <div>
+                                                    <span class="badge badge-{{ request.status|lower }}">
+                                                        {{ request.status|title }}
+                                                    </span>
+                                                    <strong>₦{{ request.total_amount|floatformat:2 }}</strong>
+                                                </div>
+                                            </div>
+                                            <div class="col-4 text-right">
+                                                {% if request.status == 'completed' and request.wholesale_receipt %}
+                                                <a href="{% url 'wholesale:wholesale_receipt_detail' request.wholesale_receipt.receipt_id %}" 
+                                                   class="btn btn-primary btn-sm mb-2">
+                                                    <i class="fas fa-receipt mr-1"></i>Receipt
+                                                </a>
+                                                {% endif %}
+                                                <br>
+                                                <a href="{% url 'wholesale:wholesale_payment_request_detail' request.request_id %}" 
+                                                   class="btn btn-info btn-sm">
+                                                    <i class="fas fa-eye mr-1"></i>View
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-center text-muted py-4">
+                                        <i class="fas fa-clipboard fa-3x mb-3"></i>
+                                        <p>No processed requests yet.</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Get the base URLs from Django template tags
+        const acceptUrl = "{% url 'wholesale:accept_wholesale_payment_request' 'PLACEHOLDER' %}";
+        const rejectUrl = "{% url 'wholesale:reject_wholesale_payment_request' 'PLACEHOLDER' %}";
+        const completeUrl = "{% url 'wholesale:complete_payment_request' 'PLACEHOLDER' %}";
+
+        function acceptRequest(requestId) {
+            if (confirm('Accept this wholesale payment request?')) {
+                window.location.href = acceptUrl.replace('PLACEHOLDER', requestId);
+            }
+        }
+
+        function rejectRequest(requestId) {
+            if (confirm('Reject this wholesale payment request? Items will be returned to stock.')) {
+                window.location.href = rejectUrl.replace('PLACEHOLDER', requestId);
+            }
+        }
+
+        function processPayment(requestId) {
+            if (confirm('Process payment for this wholesale request?')) {
+                window.location.href = completeUrl.replace('PLACEHOLDER', requestId);
+            }
+        }
+
+        // Auto-refresh pending requests every 30 seconds
+        setTimeout(function() {
+            location.reload();
+        }, 30000);
+    </script>
+
+    <style>
+        .badge-pending { background-color: #ffc107; }
+        .badge-accepted { background-color: #28a745; }
+        .badge-rejected { background-color: #dc3545; }
+        .badge-completed { background-color: #17a2b8; }
+        .badge-cancelled { background-color: #6c757d; }
+        
+        .card {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .border-bottom {
+            border-bottom: 1px solid #dee2e6 !important;
+        }
+    </style>
+</div>
+</div>
+
+{% endblock content %}

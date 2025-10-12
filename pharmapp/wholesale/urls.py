@@ -46,6 +46,15 @@ urlpatterns = [
     path('wholesale_customer_history/<int:customer_id>/', views.wholesale_customer_history, name='wholesale_customer_history'),
     path('search_wholesale_receipts/', views.search_wholesale_receipts, name='search_wholesale_receipts'),
     path('complete_wholesale_customer_history/<int:customer_id>/', views.complete_wholesale_customer_history, name='complete_wholesale_customer_history'),
+    
+    # Wholesale Cashier URLs - adapted from retail
+    path('send_to_cashier/', views.send_to_wholesale_cashier, name='send_to_wholesale_cashier'),
+    path('payment_requests/', views.wholesale_payment_requests, name='wholesale_payment_requests'),
+    path('payment_request/<str:request_id>/', views.wholesale_payment_request_detail, name='wholesale_payment_request_detail'),
+    path('cashier_dashboard/', views.wholesale_cashier_dashboard, name='wholesale_cashier_dashboard'),
+    path('accept_wholesale_payment_request/<str:request_id>/', views.accept_wholesale_payment_request, name='accept_wholesale_payment_request'),
+    path('reject_payment_request/<str:request_id>/', views.reject_wholesale_payment_request, name='reject_wholesale_payment_request'),
+    path('complete_payment_request/<str:request_id>/', views.complete_wholesale_payment_request, name='complete_payment_request'),
 
 
     # Procurement URLs
