@@ -1167,6 +1167,21 @@ def complete_payment_request(request, request_id):
                 payment_request.receipt = receipt
                 payment_request.save()
                 
+                # Clear the original cart items that were used to create this payment request
+                try:
+                    cart_items = Cart.objects.filter(user=payment_request.dispenser)
+                    # Remove cart items that correspond to the payment request items
+                    for payment_item in payment_request.items.all():
+                        if payment_item.retail_item:
+                            cart_items.filter(item=payment_item.retail_item).delete()
+                    
+                    # Comprehensive cart session cleanup after receipt generation
+                    from store.cart_utils import cleanup_cart_session_after_receipt
+                    cleanup_summary = cleanup_cart_session_after_receipt(request, 'retail')
+                    logger.info(f"Cart session cleanup after payment request completion: {cleanup_summary}")
+                except Exception as e:
+                    logger.warning(f"Error clearing cart after payment request completion: {e}")
+                
                 messages.success(request, f'Payment request {request_id} completed successfully. Receipt generated.')
                 return redirect('store:receipt_detail', receipt_id=receipt.receipt_id)
             
