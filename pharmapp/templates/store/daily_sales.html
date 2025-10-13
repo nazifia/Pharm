@@ -102,6 +102,8 @@
                         <th scope="col">Cash</th>
                         <th scope="col">Wallet</th>
                         <th scope="col">Transfer</th>
+                        <th scope="col">Top Cashier</th>
+                        <th scope="col">Cashier Details</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -114,6 +116,33 @@
                         <td>{{ sale.payment_methods.Cash|floatformat:2 }}</td>
                         <td>{{ sale.payment_methods.Wallet|floatformat:2 }}</td>
                         <td>{{ sale.payment_methods.Transfer|floatformat:2 }}</td>
+                        <td>
+                            {% if sale.cashiers %}
+                                {% for cashier_name, cashier_data in sale.cashiers.items %}
+                                    {% if forloop.first %}
+                                        <strong>{{ cashier_name|title }}</strong>
+                                        <br><small class="text-muted">{{ cashier_data.transaction_count }} tx</small>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sale.cashiers %}
+                                <div class="small">
+                                    {% for cashier_name, cashier_data in sale.cashiers.items %}
+                                        <div class="mb-1">
+                                            <strong>{{ cashier_name|title }}:</strong> 
+                                            <span class="badge bg-info">₦{{ cashier_data.total_sales|floatformat:2 }}</span>
+                                            <small class="text-muted">({{ cashier_data.transaction_count }} tx)</small>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

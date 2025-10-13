@@ -106,6 +106,8 @@
                         <tr>
                             <th scope="col">Month</th>
                             <th scope="col">Amount</th>
+                            <th scope="col">Top Cashier</th>
+                            <th scope="col">Cashier Sales</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -113,6 +115,33 @@
                         <tr>
                             <td>{{ month }}</td>
                             <td>{{ sale.total_sales|floatformat:2 }}</td>
+                            <td>
+                                {% if sale.cashiers %}
+                                    {% for cashier_name, cashier_data in sale.cashiers.items %}
+                                        {% if forloop.first %}
+                                            {{ cashier_name }} 
+                                            <small class="text-muted">({{ cashier_data.transaction_count }} transactions)</small>
+                                        {% endif %}
+                                    {% empty %}
+                                        <span class="text-muted">No sales data</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted">No sales data</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if sale.cashiers %}
+                                    {% for cashier_name, cashier_data in sale.cashiers.items %}
+                                        {% if forloop.first %}
+                                            <span class="badge bg-success">{{ cashier_data.total_sales|floatformat:2 }}</span>
+                                        {% endif %}
+                                    {% empty %}
+                                        -
+                                    {% endfor %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -301,6 +330,8 @@
                         <th>Transfer</th>
                         <th>Total Expenses</th>
                         <th>Net Profit</th>
+                        <th>Top Cashier</th>
+                        <th>Cashier Details</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -321,10 +352,37 @@
                         >
                             {{ data.net_profit|floatformat:2 }}
                         </td>
+                        <td>
+                            {% if data.cashiers %}
+                                {% for cashier_name, cashier_data in data.cashiers.items %}
+                                    {% if forloop.first %}
+                                        <strong>{{ cashier_name }}</strong>
+                                        <br><small class="text-muted">{{ cashier_data.transaction_count }} transactions</small>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if data.cashiers %}
+                                <div class="small">
+                                    {% for cashier_name, cashier_data in data.cashiers.items %}
+                                        <div class="mb-1">
+                                            <strong>{{ cashier_name }}:</strong> 
+                                            <span class="badge bg-info">{{ cashier_data.total_sales|floatformat:2 }}</span>
+                                            <small class="text-muted">({{ cashier_data.transaction_count }} tx)</small>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="text-center">
+                        <td colspan="11" class="text-center">
                             No sales data found for the selected month.
                         </td>
                     </tr>

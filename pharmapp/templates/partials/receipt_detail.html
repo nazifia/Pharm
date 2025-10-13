@@ -43,7 +43,10 @@
             {% endif %}
         </p>
         <p><strong>Date:</strong> {{ receipt.date|date:"F j, Y. H:i" }}</p>
-        <p><strong>Sales Person:</strong> {{ user.username }}</p>
+        <p><strong>Sales Person:</strong> {% if sales.user %}{{ sales.user.username|title }}{% else %}{{ user.username|title }}{% endif %}</p>
+        {% if receipt.cashier %}
+        <p><strong>Cashier:</strong> {{ receipt.cashier.name|title }}</p>
+        {% endif %}
 
         {% if receipt.payment_method == 'Split' %}
         <p><strong>Payment Method:</strong> Split Payment</p>

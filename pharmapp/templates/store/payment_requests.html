@@ -15,6 +15,7 @@
                         <th>Customer</th>
                         <th>Total Amount</th>
                         <th>Status</th>
+                        <th>Cashier</th>
                         <th>Notes</th>
                         <th>Actions</th>
                     </tr>
@@ -33,7 +34,7 @@
                             </td>
                             <td>₦{{ request.total_amount|floatformat:2 }}</td>
                             <td>
-                                <span class="badge 
+                                <span class="badge
                                     {% if request.status == 'pending' %}badge-warning
                                     {% elif request.status == 'accepted' %}badge-info
                                     {% elif request.status == 'completed' %}badge-success
@@ -42,9 +43,18 @@
                                     {{ request.get_status_display }}
                                 </span>
                             </td>
+                            <td>
+                                {% if request.cashier %}
+                                    {{ request.cashier.name }}
+                                {% elif request.status == 'completed' %}
+                                    <span class="text-muted">N/A</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
                             <td>{{ request.notes|truncatewords:10 }}</td>
                             <td>
-                                <a href="{% url 'store:payment_request_detail' request.request_id %}" 
+                                <a href="{% url 'store:payment_request_detail' request.request_id %}"
                                    class="btn btn-sm btn-primary">View Details</a>
                             </td>
                         </tr>

@@ -40,7 +40,10 @@
                 <p>Date: {{ receipt.date|date:"F j, Y" }}</p>
                 <p>Receipt Type: <strong>Wholesale</strong></p>
                 <p>Receipt ID: {{ receipt.receipt_id }}</p>
-                <p>Sales Person: {{ user.username }}</p>
+                <p>Sales Person: {% if sales.user %}{{ sales.user.username|title }}{% else %}{{ user.username|title }}{% endif %}</p>
+                {% if receipt.cashier %}
+                <p>Cashier: {{ receipt.cashier.name|title }}</p>
+                {% endif %}
 
                 {% if receipt.payment_method == 'Split' %}
                 <p style="font-size: 1.1em; margin-top: 5px;">Payment Method: <strong style="color: #0066cc;">Split Payment</strong></p>

@@ -1128,21 +1128,27 @@ def complete_payment_request(request, request_id):
             if request.method == 'POST':
                 payment_method = request.POST.get('payment_method')
                 payment_status = request.POST.get('payment_status', 'Paid')
-                
+
                 if not payment_method:
                     messages.error(request, 'Payment method is required.')
                     return redirect('store:cashier_dashboard')
-                
+
+                # Get cashier object if user is a cashier
+                cashier = None
+                if hasattr(request.user, 'cashier'):
+                    cashier = request.user.cashier
+
                 # Create sales and receipt
                 sales = Sales.objects.create(
                     user=payment_request.dispenser,
                     customer=payment_request.customer,
                     total_amount=payment_request.total_amount
                 )
-                
+
                 receipt = Receipt.objects.create(
                     customer=payment_request.customer,
                     sales=sales,
+                    cashier=cashier,
                     buyer_name=payment_request.customer.name if payment_request.customer else 'WALK-IN CUSTOMER',
                     buyer_address=payment_request.customer.address if payment_request.customer else '',
                     total_amount=payment_request.total_amount,
@@ -1998,12 +2004,12 @@ def get_daily_sales():
     # Use DispensingLog data to match the dispensing log page calculation
     # This ensures both pages show the same daily sales values
 
-    # Get dispensed sales (positive amounts)
+    # Get dispensed sales (positive amounts) with cashier information
     dispensed_sales = (
         DispensingLog.objects
         .filter(status='Dispensed')
         .annotate(day=TruncDay('created_at'))
-        .values('day')
+        .values('day', 'user__username')
         .annotate(
             total_sales=Sum('amount'),
             # For cost calculation, we need to get the item cost
@@ -2018,16 +2024,17 @@ def get_daily_sales():
                     default=Decimal('0'),
                     output_field=DecimalField()
                 )
-            )
+            ),
+            transaction_count=Count('id', distinct=True)
         )
     )
 
-    # Get returned sales (negative amounts to subtract)
+    # Get returned sales (negative amounts to subtract) with cashier information
     returned_sales = (
         DispensingLog.objects
         .filter(status__in=['Returned', 'Partially Returned'])
         .annotate(day=TruncDay('created_at'))
-        .values('day')
+        .values('day', 'user__username')
         .annotate(
             total_returns=Sum('amount'),
             total_return_cost=Sum(
@@ -2039,7 +2046,8 @@ def get_daily_sales():
                     default=Decimal('0'),
                     output_field=DecimalField()
                 )
-            )
+            ),
+            transaction_count=Count('id', distinct=True)
         )
     )
 
@@ -2100,7 +2108,7 @@ def get_daily_sales():
         .order_by('day', 'payment_method')
     )
 
-    # Combine results
+    # Combine results with cashier information
     combined_sales = defaultdict(lambda: {
         'total_sales': Decimal('0.00'),
         'total_cost': Decimal('0.00'),
@@ -2109,7 +2117,8 @@ def get_daily_sales():
             'Cash': Decimal('0.00'),
             'Wallet': Decimal('0.00'),
             'Transfer': Decimal('0.00')
-        }
+        },
+        'cashiers': {}  # Store cashier performance data
     })
 
     # Helper function to normalize dates to date objects (not datetime)
@@ -2119,23 +2128,58 @@ def get_daily_sales():
             return date_obj.date()
         return date_obj
 
-    # Add dispensed sales data (positive amounts)
+    # Add dispensed sales data (positive amounts) with cashier information
     for sale in dispensed_sales:
         day = normalize_date(sale['day'])
+        cashier_username = sale['user__username'] or 'Unknown'
+        
+        # Update daily totals
         combined_sales[day]['total_sales'] += sale['total_sales'] or Decimal('0.00')
         combined_sales[day]['total_cost'] += sale['total_cost'] or Decimal('0.00')
         # Calculate profit as sales - cost
         profit = (sale['total_sales'] or Decimal('0.00')) - (sale['total_cost'] or Decimal('0.00'))
         combined_sales[day]['total_profit'] += profit
+        
+        # Update cashier-specific data
+        if cashier_username not in combined_sales[day]['cashiers']:
+            combined_sales[day]['cashiers'][cashier_username] = {
+                'total_sales': Decimal('0.00'),
+                'total_cost': Decimal('0.00'),
+                'total_profit': Decimal('0.00'),
+                'transaction_count': 0
+            }
+        
+        cashier_profit = (sale['total_sales'] or Decimal('0.00')) - (sale['total_cost'] or Decimal('0.00'))
+        combined_sales[day]['cashiers'][cashier_username]['total_sales'] += sale['total_sales'] or Decimal('0.00')
+        combined_sales[day]['cashiers'][cashier_username]['total_cost'] += sale['total_cost'] or Decimal('0.00')
+        combined_sales[day]['cashiers'][cashier_username]['total_profit'] += cashier_profit
+        combined_sales[day]['cashiers'][cashier_username]['transaction_count'] += sale['transaction_count'] or 0
 
-    # Subtract returned sales data (negative amounts)
+    # Subtract returned sales data (negative amounts) with cashier tracking
     for return_sale in returned_sales:
         day = normalize_date(return_sale['day'])
+        cashier_username = return_sale['user__username'] or 'Unknown'
+        
+        # Update daily totals (subtract)
         combined_sales[day]['total_sales'] -= return_sale['total_returns'] or Decimal('0.00')
         combined_sales[day]['total_cost'] -= return_sale['total_return_cost'] or Decimal('0.00')
         # Subtract return profit as well
         return_profit = (return_sale['total_returns'] or Decimal('0.00')) - (return_sale['total_return_cost'] or Decimal('0.00'))
         combined_sales[day]['total_profit'] -= return_profit
+        
+        # Update cashier-specific data (subtract for returns)
+        if cashier_username not in combined_sales[day]['cashiers']:
+            combined_sales[day]['cashiers'][cashier_username] = {
+                'total_sales': Decimal('0.00'),
+                'total_cost': Decimal('0.00'),
+                'total_profit': Decimal('0.00'),
+                'transaction_count': 0
+            }
+        
+        combined_sales[day]['cashiers'][cashier_username]['total_sales'] -= return_sale['total_returns'] or Decimal('0.00')
+        combined_sales[day]['cashiers'][cashier_username]['total_cost'] -= return_sale['total_return_cost'] or Decimal('0.00')
+        combined_sales[day]['cashiers'][cashier_username]['total_profit'] -= return_profit
+        combined_sales[day]['cashiers'][cashier_username]['transaction_count'] += return_sale['transaction_count'] or 0
 
     # Add retail payment method data (non-split payments)
     for sale in payment_method_sales:
@@ -2433,33 +2477,35 @@ def get_yearly_customer_performance(start_year=None, end_year=None):
     return sorted(combined_performance.items(), key=lambda x: x[0], reverse=True)
 
 def get_monthly_sales_with_expenses():
-    # Fetch regular sales data per month
+    # Fetch regular sales data per month with cashier information
     regular_sales = (
         SalesItem.objects
         .annotate(month=TruncMonth('sales__date'))
-        .values('month')
+        .values('month', 'sales__user__username', 'sales__user')
         .annotate(
             total_sales=Sum(F('price') * F('quantity') - F('discount_amount')),
             total_cost=Sum(F('item__cost') * F('quantity')),
             total_profit=ExpressionWrapper(
                 Sum(F('price') * F('quantity') - F('discount_amount')) - Sum(F('item__cost') * F('quantity')),
                 output_field=DecimalField()
-            )
+            ),
+            transaction_count=Count('sales', distinct=True)
         )
     )
 
-    # Fetch wholesale sales data per month
+    # Fetch wholesale sales data per month with cashier information
     wholesale_sales = (
         WholesaleSalesItem.objects
         .annotate(month=TruncMonth('sales__date'))
-        .values('month')
+        .values('month', 'sales__user__username', 'sales__user')
         .annotate(
             total_sales=Sum(F('price') * F('quantity') - F('discount_amount')),
             total_cost=Sum(F('item__cost') * F('quantity')),
             total_profit=ExpressionWrapper(
                 Sum(F('price') * F('quantity') - F('discount_amount')) - Sum(F('item__cost') * F('quantity')),
                 output_field=DecimalField()
-            )
+            ),
+            transaction_count=Count('sales', distinct=True)
         )
     )
 
@@ -2516,7 +2562,7 @@ def get_monthly_sales_with_expenses():
     # Get monthly expenses as a dictionary: {month_date: total_expense}
     monthly_expenses = get_monthly_expenses()
 
-    # Combine the two types of sales into one dict
+    # Combine the two types of sales into one dict with cashier information
     combined_sales = defaultdict(lambda: {
         'total_sales': Decimal('0.00'),
         'total_cost': Decimal('0.00'),
@@ -2525,20 +2571,55 @@ def get_monthly_sales_with_expenses():
             'Cash': Decimal('0.00'),
             'Wallet': Decimal('0.00'),
             'Transfer': Decimal('0.00')
-        }
+        },
+        'cashiers': {}  # Store cashier performance data
     })
 
     for sale in regular_sales:
         month = sale['month']
+        cashier_username = sale['sales__user__username'] or 'Unknown'
+        
+        # Update monthly totals
         combined_sales[month]['total_sales'] += sale['total_sales'] or Decimal('0.00')
         combined_sales[month]['total_cost'] += sale['total_cost'] or Decimal('0.00')
         combined_sales[month]['total_profit'] += sale['total_profit'] or Decimal('0.00')
+        
+        # Update cashier-specific data
+        if cashier_username not in combined_sales[month]['cashiers']:
+            combined_sales[month]['cashiers'][cashier_username] = {
+                'total_sales': Decimal('0.00'),
+                'total_cost': Decimal('0.00'),
+                'total_profit': Decimal('0.00'),
+                'transaction_count': 0
+            }
+        
+        combined_sales[month]['cashiers'][cashier_username]['total_sales'] += sale['total_sales'] or Decimal('0.00')
+        combined_sales[month]['cashiers'][cashier_username]['total_cost'] += sale['total_cost'] or Decimal('0.00')
+        combined_sales[month]['cashiers'][cashier_username]['total_profit'] += sale['total_profit'] or Decimal('0.00')
+        combined_sales[month]['cashiers'][cashier_username]['transaction_count'] += sale['transaction_count'] or 0
 
     for sale in wholesale_sales:
         month = sale['month']
+        cashier_username = sale['sales__user__username'] or 'Unknown'
+        
+        # Update monthly totals
         combined_sales[month]['total_sales'] += sale['total_sales'] or Decimal('0.00')
         combined_sales[month]['total_cost'] += sale['total_cost'] or Decimal('0.00')
         combined_sales[month]['total_profit'] += sale['total_profit'] or Decimal('0.00')
+        
+        # Update cashier-specific data
+        if cashier_username not in combined_sales[month]['cashiers']:
+            combined_sales[month]['cashiers'][cashier_username] = {
+                'total_sales': Decimal('0.00'),
+                'total_cost': Decimal('0.00'),
+                'total_profit': Decimal('0.00'),
+                'transaction_count': 0
+            }
+        
+        combined_sales[month]['cashiers'][cashier_username]['total_sales'] += sale['total_sales'] or Decimal('0.00')
+        combined_sales[month]['cashiers'][cashier_username]['total_cost'] += sale['total_cost'] or Decimal('0.00')
+        combined_sales[month]['cashiers'][cashier_username]['total_profit'] += sale['total_profit'] or Decimal('0.00')
+        combined_sales[month]['cashiers'][cashier_username]['transaction_count'] += sale['transaction_count'] or 0
 
     # Add retail payment method data (non-split payments)
     for sale in monthly_payment_method_sales:

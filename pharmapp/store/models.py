@@ -456,6 +456,7 @@ class Payment(models.Model):
 class Receipt(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)
     sales = models.ForeignKey(Sales, on_delete=models.CASCADE, related_name='receipts', null=True, blank=True)
+    cashier = models.ForeignKey('Cashier', on_delete=models.SET_NULL, null=True, blank=True, related_name='receipts', help_text="Cashier who processed this receipt")
     buyer_name = models.CharField(max_length=255, blank=True, null=True)
     buyer_address = models.CharField(max_length=255, blank=True, null=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.0'))
@@ -519,6 +520,7 @@ class ReceiptPayment(Payment):
 class WholesaleReceipt(models.Model):
     wholesale_customer = models.ForeignKey(WholesaleCustomer, on_delete=models.CASCADE, null=True, blank=True)
     sales = models.ForeignKey(Sales, on_delete=models.CASCADE, related_name='wholesale_receipts', null=True, blank=True)
+    cashier = models.ForeignKey('Cashier', on_delete=models.SET_NULL, null=True, blank=True, related_name='wholesale_receipts', help_text="Cashier who processed this wholesale receipt")
     buyer_name = models.CharField(max_length=255, blank=True, null=True)
     buyer_address = models.CharField(max_length=255, blank=True, null=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.0'))

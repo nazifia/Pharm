@@ -4267,6 +4267,11 @@ def complete_wholesale_payment_request(request, request_id):
                         messages.error(request, 'Both payment methods are required for split payments.')
                         return redirect('wholesale:wholesale_cashier_dashboard')
                 
+                # Get cashier object if user is a cashier
+                cashier = None
+                if hasattr(request.user, 'cashier'):
+                    cashier = request.user.cashier
+
                 # Create wholesale sales and receipt
                 sales = Sales.objects.create(
                     user=payment_request.dispenser,
@@ -4278,6 +4283,7 @@ def complete_wholesale_payment_request(request, request_id):
                 receipt = WholesaleReceipt.objects.create(
                     wholesale_customer=payment_request.wholesale_customer,
                     sales=sales,
+                    cashier=cashier,
                     buyer_name=payment_request.wholesale_customer.name if payment_request.wholesale_customer else 'WALK-IN CUSTOMER',
                     buyer_address=payment_request.wholesale_customer.address if payment_request.wholesale_customer else '',
                     total_amount=payment_request.total_amount,

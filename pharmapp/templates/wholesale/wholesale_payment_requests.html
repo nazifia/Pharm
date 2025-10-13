@@ -46,6 +46,7 @@
                             <th>Status</th>
                             <th>Total Amount</th>
                             <th>Customer</th>
+                            <th>Cashier</th>
                             <th>Items Count</th>
                             <th>Actions</th>
                         </tr>
@@ -68,9 +69,18 @@
                                     Walk-in Customer
                                 {% endif %}
                             </td>
+                            <td>
+                                {% if request.cashier %}
+                                    {{ request.cashier.name }}
+                                {% elif request.status == 'completed' %}
+                                    <span class="text-muted">N/A</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
                             <td>{{ request.items.count }}</td>
                             <td>
-                                <a href="{% url 'wholesale:wholesale_payment_request_detail' request.request_id %}" 
+                                <a href="{% url 'wholesale:wholesale_payment_request_detail' request.request_id %}"
                                    class="btn btn-sm btn-info">View Details</a>
                             </td>
                         </tr>
