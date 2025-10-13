@@ -11,40 +11,67 @@ from functools import wraps
 
 def is_admin(user):
     """Check if user is an Admin"""
-    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Admin'
+    return user.is_authenticated and (
+        user.is_superuser or 
+        (hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Admin')
+    )
 
 def is_manager(user):
     """Check if user is a Manager"""
-    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Manager'
+    return user.is_authenticated and (
+        user.is_superuser or
+        (hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Manager')
+    )
 
 def is_pharmacist(user):
     """Check if user is a Pharmacist"""
-    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Pharmacist'
+    return user.is_authenticated and (
+        user.is_superuser or
+        (hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Pharmacist')
+    )
 
 def is_pharm_tech(user):
     """Check if user is a Pharmacy Technician"""
-    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Pharm-Tech'
+    return user.is_authenticated and (
+        user.is_superuser or
+        (hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Pharm-Tech')
+    )
 
 def is_salesperson(user):
     """Check if user is a Salesperson"""
-    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Salesperson'
+    return user.is_authenticated and (
+        user.is_superuser or
+        (hasattr(user, 'profile') and user.profile and user.profile.user_type == 'Salesperson')
+    )
 
 # Combined role checks
 def is_admin_or_manager(user):
     """Check if user is an Admin or Manager"""
-    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager']
+    return user.is_authenticated and (
+        user.is_superuser or
+        (hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager'])
+    )
 
 def is_admin_or_pharmacist(user):
     """Check if user is an Admin or Pharmacist"""
-    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Pharmacist']
+    return user.is_authenticated and (
+        user.is_superuser or
+        (hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Pharmacist'])
+    )
 
 def is_pharmacist_or_pharm_tech(user):
     """Check if user is a Pharmacist or Pharmacy Technician"""
-    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Pharmacist', 'Pharm-Tech']
+    return user.is_authenticated and (
+        user.is_superuser or
+        (hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Pharmacist', 'Pharm-Tech'])
+    )
 
 def is_admin_or_manager_or_pharmacist(user):
     """Check if user is an Admin, Manager, or Pharmacist"""
-    return user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist']
+    return user.is_authenticated and (
+        user.is_superuser or
+        (hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist'])
+    )
 
 def can_dispense_medication(user):
     """Check if user can dispense medication"""
@@ -63,23 +90,38 @@ def can_delete_stock_check_reports(user):
 
 def can_process_sales(user):
     """Check if user can process sales"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Pharm-Tech', 'Salesperson']
+    return user.is_authenticated and (
+        user.is_superuser or
+        user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Pharm-Tech', 'Salesperson']
+    )
 
 def can_view_reports(user):
     """Check if user can view reports"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+    return user.is_authenticated and (
+        user.is_superuser or
+        user.profile.user_type in ['Admin', 'Manager']
+    )
 
 def can_manage_users(user):
     """Check if user can manage users"""
-    return user.is_authenticated and user.profile.user_type == 'Admin'
+    return user.is_authenticated and (
+        user.is_superuser or
+        user.profile.user_type == 'Admin'
+    )
 
 def can_approve_procurement(user):
     """Check if user can approve procurement"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+    return user.is_authenticated and (
+        user.is_superuser or
+        user.profile.user_type in ['Admin', 'Manager']
+    )
 
 def can_manage_customers(user):
     """Check if user can manage customers"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist']
+    return user.is_authenticated and (
+        user.is_superuser or
+        user.profile.user_type in ['Admin', 'Manager', 'Pharmacist']
+    )
 
 def can_manage_suppliers(user):
     """Check if user can manage suppliers"""
@@ -183,19 +225,31 @@ def can_view_financial_reports(user):
 
 def can_edit_user_profiles(user):
     """Check if user can edit user profiles"""
-    return user.is_authenticated and user.profile.user_type == 'Admin'
+    return user.is_authenticated and (
+        user.is_superuser or
+        user.profile.user_type == 'Admin'
+    )
 
 def can_access_admin_panel(user):
     """Check if user can access the admin panel"""
-    return user.is_authenticated and user.profile.user_type == 'Admin'
+    return user.is_authenticated and (
+        user.is_superuser or
+        user.profile.user_type == 'Admin'
+    )
 
 def can_manage_system_settings(user):
     """Check if user can manage system settings"""
-    return user.is_authenticated and user.profile.user_type == 'Admin'
+    return user.is_authenticated and (
+        user.is_superuser or
+        user.profile.user_type == 'Admin'
+    )
 
 def can_view_sales_history(user):
     """Check if user can view sales history"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Pharm-Tech', 'Salesperson']
+    return user.is_authenticated and (
+        user.is_superuser or
+        user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Pharm-Tech', 'Salesperson']
+    )
 
 def can_view_procurement_history(user):
     """Check if user can view procurement history"""
@@ -203,7 +257,10 @@ def can_view_procurement_history(user):
 
 def can_manage_items(user):
     """Check if user can add and edit items"""
-    return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']
+    return user.is_authenticated and (
+        user.is_superuser or
+        user.profile.user_type in ['Admin', 'Manager']
+    )
 
 def can_view_purchase_and_stock_values(user):
     """Check if user can view purchase and stock values (cost, procurement data)"""
@@ -447,6 +504,10 @@ def is_cashier(user):
     if not user.is_authenticated:
         return False
     
+    # Superusers have access to everything
+    if user.is_superuser:
+        return True
+    
     # Check if user has dedicated cashier record
     try:
         from store.models import Cashier
@@ -483,7 +544,7 @@ def role_required(allowed_roles):
                 # Refresh the user object to get the new profile
                 request.user.refresh_from_db()
 
-            if request.user.profile.user_type in allowed_roles:
+            if request.user.is_superuser or request.user.profile.user_type in allowed_roles:
                 return view_func(request, *args, **kwargs)
             else:
                 messages.error(request, f"Access denied. You need to be a {', '.join(allowed_roles)} to access this page.")

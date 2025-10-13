@@ -230,12 +230,14 @@ class RoleBasedAccessMiddleware:
                 # Refresh the user object to get the new profile
                 request.user.refresh_from_db()
 
-            user_role = request.user.profile.user_type
+            # Superusers have access to everything
+            if not request.user.is_superuser:
+                user_role = request.user.profile.user_type
 
-            if user_role not in allowed_roles:
-                messages.error(request, f"Access denied. You need to be a {', '.join(allowed_roles)} to access this page.")
-                # Redirect to dashboard or previous page
-                return redirect('store:dashboard')
+                if user_role not in allowed_roles:
+                    messages.error(request, f"Access denied. You need to be a {', '.join(allowed_roles)} to access this page.")
+                    # Redirect to dashboard or previous page
+                    return redirect('store:dashboard')
 
         response = self.get_response(request)
         return response

@@ -106,6 +106,10 @@ class User(AbstractUser):
 
     def has_permission(self, permission):
         """Check if user has a specific permission based on their role and individual permissions"""
+        # Superusers have access to everything
+        if self.is_superuser:
+            return True
+            
         if not hasattr(self, 'profile') or not self.profile:
             # Create a default profile if none exists
             Profile.objects.get_or_create(user=self, defaults={
