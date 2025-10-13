@@ -62,8 +62,54 @@
                                     <th>User Type:</th>
                                     <td>
                                         <span class="badge badge-primary">{{ user.profile.user_type|default:"N/A" }}</span>
+                                        {% if user.profile.user_type == 'Cashier' %}
+                                            {% if cashier_info %}
+                                                <small class="text-muted">({{ cashier_info.cashier_id }})</small>
+                                                {% if cashier_info.is_active %}
+                                                    <span class="badge badge-success">Active</span>
+                                                {% else %}
+                                                    <span class="badge badge-danger">Inactive</span>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% endif %}
                                     </td>
                                 </tr>
+                                {% if user.profile.user_type == 'Cashier' %}
+                                <tr>
+                                    <th>Cashier Actions:</th>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            {% if cashier_info %}
+                                                <a href="{% url 'userauth:toggle_cashier' user.id %}" 
+                                                   class="btn {% if cashier_info.is_active %}btn-warning{% else %}btn-success{% %}">
+                                                    {% if cashier_info.is_active %}
+                                                        <i class="fas fa-pause"></i> Deactivate
+                                                    {% else %}
+                                                        <i class="fas fa-play"></i> Activate
+                                                    {% endif %}
+                                                </a>
+                                            {% endif %}
+                                            <a href="{% url 'store:cashier_dashboard' %}" 
+                                               class="btn btn-info" target="_blank">
+                                                <i class="fas fa-eye"></i> View Dashboard
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% elif %}
+                                <tr>
+                                    <th>Assign Cashier:</th>
+                                    <td>
+                                        <a href="{% url 'userauth:assign_cashier' user.id %}" 
+                                           class="btn btn-primary btn-sm">
+                                            <i class="fas fa-user-tag"></i> Assign Cashier Role
+                                        </a>
+                                        <small class="text-muted ml-2">
+                                            This will create a cashier account for this user.
+                                        </small>
+                                    </td>
+                                </tr>
+                                {% endif %}
                             </table>
                         </div>
                         <div class="col-md-6">

@@ -8,6 +8,7 @@ USER_TYPE = (
     ('Pharmacist', 'Pharmacist'),
     ('Pharm-Tech', 'Pharm-Tech'),
     ('Salesperson', 'Salesperson'),
+    ('Cashier', 'Cashier'),
     ('Wholesale Manager', 'Wholesale Manager'),
     ('Wholesale Operator', 'Wholesale Operator'),
     ('Wholesale Salesperson', 'Wholesale Salesperson'),

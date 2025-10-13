@@ -12,10 +12,11 @@
                     <tr>
                         <th>Request ID</th>
                         <th>Date</th>
+                        <th><i class="fas fa-pills text-primary"></i> Dispenser</th>
                         <th>Customer</th>
                         <th>Total Amount</th>
                         <th>Status</th>
-                        <th>Cashier</th>
+                        <th><i class="fas fa-cash-register text-success"></i> Cashier</th>
                         <th>Notes</th>
                         <th>Actions</th>
                     </tr>
@@ -25,6 +26,11 @@
                         <tr>
                             <td><strong>{{ request.request_id }}</strong></td>
                             <td>{{ request.created_at|date:"M d, Y H:i" }}</td>
+                            <td>
+                                <span title="Created by: {{ request.dispenser.username }}">
+                                    {{ request.dispenser.username }}
+                                </span>
+                            </td>
                             <td>
                                 {% if request.customer %}
                                     {{ request.customer.name }}

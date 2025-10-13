@@ -14,7 +14,7 @@
                 <div class="card-body">
                     <div class="alert alert-info">
                         <h6>Request Summary</h6>
-                        <p><strong>From:</strong> {{ payment_request.dispenser.username }}</p>
+                        <p><strong><i class="fas fa-pills text-primary"></i> From (Dispenser):</strong> {{ payment_request.dispenser.username }}</p>
                         <p><strong>Customer:</strong> 
                             {% if payment_request.customer %}
                                 {{ payment_request.customer.name }}

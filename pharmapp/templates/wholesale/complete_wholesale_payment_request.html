@@ -43,7 +43,7 @@
                                 {% endif %}
                             </p>
                             <p><strong>Total Amount:</strong> <span class="text-primary">₦{{ payment_request.total_amount|floatformat:2 }}</span></p>
-                            <p><strong>Dispenser:</strong> {{ payment_request.dispenser.username }}</p>
+                            <p><strong><i class="fas fa-pills text-primary"></i> Dispenser:</strong> {{ payment_request.dispenser.username }}</p>
                             <p><strong>Items Count:</strong> {{ payment_request.items.count }}</p>
                         </div>
 

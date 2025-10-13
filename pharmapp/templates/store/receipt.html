@@ -21,7 +21,7 @@
         {% block content %}
         <header>
             <!-- Debug Information - Remove in production -->
-            <div style="display: none; background: #f8f9fa; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
+            <div style="background: #fff3cd; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #ffeaa7;">
                 <h4>Debug Info:</h4>
                 <p><strong>Receipt ID:</strong> {{ receipt.receipt_id }}</p>
                 <p><strong>Payment Method:</strong> {{ receipt.payment_method }}</p>
@@ -30,7 +30,11 @@
                 <p><strong>Total Amount:</strong> {{ receipt.total_amount }}</p>
                 <p><strong>Sales Items Count:</strong> {{ sales_items|length }}</p>
                 <p><strong>Has Sales:</strong> {% if sales %}Yes{% else %}No{% endif %}</p>
+                {% if sales %}
+                <p><strong>Sales User:</strong> {{ sales.user.username }}</p>
+                {% endif %}
                 <p><strong>Customer:</strong> {% if receipt.customer %}{{ receipt.customer.name }}{% else %}Walk-in Customer{% endif %}</p>
+                <p><strong>Current User:</strong> {{ user.username if user else 'No user' }}</p>
             </div>
         <header>
             <div class="receipt-head">
@@ -40,9 +44,11 @@
                 <p>Date: {{ receipt.date|date:"F j, Y" }}</p>
                 <p>Receipt Type: <strong>Retail</strong></p>
                 <p>Receipt ID: {{ receipt.receipt_id }}</p>
-                <p>Sales Person: {% if sales.user %}{{ sales.user.username|title }}{% else %}{{ user.username|title }}{% endif %}</p>
+                <p><i class="fas fa-pills text-primary"></i> Dispenser: {% if sales and sales.user %}{{ sales.user.username|title }}{% else %}{{ user.username|title }} (Debug: No sales object){% endif %}</p>
                 {% if receipt.cashier %}
-                <p>Cashier: {{ receipt.cashier.name|title }}</p>
+                <p><i class="fas fa-cash-register text-success"></i> Cashier: {{ receipt.cashier.name|title }}</p>
+                {% else %}
+                <p><i class="fas fa-user text-muted"></i> Cashier: Not assigned</p>
                 {% endif %}
 
                 {% if receipt.payment_method == 'Split' %}

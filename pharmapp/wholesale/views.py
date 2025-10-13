@@ -14,7 +14,8 @@ from store.forms import *
 from supplier.models import *
 from customer.models import *
 from .forms import *
-from store.views import get_daily_sales, get_monthly_sales_with_expenses
+# Import functions from store.views carefully to avoid circular imports
+# These functions are defined at module level, so they can be imported directly
 import logging
 
 # Import procurement permission functions
@@ -2421,6 +2422,7 @@ def wholesale_receipt_detail(request, receipt_id):
 
         return render(request, 'partials/wholesale_receipt_detail.html', {
             'receipt': receipt,
+            'sales': sales,
             'sales_items': sales_items,
             'total_price': total_price,
             'total_discount': total_discount,
@@ -3912,6 +3914,12 @@ def complete_wholesale_customer_history(request, customer_id):
 def send_to_wholesale_cashier(request):
     """Send wholesale payment request to cashier/billing-point/pay-point"""
     if request.user.is_authenticated:
+        from userauth.permissions import can_dispense_items
+        
+        # Check if user can dispense items (is a dispenser)
+        if not can_dispense_items(request.user):
+            messages.error(request, 'You do not have dispenser permissions to send wholesale payment requests.')
+            return redirect('wholesale:wholesale_cart')
         try:
             # Get wholesale cart items
             cart_items = WholesaleCart.objects.filter(user=request.user)
@@ -3991,6 +3999,13 @@ def send_to_wholesale_cashier(request):
 def wholesale_payment_requests(request):
     """Show dispenser's wholesale payment requests history"""
     if request.user.is_authenticated:
+        from userauth.permissions import can_dispense_items
+        
+        # Check if user can dispense items (is a dispenser)
+        if not can_dispense_items(request.user):
+            messages.error(request, 'You do not have dispenser permissions to view wholesale payment requests.')
+            return redirect('store:index')
+        
         from store.models import PaymentRequest
         payment_requests = PaymentRequest.objects.filter(dispenser=request.user, payment_type='wholesale').order_by('-created_at')
         
@@ -4032,17 +4047,13 @@ def wholesale_cashier_dashboard(request):
         try:
             from django.db.models import Count, Sum, Avg
             from store.models import Cashier, PaymentRequest
+            from userauth.permissions import is_cashier
             
             # Check if user is a cashier
             cashier = None
             is_admin = False
             
-            try:
-                cashier = request.user.cashier
-                if not cashier.is_active:
-                    messages.error(request, 'Your cashier account is deactivated.')
-                    return redirect('store:index')
-            except Cashier.DoesNotExist:
+            if not is_cashier(request.user):
                 # Check if user is an admin/manager who can see cashier dashboard
                 if request.user.is_superuser or (hasattr(request.user, 'profile') and
                     request.user.profile and request.user.profile.user_type in ['Admin', 'Manager']):
@@ -4050,6 +4061,15 @@ def wholesale_cashier_dashboard(request):
                 else:
                     messages.error(request, 'You need to be a cashier or admin/manager to access this page.')
                     return redirect('store:index')
+            
+            # Get cashier info if available
+            try:
+                cashier = request.user.cashier
+                if cashier and not cashier.is_active:
+                    messages.error(request, 'Your cashier account is deactivated.')
+                    return redirect('store:index')
+            except Cashier.DoesNotExist:
+                pass  # User is a cashier through profile
             
             # Get pending wholesale payment requests (accessible by all authorized users)
             pending_requests = PaymentRequest.objects.filter(status='pending', payment_type='wholesale').order_by('-created_at')

@@ -24,7 +24,7 @@
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6">
-                    <p><strong>From:</strong> {{ payment_request.dispenser.username }}</p>
+                    <p><strong><i class="fas fa-pills text-primary"></i> Created by (Dispenser):</strong> {{ payment_request.dispenser.username }}</p>
                     <p><strong>Date Created:</strong> {{ payment_request.created_at|date:"M d, Y H:i" }}</p>
                     {% if payment_request.accepted_at %}
                         <p><strong>Accepted At:</strong> {{ payment_request.accepted_at|date:"M d, Y H:i" }}</p>
@@ -43,7 +43,9 @@
                     </p>
                     <p><strong>Total Amount:</strong> ₦{{ payment_request.total_amount|floatformat:2 }}</p>
                     {% if payment_request.cashier %}
-                        <p><strong>Processed by:</strong> {{ payment_request.cashier.name }}</p>
+                        <p><strong><i class="fas fa-cash-register text-success"></i> Processed by (Cashier):</strong> {{ payment_request.cashier.name }}</p>
+                    {% else %}
+                        <p><strong><i class="fas fa-user text-muted"></i> Processed by (Cashier):</strong> Not yet processed</p>
                     {% endif %}
                 </div>
             </div>

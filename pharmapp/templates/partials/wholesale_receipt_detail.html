@@ -43,7 +43,12 @@
             {% endif %}
         </p>
         <p><strong>Date:</strong> {{ receipt.date|date:"F j, Y" }}</p>
-        <p><strong>Sales Person:</strong> {% if sales.user %}{{ sales.user.username|title }}{% else %}{{ user.username|title }}{% endif %}</p>
+        <p><strong><i class="fas fa-pills text-primary"></i> Dispenser:</strong> {% if sales and sales.user %}{{ sales.user.username|title }}{% else %}Unknown{% endif %}</p>
+        {% if receipt.cashier %}
+        <p><strong><i class="fas fa-cash-register text-success"></i> Cashier:</strong> {{ receipt.cashier.name|title }}</p>
+        {% else %}
+        <p><strong><i class="fas fa-user text-muted"></i> Cashier:</strong> Not assigned</p>
+        {% endif %}
 
         {% if receipt.payment_method == 'Split' %}
         <div style="border: 1px solid #ddd; padding: 12px; margin: 10px 0; border-radius: 5px; background-color: #f8f9fa;">

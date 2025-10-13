@@ -434,6 +434,30 @@ def can_search_items(user):
     """Check if user can search items"""
     return user.is_authenticated
 
+def can_dispense_items(user):
+    """Check if user can dispense items and create payment requests (Dispenser role)"""
+    return user.is_authenticated and (
+        user.is_superuser or
+        (hasattr(user, 'profile') and user.profile and 
+         user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Pharm-Tech', 'Salesperson'])
+    )
+
+def is_cashier(user):
+    """Check if user is a cashier (dedicated payment processing role)"""
+    if not user.is_authenticated:
+        return False
+    
+    # Check if user has dedicated cashier record
+    try:
+        from store.models import Cashier
+        cashier = user.cashier
+        return cashier.is_active if cashier else True
+    except:
+        # Check if user has Cashier profile
+        return (hasattr(user, 'profile') and 
+                user.profile and 
+                user.profile.user_type == 'Cashier')
+
 
 # Role-based access control decorator
 def role_required(allowed_roles):

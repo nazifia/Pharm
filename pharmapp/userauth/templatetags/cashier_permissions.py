@@ -13,7 +13,7 @@ def can_access_payment_requests(user):
 
     return (hasattr(user, 'profile') and 
             user.profile and
-            user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Salesperson'])
+            user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Salesperson', 'Cashier'])
 
 @register.filter
 def can_access_cashier_dashboard(user):
@@ -27,4 +27,4 @@ def can_access_cashier_dashboard(user):
     return (user.is_superuser or
             (hasattr(user, 'profile') and 
              user.profile and
-             user.profile.user_type in ['Admin', 'Manager']))
+             user.profile.user_type in ['Admin', 'Manager', 'Cashier']))

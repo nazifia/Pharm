@@ -47,7 +47,7 @@
                                 </p>
                                 <p><strong>Created:</strong> {{ payment_request.created_at|date:"Y-m-d H:i" }}</p>
                                 <p><strong>Total Amount:</strong> <strong>₦{{ payment_request.total_amount|floatformat:2 }}</strong></p>
-                                <p><strong>Dispenser:</strong> {{ payment_request.dispenser.username }}</p>
+                                <p><strong><i class="fas fa-pills text-primary"></i> Dispenser:</strong> {{ payment_request.dispenser.username }}</p>
                             </div>
                             <div class="col-md-6">
                                 <p><strong>Customer:</strong>
@@ -59,7 +59,9 @@
                                 </p>
                                 <p><strong>Payment Type:</strong> {{ payment_request.get_payment_type_display }}</p>
                                 {% if payment_request.cashier %}
-                                    <p><strong>Assigned Cashier:</strong> {{ payment_request.cashier.name }}</p>
+                                    <p><strong><i class="fas fa-cash-register text-success"></i> Assigned Cashier:</strong> {{ payment_request.cashier.name }}</p>
+                                {% else %}
+                                    <p><strong><i class="fas fa-user text-muted"></i> Assigned Cashier:</strong> Not yet assigned</p>
                                 {% endif %}
                                 {% if payment_request.accepted_at %}
                                     <p><strong>Accepted:</strong> {{ payment_request.accepted_at|date:"Y-m-d H:i" }}</p>

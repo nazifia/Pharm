@@ -26,7 +26,7 @@ USER_PERMISSIONS = {
         'manage_expenses', 'adjust_prices', 'process_returns', 'approve_returns',
         'transfer_stock', 'view_activity_logs', 'edit_user_profiles',
         'manage_payment_methods', 'process_split_payments', 'override_payment_status',
-        'pause_resume_procurement', 'search_items',
+        'pause_resume_procurement', 'search_items', 'dispense_items',
         # All-access permissions for Admins
         'operate_all', 'manage_all_customers', 'manage_all_procurement',
         'manage_all_stock_checks', 'manage_all_expiry',
@@ -38,7 +38,7 @@ USER_PERMISSIONS = {
         'approve_procurement', 'manage_suppliers', 'manage_expenses', 'adjust_prices',
         'process_returns', 'approve_returns', 'transfer_stock', 'view_activity_logs',
         'manage_payment_methods', 'process_split_payments', 'override_payment_status',
-        'pause_resume_procurement', 'search_items',
+        'pause_resume_procurement', 'search_items', 'dispense_items',
         # All-access permissions for Managers
         'operate_all', 'manage_all_customers', 'manage_all_procurement',
         'manage_all_stock_checks', 'manage_all_expiry',
@@ -48,19 +48,19 @@ USER_PERMISSIONS = {
     'Pharmacist': [
         'manage_inventory', 'dispense_medication', 'process_sales', 'adjust_prices',
         'process_returns', 'transfer_stock', 'view_sales_history', 'view_procurement_history',
-        'process_split_payments', 'search_items',
+        'process_split_payments', 'search_items', 'dispense_items',
         # Retail-only permissions by default
         'operate_retail', 'manage_retail_customers', 'manage_retail_procurement',
         'manage_retail_stock_checks', 'manage_retail_expiry'
     ],
     'Pharm-Tech': [
         'manage_inventory', 'process_sales', 'process_returns', 'transfer_stock',
-        'view_sales_history', 'perform_stock_check', 'process_split_payments', 'search_items',
+        'view_sales_history', 'perform_stock_check', 'process_split_payments', 'search_items', 'dispense_items',
         # Retail-only permissions by default (removed procurement permissions only)
         'operate_retail', 'manage_retail_customers', 'manage_retail_stock_checks', 'manage_retail_expiry'
     ],
     'Salesperson': [
-        'process_sales', 'view_sales_history', 'process_split_payments', 'search_items',
+        'process_sales', 'view_sales_history', 'process_split_payments', 'search_items', 'dispense_items',
         # Retail-only permissions by default
         'operate_retail', 'manage_retail_customers', 'manage_retail_expiry'
     ],
@@ -69,7 +69,7 @@ USER_PERMISSIONS = {
         'approve_procurement', 'manage_suppliers', 'manage_expenses', 'adjust_prices',
         'process_returns', 'approve_returns', 'transfer_stock', 'view_activity_logs',
         'manage_payment_methods', 'process_split_payments', 'override_payment_status',
-        'pause_resume_procurement', 'search_items',
+        'pause_resume_procurement', 'search_items', 'dispense_items',
         # Wholesale-only permissions
         'operate_wholesale', 'manage_wholesale_customers', 'manage_wholesale_procurement',
         'manage_wholesale_stock_checks', 'manage_wholesale_expiry', 'view_procurement_history'
@@ -77,13 +77,13 @@ USER_PERMISSIONS = {
     'Wholesale Operator': [
         'manage_inventory', 'process_sales', 'adjust_prices', 'process_returns',
         'transfer_stock', 'view_sales_history', 'view_procurement_history',
-        'process_split_payments', 'search_items',
+        'process_split_payments', 'search_items', 'dispense_items',
         # Wholesale-only permissions
         'operate_wholesale', 'manage_wholesale_customers', 'manage_wholesale_procurement',
         'manage_wholesale_stock_checks', 'manage_wholesale_expiry', 'view_procurement_history'
     ],
     'Wholesale Salesperson': [
-        'process_sales', 'view_sales_history', 'process_split_payments', 'search_items',
+        'process_sales', 'view_sales_history', 'process_split_payments', 'search_items', 'dispense_items',
         # Wholesale-only permissions
         'operate_wholesale', 'manage_wholesale_customers', 'manage_wholesale_expiry'
     ],
@@ -175,10 +175,33 @@ def create_user_profile(sender, instance, created, **kwargs):
 def save_user_profile(sender, instance, **kwargs):
     # Ensure profile exists before trying to access it
     if hasattr(instance, 'profile'):
+        profile = instance.profile
         # If the user is a superuser, set the user_type to 'Admin'
-        if instance.is_superuser and instance.profile.user_type != 'Admin':
-            instance.profile.user_type = 'Admin'
-            instance.profile.save()
+        if instance.is_superuser and profile.user_type != 'Admin':
+            profile.user_type = 'Admin'
+            profile.save()
+        
+        # If user type is Cashier, create or update Cashier record
+        if profile.user_type == 'Cashier':
+            from store.models import Cashier
+            cashier, created = Cashier.objects.get_or_create(
+                user=instance,
+                defaults={
+                    'name': profile.full_name or instance.username,
+                    'is_active': True
+                }
+            )
+            if not created and (cashier.name != (profile.full_name or instance.username)):
+                cashier.name = profile.full_name or instance.username
+                cashier.save()
+        # If user type is not Cashier, deactivate or delete Cashier record if it exists
+        else:
+            try:
+                cashier = instance.cashier
+                cashier.is_active = False
+                cashier.save()
+            except:
+                pass  # No cashier record exists
 
 
 

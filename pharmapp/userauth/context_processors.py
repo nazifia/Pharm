@@ -18,7 +18,10 @@ from .permissions import (
     can_view_financial_reports, can_edit_user_profiles, can_access_admin_panel,
     can_manage_system_settings, can_view_sales_history, can_view_procurement_history,
     can_manage_payment_methods, can_process_split_payments, can_override_payment_status,
-    can_pause_resume_procurement, can_search_items
+    can_pause_resume_procurement, can_search_items,
+    
+    # Role-specific checks
+    can_dispense_items, is_cashier
 )
 
 try:
@@ -85,6 +88,10 @@ def user_roles(request):
             'can_override_payment_status': can_override_payment_status(user),
             'can_pause_resume_procurement': can_pause_resume_procurement(user),
             'can_search_items': can_search_items(user),
+
+            # Role-specific checks
+            'can_dispense_items': can_dispense_items(user),
+            'is_cashier': is_cashier(user),
 
             # User role for display
             'user_role': user.profile.user_type if hasattr(user, 'profile') else None,

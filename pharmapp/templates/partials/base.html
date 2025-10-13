@@ -403,14 +403,20 @@
                 </a>
                 <div id="collapsePayments" class="collapse" aria-labelledby="headingPayments" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
-                        <h6 class="collapse-header">Cashier Links:</h6>
-                        {% if user|can_process_payments %}
-                        <a class="collapse-item" href="{% url 'store:cashier_dashboard' %}">
-                            <i class="fas fa-cash-register"></i> Retail Cashier</a>
+                        <h6 class="collapse-header">Dispenser Links:</h6>
+                        {% if user|can_dispense_items %}
+                        <a class="collapse-item" href="{% url 'store:payment_requests' %}">
+                            <i class="fas fa-pills"></i> My Payment Requests</a>
                         {% endif %}
+                        {% if user|can_dispense_items and user|can_operate_wholesale %}
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_payment_requests' %}">
+                            <i class="fas fa-store"></i> My Wholesale Requests</a>
+                        {% endif %}
+                        <div class="collapse-divider"></div>
+                        <h6 class="collapse-header">Cashier Links:</h6>
                         {% if user|is_cashier %}
                         <a class="collapse-item" href="{% url 'store:cashier_dashboard' %}">
-                            <i class="fas fa-cash-register"></i> My Cashier Dashboard</a>
+                            <i class="fas fa-cash-register"></i> Retail Cashier</a>
                         {% endif %}
                         {% if user.is_authenticated and user|can_operate_wholesale %}
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_cashier_dashboard' %}">

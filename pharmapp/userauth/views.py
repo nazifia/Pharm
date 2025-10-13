@@ -566,15 +566,132 @@ def user_details(request, user_id):
         # Get user's activity logs
         recent_activities = ActivityLog.objects.filter(user=user).order_by('-timestamp')[:10]
 
+        # Check if user has cashier record and get cashier info
+        cashier_info = None
+        if user.profile.user_type == 'Cashier':
+            try:
+                cashier_info = user.cashier
+            except:
+                # Create cashier record if it doesn't exist
+                from store.models import Cashier
+                cashier_info = Cashier.objects.create(
+                    user=user,
+                    name=user.profile.full_name or user.username,
+                    is_active=True
+                )
+
         context = {
             'user': user,
             'recent_activities': recent_activities,
             'permissions': user.get_permissions(),
+            'cashier_info': cashier_info,
             'title': f'User Details - {user.username}'
         }
 
         return render(request, 'userauth/user_details.html', context)
 
+    except User.DoesNotExist:
+        messages.error(request, 'User not found.')
+        return redirect('userauth:user_list')
+
+
+@login_required
+@role_required(['Admin'])
+def toggle_cashier_status(request, user_id):
+    """Toggle cashier status for a user (activate/deactivate cashier record)"""
+    try:
+        user = User.objects.get(id=user_id)
+        
+        if user.profile.user_type != 'Cashier':
+            messages.error(request, 'User must be assigned Cashier role first.')
+            return redirect('userauth:user_details', user_id=user_id)
+        
+        from store.models import Cashier
+        
+        # Get or create cashier record
+        cashier, created = Cashier.objects.get_or_create(
+            user=user,
+            defaults={
+                'name': user.profile.full_name or user.username,
+                'is_active': True
+            }
+        )
+        
+        # Toggle status
+        cashier.is_active = not cashier.is_active
+        cashier.save()
+        
+        status_text = 'activated' if cashier.is_active else 'deactivated'
+        messages.success(request, f'Cashier account for {user.username} has been {status_text}.')
+        
+        # Log the activity
+        ActivityLog.log_activity(
+            user=request.user,
+            action=f"Cashier account {status_text} for user: {user.username}",
+            action_type='UPDATE',
+            target_model='Cashier',
+            target_id=str(cashier.id)
+        )
+        
+        # If HTMX request, return updated status info
+        if request.headers.get('HX-Request'):
+            return render(request, 'userauth/partials/cashier_status.html', {
+                'user': user,
+                'cashier_info': cashier
+            })
+            
+    except User.DoesNotExist:
+        messages.error(request, 'User not found.')
+    
+    return redirect('userauth:user_details', user_id=user_id)
+
+
+@login_required
+@role_required(['Admin'])
+def assign_cashier_role(request, user_id):
+    """Assign cashier role to a user"""
+    try:
+        user = User.objects.get(id=user_id)
+        
+        if user.profile.user_type != 'Cashier':
+            # Update profile
+            user.profile.user_type = 'Cashier'
+            user.profile.save()
+            
+            # Create cashier record if it doesn't exist
+            from store.models import Cashier
+            cashier, created = Cashier.objects.get_or_create(
+                user=user,
+                defaults={
+                    'name': user.profile.full_name or user.username,
+                    'is_active': True
+                }
+            )
+            
+            messages.success(request, f'{user.username} has been assigned the Cashier role.')
+            
+            # Log the activity
+            ActivityLog.log_activity(
+                user=request.user,
+                action=f"Assigned cashier role to user: {user.username}",
+                action_type='UPDATE',
+                target_model='User',
+                target_id=str(user.id)
+            )
+            
+            if created:
+                ActivityLog.log_activity(
+                    user=request.user,
+                    action=f"Created cashier record for user: {user.username}",
+                    action_type='CREATE',
+                    target_model='Cashier',
+                    target_id=str(cashier.id)
+                )
+        else:
+            messages.info(request, f'{user.username} already has the Cashier role.')
+        
+        return redirect('userauth:user_details', user_id=user_id)
+        
     except User.DoesNotExist:
         messages.error(request, 'User not found.')
         return redirect('userauth:user_list')

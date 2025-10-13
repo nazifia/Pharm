@@ -43,10 +43,11 @@
                         <tr>
                             <th>Request ID</th>
                             <th>Date</th>
+                            <th><i class="fas fa-pills text-primary"></i> Dispenser</th>
                             <th>Status</th>
                             <th>Total Amount</th>
                             <th>Customer</th>
-                            <th>Cashier</th>
+                            <th><i class="fas fa-cash-register text-success"></i> Cashier</th>
                             <th>Items Count</th>
                             <th>Actions</th>
                         </tr>
@@ -56,6 +57,11 @@
                         <tr>
                             <td><strong>{{ request.request_id }}</strong></td>
                             <td>{{ request.created_at|date:"Y-m-d H:i" }}</td>
+                            <td>
+                                <span title="Created by: {{ request.dispenser.username }}">
+                                    <i class="fas fa-pills text-primary"></i> {{ request.dispenser.username }}
+                                </span>
+                            </td>
                             <td>
                                 <span class="badge badge-{{ request.status|lower }}">
                                     {{ request.status|title }}

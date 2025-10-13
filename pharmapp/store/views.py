@@ -851,6 +851,12 @@ def clear_cart(request):
 def send_to_cashier(request):
     """Send payment request to cashier/billing-point/pay-point"""
     if request.user.is_authenticated:
+        from userauth.permissions import can_dispense_items
+        
+        # Check if user can dispense items (is a dispenser)
+        if not can_dispense_items(request.user):
+            messages.error(request, 'You do not have dispenser permissions to send payment requests.')
+            return redirect('store:cart')
         try:
             # Get cart items
             cart_items = Cart.objects.filter(user=request.user)
@@ -926,6 +932,13 @@ def send_to_cashier(request):
 def payment_requests(request):
     """Show dispenser's payment requests history"""
     if request.user.is_authenticated:
+        from userauth.permissions import can_dispense_items
+        
+        # Check if user can dispense items (is a dispenser)
+        if not can_dispense_items(request.user):
+            messages.error(request, 'You do not have dispenser permissions to view payment requests.')
+            return redirect('store:index')
+        
         payment_requests = PaymentRequest.objects.filter(dispenser=request.user).order_by('-created_at')
         
         return render(request, 'store/payment_requests.html', {
@@ -962,15 +975,34 @@ def payment_request_detail(request, request_id):
 def cashier_dashboard(request):
     """Cashier dashboard showing pending payment requests"""
     if request.user.is_authenticated:
+        from userauth.permissions import is_cashier
+        
+        # Use the centralized cashier check function
+        if not is_cashier(request.user):
+            messages.error(request, 'You do not have cashier permissions to access this page.')
+            return redirect('store:index')
+        
         try:
+            # Check if user has a dedicated cashier record
             cashier = request.user.cashier
-            if not cashier.is_active:
+            is_active = cashier.is_active if cashier else True
+        except Cashier.DoesNotExist:
+            # User is a cashier through profile
+            cashier = None
+            is_active = True
+        
+        try:
+            if not is_active:
                 messages.error(request, 'Your cashier account is deactivated.')
                 return redirect('store:index')
             
             # Get pending payment requests
             pending_requests = PaymentRequest.objects.filter(status='pending').order_by('-created_at')
-            my_requests = PaymentRequest.objects.filter(cashier=cashier).exclude(status='pending').order_by('-created_at')
+            if cashier:
+                my_requests = PaymentRequest.objects.filter(cashier=cashier).exclude(status='pending').order_by('-created_at')
+            else:
+                # For profile-based cashiers, use user as identifier
+                my_requests = PaymentRequest.objects.filter(cashier__user=request.user).exclude(status='pending').order_by('-created_at')
             
             # Calculate statistics
             stats = {
@@ -980,38 +1012,56 @@ def cashier_dashboard(request):
                 'total_value': my_requests.aggregate(total=models.Sum('total_amount'))['total'] or 0,
             }
             
+            # Create cashier info for template (handle both record-based and profile-based cashiers)
+            cashier_info = cashier
+            if cashier_info is None:
+                # Create a mock cashier object for profile-based cashiers
+                class MockCashier:
+                    def __init__(self, user):
+                        self.name = user.profile.full_name if user.profile else user.username
+                        self.cashier_id = f"PROFILE-{user.id}"
+                    def __str__(self):
+                        return self.name
+                
+                cashier_info = MockCashier(request.user)
+
             return render(request, 'store/cashier_dashboard.html', {
                 'pending_requests': pending_requests,
                 'my_requests': my_requests,
-                'cashier': cashier,
+                'cashier': cashier_info,
                 'stats': stats,
             })
-            
-        except Cashier.DoesNotExist:
-            # Check if user is an admin/manager who can see cashier dashboard
-            if request.user.is_superuser or (hasattr(request.user, 'profile') and
-                request.user.profile and request.user.profile.user_type in ['Admin', 'Manager']):
-                # Show all pending requests for admin/manager
-                pending_requests = PaymentRequest.objects.filter(status='pending').order_by('-created_at')
-                all_requests = PaymentRequest.objects.all().exclude(status='pending').order_by('-created_at')
+                
+        except Exception as e:
+            # Handle any errors including Cashier.DoesNotExist and our custom exception
+            if "Not a cashier" in str(e):
+                # User is not a cashier, check if admin/manager
+                if request.user.is_superuser or (hasattr(request.user, 'profile') and
+                    request.user.profile and request.user.profile.user_type in ['Admin', 'Manager']):
+                    # Show all pending requests for admin/manager
+                    pending_requests = PaymentRequest.objects.filter(status='pending').order_by('-created_at')
+                    all_requests = PaymentRequest.objects.all().exclude(status='pending').order_by('-created_at')
 
-                # Calculate statistics for admin/manager
-                stats = {
-                    'pending_count': pending_requests.count(),
-                    'completed_today_count': all_requests.filter(status='completed', completed_at__date=timezone.now().date()).count(),
-                    'total_processed_count': all_requests.count(),
-                    'total_value': all_requests.aggregate(total=models.Sum('total_amount'))['total'] or 0,
-                }
+                    # Calculate statistics for admin/manager
+                    stats = {
+                        'pending_count': pending_requests.count(),
+                        'completed_today_count': all_requests.filter(status='completed', completed_at__date=timezone.now().date()).count(),
+                        'total_processed_count': all_requests.count(),
+                        'total_value': all_requests.aggregate(total=models.Sum('total_amount'))['total'] or 0,
+                    }
 
-                return render(request, 'store/cashier_dashboard.html', {
-                    'pending_requests': pending_requests,
-                    'my_requests': all_requests,
-                    'is_admin': True,
-                    'stats': stats,
-                })
+                    return render(request, 'store/cashier_dashboard.html', {
+                        'pending_requests': pending_requests,
+                        'my_requests': all_requests,
+                        'is_admin': True,
+                        'stats': stats,
+                    })
+                else:
+                    messages.error(request, 'You need to be a cashier to access this page.')
+                    return redirect('store:index')
             else:
-                messages.error(request, 'You need to be a cashier to access this page.')
-                return redirect('store:index')
+                # Re-raise for other exceptions (including Cashier.DoesNotExist)
+                raise e
     
     return redirect('store:index')
 
@@ -1025,7 +1075,11 @@ def accept_payment_request(request, request_id):
             payment_request = PaymentRequest.objects.get(request_id=request_id)
             
             # Check if user is a cashier or admin
-            if not (hasattr(request.user, 'cashier') or request.user.is_superuser or 
+            is_cashier = (hasattr(request.user, 'cashier') or 
+                        (hasattr(request.user, 'profile') and request.user.profile and 
+                         request.user.profile.user_type == 'Cashier'))
+            
+            if not (is_cashier or request.user.is_superuser or 
                 (hasattr(request.user, 'profile') and request.user.profile and 
                  request.user.profile.user_type in ['Admin', 'Manager'])):
                 messages.error(request, 'You are not authorized to accept payment requests.')
@@ -1038,6 +1092,20 @@ def accept_payment_request(request, request_id):
             # Assign to cashier if not admin
             if hasattr(request.user, 'cashier'):
                 payment_request.cashier = request.user.cashier
+            elif is_cashier and not request.user.is_superuser:
+                # For profile-based cashiers, find or create cashier record
+                try:
+                    cashier = request.user.cashier
+                    payment_request.cashier = cashier
+                except Cashier.DoesNotExist:
+                    # Create cashier record if it doesn't exist
+                    from store.models import Cashier
+                    cashier = Cashier.objects.create(
+                        user=request.user,
+                        name=request.user.profile.full_name if request.user.profile else request.user.username,
+                        is_active=True
+                    )
+                    payment_request.cashier = cashier
             
             payment_request.status = 'accepted'
             payment_request.accepted_at = timezone.now()
@@ -1061,7 +1129,11 @@ def reject_payment_request(request, request_id):
             payment_request = PaymentRequest.objects.get(request_id=request_id)
             
             # Check if user is a cashier or admin
-            if not (hasattr(request.user, 'cashier') or request.user.is_superuser or 
+            is_cashier = (hasattr(request.user, 'cashier') or 
+                        (hasattr(request.user, 'profile') and request.user.profile and 
+                         request.user.profile.user_type == 'Cashier'))
+            
+            if not (is_cashier or request.user.is_superuser or 
                 (hasattr(request.user, 'profile') and request.user.profile and 
                  request.user.profile.user_type in ['Admin', 'Manager'])):
                 messages.error(request, 'You are not authorized to reject payment requests.')
@@ -1115,7 +1187,11 @@ def complete_payment_request(request, request_id):
             payment_request = PaymentRequest.objects.get(request_id=request_id)
             
             # Check if user is the assigned cashier or admin
-            if not (hasattr(request.user, 'cashier') or request.user.is_superuser or 
+            is_cashier = (hasattr(request.user, 'cashier') or 
+                        (hasattr(request.user, 'profile') and request.user.profile and 
+                         request.user.profile.user_type == 'Cashier'))
+            
+            if not (is_cashier or request.user.is_superuser or 
                 (hasattr(request.user, 'profile') and request.user.profile and 
                  request.user.profile.user_type in ['Admin', 'Manager'])):
                 messages.error(request, 'You are not authorized to complete this payment request.')
@@ -1137,6 +1213,18 @@ def complete_payment_request(request, request_id):
                 cashier = None
                 if hasattr(request.user, 'cashier'):
                     cashier = request.user.cashier
+                elif is_cashier and not request.user.is_superuser:
+                    # For profile-based cashiers, find or create cashier record
+                    try:
+                        cashier = request.user.cashier
+                    except Cashier.DoesNotExist:
+                        # Create cashier record if it doesn't exist
+                        from store.models import Cashier
+                        cashier = Cashier.objects.create(
+                            user=request.user,
+                            name=request.user.profile.full_name if request.user.profile else request.user.username,
+                            is_active=True
+                        )
 
                 # Create sales and receipt
                 sales = Sales.objects.create(
@@ -1680,6 +1768,7 @@ def receipt(request):
         try:
             return render(request, 'store/receipt.html', {
                 'receipt': receipt,
+                'sales': sales,
                 'sales_items': sales_items,
                 'total_price': total_price,
                 'total_discount': total_discount,
@@ -1865,6 +1954,7 @@ def receipt_detail(request, receipt_id):
         # Render the receipt details template
         return render(request, 'partials/receipt_detail.html', {
             'receipt': receipt,
+            'sales': sales,
             'sales_items': sales_items,
             'total_price': total_price,
             'total_discount': total_discount,

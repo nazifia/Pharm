@@ -25,6 +25,48 @@
         {% endfor %}
     {% endif %}
 
+    <!-- Dispenser vs Cashier Information Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-info">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle"></i> Dispenser vs Cashier Roles - Important Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-primary"><i class="fas fa-pills"></i> Dispenser Role</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success"></i> Can dispense medications and items</li>
+                                <li><i class="fas fa-check text-success"></i> Can create payment requests</li>
+                                <li><i class="fas fa-check text-success"></i> Can view their own payment request history</li>
+                                <li><i class="fas fa-check text-success"></i> Has access to medical and sales operations</li>
+                                <li><strong class="text-primary">Roles:</strong> Admin, Manager, Pharmacist, Pharm-Tech, Salesperson, Wholesale roles</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-success"><i class="fas fa-cash-register"></i> Cashier Role</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success"></i> Can process payments</li>
+                                <li><i class="fas fa-check text-success"></i> Can handle payment requests</li>
+                                <li><i class="fas fa-check text-success"></i> Has access to cashier dashboard</li>
+                                <li><i class="fas fa-check text-success"></i> Can manage payment workflows</li>
+                                <li><strong class="text-success">Roles:</strong> Dedicated Cashier users (separate from dispensers)</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        <strong>Key Separation:</strong> A user cannot be both a dispenser and a cashier. 
+                        Dispensers create payment requests, while cashiers process them. This ensures proper workflow separation and audit trails.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
         <!-- User Selection and Privilege Assignment -->
         <div class="col-md-8">
@@ -116,7 +158,17 @@
                                         <button class="btn btn-link btn-sm" type="button" data-toggle="collapse"
                                                 data-target="#collapse{{ forloop.counter }}" aria-expanded="false"
                                                 aria-controls="collapse{{ forloop.counter }}">
-                                            <span class="badge badge-primary">{{ role }}</span>
+                                            {% if role == 'Cashier' %}
+                                                <span class="badge badge-success">
+                                                    <i class="fas fa-cash-register"></i> {{ role }}
+                                                </span>
+                                            {% elif role == 'Admin' or role == 'Manager' or role == 'Pharmacist' or role == 'Pharm-Tech' or role == 'Salesperson' or role == 'Wholesale Manager' or role == 'Wholesale Operator' or role == 'Wholesale Salesperson' %}
+                                                <span class="badge badge-primary">
+                                                    <i class="fas fa-pills"></i> {{ role }}
+                                                </span>
+                                            {% else %}
+                                                <span class="badge badge-info">{{ role }}</span>
+                                            {% endif %}
                                         </button>
                                     </h6>
                                 </div>
@@ -170,6 +222,18 @@
                         </button>
                         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="applyRoleTemplate('Salesperson')">
                             <i class="fas fa-handshake"></i> Apply Salesperson Template
+                        </button>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="applyRoleTemplate('Cashier')">
+                            <i class="fas fa-cash-register"></i> Apply Cashier Template
+                        </button>
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="applyRoleTemplate('Wholesale Manager')">
+                            <i class="fas fa-store"></i> Apply Wholesale Manager Template
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" onclick="applyRoleTemplate('Wholesale Operator')">
+                            <i class="fas fa-industry"></i> Apply Wholesale Operator Template
+                        </button>
+                        <button type="button" class="btn btn-outline-warning btn-sm" onclick="applyRoleTemplate('Wholesale Salesperson')">
+                            <i class="fas fa-users"></i> Apply Wholesale Salesperson Template
                         </button>
                         <hr>
                         <button type="button" class="btn btn-outline-danger btn-sm" onclick="showBulkPermissionModal()">

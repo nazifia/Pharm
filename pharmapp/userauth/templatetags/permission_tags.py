@@ -18,6 +18,19 @@ def has_permission(user, permission):
 
 
 @register.filter
+def is_cashier(user):
+    """
+    Template filter to check if a user is a cashier.
+    Usage: {% if user|is_cashier %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    from userauth.permissions import is_cashier
+    return is_cashier(user)
+
+
+@register.filter
 def is_admin(user):
     """
     Template filter to check if a user is an admin.
@@ -472,6 +485,19 @@ def check_permission(user, permission, content=""):
         'has_permission': user.has_permission(permission) if user and user.is_authenticated else False,
         'content': content
     }
+
+
+@register.filter
+def can_dispense_items(user):
+    """
+    Template filter to check if a user can dispense items and create payment requests.
+    Usage: {% if user|can_dispense_items %}
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    from userauth.permissions import can_dispense_items
+    return can_dispense_items(user)
 
 
 @register.filter
