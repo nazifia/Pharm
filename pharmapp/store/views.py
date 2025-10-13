@@ -2674,9 +2674,16 @@ def monthly_sales(request):
                 # If parsing fails, leave filtered_sales unchanged (or handle the error as needed)
                 pass
 
+        # Add pagination
+        paginator = Paginator(filtered_sales, 12)  # Show 12 months per page
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+        
         context = {
-            'monthly_sales': filtered_sales,
-            'selected_month': selected_month_str  # pass back to pre-fill the form field
+            'monthly_sales': page_obj,
+            'selected_month': selected_month_str,  # pass back to pre-fill the form field
+            'is_paginated': paginator.num_pages > 1,
+            'page_obj': page_obj
         }
         return render(request, 'store/monthly_sales.html', context)
     else:
