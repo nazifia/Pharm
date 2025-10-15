@@ -26,14 +26,13 @@ urlpatterns = [
     path('api/user-permissions/<int:user_id>/', views.user_permissions_api, name='user_permissions_api'),
     path('api/save-user-permissions/', views.save_user_permissions_api, name='save_user_permissions_api'),
     path('api/bulk-operations/', views.bulk_operations_api, name='bulk_operations_api'),
-    path('api/permission-matrix/', views.permission_matrix_api, name='permission_matrix_api'),
-    path('api/privilege-statistics/', views.privilege_statistics_api, name='privilege_statistics_api'),
-    path('api/all-permissions/', views.all_permissions_api, name='all_permissions_api'),
-    path('api/export-permissions/', views.export_permissions_api, name='export_permissions_api'),
-    path('api/user-audit-trail/<int:user_id>/', views.user_audit_trail_api, name='user_audit_trail_api'),
-    path('api/grant-user-permission/', views.grant_user_permission_api, name='grant_user_permission_api'),
-    path('api/revoke-user-permission/', views.revoke_user_permission_api, name='revoke_user_permission_api'),
+    
     path('api/legacy-user-permissions/<int:user_id>/', views.get_user_permissions, name='get_user_permissions'),
     path('api/users/', views.get_all_users_api, name='get_all_users_api'),
     path('bulk-permission-management/', views.bulk_permission_management, name='bulk_permission_management'),
+
+    # Cashier Management API endpoints
+    path('api/cashiers/', views.cashier_management_api, name='cashier_management_api'),
+    path('api/available-users/', views.available_users_api, name='available_users_api'),
+    path('api/cashier/<int:cashier_id>/', views.update_cashier_api, name='update_cashier_api'),
 ]

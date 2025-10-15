@@ -979,14 +979,29 @@ class WholesaleSettings(models.Model):
 # Cashier/Billing-Point/Pay-Point Models
 class Cashier(models.Model):
     """Model for cashier/billing-point/pay-point users"""
+    CASHIER_TYPE_CHOICES = [
+        ('retail', 'Retail Only'),
+        ('wholesale', 'Wholesale Only'),
+        ('both', 'Retail & Wholesale'),
+    ]
+    
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     cashier_id = ShortUUIDField(unique=True, length=8, max_length=50, prefix='CSH:', alphabet='1234567890')
     name = models.CharField(max_length=200)
+    cashier_type = models.CharField(max_length=20, choices=CASHIER_TYPE_CHOICES, default='both')
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=datetime.now)
     
     def __str__(self):
-        return f"{self.name} ({self.cashier_id})"
+        return f"{self.name} ({self.cashier_id}) - {self.get_cashier_type_display()}"
+    
+    def can_handle_retail(self):
+        """Check if cashier can handle retail operations"""
+        return self.cashier_type in ['retail', 'both']
+    
+    def can_handle_wholesale(self):
+        """Check if cashier can handle wholesale operations"""
+        return self.cashier_type in ['wholesale', 'both']
 
 
 class PaymentRequest(models.Model):

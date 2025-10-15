@@ -1,6 +1,7 @@
 from django import forms
 from . models import User, Profile, ActivityLog
 from django.contrib.auth.forms import UserCreationForm
+from store.models import Cashier
 
 USER_TYPE = (
     ('Admin', 'Admin'),
@@ -248,3 +249,75 @@ class ActivityLogSearchForm(forms.Form):
 
         if user_queryset is not None:
             self.fields['user'].queryset = user_queryset
+
+
+class CashierManagementForm(forms.ModelForm):
+    """Form for managing cashier assignments and types"""
+    
+    class Meta:
+        model = Cashier
+        fields = ['user', 'name', 'cashier_type', 'is_active']
+        widgets = {
+            'user': forms.Select(attrs={'class': 'form-control'}),
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter cashier name'}),
+            'cashier_type': forms.Select(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter users to only show those without cashier profiles and those with Cashier role
+        from django.db.models import Q
+        
+        # Get users with Cashier user_type or those who can be cashiers
+        user_queryset = User.objects.filter(
+            Q(profile__user_type='Cashier') | 
+            Q(profile__user_type='Manager') | 
+            Q(profile__user_type='Admin')
+        ).exclude(
+            id__in=Cashier.objects.values_list('user_id', flat=True)
+        ).distinct()
+        
+        self.fields['user'].queryset = user_queryset
+        self.fields['user'].empty_label = "Select a user for cashier assignment"
+        
+        # If editing existing cashier, exclude current user from queryset
+        if self.instance and self.instance.pk:
+            current_user = self.instance.user
+            user_queryset = User.objects.filter(
+                Q(profile__user_type='Cashier') | 
+                Q(profile__user_type='Manager') | 
+                Q(profile__user_type='Admin')
+            ).exclude(
+                id__in=Cashier.objects.exclude(pk=self.instance.pk).values_list('user_id', flat=True)
+            ).distinct()
+            self.fields['user'].queryset = user_queryset
+
+
+class CashierSearchForm(forms.Form):
+    """Form for searching cashiers"""
+    
+    search_term = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Search by name or ID...'
+        })
+    )
+    
+    cashier_type = forms.ChoiceField(
+        choices=[('', 'All Types')] + Cashier.CASHIER_TYPE_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    
+    is_active = forms.ChoiceField(
+        choices=[
+            ('', 'All Status'),
+            ('True', 'Active'),
+            ('False', 'Inactive')
+        ],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )

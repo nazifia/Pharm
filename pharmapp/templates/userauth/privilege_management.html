@@ -273,6 +273,154 @@
         </div>
     </div>
 
+    <!-- Cashier Assignment Management -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-warning text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cash-register"></i> Cashier Assignment Management
+                        </h5>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-light" onclick="addNewCashier()">
+                                <i class="fas fa-plus"></i> Add Cashier
+                            </button>
+                            <button class="btn btn-light" onclick="refreshCashierList()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Search and Filter -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" id="cashier-search" placeholder="Search cashiers...">
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-control" id="cashier-type-filter">
+                                <option value="">All Types</option>
+                                <option value="retail">Retail Only</option>
+                                <option value="wholesale">Wholesale Only</option>
+                                <option value="both">Retail & Wholesale</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-control" id="cashier-status-filter">
+                                <option value="">All Status</option>
+                                <option value="True">Active</option>
+                                <option value="False">Inactive</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-primary w-100" onclick="searchCashiers()">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Cashier List -->
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="cashier-table">
+                            <thead class="table-primary">
+                                <tr>
+                                    <th>Cashier ID</th>
+                                    <th>Name</th>
+                                    <th>User</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cashier-tbody">
+                                <!-- Cashier data will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cashier Statistics -->
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-pie"></i> Cashier Statistics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="stat-item mb-3">
+                                <h4 class="text-primary" id="total-cashiers">0</h4>
+                                <small>Total Cashiers</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-item mb-3">
+                                <h4 class="text-success" id="active-cashiers">0</h4>
+                                <small>Active</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-item mb-3">
+                                <h4 class="text-warning" id="retail-cashiers">0</h4>
+                                <small>Retail Only</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-item mb-3">
+                                <h4 class="text-info" id="wholesale-cashiers">0</h4>
+                                <small>Wholesale Only</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <h6 class="text-center mb-3">Both Operations</h6>
+                        <div class="progress">
+                            <div class="progress-bar bg-success" id="both-cashiers-progress" style="width: 0%">0</div>
+                        </div>
+                        <small class="text-muted">Cashiers handling both retail & wholesale</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Cashier Actions -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt"></i> Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success btn-sm" onclick="addNewCashier()">
+                            <i class="fas fa-plus"></i> Add New Cashier
+                        </button>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="viewCashierDashboard()">
+                            <i class="fas fa-chart-line"></i> View Dashboard
+                        </button>
+                        <button type="button" class="btn btn-info btn-sm" onclick="exportCashierReport()">
+                            <i class="fas fa-download"></i> Export Report
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm" onclick="bulkUpdateCashiers()">
+                            <i class="fas fa-users-cog"></i> Bulk Update
+                        </button>
+                        <hr>
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="deactivateInactiveCashiers()">
+                            <i class="fas fa-user-minus"></i> Deactivate Inactive
+                        </button>
+                        <button type="button" class="btn btn-outline-warning btn-sm" onclick="sendNotifications()">
+                            <i class="fas fa-bell"></i> Send Notifications
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Current User Permissions Display -->
     <div class="row">
         <div class="col-12">
@@ -288,6 +436,301 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Wholesale Cashier Management Section -->
+    <div class="row">
+        <!-- Wholesale Cashier Functions -->
+        <div class="col-md-8">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-store"></i> Wholesale Cashier Functions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="wholesaleFunctionsAccordion">
+                        <!-- Payment Processing -->
+                        <div class="card">
+                            <div class="card-header p-2" id="headingPayment">
+                                <h6 class="mb-0">
+                                    <button class="btn btn-link btn-sm" type="button" data-toggle="collapse"
+                                            data-target="#collapsePayment" aria-expanded="false"
+                                            aria-controls="collapsePayment">
+                                        <span class="badge badge-warning">
+                                            <i class="fas fa-credit-card"></i> Payment Processing
+                                        </span>
+                                    </button>
+                                </h6>
+                            </div>
+                            <div id="collapsePayment" class="collapse"
+                                 aria-labelledby="headingPayment"
+                                 data-parent="#wholesaleFunctionsAccordion">
+                                <div class="card-body p-2">
+                                    <small>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Process wholesale payment requests
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Accept pending payment requests
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Reject payment requests with reasons
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Generate wholesale receipts
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Handle payment method verification
+                                        </div>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Request Management -->
+                        <div class="card">
+                            <div class="card-header p-2" id="headingRequest">
+                                <h6 class="mb-0">
+                                    <button class="btn btn-link btn-sm" type="button" data-toggle="collapse"
+                                            data-target="#collapseRequest" aria-expanded="false"
+                                            aria-controls="collapseRequest">
+                                        <span class="badge badge-info">
+                                            <i class="fas fa-list"></i> Request Management
+                                        </span>
+                                    </button>
+                                </h6>
+                            </div>
+                            <div id="collapseRequest" class="collapse"
+                                 aria-labelledby="headingRequest"
+                                 data-parent="#wholesaleFunctionsAccordion">
+                                <div class="card-body p-2">
+                                    <small>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> View pending payment requests
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Filter requests by status
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Search payment requests by ID
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Bulk process multiple requests
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Export payment request data
+                                        </div>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Reporting Analytics -->
+                        <div class="card">
+                            <div class="card-header p-2" id="headingAnalytics">
+                                <h6 class="mb-0">
+                                    <button class="btn btn-link btn-sm" type="button" data-toggle="collapse"
+                                            data-target="#collapseAnalytics" aria-expanded="false"
+                                            aria-controls="collapseAnalytics">
+                                        <span class="badge badge-primary">
+                                            <i class="fas fa-chart-bar"></i> Reporting & Analytics
+                                        </span>
+                                    </button>
+                                </h6>
+                            </div>
+                            <div id="collapseAnalytics" class="collapse"
+                                 aria-labelledby="headingAnalytics"
+                                 data-parent="#wholesaleFunctionsAccordion">
+                                <div class="card-body p-2">
+                                    <small>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> View daily payment statistics
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Generate monthly cashier reports
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Track processing times
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Monitor cashier performance
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Export financial data
+                                        </div>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Session Management -->
+                        <div class="card">
+                            <div class="card-header p-2" id="headingSession">
+                                <h6 class="mb-0">
+                                    <button class="btn btn-link btn-sm" type="button" data-toggle="collapse"
+                                            data-target="#collapseSession" aria-expanded="false"
+                                            aria-controls="collapseSession">
+                                        <span class="badge badge-success">
+                                            <i class="fas fa-user-clock"></i> Session Management
+                                        </span>
+                                    </button>
+                                </h6>
+                            </div>
+                            <div id="collapseSession" class="collapse"
+                                 aria-labelledby="headingSession"
+                                 data-parent="#wholesaleFunctionsAccordion">
+                                <div class="card-body p-2">
+                                    <small>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Start cashier session
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> End cashier session
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> View active cashier sessions
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Monitor session activities
+                                        </div>
+                                        <div class="permission-item">
+                                            <i class="fas fa-check text-success"></i> Access session audit logs
+                                        </div>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt"></i> Quick Cashier Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success btn-sm" onclick="openWholesaleCashier()">
+                            <i class="fas fa-cash-register"></i> Open Cashier Dashboard
+                        </button>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="viewWholesaleRequests()">
+                            <i class="fas fa-list"></i> View All Requests
+                        </button>
+                        <button type="button" class="btn btn-info btn-sm" onclick="refreshWholesaleStats()">
+                            <i class="fas fa-sync-alt"></i> Refresh Statistics
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm" onclick="startCashierSession()">
+                            <i class="fas fa-play"></i> Start Cashier Session
+                        </button>
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="endCashierSession()">
+                            <i class="fas fa-stop"></i> End Cashier Session
+                        </button>
+                        <hr>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="generateCashierReport()">
+                            <i class="fas fa-file-invoice"></i> Generate Daily Report
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" onclick="exportCashierData()">
+                            <i class="fas fa-download"></i> Export Payment Data
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="viewCashierAudit()">
+                            <i class="fas fa-history"></i> View Audit Trail
+                        </button>
+                        <hr>
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="openBulkOperation()">
+                            <i class="fas fa-users-cog"></i> Bulk Operations
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cashier Management Modal -->
+<div class="modal fade" id="cashierManagementModal" tabindex="-1" role="dialog" aria-labelledby="cashierManagementModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title" id="cashierManagementModalLabel">
+                    <i class="fas fa-cash-register"></i> Add/Edit Cashier
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="cashier-form" method="POST">
+                {% csrf_token %}
+                <input type="hidden" id="cashier-id" name="cashier_id">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="cashier-user">User:</label>
+                                <select class="form-control" id="cashier-user" name="user" required>
+                                    <option value="">Select a user...</option>
+                                    <!-- Users will be loaded dynamically -->
+                                </select>
+                                <small class="form-text text-muted">Select a user to assign as cashier</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="cashier-name">Cashier Name:</label>
+                                <input type="text" class="form-control" id="cashier-name" name="name" required 
+                                       placeholder="Enter cashier display name">
+                                <small class="form-text text-muted">This name will be displayed on receipts</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="cashier-type">Cashier Type:</label>
+                                <select class="form-control" id="cashier-type" name="cashier_type" required>
+                                    <option value="">Select type...</option>
+                                    <option value="retail">Retail Only</option>
+                                    <option value="wholesale">Wholesale Only</option>
+                                    <option value="both">Retail & Wholesale</option>
+                                </select>
+                                <small class="form-text text-muted">What operations can this cashier handle?</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <div class="form-check mt-4">
+                                    <input class="form-check-input" type="checkbox" id="cashier-active" name="is_active" checked>
+                                    <label class="form-check-label" for="cashier-active">
+                                        <i class="fas fa-toggle-on text-success"></i> Active Cashier
+                                    </label>
+                                    <small class="form-text text-muted">Enable/disable cashier access</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Cashier Types:</strong><br>
+                        • <strong>Retail Only:</strong> Can handle retail payment requests<br>
+                        • <strong>Wholesale Only:</strong> Can handle wholesale payment requests<br>
+                        • <strong>Retail & Wholesale:</strong> Can handle both types of requests
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> Save Cashier
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -357,6 +800,367 @@
 <script>
 // Role permission templates
 const rolePermissions = {{ user_permissions|safe }};
+
+// Cashier management variables
+let allCashiers = [];
+let currentCashierId = null;
+
+// Cashier Management Functions
+function loadCashiers() {
+    // Load cashiers from real API
+    fetch('/api/cashiers/', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            allCashiers = data.cashiers;
+            displayCashiers(data.cashiers);
+            updateCashierStatistics(data.cashiers);
+        } else {
+            console.error('Error loading cashiers:', data.error);
+            showNotification('Error loading cashiers: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading cashiers:', error);
+        showNotification('Network error loading cashiers', 'danger');
+    });
+}
+
+function displayCashiers(cashiers) {
+    const tbody = document.getElementById('cashier-tbody');
+    
+    if (cashiers.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center text-muted">
+                    <i class="fas fa-inbox fa-2x mb-2"></i>
+                    <p>No cashiers found</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = cashiers.map(cashier => `
+        <tr>
+            <td><span class="badge badge-primary">${cashier.cashier_id}</span></td>
+            <td>${cashier.name}</td>
+            <td>${cashier.user.full_name || cashier.user.username}</td>
+            <td>
+                <span class="badge badge-${getCashierTypeBadgeClass(cashier.cashier_type)}">
+                    ${getCashierTypeDisplay(cashier.cashier_type)}
+                </span>
+            </td>
+            <td>
+                <span class="badge badge-${cashier.is_active ? 'success' : 'secondary'}">
+                    ${cashier.is_active ? 'Active' : 'Inactive'}
+                </span>
+            </td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="editCashier(${cashier.id})" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-outline-${cashier.is_active ? 'warning' : 'success'}"
+                            onclick="toggleCashierStatus(${cashier.id})"
+                            title="${cashier.is_active ? 'Deactivate' : 'Activate'}">
+                        <i class="fas fa-${cashier.is_active ? 'eye-slash' : 'eye'}"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteCashier(${cashier.id})" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getCashierTypeBadgeClass(type) {
+    switch(type) {
+        case 'retail': return 'warning';
+        case 'wholesale': return 'info';
+        case 'both': return 'success';
+        default: return 'secondary';
+    }
+}
+
+function getCashierTypeDisplay(type) {
+    switch(type) {
+        case 'retail': return 'Retail Only';
+        case 'wholesale': return 'Wholesale Only';
+        case 'both': return 'Retail & Wholesale';
+        default: return 'Unknown';
+    }
+}
+
+function updateCashierStatistics(cashiers) {
+    const total = cashiers.length;
+    const active = cashiers.filter(c => c.is_active).length;
+    const retail = cashiers.filter(c => c.cashier_type === 'retail').length;
+    const wholesale = cashiers.filter(c => c.cashier_type === 'wholesale').length;
+    const both = cashiers.filter(c => c.cashier_type === 'both').length;
+    
+    document.getElementById('total-cashiers').textContent = total;
+    document.getElementById('active-cashiers').textContent = active;
+    document.getElementById('retail-cashiers').textContent = retail;
+    document.getElementById('wholesale-cashiers').textContent = wholesale;
+    
+    const bothPercentage = total > 0 ? Math.round((both / total) * 100) : 0;
+    const bothProgressBar = document.getElementById('both-cashiers-progress');
+    bothProgressBar.style.width = bothPercentage + '%';
+    bothProgressBar.textContent = both;
+}
+
+function searchCashiers() {
+    const searchTerm = document.getElementById('cashier-search').value.toLowerCase();
+    const typeFilter = document.getElementById('cashier-type-filter').value;
+    const statusFilter = document.getElementById('cashier-status-filter').value;
+    
+    let filteredCashiers = allCashiers.filter(cashier => {
+        const matchesSearch = !searchTerm || 
+            cashier.name.toLowerCase().includes(searchTerm) ||
+            cashier.cashier_id.toLowerCase().includes(searchTerm) ||
+            cashier.user.toLowerCase().includes(searchTerm);
+            
+        const matchesType = !typeFilter || cashier.cashier_type === typeFilter;
+        const matchesStatus = !statusFilter || cashier.is_active.toString() === statusFilter;
+        
+        return matchesSearch && matchesType && matchesStatus;
+    });
+    
+    displayCashiers(filteredCashiers);
+}
+
+function addNewCashier() {
+    currentCashierId = null;
+    document.getElementById('cashier-id').value = '';
+    document.getElementById('cashier-user').value = '';
+    document.getElementById('cashier-name').value = '';
+    document.getElementById('cashier-type').value = '';
+    document.getElementById('cashier-active').checked = true;
+    
+    // Load available users (simulated)
+    loadAvailableUsers();
+    
+    document.getElementById('cashierManagementModalLabel').innerHTML = 
+        '<i class="fas fa-cash-register"></i> Add New Cashier';
+    $('#cashierManagementModal').modal('show');
+}
+
+function loadAvailableUsers() {
+    // Load available users from real API
+    const userSelect = document.getElementById('cashier-user');
+    userSelect.innerHTML = '<option value="">Loading users...</option>';
+    
+    fetch('/api/available-users/', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            userSelect.innerHTML = '<option value="">Select a user...</option>' + 
+                data.users.map(user => 
+                    `<option value="${user.id}">${user.full_name} (${user.username}) - ${user.user_type}</option>`
+                ).join('');
+        } else {
+            console.error('Error loading available users:', data.error);
+            userSelect.innerHTML = '<option value="">No users available</option>';
+        }
+    })
+    .catch(error => {
+        console.error('Error loading available users:', error);
+        userSelect.innerHTML = '<option value="">Error loading users</option>';
+    });
+}
+
+function editCashier(cashierId) {
+    const cashier = allCashiers.find(c => c.id === cashierId);
+    if (!cashier) return;
+    
+    currentCashierId = cashierId;
+    document.getElementById('cashier-id').value = cashierId;
+    document.getElementById('cashier-name').value = cashier.name;
+    document.getElementById('cashier-type').value = cashier.cashier_type;
+    document.getElementById('cashier-active').checked = cashier.is_active;
+    
+    loadAvailableUsers();
+    // Set the user selection (using user ID for the form field)
+    document.getElementById('cashier-user').value = cashier.user.id;
+    
+    document.getElementById('cashierManagementModalLabel').innerHTML = 
+        '<i class="fas fa-cash-register"></i> Edit Cashier';
+    $('#cashierManagementModal').modal('show');
+}
+
+function toggleCashierStatus(cashierId) {
+    const cashier = allCashiers.find(c => c.id === cashierId);
+    if (!cashier) return;
+
+    const newStatus = !cashier.is_active;
+    const action = newStatus ? 'activate' : 'deactivate';
+
+    if (confirm(`Are you sure you want to ${action} ${cashier.name}?`)) {
+        updateCashierStatus(cashierId, { is_active: newStatus });
+    }
+}
+
+function updateCashierStatus(cashierId, data) {
+    fetch(`/api/cashier/${cashierId}/`, {
+        method: 'PUT',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Cashier status updated successfully', 'success');
+            loadCashiers(); // Reload to get fresh data
+        } else {
+            showNotification('Error updating cashier: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating cashier:', error);
+        showNotification('Network error updating cashier: ' + error.message, 'danger');
+    });
+}
+
+function deleteCashier(cashierId) {
+    const cashier = allCashiers.find(c => c.id === cashierId);
+    if (!cashier) return;
+
+    if (confirm(`Are you sure you want to delete ${cashier.name}? This action cannot be undone.`)) {
+        fetch(`/api/cashier/${cashierId}/`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Cashier deleted successfully', 'success');
+                loadCashiers(); // Reload to get fresh data
+            } else {
+                showNotification('Error deleting cashier: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting cashier:', error);
+            showNotification('Network error deleting cashier: ' + error.message, 'danger');
+        });
+    }
+}
+
+function refreshCashierList() {
+    loadCashiers();
+    showNotification('Cashier list refreshed', 'info');
+}
+
+function viewCashierDashboard() {
+    alert('Cashier dashboard would open here showing detailed analytics and performance metrics.');
+}
+
+function exportCashierReport() {
+    alert('Cashier report export functionality would be implemented here.');
+}
+
+function bulkUpdateCashiers() {
+    alert('Bulk cashier update functionality would be implemented here.');
+}
+
+function deactivateInactiveCashiers() {
+    if (confirm('Are you sure you want to deactivate all inactive cashiers?')) {
+        alert('Bulk deactivation functionality would be implemented here.');
+    }
+}
+
+function sendNotifications() {
+    alert('Send notifications to all cashiers functionality would be implemented here.');
+}
+
+function showNotification(message, type) {
+    // Create a simple notification (you can enhance this)
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    `;
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+// Handle cashier form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const cashierForm = document.getElementById('cashier-form');
+    if (cashierForm) {
+        cashierForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(cashierForm);
+            const cashierId = formData.get('cashier_id');
+
+            const endpoint = cashierId ? `/api/cashier/${cashierId}/` : '/api/cashiers/';
+            const method = cashierId ? 'PUT' : 'POST';
+            
+            const data = {
+                user_id: parseInt(formData.get('user')),
+                name: formData.get('name'),
+                cashier_type: formData.get('cashier_type'),
+                is_active: formData.get('is_active') === 'on'
+            };
+            
+            fetch(endpoint, {
+                method: method,
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(cashierId ? 'Cashier updated successfully' : 'Cashier created successfully', 'success');
+                    $('#cashierManagementModal').modal('hide');
+                    // Reload the full cashier list to get complete data
+                    loadCashiers();
+                } else {
+                    showNotification('Error saving cashier: ' + data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving cashier:', error);
+                showNotification('Network error saving cashier: ' + error.message, 'danger');
+            });
+        });
+    }
+    
+    // Load cashiers on page load
+    loadCashiers();
+});
 
 function loadUserPermissions() {
     const userSelect = document.querySelector('select[name="user"]');
@@ -831,6 +1635,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Load statistics
     loadStatistics();
+    
+    // Load wholesale activity
+    loadWholesaleActivity();
 });
 
 function loadStatistics() {
@@ -854,6 +1661,118 @@ function loadStatistics() {
     // Load custom permissions count (this would need another API endpoint)
     // For now, we'll set it to a placeholder
     document.getElementById('custom-permissions').textContent = '?';
+    
+    // Load wholesale cashier statistics
+    loadWholesaleCashierStats();
+}
+
+function loadWholesaleCashierStats() {
+    // Simulate loading wholesale statistics (in real implementation, this would be an API call)
+    const mockStats = {
+        pending_count: Math.floor(Math.random() * 20) + 5,
+        accepted_count: Math.floor(Math.random() * 15) + 3,
+        completed_today: Math.floor(Math.random() * 10) + 2,
+        total_processed: Math.floor(Math.random() * 100) + 50,
+        total_value: Math.floor(Math.random() * 50000) + 10000,
+        active_cashiers: Math.floor(Math.random() * 5) + 1
+    };
+    
+    // Update the wholesale statistics
+    document.getElementById('wc-pending-count').textContent = mockStats.pending_count;
+    document.getElementById('wc-accepted-count').textContent = mockStats.accepted_count;
+    document.getElementById('wc-completed-today').textContent = mockStats.completed_today;
+    document.getElementById('wc-total-processed').textContent = mockStats.total_processed;
+    document.getElementById('wc-total-value').textContent = '₦' + mockStats.total_value.toLocaleString();
+    document.getElementById('wc-active-cashiers').textContent = mockStats.active_cashiers;
+}
+
+function openWholesaleCashier() {
+    window.open("{% url 'wholesale:wholesale_cashier_dashboard' %}", '_blank');
+}
+
+function viewWholesaleRequests() {
+    window.open("{% url 'wholesale:wholesale_payment_requests' %}", '_blank');
+}
+
+function refreshWholesaleStats() {
+    // Show loading state
+    const elements = ['wc-pending-count', 'wc-accepted-count', 'wc-completed-today', 
+                     'wc-total-processed', 'wc-total-value', 'wc-active-cashiers'];
+    elements.forEach(id => {
+        const el = document.getElementById(id);
+        el.style.opacity = '0.5';
+        el.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    });
+    
+    // Simulate loading delay and refresh stats
+    setTimeout(() => {
+        loadWholesaleCashierStats();
+        elements.forEach(id => {
+            document.getElementById(id).style.opacity = '1';
+        });
+    }, 1000);
+}
+
+function exportWholesaleData() {
+    alert('Wholesale data export functionality would be implemented here. This would export payment requests, transactions, and cashier performance data.');
+}
+
+function startCashierSession() {
+    alert('Start cashier session functionality would be implemented here. This would begin a new cashier work session.');
+}
+
+function endCashierSession() {
+    alert('End cashier session functionality would be implemented here. This would end the current cashier work session and generate session summary.');
+}
+
+function generateCashierReport() {
+    alert('Generate daily cashier report functionality would be implemented here. This would create a comprehensive daily report of cashier activities.');
+}
+
+function viewCashierAudit() {
+    alert('View cashier audit trail functionality would be implemented here. This would show detailed audit logs of cashier activities.');
+}
+
+function openBulkOperation() {
+    alert('Open bulk operations modal functionality would be implemented here. This would allow bulk processing of payment requests.');
+}
+
+function loadWholesaleActivity() {
+    // Simulate loading recent wholesale activity
+    const activityFeed = document.getElementById('wholesale-activity-feed');
+    const activities = [
+        { type: 'completed', request: 'WR-00123', amount: 15000, time: '2 mins ago' },
+        { type: 'accepted', request: 'WR-00122', amount: 8500, time: '5 mins ago' },
+        { type: 'rejected', request: 'WR-00121', amount: 3200, time: '8 mins ago' },
+        { type: 'completed', request: 'WR-00120', amount: 22800, time: '12 mins ago' }
+    ];
+    
+    let activityHtml = '';
+    activities.forEach(activity => {
+        const badgeClass = activity.type === 'completed' ? 'success' : 
+                          activity.type === 'accepted' ? 'info' : 'danger';
+        const icon = activity.type === 'completed' ? 'check-circle' : 
+                    activity.type === 'accepted' ? 'clock' : 'times-circle';
+        
+        activityHtml += `
+            <div class="activity-item mb-2 pb-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge badge-${badgeClass} badge-sm">
+                            <i class="fas fa-${icon}"></i> ${activity.type}
+                        </span>
+                        <span class="ml-2 font-weight-bold">${activity.request}</span>
+                    </div>
+                    <small class="text-muted">${activity.time}</small>
+                </div>
+                <div class="mt-1">
+                    <small>₦${activity.amount.toLocaleString()}</small>
+                </div>
+            </div>
+        `;
+    });
+    
+    activityFeed.innerHTML = activityHtml || '<div class="text-center text-muted"><i class="fas fa-inbox fa-2x mb-2"></i><p>No recent activity</p></div>';
 }
 </script>
 

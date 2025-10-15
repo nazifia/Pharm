@@ -414,18 +414,18 @@
                         {% endif %}
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Cashier Links:</h6>
-                        {% if user|is_cashier %}
+                        {% if user|is_cashier or user.profile.user_type == 'Admin' %}
                         <a class="collapse-item" href="{% url 'store:cashier_dashboard' %}">
                             <i class="fas fa-cash-register"></i> Retail Cashier</a>
-                        {% endif %}
-                        {% if user.is_authenticated and user|can_operate_wholesale %}
+                        {% comment %} {% endif %} {% endcomment %}
+                        {% comment %} {% if user.is_authenticated and user|can_operate_wholesale %} {% endcomment %}
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_cashier_dashboard' %}">
                             <i class="fas fa-store"></i> Wholesale Cashier</a>
-                            {% if user.cashier %}
-                            <span class="badge badge-success badge-counter" style="margin-left: 5px;">
+                            {% comment %} {% if user.cashier %} {% endcomment %}
+                            {% comment %} <span class="badge badge-success badge-counter" style="margin-left: 5px;">
                                 <i class="fas fa-star"></i>
-                            </span>
-                            {% endif %}
+                            </span> {% endcomment %}
+                            {% comment %} {% endif %} {% endcomment %}
                         {% endif %}
                         <div class="collapse-divider"></div>
                         <div class="collapse-divider"></div>
@@ -551,7 +551,7 @@
                         <a class="collapse-item" href="{% url 'userauth:profile' %}">
                             <i class="fas fa-user-circle"></i> My Profile</a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Cashier Administration:</h6>
+                        {% comment %} <h6 class="collapse-header">Cashier Administration:</h6>
                         {% if user.is_superuser %}
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_cashier_dashboard' %}">
                             <i class="fas fa-cash-register"></i> Admin Cashier Access</a>
@@ -561,9 +561,9 @@
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_cashier_dashboard' %}">
                             <i class="fas fa-cash-register"></i> Manager Cashier Access</a>
                             {% endif %}
-                        {% endif %}
+                        {% endif %} {% endcomment %}
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Payment Management:</h6>
+                        {% comment %} <h6 class="collapse-header">Payment Management:</h6>
                         {% if user.is_superuser %}
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_payment_requests' %}">
                             <i class="fas fa-list-alt"></i> All Payment Requests</a>
@@ -573,7 +573,7 @@
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_payment_requests' %}">
                             <i class="fas fa-list-alt"></i> Manage Payment Requests</a>
                             {% endif %}
-                        {% endif %}
+                        {% endif %} {% endcomment %}
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">System Monitoring:</h6>
                         {% if user|has_permission:"view_activity_logs" %}

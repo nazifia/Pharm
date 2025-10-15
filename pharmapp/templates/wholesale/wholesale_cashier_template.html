@@ -1,0 +1,843 @@
+{% extends "partials/base.html" %}
+{% load static %}
+{% load humanize %}
+{% load permission_tags %}
+
+{% block content %}
+<div class="wholesale-cashier-container">
+    <!-- Header Section -->
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">
+                    <i class="fas fa-store"></i> Wholesale Cashier Management
+                </h1>
+                <p class="page-description">Comprehensive wholesale payment processing and cashier administration</p>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group">
+                    <a href="{% url 'wholesale:wholesale_cashier_dashboard' %}" class="btn btn-primary">
+                        <i class="fas fa-cash-register"></i> Cashier Dashboard
+                    </a>
+                    <a href="{% url 'wholesale:wholesale_payment_requests' %}" class="btn btn-info">
+                        <i class="fas fa-list"></i> All Requests
+                    </a>
+                    <button class="btn btn-success" onclick="openCashierOperationsModal()">
+                        <i class="fas fa-cogs"></i> Operations
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="alert-container mb-4">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Statistics Dashboard -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="stat-card">
+                <div class="stat-icon bg-warning">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="pending-requests-count">{{ stats.pending_count|default:0 }}</h3>
+                    <p>Pending Requests</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card">
+                <div class="stat-icon bg-info">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="accepted-requests-count">{{ stats.accepted_count|default:0 }}</h3>
+                    <p>Accepted Requests</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card">
+                <div class="stat-icon bg-success">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="completed-today-count">{{ stats.completed_today_count|default:0 }}</h3>
+                    <p>Completed Today</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card">
+                <div class="stat-icon bg-primary">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="total-processed-count">{{ stats.total_processed_count|default:0 }}</h3>
+                    <p>Total Processed</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card">
+                <div class="stat-icon bg-success">
+                    <i class="fas fa-naira-sign"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>₦{{ stats.total_value|floatformat:0|default:0 }}</h3>
+                    <p>Total Value</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card">
+                <div class="stat-icon bg-info">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="active-cashiers-count">{{ active_cashiers_count|default:0 }}</h3>
+                    <p>Active Cashiers</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Role Information Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-success">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle"></i> Wholesale Cashier Role - Important Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-success"><i class="fas fa-cash-register"></i> Wholesale Cashier Responsibilities</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success"></i> Process wholesale payment requests</li>
+                                <li><i class="fas fa-check text-success"></i> Accept or reject payment requests</li>
+                                <li><i class="fas fa-check text-success"></i> Complete payments and generate receipts</li>
+                                <li><i class="fas fa-check text-success"></i> Handle wholesale customer transactions</li>
+                                <li><i class="fas fa-check text-success"></i> Manage wholesale payment workflows</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-primary"><i class="fas fa-pills"></i> Workflow Separation</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-primary"></i> Wholesale dispensers create payment requests</li>
+                                <li><i class="fas fa-check text-primary"></i> Wholesale cashiers process those requests</li>
+                                <li><i class="fas fa-check text-primary"></i> Ensures proper audit trails</li>
+                                <li><i class="fas fa-check text-primary"></i> Maintains financial accountability</li>
+                                <li><i class="fas fa-check text-primary"></i> Provides role-based access control</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-3 mb-0">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        <strong>Key Principle:</strong> Wholesale cashiers cannot create payment requests - they only process requests created by wholesale dispensers. This ensures proper separation of duties in the wholesale workflow.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Payment Request Management Panel -->
+        <div class="col-md-8">
+            <!-- Pending Requests -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-warning text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-hourglass-half"></i> Pending Wholesale Requests
+                            <span class="badge badge-light ml-2">{{ pending_requests.count }}</span>
+                        </h5>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-light" onclick="refreshPendingRequests()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <button class="btn btn-light" onclick="filterPendingRequests()">
+                                <i class="fas fa-filter"></i> Filter
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                    {% if pending_requests %}
+                        {% for request in pending_requests %}
+                        <div class="request-item border-bottom pb-3 mb-3" id="request-{{ request.request_id }}">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="request-id">
+                                                <i class="fas fa-receipt"></i> {{ request.request_id }}
+                                            </h6>
+                                            <div class="request-meta text-muted small">
+                                                <i class="fas fa-calendar"></i> {{ request.created_at|date:"Y-m-d H:i" }} | 
+                                                <i class="fas fa-credit-card"></i> {{ request.get_payment_type_display }}
+                                            </div>
+                                            <div class="customer-info mt-2">
+                                                <strong>Customer:</strong>
+                                                {% if request.wholesale_customer %}
+                                                    <span class="badge badge-info">{{ request.wholesale_customer.name }}</span>
+                                                {% else %}
+                                                    <span class="badge badge-secondary">Walk-in Customer</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="items-info mt-1">
+                                                <span class="badge badge-primary">{{ request.items.count }} Items</span>
+                                                <span class="badge badge-success">₦{{ request.total_amount|floatformat:2 }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="request-actions text-right">
+                                        {% if not is_admin or not cashier %}
+                                        <button class="btn btn-success btn-sm mb-2 w-100" 
+                                                onclick="acceptRequest('{{ request.request_id }}')">
+                                            <i class="fas fa-check mr-1"></i>Accept Request
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-danger btn-sm mb-2 w-100" 
+                                                onclick="rejectRequest('{{ request.request_id }}')">
+                                            <i class="fas fa-times mr-1"></i>Reject Request
+                                        </button>
+                                        <a href="{% url 'wholesale:wholesale_payment_request_detail' request.request_id %}" 
+                                           class="btn btn-info btn-sm w-100">
+                                            <i class="fas fa-eye mr-1"></i>View Details
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-inbox fa-4x mb-3"></i>
+                            <h5>No Pending Wholesale Requests</h5>
+                            <p>There are currently no wholesale payment requests awaiting processing.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Accepted Requests -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-check-circle"></i> Accepted Requests
+                            <span class="badge badge-light ml-2">{{ accepted_requests.count }}</span>
+                        </h5>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-light" onclick="refreshAcceptedRequests()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <button class="btn btn-light" onclick="bulkProcessPayments()">
+                                <i class="fas fa-money-check-alt"></i> Bulk Process
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                    {% if accepted_requests %}
+                        {% for request in accepted_requests %}
+                        <div class="request-item border-bottom pb-3 mb-3" id="accepted-request-{{ request.request_id }}">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="request-id">
+                                                <i class="fas fa-receipt"></i> {{ request.request_id }}
+                                                <span class="badge badge-success ml-2">Accepted</span>
+                                            </h6>
+                                            <div class="request-meta text-muted small">
+                                                <i class="fas fa-calendar-check"></i> {{ request.accepted_at|date:"Y-m-d H:i" }} | 
+                                                <i class="fas fa-credit-card"></i> {{ request.get_payment_type_display }}
+                                            </div>
+                                    <div class="customer-info mt-2">
+                                        <strong>Customer:</strong>
+                                        {% if request.wholesale_customer %}
+                                            <span class="badge badge-info">{{ request.wholesale_customer.name }}</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">Walk-in Customer</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="payment-info mt-1">
+                                        <span class="badge badge-warning">₦{{ request.total_amount|floatformat:2 }}</span>
+                                        {% if request.assigned_cashier %}
+                                            <span class="badge badge-primary">Assigned to: {{ request.assigned_cashier.name }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="request-actions text-right">
+                                <button class="btn btn-primary btn-sm mb-2 w-100" 
+                                        onclick="processPayment('{{ request.request_id }}')">
+                                    <i class="fas fa-money-check-alt mr-1"></i>Complete Payment
+                                </button>
+                                <a href="{% url 'wholesale:wholesale_payment_request_detail' request.request_id %}" 
+                                   class="btn btn-info btn-sm w-100">
+                                    <i class="fas fa-eye mr-1"></i>View Details
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-clock fa-4x mb-3"></i>
+                            <h5>No Accepted Requests</h5>
+                            <p>There are no accepted wholesale payment requests ready for completion.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Panel -->
+        <div class="col-md-4">
+            <!-- Active Cashier Information -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-tie"></i> Current Cashier
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if cashier %}
+                    <div class="cashier-info text-center">
+                        <div class="cashier-avatar mb-3">
+                            {% if cashier.profile.image %}
+                                <img src="{{ cashier.profile.image.url }}" class="rounded-circle" width="80" height="80">
+                            {% else %}
+                                <div class="avatar-placeholder-large">{{ cashier.username|first|upper }}</div>
+                            {% endif %}
+                        </div>
+                        <h6>{{ cashier.profile.full_name|default:cashier.username }}</h6>
+                        <span class="badge badge-success">Active Cashier</span>
+                        <div class="cashier-stats mt-3">
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="stat-item">
+                                        <h5>{{ my_requests.count }}</h5>
+                                        <small>Processed Today</small>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="stat-item">
+                                        <h5>₦{{ my_total_value|floatformat:0|default:0 }}</h5>
+                                        <small>Total Value</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-user-slash fa-3x mb-3"></i>
+                        <p>No active cashier session</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt"></i> Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success btn-sm" onclick="openBulkAcceptModal()">
+                            <i class="fas fa-check-double"></i> Bulk Accept Requests
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="openBulkProcessModal()">
+                            <i class="fas fa-money-check-alt"></i> Bulk Process Payments
+                        </button>
+                        <button class="btn btn-info btn-sm" onclick="generateDailyReport()">
+                            <i class="fas fa-file-invoice"></i> Daily Summary Report
+                        </button>
+                        <button class="btn btn-warning btn-sm" onclick="exportPaymentData()">
+                            <i class="fas fa-download"></i> Export Payment Data
+                        </button>
+                        <hr>
+                        <button class="btn btn-outline-primary btn-sm" onclick="viewAuditTrail()">
+                            <i class="fas fa-history"></i> View Audit Trail
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" onclick="manageCashierSettings()">
+                            <i class="fas fa-cog"></i> Cashier Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history"></i> Recent Activity
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="activity-feed" style="max-height: 300px; overflow-y: auto;">
+                        {% if my_requests %}
+                            {% for request in my_requests|slice:":5" %}
+                            <div class="activity-item mb-3 pb-3 border-bottom">
+                                <div class="d-flex">
+                                    <div class="activity-icon">
+                                        {% if request.status == 'completed' %}
+                                            <i class="fas fa-check-circle text-success"></i>
+                                        {% elif request.status == 'accepted' %}
+                                            <i class="fas fa-clock text-warning"></i>
+                                        {% else %}
+                                            <i class="fas fa-times-circle text-danger"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div class="activity-content ml-3">
+                                        <div class="activity-title">
+                                            <strong>{{ request.request_id }}</strong>
+                                            <span class="badge badge-{{ request.status|lower }} ml-1">{{ request.status|title }}</span>
+                                        </div>
+                                        <div class="activity-time text-muted small">
+                                            {{ request.completed_at|date:"H:i" if request.completed_at else request.accepted_at|date:"H:i" if request.accepted_at else request.created_at|date:"H:i" }}
+                                        </div>
+                                        <div class="activity-details small">
+                                            ₦{{ request.total_amount|floatformat:2 }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-center text-muted py-3">
+                                <i class="fas fa-inbox fa-2x mb-2"></i>
+                                <p>No recent activity</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Metrics Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar"></i> Wholesale Cashier Performance Metrics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="metric-card text-center">
+                                <div class="metric-number" id="avg-processing-time">{{ avg_processing_time|default:0 }}s</div>
+                                <div class="metric-label">Avg Processing Time</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card text-center">
+                                <div class="metric-number" id="success-rate">{{ success_rate|default:0 }}%</div>
+                                <div class="metric-label">Success Rate</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card text-center">
+                                <div class="metric-number" id="daily-avg">₦{{ daily_average|floatformat:0|default:0 }}</div>
+                                <div class="metric-label">Daily Average</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card text-center">
+                                <div class="metric-number" id="peak-hour">{{ peak_hour|default:'N/A' }}</div>
+                                <div class="metric-label">Peak Hour</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Operations Modal -->
+<div class="modal fade" id="bulkOperationsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="bulkOperationsModalLabel">
+                    <i class="fas fa-users-cog"></i> Bulk Cashier Operations
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Bulk Payment Processing</h6>
+                        <div class="form-group">
+                            <label>Select Payment Requests:</label>
+                            <div class="request-selection" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
+                                <!-- Payment requests will be loaded here -->
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Action:</label>
+                            <select class="form-control" id="bulk-action">
+                                <option value="accept">Accept Selected Requests</option>
+                                <option value="process">Process Payments</option>
+                                <option value="reject">Reject Selected Requests</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Operation Details</h6>
+                        <div class="operation-summary">
+                            <div class="alert alert-info">
+                                <div id="selected-count">0 requests selected</div>
+                                <div id="total-value">Total Value: ₦0</div>
+                                <div id="operation-preview">Ready to execute operation</div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Notes (optional):</label>
+                            <textarea class="form-control" id="bulk-notes" rows="3" placeholder="Add notes for this bulk operation..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="executeBulkOperation()">
+                    <i class="fas fa-play"></i> Execute Operation
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+// Get the base URLs from Django template tags
+const acceptUrl = "{% url 'wholesale:accept_wholesale_payment_request' 'PLACEHOLDER' %}";
+const rejectUrl = "{% url 'wholesale:reject_wholesale_payment_request' 'PLACEHOLDER' %}";
+const completeUrl = "{% url 'wholesale:complete_payment_request' 'PLACEHOLDER' %}";
+
+let selectedRequests = new Set();
+
+function acceptRequest(requestId) {
+    if (confirm('Accept this wholesale payment request?')) {
+        window.location.href = acceptUrl.replace('PLACEHOLDER', requestId);
+    }
+}
+
+function rejectRequest(requestId) {
+    const reason = prompt('Please provide a reason for rejecting this request:');
+    if (reason) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = rejectUrl.replace('PLACEHOLDER', requestId);
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'rejection_reason';
+        reasonInput.value = reason;
+        
+        form.appendChild(csrfInput);
+        form.appendChild(reasonInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function processPayment(requestId) {
+    if (confirm('Process payment for this wholesale request?')) {
+        window.location.href = completeUrl.replace('PLACEHOLDER', requestId);
+    }
+}
+
+function refreshPendingRequests() {
+    location.reload();
+}
+
+function refreshAcceptedRequests() {
+    location.reload();
+}
+
+function openBulkOperationModal() {
+    $('#bulkOperationsModal').modal('show');
+    loadBulkOperationRequests();
+}
+
+function openBulkAcceptModal() {
+    alert('Bulk accept functionality would be implemented here');
+}
+
+function openBulkProcessModal() {
+    alert('Bulk process functionality would be implemented here');
+}
+
+function loadBulkOperationRequests() {
+    // Load pending requests into the modal
+    const selectionDiv = document.querySelector('.request-selection');
+    // This would be populated via AJAX call
+    selectionDiv.innerHTML = '<p>Loading requests...</p>';
+}
+
+function generateDailyReport() {
+    alert('Daily report generation would be implemented here');
+}
+
+function exportPaymentData() {
+    alert('Payment data export would be implemented here');
+}
+
+function viewAuditTrail() {
+    alert('Audit trail view would be implemented here');
+}
+
+function manageCashierSettings() {
+    alert('Cashier settings management would be implemented here');
+}
+
+function executeBulkOperation() {
+    const action = document.getElementById('bulk-action').value;
+    const notes = document.getElementById('bulk-notes').value;
+    
+    if (selectedRequests.size === 0) {
+        alert('Please select at least one request for bulk operation');
+        return;
+    }
+    
+    const confirmMessage = `Are you sure you want to ${action} ${selectedRequests.size} request(s)?`;
+    if (confirm(confirmMessage)) {
+        // Execute bulk operation via AJAX
+        alert(`Bulk ${action} operation would be executed here`);
+        $('#bulkOperationsModal').modal('hide');
+    }
+}
+
+// Auto-refresh pending requests every 30 seconds
+function startAutoRefresh() {
+    setTimeout(function() {
+        location.reload();
+    }, 30000);
+}
+
+// Initialize auto-refresh when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    startAutoRefresh();
+    
+    // Add smooth scrolling and animations
+    const requestItems = document.querySelectorAll('.request-item');
+    requestItems.forEach(item => {
+        item.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateX(5px)';
+            this.style.transition = 'transform 0.2s ease';
+        });
+        
+        item.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateX(0)';
+        });
+    });
+});
+</script>
+
+<style>
+.wholesale-cashier-container {
+    padding: 20px;
+}
+
+.page-title {
+    color: #495057;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.page-description {
+    color: #6c757d;
+    margin-bottom: 0;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    transition: transform 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    margin-right: 15px;
+}
+
+.stat-content h3 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #495057;
+}
+
+.stat-content p {
+    margin: 0;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.request-item {
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+
+.request-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(3px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.request-id {
+    color: #007bff;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.request-meta {
+    font-size: 0.85rem;
+}
+
+.request-actions .btn {
+    transition: all 0.2s ease;
+    font-size: 0.85rem;
+}
+
+.request-actions .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.cashier-avatar img,
+.avatar-placeholder-large {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.avatar-placeholder-large {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 2rem;
+}
+
+.stat-item h5 {
+    margin: 0;
+    font-weight: 700;
+    color: #495057;
+}
+
+.stat-item small {
+    color: #6c757d;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.activity-item {
+    transition: background-color 0.2s ease;
+}
+
+.activity-item:hover {
+    background-color: #f8f9fa;
+    border-radius: 5px;
+}
+
+.metric-card {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    transition: transform 0.2s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+}
+
+.metric-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #007bff;
+    margin-bottom: 5px;
+}
+
+.metric-label {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.d-grid {
+    display: grid;
+}
+
+.gap-2 {
+    gap: 0.5rem;
+}
+
+.border-bottom {
+    border-bottom: 1px solid #dee2e6 !important;
+}
+
+.badge {

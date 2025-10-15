@@ -881,6 +881,188 @@ def user_permissions_api(request, user_id):
         return JsonResponse({'success': False, 'error': str(e)})
 
 
+# Cashier Management Views
+@login_required
+@role_required(['Admin', 'Manager'])
+def cashier_management_api(request):
+    """API endpoint for cashier management operations"""
+    if request.method == 'GET':
+        # Get all cashiers with their user information
+        cashiers = Cashier.objects.select_related('user').select_related('user__profile').all()
+        cashier_data = []
+        
+        for cashier in cashiers:
+            cashier_data.append({
+                'id': cashier.id,
+                'cashier_id': cashier.cashier_id,
+                'name': cashier.name,
+                'user': {
+                    'id': cashier.user.id,
+                    'username': cashier.user.username,
+                    'full_name': cashier.user.profile.full_name if hasattr(cashier.user, 'profile') else cashier.user.username
+                },
+                'cashier_type': cashier.cashier_type,
+                'is_active': cashier.is_active,
+                'created_at': cashier.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'cashiers': cashier_data
+        })
+    
+    elif request.method == 'POST':
+        # Create new cashier
+        try:
+            data = json.loads(request.body)
+            user = User.objects.get(id=data['user_id'])
+            
+            # Check if user already has cashier profile
+            if Cashier.objects.filter(user=user).exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': 'User already has a cashier profile'
+                })
+            
+            cashier = Cashier.objects.create(
+                user=user,
+                name=data['name'],
+                cashier_type=data['cashier_type'],
+                is_active=data.get('is_active', True)
+            )
+
+            return JsonResponse({
+                'success': True,
+                'cashier': {
+                    'id': cashier.id,
+                    'cashier_id': cashier.cashier_id,
+                    'name': cashier.name,
+                    'user': {
+                        'id': cashier.user.id,
+                        'username': cashier.user.username,
+                        'full_name': cashier.user.profile.full_name if hasattr(cashier.user, 'profile') else cashier.user.username
+                    },
+                    'cashier_type': cashier.cashier_type,
+                    'is_active': cashier.is_active,
+                    'created_at': cashier.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                }
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+
+@login_required
+@role_required(['Admin', 'Manager'])
+def available_users_api(request):
+    """API endpoint to get users available for cashier assignment"""
+    if request.method == 'GET':
+        from django.db.models import Q
+        
+        # Get users who can be cashiers and don't have cashier profile yet
+        users = User.objects.filter(
+            Q(profile__user_type='Cashier') | 
+            Q(profile__user_type='Manager') | 
+            Q(profile__user_type='Admin')
+        ).exclude(
+            id__in=Cashier.objects.values_list('user_id', flat=True)
+        ).select_related('profile')
+        
+        user_data = []
+        for user in users:
+            user_data.append({
+                'id': user.id,
+                'username': user.username,
+                'full_name': user.profile.full_name if hasattr(user, 'profile') else user.username,
+                'user_type': user.profile.user_type if hasattr(user, 'profile') else 'Unknown',
+                'email': user.email,
+                'mobile': user.mobile
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'users': user_data
+        })
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+
+@login_required
+@role_required(['Admin', 'Manager'])
+def update_cashier_api(request, cashier_id):
+    """API endpoint to update existing cashier"""
+    if request.method == 'PUT':
+        try:
+            cashier = Cashier.objects.get(id=cashier_id)
+            data = json.loads(request.body)
+            
+            # Update cashier fields
+            if 'name' in data:
+                cashier.name = data['name']
+            if 'cashier_type' in data:
+                cashier.cashier_type = data['cashier_type']
+            if 'is_active' in data:
+                cashier.is_active = data['is_active']
+            
+            cashier.save()
+
+            return JsonResponse({
+                'success': True,
+                'cashier': {
+                    'id': cashier.id,
+                    'cashier_id': cashier.cashier_id,
+                    'name': cashier.name,
+                    'user': {
+                        'id': cashier.user.id,
+                        'username': cashier.user.username,
+                        'full_name': cashier.user.profile.full_name if hasattr(cashier.user, 'profile') else cashier.user.username
+                    },
+                    'cashier_type': cashier.cashier_type,
+                    'is_active': cashier.is_active,
+                    'created_at': cashier.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                }
+            })
+            
+        except Cashier.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Cashier not found'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    
+    elif request.method == 'DELETE':
+        try:
+            cashier = Cashier.objects.get(id=cashier_id)
+            cashier.delete()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Cashier deleted successfully'
+            })
+            
+        except Cashier.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Cashier not found'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+
 @login_required
 @role_required(['Admin'])
 @require_http_methods(["POST"])
@@ -931,382 +1113,6 @@ def save_user_permissions_api(request):
 
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
-
-
-@login_required
-@role_required(['Admin'])
-@require_http_methods(["POST"])
-def bulk_operations_api(request):
-    """API endpoint for bulk user operations"""
-    try:
-        data = json.loads(request.body)
-        user_ids = data.get('user_ids', [])
-        role_template = data.get('role_template')
-        status_change = data.get('status_change')
-
-        if not user_ids:
-            return JsonResponse({'success': False, 'error': 'No users selected'})
-
-        users = User.objects.filter(id__in=user_ids)
-        affected_users = 0
-
-        for user in users:
-            # Apply role template
-            if role_template and role_template in USER_PERMISSIONS:
-                # Clear existing individual permissions
-                UserPermission.objects.filter(user=user).delete()
-
-                # Update user role
-                if hasattr(user, 'profile'):
-                    user.profile.user_type = role_template
-                    user.profile.save()
-                    affected_users += 1
-
-            # Apply status change
-            if status_change:
-                if status_change == 'activate':
-                    user.is_active = True
-                elif status_change == 'deactivate':
-                    user.is_active = False
-                user.save()
-                affected_users += 1
-
-        # Log the activity
-        ActivityLog.log_activity(
-            user=request.user,
-            action=f"Bulk operations applied to {affected_users} users",
-            action_type='BULK_UPDATE',
-            target_model='User',
-            target_id='bulk'
-        )
-
-        return JsonResponse({
-            'success': True,
-            'affected_users': affected_users
-        })
-
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
-
-
-@login_required
-@role_required(['Admin'])
-def permission_matrix_api(request):
-    """API endpoint to get permission matrix data"""
-    try:
-        users = User.objects.select_related('profile').filter(is_active=True)
-        all_permissions = sorted(set().union(*USER_PERMISSIONS.values()))
-
-        matrix_data = {
-            'permissions': all_permissions,
-            'users': []
-        }
-
-        for user in users:
-            user_permissions = user.get_permissions()
-            matrix_data['users'].append({
-                'id': user.id,
-                'name': user.profile.full_name if hasattr(user, 'profile') and user.profile.full_name else user.username,
-                'role': user.profile.user_type if hasattr(user, 'profile') else 'Unknown',
-                'permissions': user_permissions
-            })
-
-        return JsonResponse({
-            'success': True,
-            'matrix': matrix_data
-        })
-
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
-
-
-@login_required
-@role_required(['Admin'])
-def privilege_statistics_api(request):
-    """API endpoint to get privilege management statistics"""
-    try:
-        # Basic counts
-        total_users = User.objects.count()
-        active_users = User.objects.filter(is_active=True).count()
-        inactive_users = total_users - active_users
-
-        # Permission statistics
-        all_permissions = set().union(*USER_PERMISSIONS.values()) if USER_PERMISSIONS else set()
-        total_permissions = len(all_permissions)
-        active_roles = len([role for role, perms in USER_PERMISSIONS.items() if perms])
-        custom_permissions = UserPermission.objects.count()
-
-        # Permission grants and revokes
-        granted_permissions = UserPermission.objects.filter(granted=True).count()
-        revoked_permissions = UserPermission.objects.filter(granted=False).count()
-
-        # Recent activity
-        from datetime import timedelta
-        recent_date = timezone.now() - timedelta(days=7)
-        recent_permission_changes = UserPermission.objects.filter(granted_at__gte=recent_date).count()
-
-        # Role distribution
-        role_distribution = {}
-        for user in User.objects.select_related('profile').all():
-            role = user.profile.user_type if hasattr(user, 'profile') and user.profile.user_type else 'Unknown'
-            role_distribution[role] = role_distribution.get(role, 0) + 1
-
-        return JsonResponse({
-            'success': True,
-            'total_users': total_users,
-            'active_users': active_users,
-            'inactive_users': inactive_users,
-            'total_permissions': total_permissions,
-            'active_roles': active_roles,
-            'custom_permissions': custom_permissions,
-            'granted_permissions': granted_permissions,
-            'revoked_permissions': revoked_permissions,
-            'recent_permission_changes': recent_permission_changes,
-            'role_distribution': role_distribution
-        })
-
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
-
-
-@login_required
-@role_required(['Admin'])
-@require_http_methods(["POST"])
-def revoke_user_permission_api(request):
-    """API endpoint to revoke specific user permission"""
-    try:
-        data = json.loads(request.body)
-        user_id = data.get('user_id')
-        permission = data.get('permission')
-
-        if not user_id or not permission:
-            return JsonResponse({'success': False, 'error': 'User ID and permission required'})
-
-        user = get_object_or_404(User, id=user_id)
-
-        # Create or update permission record to revoke
-        user_permission, created = UserPermission.objects.get_or_create(
-            user=user,
-            permission=permission,
-            defaults={
-                'granted': False,
-                'granted_by': request.user,
-                'notes': f'Permission revoked by {request.user.username}'
-            }
-        )
-
-        if not created and user_permission.granted:
-            user_permission.granted = False
-            user_permission.granted_by = request.user
-            user_permission.granted_at = timezone.now()
-            user_permission.notes = f'Permission revoked by {request.user.username}'
-            user_permission.save()
-
-        # Log the activity
-        ActivityLog.log_activity(
-            user=request.user,
-            action=f"Revoked permission '{permission}' from user: {user.username}",
-            action_type='REVOKE',
-            target_model='User',
-            target_id=str(user.id)
-        )
-
-        return JsonResponse({
-            'success': True,
-            'message': f'Permission "{permission}" revoked from {user.username}'
-        })
-
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
-
-
-@login_required
-@role_required(['Admin'])
-@require_http_methods(["POST"])
-def grant_user_permission_api(request):
-    """API endpoint to grant specific user permission"""
-    try:
-        data = json.loads(request.body)
-        user_id = data.get('user_id')
-        permission = data.get('permission')
-
-        if not user_id or not permission:
-            return JsonResponse({'success': False, 'error': 'User ID and permission required'})
-
-        user = get_object_or_404(User, id=user_id)
-
-        # Create or update permission record to grant
-        user_permission, created = UserPermission.objects.get_or_create(
-            user=user,
-            permission=permission,
-            defaults={
-                'granted': True,
-                'granted_by': request.user,
-                'notes': f'Permission granted by {request.user.username}'
-            }
-        )
-
-        if not created and not user_permission.granted:
-            user_permission.granted = True
-            user_permission.granted_by = request.user
-            user_permission.granted_at = timezone.now()
-            user_permission.notes = f'Permission granted by {request.user.username}'
-            user_permission.save()
-
-        # Log the activity
-        ActivityLog.log_activity(
-            user=request.user,
-            action=f"Granted permission '{permission}' to user: {user.username}",
-            action_type='GRANT',
-            target_model='User',
-            target_id=str(user.id)
-        )
-
-        return JsonResponse({
-            'success': True,
-            'message': f'Permission "{permission}" granted to {user.username}'
-        })
-
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
-
-
-@login_required
-@role_required(['Admin'])
-def all_permissions_api(request):
-    """API endpoint to get all available permissions"""
-    try:
-        all_permissions = {}
-
-        # Organize permissions by category
-        categories = {
-            'User Management': ['manage_users', 'edit_user_profiles', 'access_admin_panel'],
-            'Inventory Management': ['manage_inventory', 'perform_stock_check', 'transfer_stock', 'adjust_prices'],
-            'Sales Management': ['process_sales', 'process_returns', 'process_split_payments', 'manage_customers'],
-            'Reports & Analytics': ['view_reports', 'view_financial_reports', 'view_activity_logs', 'view_sales_history'],
-            'System Administration': ['manage_system_settings', 'manage_payment_methods', 'override_payment_status'],
-            'Procurement': ['approve_procurement', 'manage_suppliers', 'manage_expenses', 'pause_resume_procurement'],
-            'Pharmacy Operations': ['dispense_medication', 'approve_returns', 'search_items']
-        }
-
-        for category, permissions in categories.items():
-            all_permissions[category] = []
-            for permission in permissions:
-                # Get permission description
-                description = permission.replace('_', ' ').title()
-                all_permissions[category].append({
-                    'id': permission,
-                    'name': description,
-                    'description': f"Allows user to {description.lower()}"
-                })
-
-        return JsonResponse({
-            'success': True,
-            'permissions': all_permissions
-        })
-
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
-
-
-@login_required
-@role_required(['Admin'])
-def export_permissions_api(request):
-    """API endpoint to export permissions data as CSV"""
-    try:
-        import csv
-        from django.http import HttpResponse
-
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="permissions_export_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv"'
-
-        writer = csv.writer(response)
-
-        # Write header
-        all_permissions = sorted(set().union(*USER_PERMISSIONS.values()))
-        header = ['User ID', 'Username', 'Full Name', 'Role', 'Status'] + all_permissions
-        writer.writerow(header)
-
-        # Write user data
-        users = User.objects.select_related('profile').all()
-        for user in users:
-            user_permissions = user.get_permissions()
-            row = [
-                user.id,
-                user.username,
-                user.profile.full_name if hasattr(user, 'profile') and user.profile.full_name else '',
-                user.profile.user_type if hasattr(user, 'profile') else '',
-                'Active' if user.is_active else 'Inactive'
-            ]
-
-            # Add permission columns
-            for permission in all_permissions:
-                row.append('Yes' if permission in user_permissions else 'No')
-
-            writer.writerow(row)
-
-        return response
-
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
-
-
-@login_required
-@role_required(['Admin'])
-def user_audit_trail_api(request, user_id):
-    """API endpoint to get user audit trail"""
-    try:
-        user = get_object_or_404(User, id=user_id)
-
-        # Get recent activity logs for this user
-        recent_activities = ActivityLog.objects.filter(
-            target_model='User',
-            target_id=str(user.id)
-        ).order_by('-timestamp')[:50]
-
-        # Get permission changes
-        permission_changes = UserPermission.objects.filter(
-            user=user
-        ).select_related('granted_by').order_by('-granted_at')[:20]
-
-        activities = []
-        for activity in recent_activities:
-            activities.append({
-                'timestamp': activity.timestamp.isoformat(),
-                'action': activity.action,
-                'action_type': activity.action_type,
-                'performed_by': activity.user.username if activity.user else 'System'
-            })
-
-        permissions = []
-        for perm in permission_changes:
-            permissions.append({
-                'timestamp': perm.granted_at.isoformat(),
-                'permission': perm.permission,
-                'granted': perm.granted,
-                'granted_by': perm.granted_by.username if perm.granted_by else 'System',
-                'notes': perm.notes
-            })
-
-        return JsonResponse({
-            'success': True,
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'full_name': user.profile.full_name if hasattr(user, 'profile') else ''
-            },
-            'activities': activities,
-            'permission_changes': permissions
-        })
-
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
@@ -1368,6 +1174,113 @@ def get_user_permissions(request, user_id):
             'success': False,
             'error': str(e)
         })
+
+
+@login_required
+@role_required(['Admin'])
+def bulk_user_actions(request):
+    """View for performing bulk actions on users"""
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        user_ids = request.POST.getlist('user_ids')
+
+        if not user_ids:
+            messages.error(request, 'No users selected.')
+            return redirect('userauth:user_list')
+
+        users = User.objects.filter(id__in=user_ids).exclude(id=request.user.id)
+
+        if action == 'activate':
+            users.update(is_active=True)
+            messages.success(request, f'Activated {users.count()} users.')
+    """API endpoint to get users available for cashier assignment"""
+    if request.method == 'GET':
+        from django.db.models import Q
+        
+        # Get users who can be cashiers and don't have cashier profile yet
+        users = User.objects.filter(
+            Q(profile__user_type='Cashier') | 
+            Q(profile__user_type='Manager') | 
+            Q(profile__user_type='Admin')
+        ).exclude(
+            id__in=Cashier.objects.values_list('user_id', flat=True)
+        ).select_related('profile')
+        
+        user_data = []
+        for user in users:
+            user_data.append({
+                'id': user.id,
+                'username': user.username,
+                'full_name': user.profile.full_name if hasattr(user, 'profile') else user.username,
+                'user_type': user.profile.user_type if hasattr(user, 'profile') else 'Unknown',
+                'email': user.email,
+                'mobile': user.mobile
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'users': user_data
+        })
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+
+@login_required
+@role_required(['Admin'])
+@require_http_methods(["POST"])
+def bulk_operations_api(request):
+    """API endpoint for bulk user operations"""
+    try:
+        data = json.loads(request.body)
+        user_ids = data.get('user_ids', [])
+        role_template = data.get('role_template')
+        status_change = data.get('status_change')
+
+        if not user_ids:
+            return JsonResponse({'success': False, 'error': 'No users selected'})
+
+        users = User.objects.filter(id__in=user_ids)
+        affected_users = 0
+
+        for user in users:
+            # Apply role template
+            if role_template and role_template in USER_PERMISSIONS:
+                # Clear existing individual permissions
+                UserPermission.objects.filter(user=user).delete()
+
+                # Update user role
+                if hasattr(user, 'profile'):
+                    user.profile.user_type = role_template
+                    user.profile.save()
+                    affected_users += 1
+
+            # Apply status change
+            if status_change:
+                if status_change == 'activate':
+                    user.is_active = True
+                elif status_change == 'deactivate':
+                    user.is_active = False
+                user.save()
+                affected_users += 1
+
+        # Log the activity
+        ActivityLog.log_activity(
+            user=request.user,
+            action=f"Bulk operations applied to {affected_users} users",
+            action_type='BULK_UPDATE',
+            target_model='User',
+            target_id='bulk'
+        )
+
+        return JsonResponse({
+            'success': True,
+            'affected_users': affected_users
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 
 @login_required

@@ -36,6 +36,9 @@ from userauth.permissions import (
 
 logger = logging.getLogger(__name__)
 
+# Import required models for transfer functionality
+from .models import TransferRequest, WholesaleItem
+
 # Cache utility functions for search optimization
 def get_search_cache_key(model_name, query, user_id=None):
     """Generate a cache key for search results"""
@@ -4867,11 +4870,47 @@ logger = logging.getLogger(__name__)
 def create_transfer_request_wholesale(request):
     if request.user.is_authenticated:
         if request.method == "GET":
-            # Render form for a wholesale user to request items from retail
-            retail_items = Item.objects.all().order_by('name')
-            return render(request, "wholesale/wholesale_transfer_request.html", {"retail_items": retail_items})
+            try:
+                # Get search query
+                search_query = request.GET.get('search', '').strip()
+                logger.info(f"Search query received: '{search_query}'")
+                
+                # Filter retail items based on search
+                if search_query:
+                    retail_items = Item.objects.filter(
+                        Q(name__icontains=search_query) | 
+                        Q(brand__icontains=search_query) |
+                        Q(dosage_form__icontains=search_query)
+                    ).order_by('name')
+                    logger.info(f"Found {retail_items.count()} retail items matching search: '{search_query}'")
+                else:
+                    retail_items = Item.objects.all().order_by('name')
+                    logger.info(f"Rendering wholesale transfer form with {retail_items.count()} retail items")
+                
+                context = {
+                    "retail_items": retail_items,
+                    "search_query": search_query
+                }
+                
+                logger.info(f"Rendering template with context: {context}")
+                return render(request, "wholesale/wholesale_transfer_request.html", context)
+                
+            except Exception as e:
+                logger.error(f"Error in create_transfer_request_wholesale (GET): {str(e)}")
+                logger.error(f"Exception type: {type(e).__name__}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                
+                # Fallback to showing all items without search
+                retail_items = Item.objects.all().order_by('name')
+                return render(request, "wholesale/wholesale_transfer_request.html", {
+                    "retail_items": retail_items,
+                    "search_query": "",
+                    "error_message": f"Search functionality temporarily unavailable: {str(e)}"
+                })
 
         elif request.method == "POST":
+            logger.info(f"POST request received for transfer creation: {request.POST}")
             try:
                 requested_quantity = int(request.POST.get("requested_quantity", 0))
                 item_id = request.POST.get("item_id")
@@ -4880,23 +4919,52 @@ def create_transfer_request_wholesale(request):
                 if not item_id or requested_quantity <= 0:
                     return JsonResponse({"success": False, "message": "Invalid input provided."}, status=400)
 
-                source_item = get_object_or_404(Item, id=item_id)
+                # Get the source item based on transfer direction
+                if from_wholesale:
+                    # Wholesale requesting from Retail (Retail → Wholesale transfer)
+                    source_item = get_object_or_404(Item, id=item_id)
+                    if source_item.stock < requested_quantity:
+                        return JsonResponse({"success": False, "message": f"Insufficient stock. Available: {source_item.stock}"}, status=400)
 
-                transfer = TransferRequest.objects.create(
-                    retail_item=source_item,
-                    requested_quantity=requested_quantity,
-                    from_wholesale=True,
-                    status="pending",
-                    created_at=timezone.now()
-                )
+                    transfer = TransferRequest.objects.create(
+                        retail_item=source_item,
+                        requested_quantity=requested_quantity,
+                        from_wholesale=True,
+                        status="pending",
+                        created_at=timezone.now()
+                    )
+                    logger.info(f"Created transfer request: Retail→Wholesale ({source_item.name} x{requested_quantity})")
+                else:
+                    # Retail requesting from Wholesale (Wholesale → Retail transfer)
+                    source_item = get_object_or_404(WholesaleItem, id=item_id)
+                    if source_item.stock < requested_quantity:
+                        return JsonResponse({"success": False, "message": f"Insufficient stock. Available: {source_item.stock}"}, status=400)
 
-                messages.success(request, "Transfer request created successfully.")
+                    transfer = TransferRequest.objects.create(
+                        wholesale_item=source_item,
+                        requested_quantity=requested_quantity,
+                        from_wholesale=False,
+                        status="pending",
+                        created_at=timezone.now()
+                    )
+                    logger.info(f"Created transfer request: Wholesale→Retail ({source_item.name} x{requested_quantity})")
+
                 return JsonResponse({"success": True, "message": "Transfer request created successfully."})
 
             except (TypeError, ValueError) as e:
-                return JsonResponse({"success": False, "message": str(e)}, status=400)
+                logger.error(f"Validation error in create_transfer_request_wholesale: {str(e)}")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({"success": False, "message": str(e)}, status=400)
+                else:
+                    messages.error(request, str(e))
+                    return redirect('store:create_transfer_request_wholesale')
             except Exception as e:
-                return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
+                logger.error(f"Error in create_transfer_request_wholesale: {str(e)}")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({"success": False, "message": "An error occurred."}, status=500)
+                else:
+                    messages.error(request, "An error occurred while creating the transfer request.")
+                    return redirect('store:create_transfer_request_wholesale')
 
     return redirect('store:index')
 
@@ -4980,29 +5048,43 @@ def approve_transfer(request, transfer_id):
                         transfer.approved_quantity = approved_qty
                         transfer.save()
 
-                    messages.success(
-                        request,
-                        f"Transfer approved: {approved_qty} {source_item.name} moved from retail to wholesale."
-                    )
-
-                    return JsonResponse({
-                        "success": True,
-                        "message": f"Transfer approved with quantity {approved_qty}.",
-                        "source_stock": source_item.stock,
-                        "destination_stock": destination_item.stock,
-                    })
+                    # Return JSON response for AJAX requests
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return JsonResponse({
+                            "success": True,
+                            "message": f"Transfer approved with quantity {approved_qty}.",
+                            "source_stock": str(source_item.stock),
+                            "destination_stock": str(destination_item.stock),
+                        })
+                    else:
+                        messages.success(
+                            request,
+                            f"Transfer approved: {approved_qty} {source_item.name} moved from retail to wholesale."
+                        )
+                        return redirect('store:pending_transfer_requests')
 
             except Exception as e:
                 logger.error(f"Error in approve_transfer: {str(e)}")
-                return JsonResponse({
-                    "success": False,
-                    "message": "An error occurred while processing the transfer."
-                }, status=500)
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
 
-        return JsonResponse({
-            "success": False,
-            "message": "Invalid request method."
-        }, status=400)
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        "success": False,
+                        "message": f"An error occurred while processing the transfer: {str(e)}"
+                    }, status=500)
+                else:
+                    messages.error(request, f"An error occurred while processing the transfer: {str(e)}")
+                    return redirect('store:pending_transfer_requests')
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                "success": False,
+                "message": "Invalid request method."
+            }, status=400)
+        else:
+            messages.error(request, "Invalid request method.")
+            return redirect('store:pending_transfer_requests')
 
     return redirect('store:index')
 
@@ -5015,12 +5097,29 @@ def reject_transfer(request, transfer_id):
         Rejects a transfer request.
         """
         if request.method == "POST":
-            transfer = get_object_or_404(TransferRequest, id=transfer_id)
-            transfer.status = "rejected"
-            transfer.save()
-            messages.error(request, "Transfer request rejected.")
-            return JsonResponse({"success": True, "message": "Transfer rejected."})
-        return JsonResponse({"success": False, "message": "Invalid request method!"}, status=400)
+            try:
+                transfer = get_object_or_404(TransferRequest, id=transfer_id)
+                transfer.status = "rejected"
+                transfer.save()
+
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({"success": True, "message": "Transfer request rejected successfully."})
+                else:
+                    messages.error(request, "Transfer request rejected.")
+                    return redirect('store:pending_transfer_requests')
+            except Exception as e:
+                logger.error(f"Error rejecting transfer {transfer_id}: {str(e)}")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({"success": False, "message": str(e)}, status=400)
+                else:
+                    messages.error(request, f"Error rejecting transfer: {str(e)}")
+                    return redirect('store:pending_transfer_requests')
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({"success": False, "message": "Invalid request method!"}, status=400)
+        else:
+            messages.error(request, "Invalid request method!")
+            return redirect('store:pending_transfer_requests')
     else:
         return redirect('store:index')
 

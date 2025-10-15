@@ -81,7 +81,7 @@
                                         <div class="btn-group btn-group-sm" role="group">
                                             {% if cashier_info %}
                                                 <a href="{% url 'userauth:toggle_cashier' user.id %}" 
-                                                   class="btn {% if cashier_info.is_active %}btn-warning{% else %}btn-success{% %}">
+                                                   class="btn {% if cashier_info.is_active %}btn-warning{% else %}btn-success{% endif %}">
                                                     {% if cashier_info.is_active %}
                                                         <i class="fas fa-pause"></i> Deactivate
                                                     {% else %}
@@ -233,7 +233,11 @@
                         {% if user != request.user %}
                             <a href="{% url 'userauth:toggle_user_status' user.id %}"
                                class="btn btn-sm {% if user.is_active %}btn-warning{% else %}btn-success{% endif %}"
-                               onclick="return confirm('Are you sure you want to {% if user.is_active %}deactivate{% else %}activate{% endif %} this user?');">
+                               {% if user.is_active %}
+                               onclick="return confirm('Are you sure you want to deactivate this user?');"
+                               {% else %}
+                               onclick="return confirm('Are you sure you want to activate this user?');"
+                               {% endif %}>
                                 {% if user.is_active %}
                                     <i class="fas fa-ban"></i> Deactivate User
                                 {% else %}
