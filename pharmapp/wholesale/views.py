@@ -16,6 +16,7 @@ from customer.models import *
 from .forms import *
 # Import functions from store.views carefully to avoid circular imports
 # These functions are defined at module level, so they can be imported directly
+from store.views import get_daily_sales, get_monthly_sales_with_expenses
 import logging
 
 # Import procurement permission functions
@@ -4305,8 +4306,8 @@ def accept_wholesale_payment_request(request, request_id):
             payment_request.accepted_at = timezone.now()
             payment_request.save()
             
-            messages.success(request, f'Wholesale payment request {request_id} accepted successfully.')
-            return redirect('wholesale:wholesale_cashier_dashboard')
+            messages.success(request, f'Wholesale payment request {request_id} accepted successfully. You can now complete the payment.')
+            return redirect('wholesale:wholesale_payment_request_detail', request_id=request_id)
             
         except PaymentRequest.DoesNotExist:
             messages.error(request, 'Wholesale payment request not found.')

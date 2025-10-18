@@ -1,117 +1,175 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wholesale Payment Requests</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <div class="container mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Wholesale Payment Requests</h2>
-            <div>
-                {% if user.is_authenticated %}
-                {% if user.cashier %}
-                <a href="{% url 'wholesale:wholesale_cashier_dashboard' %}" class="btn btn-info mr-2">
-                    <i class="fas fa-cash-register mr-2"></i>Cashier Dashboard
-                </a>
-                {% endif %}
-                {% endif %}
-                <a href="{% url 'store:dashboard' %}" class="btn btn-primary">Back to Dashboard</a>
-                
-            </div>
+{% extends "partials/base.html" %}
+
+{% load static %}
+
+{% block title %}Wholesale Payment Requests{% endblock %}
+
+{% block extra_css %}
+<!-- Additional CSS if needed -->
+<style>
+    .badge-pending { background-color: #ffc107; }
+    .badge-accepted { background-color: #28a745; }
+    .badge-rejected { background-color: #dc3545; }
+    .badge-completed { background-color: #17a2b8; }
+    .badge-cancelled { background-color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-store text-primary"></i> Wholesale Payment Requests
+        </h1>
+        <div>
+            {% if user.is_authenticated %}
+            {% if user.cashier %}
+            <a href="{% url 'wholesale:wholesale_cashier_dashboard' %}" class="btn btn-info mr-2">
+                <i class="fas fa-cash-register mr-2"></i>Cashier Dashboard
+            </a>
+            {% endif %}
+            {% endif %}
+            <a href="{% url 'store:dashboard' %}" class="btn btn-primary">
+                <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+            </a>
         </div>
-
-        {% if messages %}
-            <div class="alert-container">
-                {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-
-        {% if payment_requests %}
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="thead-dark">
-                        <tr>
-                            <th>Request ID</th>
-                            <th>Date</th>
-                            <th><i class="fas fa-pills text-primary"></i> Dispenser</th>
-                            <th>Status</th>
-                            <th>Total Amount</th>
-                            <th>Customer</th>
-                            <th><i class="fas fa-cash-register text-success"></i> Cashier</th>
-                            <th>Items Count</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for request in payment_requests %}
-                        <tr>
-                            <td><strong>{{ request.request_id }}</strong></td>
-                            <td>{{ request.created_at|date:"Y-m-d H:i" }}</td>
-                            <td>
-                                <span title="Created by: {{ request.dispenser.username }}">
-                                    <i class="fas fa-pills text-primary"></i> {{ request.dispenser.username }}
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge badge-{{ request.status|lower }}">
-                                    {{ request.status|title }}
-                                </span>
-                            </td>
-                            <td><strong>₦{{ request.total_amount|floatformat:2 }}</strong></td>
-                            <td>
-                                {% if request.wholesale_customer %}
-                                    {{ request.wholesale_customer.name }}
-                                {% else %}
-                                    Walk-in Customer
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if request.cashier %}
-                                    {{ request.cashier.name }}
-                                {% elif request.status == 'completed' %}
-                                    <span class="text-muted">N/A</span>
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ request.items.count }}</td>
-                            <td>
-                                <a href="{% url 'wholesale:wholesale_payment_request_detail' request.request_id %}"
-                                   class="btn btn-sm btn-info">View Details</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        {% else %}
-            <div class="alert alert-info text-center">
-                <h4>No Wholesale Payment Requests</h4>
-                <p>You haven't sent any wholesale payment requests to the cashier yet.</p>
-                <a href="{% url 'wholesale:wholesale_cart' %}" class="btn btn-primary">Go to Wholesale Cart</a>
-            </div>
-        {% endif %}
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <style>
-        .badge-pending { background-color: #ffc107; }
-        .badge-accepted { background-color: #28a745; }
-        .badge-rejected { background-color: #dc3545; }
-        .badge-completed { background-color: #17a2b8; }
-        .badge-cancelled { background-color: #6c757d; }
-    </style>
-</body>
-</html>
+    {% if messages %}
+        <div class="alert-container">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+            {% if payment_requests %}
+        <!-- Payment Requests Table Card -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-list-alt mr-2"></i>Your Wholesale Payment Requests
+                </h6>
+                <span class="badge badge-info">{{ payment_requests.count }} Requests</span>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" id="paymentRequestsTable" width="100%" cellspacing="0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th><i class="fas fa-hashtag mr-1"></i> Request ID</th>
+                                <th><i class="fas fa-calendar mr-1"></i> Date</th>
+                                <th><i class="fas fa-pills text-primary mr-1"></i> Dispenser</th>
+                                <th><i class="fas fa-info-circle mr-1"></i> Status</th>
+                                <th><i class="fas fa-money-bill-wave mr-1"></i> Total Amount</th>
+                                <th><i class="fas fa-user mr-1"></i> Customer</th>
+                                <th><i class="fas fa-cash-register text-success mr-1"></i> Cashier</th>
+                                <th><i class="fas fa-shopping-cart mr-1"></i> Items Count</th>
+                                <th><i class="fas fa-cog mr-1"></i> Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for request in payment_requests %}
+                            <tr>
+                                <td>
+                                    <span class="font-weight-bold">{{ request.request_id }}</span>
+                                </td>
+                                <td>{{ request.created_at|date:"Y-m-d H:i" }}</td>
+                                <td>
+                                    <span class="text-primary" title="Created by: {{ request.dispenser.username }}">
+                                        <i class="fas fa-pills"></i> {{ request.dispenser.username }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-{{ request.status|lower }}">
+                                        {{ request.status|title }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <strong class="text-success">₦{{ request.total_amount|floatformat:2 }}</strong>
+                                </td>
+                                <td>
+                                    {% if request.wholesale_customer %}
+                                        <i class="fas fa-user-tag"></i> {{ request.wholesale_customer.name }}
+                                    {% else %}
+                                        <span class="text-muted">Walk-in Customer</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if request.cashier %}
+                                        <span class="text-success">{{ request.cashier.name }}</span>
+                                    {% elif request.status == 'completed' %}
+                                        <span class="text-muted">N/A</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge badge-info">{{ request.items.count }}</span>
+                                </td>
+                                <td>
+                                    <a href="{% url 'wholesale:wholesale_payment_request_detail' request.request_id %}"
+                                       class="btn btn-sm btn-info" title="View Details">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <!-- No Requests Message Card -->
+        <div class="card shadow mb-4">
+            <div class="card-body text-center py-5">
+                <div class="mb-4">
+                    <i class="fas fa-receipt text-muted" style="font-size: 4rem;"></i>
+                </div>
+                <h4 class="text-gray-800 mb-3">No Wholesale Payment Requests</h4>
+                <p class="text-muted mb-4">You haven't sent any wholesale payment requests to the cashier yet.</p>
+                <div class="d-flex justify-content-center">
+                    <a href="{% url 'wholesale:wholesale_cart' %}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-shopping-cart mr-2"></i>Go to Wholesale Cart
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables for better table functionality -->
+<script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
+
+<script>
+$(document).ready(function() {
+    $('#paymentRequestsTable').DataTable({
+        responsive: true,
+        pageLength: 25,
+        order: [[1, 'desc']], // Sort by date descending
+        language: {
+            search: "Search payment requests:",
+            lengthMenu: "Show _MENU_ requests per page",
+            info: "Showing _START_ to _END_ of _TOTAL_ payment requests",
+            paginate: {
+                first: "First",
+                last: "Last",
+                next: "Next",
+                previous: "Previous"
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

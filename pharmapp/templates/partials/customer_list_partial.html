@@ -1,0 +1,158 @@
+<div class="col-15 table-responsive">
+    {% if messages %}
+        {% for message in messages %}
+        <div style="text-align: center" class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="table-responsive">
+        <table class="table table-hover" style="box-shadow: 0 0 10px rgba(0, 0, 0, 0.3)">
+            <thead class="table-primary">
+                <tr>
+                    <th scope="col">SN</th>
+                    <th scope="col">WALLET</th>
+                    <th scope="col">CUSTOMERS</th>
+                    <th scope="col">PHONE</th>
+                    <th scope="col">ADDRESS</th>
+                    <th scope="col">ACTION</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in page_obj %}
+                <tr>
+                    <td data-label="SN">{{ forloop.counter }}.</td>
+                    <td data-label="WALLET">
+                        <a
+                            href="{% url 'store:wallet_details' customer.id %}"
+                            hx-get="{% url 'store:wallet_details' customer.id %}"
+                            hx-target="#wallet-info"
+                            hx-trigger="click"
+                            class="btn btn-success btn-sm"
+                            >Wallet</a
+                        >
+
+                        <a
+                            href="{% url 'store:wallet_transaction_history' customer.id %}"
+                            class="btn btn-info btn-sm"
+                            title="View wallet transaction history"
+                            ><i class="fas fa-history"></i></a
+                        >
+
+                        <a
+                            href="{% url 'store:delete_customer' customer.id %}"
+                            class="btn btn-sm btn-danger"
+                            onclick="return confirm('Are you sure you want to delete {{customer.name}} from the List?')"
+                            >x</a
+                        >
+                    </td>
+                    <td data-label="CUSTOMERS">{{ customer.name|upper }}</td>
+                    <td data-label="PHONE">{{ customer.phone }}</td>
+                    <td data-label="ADDRESS">{{ customer.address|upper }}</td>
+                    <td data-label="ACTION">
+                        <a
+                            type="button"
+                            class="btn btn-sm btn-primary"
+                            href="{% url 'store:select_items' customer.id %}"
+                            >Select item</a
+                        >
+
+                        <a
+                            class="btn btn-sm btn-info"
+                            data-toggle="modal"
+                            data-target="#editCustomerModal"
+                            hx-get="{% url 'store:edit_customer' customer.id %}"
+                            hx-target="#editCustomerModal .modal-content"
+                            >Edit</a
+                        >
+
+                        <a
+                            type="button"
+                            class="btn btn-sm btn-warning"
+                            hx-get="{% url 'store:customer_history' customer.id %}"
+                            hx-target="#item-selection"
+                            hx-swap="innerHTML"
+                            >Summary</a
+                        >
+
+                        <a
+                            type="button"
+                            class="btn btn-sm btn-secondary"
+                            href="{% url 'store:complete_customer_history' customer.id %}"
+                            >Full History</a
+                        >
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center">
+                        No customer registered
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <!-- Pagination Controls -->
+        {% if page_obj.has_other_pages %}
+        <nav aria-label="Customer list pagination">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1" hx-get="?page=1" hx-target="#main-content">&laquo; First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}" hx-get="?page={{ page_obj.previous_page_number }}" hx-target="#main-content">Previous</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&laquo; First</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Previous</span>
+                    </li>
+                {% endif %}
+                
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}" hx-get="?page={{ num }}" hx-target="#main-content">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}" hx-get="?page={{ page_obj.next_page_number }}" hx-target="#main-content">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}" hx-get="?page={{ page_obj.paginator.num_pages }}" hx-target="#main-content">Last &raquo;</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Next</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Last &raquo;</span>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        <!-- Showing page info -->
+        <div class="text-center mb-3">
+            <small class="text-muted">
+                Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} customers
+            </small>
+        </div>
+        {% endif %}
+        
+        <div id="wallet-info"></div>
+        <div id="item-selection"></div>
+    </div>
+</div>

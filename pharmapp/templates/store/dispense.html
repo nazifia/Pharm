@@ -309,3 +309,32 @@ Dispense Items - {{ block.super }}
     </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+// Debug script to check HTMX functionality
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Dispense page loaded');
+    console.log('HTMX available:', typeof htmx !== 'undefined');
+    
+    if (typeof htmx !== 'undefined') {
+        console.log('HTMX version:', htmx.version);
+        
+        // Log HTMX events for debugging
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            console.log('HTMX request completed:', evt.detail);
+        });
+        
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            console.log('HTMX content swapped:', evt.detail.target);
+        });
+        
+        document.body.addEventListener('htmx:responseError', function(evt) {
+            console.error('HTMX response error:', evt.detail);
+        });
+    } else {
+        console.error('HTMX is not loaded!');
+    }
+});
+</script>
+{% endblock %}

@@ -3,6 +3,7 @@ from django.conf import settings
 import requests
 import threading
 from django.shortcuts import render
+from django.core.cache import cache
 
 class OfflineMiddleware:
     def __init__(self, get_response):
@@ -25,10 +26,24 @@ class OfflineMiddleware:
 class ConnectionDetectionMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
+        self.last_check = 0
+        self.cached_status = True
 
     def __call__(self, request):
-        # Check internet connectivity (per-request, not thread-local)
-        is_online = self._check_connectivity()
+        import time
+        
+        # Cache connectivity status for 30 seconds to avoid excessive checks
+        current_time = time.time()
+        if current_time - self.last_check > 30:
+            is_online = self._check_connectivity()
+            self.cached_status = is_online
+            self.last_check = current_time
+            
+            # Cache status in Django cache as well
+            cache.set('connection_status', is_online, 30)
+        else:
+            # Use cached status
+            is_online = self.cached_status
 
         # Store connection status in request (request-scoped, not thread-local)
         request.is_online = is_online
@@ -43,11 +58,11 @@ class ConnectionDetectionMiddleware:
 
     def _check_connectivity(self):
         """
-        Check internet connectivity with improved error handling.
+        Check internet connectivity with improved error handling and caching.
         """
         try:
-            # Use a more reliable connectivity check with shorter timeout
-            response = requests.get('https://httpbin.org/status/200', timeout=1)
+            # Use a very fast connectivity check
+            response = requests.get('https://httpbin.org/status/200', timeout=0.5)
             return response.status_code == 200
         except requests.RequestException:
             # If external check fails, assume offline

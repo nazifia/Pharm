@@ -8,19 +8,19 @@
 <div class="item-card">
     <div class="row align-items-center">
         <div class="col-md-8 item-info">
-            <div class="item-name">{{ item.name|title }}</div>
+            <div class="item-name">{{ item.name|default:"Unknown Item"|title }}</div>
             <div class="item-details">
-                <strong>Form:</strong> {{ item.dosage_form|title }} | 
-                <strong>Brand:</strong> {{ item.brand|default:"N/A" }} | 
-                <strong>Unit:</strong> {{ item.unit }}
+                <strong>Form:</strong> {{ item.dosage_form|default:"N/A"|title }} | 
+                <strong>Brand:</strong> {% if item.brand %}{{ item.brand|title }}{% else %}N/A{% endif %} | 
+                <strong>Unit:</strong> {{ item.unit|default:"unit" }}
             </div>
             <div class="item-stock">
                 <i class="fas fa-boxes mr-1"></i>
-                {{ item.stock }} {{ item.unit }} Available
+                {{ item.stock|default:0 }} {{ item.unit|default:"unit" }} Available
             </div>
             <div class="item-price">
                 <i class="fas fa-tag mr-1"></i>
-                ₦{{ item.price|floatformat:2 }} each
+                ₦{{ item.price|default:0|floatformat:2 }} each
             </div>
         </div>
         <div class="col-md-4">
@@ -29,22 +29,22 @@
                   hx-post="{% url 'store:add_to_cart' item.id %}?from_dispense=true"
                   hx-target="#cart-summary-widget"
                   hx-swap="outerHTML"
-                  hx-indicator="#loading-indicator-{{ item.id }}">
+                  hx-indicator="#loading-indicator-{{ item.id|default:'unknown' }}">
                 {% csrf_token %}
                 <div class="quantity-form">
-                    <label for="quantity_{{ item.id }}" class="form-label mb-0">Qty:</label>
+                    <label for="quantity_{{ item.id|default:'unknown' }}" class="form-label mb-0">Qty:</label>
                     <input type="number" 
                            name="quantity" 
-                           id="quantity_{{ item.id }}"
+                           id="quantity_{{ item.id|default:'unknown' }}"
                            class="form-control quantity-input" 
                            value="1" 
                            min="1" 
-                           max="{{ item.stock }}"
+                           max="{{ item.stock|default:1 }}"
                            required>
-                    <input type="hidden" name="unit" value="{{ item.unit }}">
+                    <input type="hidden" name="unit" value="{{ item.unit|default:'unit' }}">
                     <input type="hidden" name="from_dispense" value="true">
                     <button type="submit" class="btn btn-success add-to-cart-btn">
-                        <span id="loading-indicator-{{ item.id }}" class="htmx-indicator">
+                        <span id="loading-indicator-{{ item.id|default:'unknown' }}" class="htmx-indicator">
                             <i class="fas fa-spinner fa-spin"></i>
                         </span>
                         <span class="btn-text">

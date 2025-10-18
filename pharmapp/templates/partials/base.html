@@ -21,18 +21,33 @@
     <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/icon-192x192.png' %}">
     <link rel="mask-icon" href="{% static 'img/favicon.svg' %}" color="#4A90E2">
 
-    <!-- HTMX for all pages -->
+    <!-- Preload critical resources -->
+    <link rel="preload" href="{% static 'htmx/htmx.min.js' %}" as="script">
+    <link rel="preload" href="{% static 'vendor/fontawesome-free/css/all.min.css' %}" as="style">
+    <link rel="preload" href="{% static 'css/sb-admin-2.min.css' %}" as="style">
+
+    <!-- HTMX for all pages - load synchronously to avoid timing issues -->
     <script src="{% static 'htmx/htmx.min.js' %}"></script>
+    <script>
+        // Fallback if HTMX fails to load
+        if (typeof htmx === 'undefined') {
+            console.error('HTMX failed to load');
+            // You could add a fallback here if needed
+        }
+    </script>
 
-
-    <!-- Custom fonts for this template-->
-    <link href="{% static 'vendor/fontawesome-free/css/all.min.css' %}" rel="stylesheet" type="text/css">
+    <!-- Custom fonts for this template with async loading -->
+    <link href="{% static 'vendor/fontawesome-free/css/all.min.css' %}" rel="stylesheet" type="text/css" media="print" onload="this.media='all'">
+    <noscript><link href="{% static 'vendor/fontawesome-free/css/all.min.css' %}" rel="stylesheet" type="text/css"></noscript>
+    
     <link
-        href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
-        rel="stylesheet">
+        href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i&display=swap" rel="stylesheet"></noscript>
 
-    <!-- Custom styles for this template-->
-    <link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet">
+    <!-- Custom styles for this template with async loading -->
+    <link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet"></noscript>
 
     <!-- Extra CSS block for child templates -->
     {% block extra_css %}{% endblock %}
@@ -127,36 +142,36 @@
                 <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseStore"
                     aria-expanded="true" aria-controls="collapseStore">
                     <i class="fas fa-fw fa-store"></i>
-                    <span>Store Operations</span>
+                    <span>Dispensing Operations</span>
                 </a>
                 <div id="collapseStore" class="collapse" aria-labelledby="headingStore" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
                         {% if user|can_operate_retail %}
                         <h6 class="collapse-header">Retail Store:</h6>
-                        <a class="collapse-item" href="{% url 'store:store' %}">
+                        {% comment %} <a class="collapse-item" href="{% url 'store:store' %}">
                             <i class="fas fa-shopping-cart"></i> Store Interface</a>
                         <a class="collapse-item" href="{% url 'store:add_item' %}">
                             <i class="fas fa-plus"></i> Add New Item</a>
                         <a class="collapse-item" href="{% url 'store:search_item' %}">
-                            <i class="fas fa-search"></i> Search Items</a>
+                            <i class="fas fa-search"></i> Search Items</a> {% endcomment %}
                         <a class="collapse-item" href="{% url 'store:dispense' %}">
-                            <i class="fas fa-pills"></i> Dispense Items</a>
-                        <a class="collapse-item" href="{% url 'store:cart' %}">
-                            <i class="fas fa-shopping-basket"></i> Shopping Cart</a>
+                            <i class="fas fa-pills"></i> Dispense Retail</a>
+                        {% comment %} <a class="collapse-item" href="{% url 'store:cart' %}">
+                            <i class="fas fa-shopping-basket"></i> Shopping Cart</a> {% endcomment %}
                         {% endif %}
                         {% if user|can_operate_wholesale %}
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Wholesale:</h6>
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_dashboard' %}">
-                            <i class="fas fa-tachometer-alt"></i> Wholesale Dashboard</a>
-                        <a class="collapse-item" href="{% url 'wholesale:wholesales' %}">
+                        <a class="collapse-item" href="{% url 'wholesale:dispense_wholesale' %}">
+                            <i class="fas fa-warehouse"></i> Dispense Wholesale</a>
+                        {% comment %} <a class="collapse-item" href="{% url 'wholesale:wholesales' %}">
                             <i class="fas fa-warehouse"></i> Wholesale Interface</a>
                         <a class="collapse-item" href="{% url 'wholesale:add_to_wholesale' %}">
                             <i class="fas fa-plus"></i> Add Wholesale Item</a>
                         <a class="collapse-item" href="{% url 'wholesale:search_wholesale_item' %}">
                             <i class="fas fa-search"></i> Search Wholesale</a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_cart' %}">
-                            <i class="fas fa-shopping-cart"></i> Wholesale Cart</a>
+                            <i class="fas fa-shopping-cart"></i> Wholesale Cart</a> {% endcomment %}
                         
                         {% endif %}
                     </div>
@@ -1097,6 +1112,7 @@
 
 {% comment %} Provide csrf token to transfer-request {% endcomment %}
     <script>
+        // Configure HTMX CSRF token
         document.body.addEventListener("htmx:configRequest", (event) => {
             event.detail.headers["X-CSRFToken"] = "{{ csrf_token }}";
         });
@@ -1359,8 +1375,31 @@
     });
     </script>
 
-    <!-- Real-time Chat Scripts -->
-    <script src="{% static 'js/realtime-chat.js' %}"></script>
+    <!-- Performance optimization: defer non-critical scripts -->
+    <script>
+        // Preload critical resources
+        function preloadCriticalResources() {
+            const criticalUrls = [
+                '{% static "js/realtime-chat.js" %}',
+                '{% static "vendor/jquery/jquery.min.js" %}',
+                '{% static "vendor/bootstrap/js/bootstrap.bundle.min.js" %}'
+            ];
+            
+            criticalUrls.forEach(url => {
+                const link = document.createElement('link');
+                link.rel = 'preload';
+                link.as = 'script';
+                link.href = url;
+                document.head.appendChild(link);
+            });
+        }
+        
+        // Initialize preloading
+        preloadCriticalResources();
+    </script>
+
+    <!-- Real-time Chat Scripts with defer loading -->
+    <script src="{% static 'js/realtime-chat.js' %}" defer></script>
     <script>
     // Global real-time chat initialization
     document.addEventListener('DOMContentLoaded', function() {

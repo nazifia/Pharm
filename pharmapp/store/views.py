@@ -46,31 +46,36 @@ def get_search_cache_key(model_name, query, user_id=None):
     return f"search:{hashlib.md5(key_data.encode()).hexdigest()}"
 
 def cache_search_results(cache_key, results, timeout=300):  # 5 minutes cache
-    """Cache search results"""
+    """Cache search results - simplified to work with QuerySets directly"""
     try:
-        # Convert queryset to list of dictionaries for caching
-        cached_data = []
-        for item in results:
-            if hasattr(item, 'id'):
-                cached_data.append({
-                    'id': item.id,
-                    'name': getattr(item, 'name', ''),
-                    'brand': getattr(item, 'brand', ''),
-                    'dosage_form': getattr(item, 'dosage_form', ''),
-                    'unit': getattr(item, 'unit', ''),
-                    'stock': getattr(item, 'stock', 0),
-                    'price': float(getattr(item, 'price', 0)),
-                })
-        cache.set(cache_key, cached_data, timeout)
-        return cached_data
+        # Cache the primary key list to reconstruct the queryset later
+        if hasattr(results, 'values_list'):
+            # It's a QuerySet, cache the primary keys
+            pk_list = list(results.values_list('pk', flat=True))
+            cache.set(cache_key, pk_list, timeout)
+            return pk_list
+        else:
+            # It's already a list, cache as-is
+            cache.set(cache_key, results, timeout)
+            return results
     except Exception as e:
         logger.warning(f"Failed to cache search results: {e}")
         return None
 
 def get_cached_search_results(cache_key):
-    """Retrieve cached search results"""
+    """Retrieve cached search results and reconstruct queryset if needed"""
     try:
-        return cache.get(cache_key)
+        cached_data = cache.get(cache_key)
+        if cached_data is None:
+            return None
+            
+        # Check if it's a list of primary keys (from queryset caching)
+        if isinstance(cached_data, list) and len(cached_data) > 0 and isinstance(cached_data[0], int):
+            # Reconstruct the queryset from primary keys
+            return Item.objects.filter(pk__in=cached_data).order_by('name')
+        
+        # Return as-is if it's already a list of items
+        return cached_data
     except Exception as e:
         logger.warning(f"Failed to retrieve cached search results: {e}")
         return None
@@ -429,9 +434,29 @@ def dispense(request):
             form = dispenseForm(request.POST)
             if form.is_valid():
                 q = form.cleaned_data['q']
-                results = Item.objects.filter(
-                    Q(name__icontains=q) | Q(brand__icontains=q)
-                ).filter(stock__gt=0)  # Only show items with stock > 0
+                
+                try:
+                    # Use cached search results for better performance
+                    cache_key = get_search_cache_key('item', q, request.user.id)
+                    cached_results = get_cached_search_results(cache_key)
+                    
+                    if cached_results:
+                        # Use cached results directly
+                        results = cached_results
+                    else:
+                        # Optimized database query
+                        results = Item.objects.filter(
+                            Q(name__icontains=q) | Q(brand__icontains=q)
+                        ).filter(stock__gt=0).order_by('name')[:50]  # Only show items with stock > 0, limit for performance
+                        
+                        # Cache the results for 5 minutes
+                        cache_search_results(cache_key, results)
+                except Exception as e:
+                    logger.error(f"Error in dispense POST search: {e}")
+                    # Fallback to basic query without caching
+                    results = Item.objects.filter(
+                        Q(name__icontains=q) | Q(brand__icontains=q)
+                    ).filter(stock__gt=0).order_by('name')[:50]
         else:
             form = dispenseForm()
             results = None
@@ -440,8 +465,8 @@ def dispense(request):
         if request.headers.get('HX-Request'):
             return render(request, 'partials/dispense_modal.html', {'form': form, 'results': results})
         else:
-            # Regular page request - get cart summary for the new dynamic interface
-            cart_items = Cart.objects.filter(user=request.user)
+            # Regular page request - get cart summary with optimized query
+            cart_items = Cart.objects.select_related('item').filter(user=request.user)
             cart_count = cart_items.count()
             cart_total = sum(cart_item.subtotal for cart_item in cart_items)
 
@@ -464,10 +489,28 @@ def dispense_search_items(request):
         results = []
 
         if query and len(query) >= 2:
-            # Use the same search logic as the original dispense view
-            results = Item.objects.filter(
-                Q(name__icontains=query) | Q(brand__icontains=query)
-            ).filter(stock__gt=0).order_by('name')[:50]  # Limit results for performance
+            try:
+                # Use cached search results for better performance
+                cache_key = get_search_cache_key('item', query, request.user.id)
+                cached_results = get_cached_search_results(cache_key)
+                
+                if cached_results:
+                    # Use cached results directly as they're already in the right format
+                    results = cached_results
+                else:
+                    # Optimized database query with all necessary fields for template
+                    results = Item.objects.filter(
+                        Q(name__icontains=query) | Q(brand__icontains=query)
+                    ).filter(stock__gt=0).order_by('name')[:50]  # Limit results for performance
+                    
+                    # Cache the results for 5 minutes
+                    cache_search_results(cache_key, results)
+            except Exception as e:
+                logger.error(f"Error in dispense search: {e}")
+                # Fallback to basic query without caching if something goes wrong
+                results = Item.objects.filter(
+                    Q(name__icontains=query) | Q(brand__icontains=query)
+                ).filter(stock__gt=0).order_by('name')[:50]
 
         return render(request, 'partials/dispense_search_results.html', {'results': results, 'query': query})
     else:
@@ -477,7 +520,12 @@ def dispense_search_items(request):
 @login_required
 def cart(request):
     if request.user.is_authenticated:
-        cart_items = Cart.objects.select_related('item').filter(user=request.user)
+        # Optimized query with select_related and only necessary fields
+        cart_items = Cart.objects.select_related('item').filter(user=request.user).only(
+            'id', 'user', 'item', 'quantity', 'price', 'discount_amount', 'subtotal',
+            'item__id', 'item__name', 'item__brand', 'item__dosage_form', 'item__unit', 
+            'item__price', 'item__stock', 'item__exp_date'
+        )
 
         # Check if cart is empty and cleanup session if needed
         from store.cart_utils import auto_cleanup_empty_cart_session
@@ -1001,18 +1049,34 @@ def cashier_dashboard(request):
             
             # Get pending payment requests
             pending_requests = PaymentRequest.objects.filter(status='pending').order_by('-created_at')
+            
+            # Get accepted payment requests (separate from completed)
+            accepted_requests = PaymentRequest.objects.filter(status='accepted').order_by('-accepted_at')
+            
+            # Filter for specific cashier if not admin
             if cashier:
-                my_requests = PaymentRequest.objects.filter(cashier=cashier).exclude(status='pending').order_by('-created_at')
+                accepted_requests = accepted_requests.filter(cashier=cashier)
+                # Get completed requests for this cashier OR completed requests without cashier (fallback)
+                my_requests = PaymentRequest.objects.filter(
+                    Q(cashier=cashier) | Q(cashier__isnull=True),
+                    status='completed'
+                ).order_by('-completed_at')
             else:
                 # For profile-based cashiers, use user as identifier
-                my_requests = PaymentRequest.objects.filter(cashier__user=request.user).exclude(status='pending').order_by('-created_at')
+                accepted_requests = accepted_requests.filter(cashier__user=request.user)
+                my_requests = PaymentRequest.objects.filter(
+                    Q(cashier__user=request.user) | Q(cashier__isnull=True),
+                    status='completed'
+                ).order_by('-completed_at')
             
-            # Calculate statistics
+            # Calculate comprehensive statistics
+            all_processed = PaymentRequest.objects.filter(status='completed')
             stats = {
                 'pending_count': pending_requests.count(),
-                'completed_today_count': my_requests.filter(status='completed', completed_at__date=timezone.now().date()).count(),
+                'completed_today_count': all_processed.filter(completed_at__date=timezone.now().date()).count(),
                 'total_processed_count': my_requests.count(),
                 'total_value': my_requests.aggregate(total=models.Sum('total_amount'))['total'] or 0,
+                'pending_value': pending_requests.aggregate(total=models.Sum('total_amount'))['total'] or 0,
             }
             
             # Create cashier info for template (handle both record-based and profile-based cashiers)
@@ -1030,6 +1094,7 @@ def cashier_dashboard(request):
 
             return render(request, 'store/cashier_dashboard.html', {
                 'pending_requests': pending_requests,
+                'accepted_requests': accepted_requests,
                 'my_requests': my_requests,
                 'cashier': cashier_info,
                 'stats': stats,
@@ -1043,7 +1108,12 @@ def cashier_dashboard(request):
                     request.user.profile and request.user.profile.user_type in ['Admin', 'Manager']):
                     # Show all pending requests for admin/manager
                     pending_requests = PaymentRequest.objects.filter(status='pending').order_by('-created_at')
-                    all_requests = PaymentRequest.objects.all().exclude(status='pending').order_by('-created_at')
+                    
+                    # Get accepted requests (all for admin)
+                    accepted_requests = PaymentRequest.objects.filter(status='accepted').order_by('-accepted_at')
+                    
+                    # Get all completed requests for admin
+                    all_requests = PaymentRequest.objects.filter(status='completed').order_by('-completed_at')
 
                     # Calculate statistics for admin/manager
                     stats = {
@@ -1055,6 +1125,7 @@ def cashier_dashboard(request):
 
                     return render(request, 'store/cashier_dashboard.html', {
                         'pending_requests': pending_requests,
+                        'accepted_requests': accepted_requests,
                         'my_requests': all_requests,
                         'is_admin': True,
                         'stats': stats,
@@ -1114,8 +1185,8 @@ def accept_payment_request(request, request_id):
             payment_request.accepted_at = timezone.now()
             payment_request.save()
             
-            messages.success(request, f'Payment request {request_id} accepted successfully.')
-            return redirect('store:cashier_dashboard')
+            messages.success(request, f'Payment request {request_id} accepted successfully. You can now complete the payment.')
+            return redirect('store:payment_request_detail', request_id=request_id)
             
         except PaymentRequest.DoesNotExist:
             messages.error(request, 'Payment request not found.')
@@ -1171,7 +1242,7 @@ def reject_payment_request(request, request_id):
             except Exception as e:
                 logger.warning(f"Error clearing cart after payment request rejection: {e}")
             
-            messages.success(request, f'Payment request {request_id} rejected, items returned to stock, and cart cleared.')
+            messages.success(request, f'Payment request {request_id} rejected. Items returned to stock and cart cleared.')
             return redirect('store:cashier_dashboard')
             
         except PaymentRequest.DoesNotExist:
@@ -3082,8 +3153,20 @@ def customer_list(request):
         if not can_manage_retail_customers(request.user):
             messages.error(request, 'You do not have permission to manage retail customers.')
             return redirect('store:index')
-        customers = Customer.objects.all()
-        return render(request, 'partials/customer_list.html', {'customers': customers})
+            
+        # Optimized query with pagination for better performance
+        customers = Customer.objects.select_related('wallet').order_by('name')
+        
+        # Add pagination - 50 customers per page
+        paginator = Paginator(customers, 50)
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+        
+        # Check if this is an HTMX request for partial updates
+        if request.headers.get('HX-Request'):
+            return render(request, 'partials/customer_list_partial.html', {'page_obj': page_obj})
+        else:
+            return render(request, 'partials/customer_list.html', {'page_obj': page_obj})
     else:
         return redirect('store:index')
 

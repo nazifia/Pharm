@@ -1,6 +1,7 @@
 import os
 import shutil
 from django.contrib import messages
+from decouple import config, Csv
 
 from pathlib import Path
 
@@ -8,17 +9,28 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-745$ysi)dtow@&h&g9%um@8m-7#8)xkva&4r1q4vx_mpg3pg&3'
+# Get SECRET_KEY from environment variable or use development fallback
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-745$ysi)dtow@&h&g9%um@8m-7#8)xkva&4r1q4vx_mpg3pg&3')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Get DEBUG from environment variable or use development fallback
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-# ALLOWED_HOSTS = []
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
+# ALLOWED_HOSTS - get from environment or use development defaults
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,testserver', cast=Csv())
+
+# Security settings for production
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_REDIRECT_EXEMPT = []
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    X_FRAME_OPTIONS = 'DENY'
 
 
 # Application definition
@@ -57,6 +69,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Performance monitoring middleware (add early for accurate measurements)
+    'pharmapp.performance_middleware.PerformanceMonitoringMiddleware',
+    'pharmapp.performance_middleware.QueryCountMiddleware',
     # Re-enable essential middleware
     'pharmapp.middleware.ConnectionDetectionMiddleware',
     'pharmapp.middleware.OfflineMiddleware',
@@ -91,6 +106,11 @@ CORS_ALLOW_METHODS = [
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Performance optimizations
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_MAX_AGE = 31536000  # 1 year for static files in production
+
 ROOT_URLCONF = 'pharmapp.urls'
 
 TEMPLATES = [
@@ -106,7 +126,11 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'store.context_processors.marquee_context',
                 'userauth.context_processors.user_roles',
+                'store.context_processors_performance.performance_metrics',
             ],
+            # Performance optimizations
+            'debug': DEBUG,  # Only enable template debug in development
+            'string_if_invalid': '',
         },
     },
 ]
@@ -127,24 +151,14 @@ WSGI_APPLICATION = 'pharmapp.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    },
-    'offline': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'offline.sqlite3',
-    }
-}
+# Database settings are now optimized in the performance section below
 
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
-        'LOCATION': 'cache_table',
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
         'OPTIONS': {
-            'MAX_ENTRIES': 1000,
+            'MAX_ENTRIES': 2000,
             'CULL_FREQUENCY': 3,
         }
     }
@@ -223,6 +237,66 @@ PWA_APP_STATUS_BAR_COLOR = 'default'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Performance optimizations
+# Database connection pool settings for better performance
+# ===== DATABASE CONFIGURATION OPTIONS =====
+# Option 1: SQLite (Default - Uncomment to use)
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            'timeout': 20,
+            'check_same_thread': False,
+        },
+        'CONN_MAX_AGE': 60,  # Reuse database connections for 60 seconds
+    },
+    'offline': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'offline.sqlite3',
+        'OPTIONS': {
+            'timeout': 20,
+            'check_same_thread': False,
+        },
+        'CONN_MAX_AGE': 60,  # Reuse database connections for 60 seconds
+    }
+}
+
+# Option 2: MySQL (Uncomment to use, Comment SQLite above)
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'pharmapp_db',
+#         'USER': 'pharmapp_user',
+#         'PASSWORD': 'your_password_here',
+#         'HOST': 'localhost',
+#         'PORT': '3306',
+#         'OPTIONS': {
+#             'charset': 'utf8mb4',
+#             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+#         },
+#         'CONN_MAX_AGE': 60,  # Reuse database connections for 60 seconds
+#     },
+#     'offline': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'offline.sqlite3',
+#         'OPTIONS': {
+#             'timeout': 20,
+#             'check_same_thread': False,
+#         },
+#         'CONN_MAX_AGE': 60,  # Reuse database connections for 60 seconds
+#     }
+# }
+# ===== END DATABASE CONFIGURATION OPTIONS =====
+
+# Session optimizations
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
+
+# File upload optimizations
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB in memory before writing to disk
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 
 
 # Bootstrap Messages class configuration
