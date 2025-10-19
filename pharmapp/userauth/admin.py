@@ -93,7 +93,7 @@ class ActivityLogAdmin(admin.ModelAdmin):
     ordering = ('-timestamp',)
     fieldsets = (
         ('User Information', {
-            'fields': ('user', 'user_type')
+            'fields': ('user',)
         }),
         ('Action Details', {
             'fields': ('action', 'action_type', 'target_model', 'target_id')

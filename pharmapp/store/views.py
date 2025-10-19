@@ -148,6 +148,16 @@ def login_view(request):
                         'user_type': 'Salesperson'  # Default role for users without profile
                     })
 
+                # Set user chat status to online
+                from chat.models import UserChatStatus
+                user_chat_status, created = UserChatStatus.objects.get_or_create(
+                    user=user,
+                    defaults={'is_online': True, 'last_seen': timezone.now()}
+                )
+                user_chat_status.is_online = True
+                user_chat_status.last_seen = timezone.now()
+                user_chat_status.save()
+
                 next_url = request.GET.get('next', 'store:dashboard')
                 messages.success(request, f'Welcome back, {user.username or user.mobile}!')
                 return redirect(next_url)
@@ -243,6 +253,19 @@ def dashboard(request):
 
 
 def logout_user(request):
+    # Set user chat status to offline before logout
+    if request.user.is_authenticated:
+        from chat.models import UserChatStatus
+        try:
+            user_chat_status = UserChatStatus.objects.filter(user=request.user).first()
+            if user_chat_status:
+                user_chat_status.is_online = False
+                user_chat_status.last_seen = timezone.now()
+                user_chat_status.save()
+        except Exception:
+            # Silently handle any errors to avoid breaking logout process
+            pass
+    
     logout(request)
     return redirect('store:dashboard')
 
