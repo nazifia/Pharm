@@ -27,7 +27,7 @@
 
   <!-- Search Field -->
   <div class="mb-3">
-    <input type="text" name="search" id="search" style="width: 300px; background-color: lightblue;" class="form-control" placeholder="Search Items..."
+    <input type="text" name="search" id="search" style="width: 300px; background-color: lightblue;" class="form-control" placeholder="Search by item name or brand..."
            hx-get="{% url 'store:transfer_multiple_store_items' %}"
            hx-target="#store-items"
            hx-trigger="keyup changed delay:500ms">

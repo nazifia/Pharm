@@ -4399,9 +4399,12 @@ def transfer_multiple_store_items(request):
         if request.method == "GET":
             search_query = request.GET.get("search", "").strip()
             if search_query:
-                store_items = StoreItem.objects.filter(name__icontains=search_query)
+                store_items = StoreItem.objects.filter(
+                    Q(name__icontains=search_query) | 
+                    Q(brand__icontains=search_query)
+                ).distinct().order_by('name')
             else:
-                store_items = StoreItem.objects.all()
+                store_items = StoreItem.objects.all().order_by('name')
 
             # Check if there are any items to display
             if not store_items.exists():

@@ -6,7 +6,7 @@
 
   <!-- Search Field -->
   <div class="mb-3">
-    <input type="text" name="search" id="search" style="width: 300px; background-color: lightblue;" class="form-control" placeholder="Search Items..."
+    <input type="text" name="search" id="search" style="width: 300px; background-color: lightblue;" class="form-control" placeholder="Search by item name or brand..."
            hx-get="{% url 'wholesale:transfer_multiple_wholesale_items' %}"
            hx-target="#wholesale-items"
            hx-trigger="keyup changed delay:500ms">

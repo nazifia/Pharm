@@ -32,7 +32,16 @@
         // Fallback if HTMX fails to load
         if (typeof htmx === 'undefined') {
             console.error('HTMX failed to load');
-            // You could add a fallback here if needed
+            // Try to load from CDN as fallback
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js';
+            script.onload = function() {
+                console.log('HTMX loaded from CDN fallback');
+            };
+            script.onerror = function() {
+                console.error('Failed to load HTMX from CDN');
+            };
+            document.head.appendChild(script);
         }
     </script>
 
@@ -278,8 +287,8 @@
                 <div id="collapseDispensing" class="collapse" aria-labelledby="headingDispensing" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
                         <h6 class="collapse-header">Dispensing Operations:</h6>
-                        <a class="collapse-item" href="{% url 'store:dispense' %}">
-                            <i class="fas fa-pills"></i> Dispense Items</a>
+                        {% comment %} <a class="collapse-item" href="{% url 'store:dispense' %}">
+                            <i class="fas fa-pills"></i> Dispense Items</a> {% endcomment %}
                         <a class="collapse-item" href="{% url 'store:dispensing_log' %}">
                             <i class="fas fa-clipboard-list"></i> Dispensing Log</a>
                         <div class="collapse-divider"></div>
@@ -319,9 +328,9 @@
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Stock Transfers:</h6>
                         <a class="collapse-item" href="{% url 'store:transfer_multiple_store_items' %}">
-                            <i class="fas fa-exchange-alt"></i> Transfer Store Items</a>
+                            <i class="fas fa-exchange-alt"></i> Move Retail Items</a>
                         <a class="collapse-item" href="{% url 'wholesale:transfer_multiple_wholesale_items' %}">
-                            <i class="fas fa-exchange-alt"></i> Transfer Wholesale Items</a>
+                            <i class="fas fa-exchange-alt"></i> Move Wholesale Items</a>
                     </div>
                 </div>
             </li>
@@ -392,9 +401,9 @@
                     <div class="bg-white py-2 collapse-inner rounded">
                         <h6 class="collapse-header">Customer Accounts:</h6>
                         <a class="collapse-item" href="{% url 'store:customer_list' %}">
-                            <i class="fas fa-plus-circle"></i> Manage Customer Funds</a>
+                            <i class="fas fa-plus-circle"></i> Retail Customer Funds</a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_customers' %}">
-                            <i class="fas fa-plus-circle"></i> Manage Wholesale Funds</a>
+                            <i class="fas fa-plus-circle"></i> Wholesale Customer Funds</a>
                         {% comment %} <a class="collapse-item" href="{% url 'store:customer_list' %}">
                             <i class="fas fa-wallet"></i> Customer Accounts</a> {% endcomment %}
                         <div class="collapse-divider"></div>
@@ -421,7 +430,7 @@
                         <h6 class="collapse-header">Dispenser Links:</h6>
                         {% if user|can_dispense_items %}
                         <a class="collapse-item" href="{% url 'store:payment_requests' %}">
-                            <i class="fas fa-pills"></i> My Payment Requests</a>
+                            <i class="fas fa-pills"></i> My Retail Requests</a>
                         {% endif %}
                         {% if user|can_dispense_items and user|can_operate_wholesale %}
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_payment_requests' %}">
@@ -482,19 +491,19 @@
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Procurement:</h6>
                         <a class="collapse-item" href="{% url 'store:add_procurement' %}">
-                            <i class="fas fa-plus"></i> New Procurement</a>
+                            <i class="fas fa-plus"></i> New Retail Procurement</a>
                         <a class="collapse-item" href="{% url 'store:procurement_list' %}">
-                            <i class="fas fa-list"></i> Procurement List</a>
+                            <i class="fas fa-list"></i> Retail Procurement List</a>
                         <a class="collapse-item" href="{% url 'store:search_procurement' %}">
-                            <i class="fas fa-search"></i> Search Procurement</a>
+                            <i class="fas fa-search"></i> Search Retail Procurement</a>
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Wholesale Procurement:</h6>
                         <a class="collapse-item" href="{% url 'wholesale:add_wholesale_procurement' %}">
-                            <i class="fas fa-plus"></i> New W-Procurement</a>
+                            <i class="fas fa-plus"></i> New Wholesale-Procurement</a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_procurement_list' %}">
-                            <i class="fas fa-list"></i> W-Procurement List</a>
+                            <i class="fas fa-list"></i> Wholesale-Procurement List</a>
                         <a class="collapse-item" href="{% url 'wholesale:search_wholesale_procurement' %}">
-                            <i class="fas fa-search"></i> Search W-Procurement</a>
+                            <i class="fas fa-search"></i> Search Wholesale-Procurement</a>
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Analytics & Reports:</h6>
                         <a class="collapse-item" href="{% url 'store:supplier_monthly_analytics' %}">
@@ -1114,7 +1123,13 @@
     <script>
         // Configure HTMX CSRF token
         document.body.addEventListener("htmx:configRequest", (event) => {
-            event.detail.headers["X-CSRFToken"] = "{{ csrf_token }}";
+            try {
+                if (event && event.detail && event.detail.headers) {
+                    event.detail.headers["X-CSRFToken"] = "{{ csrf_token }}";
+                }
+            } catch (error) {
+                console.error('Error setting CSRF token in HTMX:', error);
+            }
         });
     </script>
 

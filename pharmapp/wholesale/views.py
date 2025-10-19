@@ -2548,7 +2548,10 @@ def transfer_multiple_wholesale_items(request):
         if request.method == "GET":
             search_query = request.GET.get("search", "").strip()
             if search_query:
-                wholesale_items = WholesaleItem.objects.filter(name__icontains=search_query)
+                wholesale_items = WholesaleItem.objects.filter(
+                    Q(name__icontains=search_query) | 
+                    Q(brand__icontains=search_query)
+                ).distinct().order_by('name')
             else:
                 wholesale_items = WholesaleItem.objects.all().order_by('name')
 
