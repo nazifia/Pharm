@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib import messages
 from django.utils.timezone import now, timezone
 from datetime import timedelta, datetime
@@ -3597,7 +3597,7 @@ logger = logging.getLogger(__name__)
 
 #         elif request.method == "POST":
 #             try:
-#                 requested_quantity = int(request.POST.get("requested_quantity", 0))
+#                 requested_quantity = float(request.POST.get("requested_quantity", 0))
 #                 item_id = request.POST.get("item_id")
 #                 from_wholesale = request.POST.get("from_wholesale", "false").lower() == "true"
 
@@ -3671,7 +3671,7 @@ def create_transfer_request(request):
         elif request.method == "POST":
             logger.info(f"POST request received for transfer creation: {request.POST}")
             try:
-                requested_quantity = int(request.POST.get("requested_quantity", 0))
+                requested_quantity = float(request.POST.get("requested_quantity", 0))
                 item_id = request.POST.get("item_id")
                 from_wholesale = request.POST.get("from_wholesale", "false").lower() == "true"
 
