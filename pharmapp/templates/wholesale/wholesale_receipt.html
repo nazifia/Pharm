@@ -37,44 +37,57 @@
                 <h3>Nazz Pharmacy</h3>
                 <p>No. 123 FTH Jibia Bypass, Katsina</p>
                 <p>Tel: +234-XXX-XXX-XXXX</p>
-                <p>Date: {{ receipt.date|date:"F j, Y" }}</p>
-                <p>Receipt Type: <strong>Wholesale</strong></p>
-                <p>Receipt ID: {{ receipt.receipt_id }}</p>
-                <p><i class="fas fa-pills text-primary"></i> Dispenser: {% if sales and sales.user %}{{ sales.user.username|title }}{% else %}Unknown{% endif %}</p>
-                {% if receipt.cashier %}
-                <p><i class="fas fa-cash-register text-success"></i> Cashier: {{ receipt.cashier.name|title }}</p>
-                {% else %}
-                <p><i class="fas fa-user text-muted"></i> Cashier: Not assigned</p>
-                {% endif %}
-
-                {% if receipt.payment_method == 'Split' %}
-                <p style="font-size: 1.1em; margin-top: 5px;">Payment Method: <strong style="color: #0066cc;">Split Payment</strong></p>
-                <div style="border: 1px solid #ddd; padding: 8px; margin: 8px 0; border-radius: 5px; background-color: #f8f9fa;">
-                    {% if wholesale_receipt_payments %}
-                        {% for payment in wholesale_receipt_payments %}
-                        <p style="margin: 4px 0; font-weight: 500;">
-                            <span style="display: inline-block; width: 80px;">{{ payment.payment_method }}:</span>
-                            <span style="color: #0066cc; font-weight: bold;">₦{{ payment.amount|floatformat:2|intcomma }}</span>
-                        </p>
-                        {% endfor %}
-                    {% elif split_payment_details %}
-                        <p style="margin: 4px 0; font-weight: 500;">
-                            <span style="display: inline-block; width: 80px;">{{ split_payment_details.payment_method_1 }}:</span>
-                            <span style="color: #0066cc; font-weight: bold;">₦{{ split_payment_details.payment_amount_1|floatformat:2|intcomma }}</span>
-                        </p>
-                        <p style="margin: 4px 0; font-weight: 500;">
-                            <span style="display: inline-block; width: 80px;">{{ split_payment_details.payment_method_2 }}:</span>
-                            <span style="color: #0066cc; font-weight: bold;">₦{{ split_payment_details.payment_amount_2|floatformat:2|intcomma }}</span>
-                        </p>
-                    {% else %}
-                        <p style="color: #dc3545; font-style: italic;">Split payment details not available</p>
-                    {% endif %}
+                
+                <div style="display: flex; flex-wrap: wrap; margin: 15px 0; border: 1px solid #ddd; padding: 15px; border-radius: 5px; background-color: #f9f9f9;">
+                    <!-- Left Column -->
+                    <div style="flex: 1; min-width: 200px; padding-right: 15px;">
+                        <p style="margin: 5px 0;"><strong>Date:</strong> {{ receipt.date|date:"F j, Y" }}</p>
+                        <p style="margin: 5px 0;"><strong>Receipt Type:</strong> <span style="color: #0066cc;">Wholesale</span></p>
+                        <p style="margin: 5px 0;"><strong>Receipt ID:</strong> {{ receipt.receipt_id }}</p>
+                        <p style="margin: 5px 0;"><i class="fas fa-pills text-primary"></i> <strong>Dispenser:</strong> {% if sales and sales.user %}{{ sales.user.username|title }}{% else %}Unknown{% endif %}</p>
+                    </div>
+                    
+                    <!-- Middle Column -->
+                    <div style="flex: 1; min-width: 200px; padding-right: 15px;">
+                        {% if receipt.cashier %}
+                        <p style="margin: 5px 0;"><i class="fas fa-cash-register text-success"></i> <strong>Cashier:</strong> {{ receipt.cashier.name|title }}</p>
+                        {% else %}
+                        <p style="margin: 5px 0;"><i class="fas fa-user text-muted"></i> <strong>Cashier:</strong> Not assigned</p>
+                        {% endif %}
+                        
+                        <p style="margin: 5px 0;"><strong>Payment Status:</strong> <span style="color: {% if receipt.calculated_status == 'Paid' %}#28a745{% elif receipt.calculated_status == 'Partially Paid' %}#ffc107{% else %}#dc3545{% endif %}; font-weight: bold;">{{ receipt.calculated_status|default:'Unpaid' }}</span></p>
+                    </div>
+                    
+                    <!-- Right Column -->
+                    <div style="flex: 1; min-width: 200px;">
+                        {% if receipt.payment_method == 'Split' %}
+                        <p style="margin: 5px 0;"><strong>Payment Method:</strong> <span style="color: #0066cc; font-weight: bold;">Split Payment</span></p>
+                        <div style="border: 1px solid #ddd; padding: 8px; margin: 8px 0; border-radius: 5px; background-color: #f8f9fa;">
+                            {% if wholesale_receipt_payments %}
+                                {% for payment in wholesale_receipt_payments %}
+                                <p style="margin: 4px 0; font-weight: 500;">
+                                    <span style="display: inline-block; width: 80px;">{{ payment.payment_method }}:</span>
+                                    <span style="color: #0066cc; font-weight: bold;">₦{{ payment.amount|floatformat:2|intcomma }}</span>
+                                </p>
+                                {% endfor %}
+                            {% elif split_payment_details %}
+                                <p style="margin: 4px 0; font-weight: 500;">
+                                    <span style="display: inline-block; width: 80px;">{{ split_payment_details.payment_method_1 }}:</span>
+                                    <span style="color: #0066cc; font-weight: bold;">₦{{ split_payment_details.payment_amount_1|floatformat:2|intcomma }}</span>
+                                </p>
+                                <p style="margin: 4px 0; font-weight: 500;">
+                                    <span style="display: inline-block; width: 80px;">{{ split_payment_details.payment_method_2 }}:</span>
+                                    <span style="color: #0066cc; font-weight: bold;">₦{{ split_payment_details.payment_amount_2|floatformat:2|intcomma }}</span>
+                                </p>
+                            {% else %}
+                                <p style="color: #dc3545; font-style: italic;">Split payment details not available</p>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <p style="margin: 5px 0;"><strong>Payment Method:</strong> <span style="color: #0066cc; font-weight: bold;">{{ receipt.payment_method }}</span></p>
+                        {% endif %}
+                    </div>
                 </div>
-                {% else %}
-                <p style="font-size: 1.1em; margin-top: 5px;">Payment Method: <strong style="color: #0066cc;">{{ receipt.payment_method }}</strong></p>
-                {% endif %}
-
-                <p style="font-size: 1.1em; margin-top: 5px;">Payment Status: <strong style="color: {% if receipt.calculated_status == 'Paid' %}#28a745{% elif receipt.calculated_status == 'Partially Paid' %}#ffc107{% else %}#dc3545{% endif %};">{{ receipt.calculated_status|default:'Unpaid' }}</strong></p>
 
                 {% if receipt.wallet_went_negative %}
                 <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; padding: 8px; margin: 10px 0; color: #856404;">
