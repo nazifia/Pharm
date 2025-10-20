@@ -94,10 +94,10 @@
 
 <div class="container">
     <div class="side-nav">
-        <a class="btn btn-primary btn-sm" data-toggle="modal" data-target="#dispenseModal"
+        {% comment %} <a class="btn btn-primary btn-sm" data-toggle="modal" data-target="#dispenseModal"
             hx-get="{% url 'store:dispense' %}" hx-target="#dispenseModal .modal-body">Select item</a>
 
-        <a class="btn btn-sm btn-warning" href="{% url 'store:view_cart' %}">View cart</a>
+        <a class="btn btn-sm btn-warning" href="{% url 'store:view_cart' %}">View cart</a> {% endcomment %}
 
         <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#paymentModal">Generate Receipt</button>
 

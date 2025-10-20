@@ -90,11 +90,11 @@
 
 <div class="container">
     <div class="side-nav">
-        <a class="btn btn-primary btn-sm" data-toggle="modal" data-target="#wholesaleDispenseModal"
+        {% comment %} <a class="btn btn-primary btn-sm" data-toggle="modal" data-target="#wholesaleDispenseModal"
             hx-get="{% url 'wholesale:dispense_wholesale' %}" hx-target="#wholesaleDispenseModal .modal-body">
             AddTo Wholesale Cart
-        </a>
-        <a class="btn btn-sm btn-warning" href="{% url 'wholesale:wholesale_cart' %}">View Wholesale cart</a>
+        </a> {% endcomment %}
+        {% comment %} <a class="btn btn-sm btn-warning" href="{% url 'wholesale:wholesale_cart' %}">View Wholesale cart</a> {% endcomment %}
         <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#paymentModal">Generate Receipt</button>
 
         <!-- Updated Clear Cart form with better confirmation and feedback -->
