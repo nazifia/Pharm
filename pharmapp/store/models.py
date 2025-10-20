@@ -877,11 +877,15 @@ class TransferRequest(models.Model):
         blank=True,
         help_text="Set when request originates from wholesale (to retail)."
     )
-    requested_quantity = models.PositiveIntegerField(
+    requested_quantity = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
         help_text="Quantity originally requested.",
         default=0
     )
-    approved_quantity = models.PositiveIntegerField(
+    approved_quantity = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
         null=True, blank=True,
         help_text="Quantity approved (may be adjusted)."
     )

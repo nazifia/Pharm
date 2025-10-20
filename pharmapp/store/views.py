@@ -308,9 +308,10 @@ def store(request):
 
         # Only include financial data if user has permission
         if request.user.has_permission('view_financial_reports'):
+            from decimal import Decimal
             # Calculate values using the threshold from settings
-            total_purchase_value = sum(item.cost * item.stock for item in items)
-            total_stock_value = sum(item.price * item.stock for item in items)
+            total_purchase_value = sum(item.cost * Decimal(item.stock) for item in items)
+            total_stock_value = sum(item.price * Decimal(item.stock) for item in items)
             total_profit = total_stock_value - total_purchase_value
 
             context.update({
@@ -5021,7 +5022,8 @@ def create_transfer_request_wholesale(request):
         elif request.method == "POST":
             logger.info(f"POST request received for transfer creation: {request.POST}")
             try:
-                requested_quantity = int(request.POST.get("requested_quantity", 0))
+                from decimal import Decimal
+                requested_quantity = Decimal(request.POST.get("requested_quantity", 0))
                 item_id = request.POST.get("item_id")
                 from_wholesale = request.POST.get("from_wholesale", "false").lower() == "true"
 
@@ -5100,13 +5102,14 @@ def approve_transfer(request, transfer_id):
                 # Determine approved quantity
                 approved_qty_param = request.POST.get("approved_quantity")
                 try:
-                    approved_qty = int(approved_qty_param) if approved_qty_param else transfer.requested_quantity
+                    from decimal import Decimal
+                    approved_qty = Decimal(approved_qty_param) if approved_qty_param else transfer.requested_quantity
                     if approved_qty <= 0:
                         return JsonResponse({
                             "success": False,
                             "message": "Quantity must be greater than zero."
                         }, status=400)
-                except ValueError:
+                except (ValueError, TypeError):
                     return JsonResponse({
                         "success": False,
                         "message": "Invalid quantity value."

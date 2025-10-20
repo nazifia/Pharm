@@ -3671,7 +3671,8 @@ def create_transfer_request(request):
         elif request.method == "POST":
             logger.info(f"POST request received for transfer creation: {request.POST}")
             try:
-                requested_quantity = float(request.POST.get("requested_quantity", 0))
+                from decimal import Decimal
+                requested_quantity = Decimal(request.POST.get("requested_quantity", 0))
                 item_id = request.POST.get("item_id")
                 from_wholesale = request.POST.get("from_wholesale", "false").lower() == "true"
 
@@ -3800,8 +3801,9 @@ def wholesale_approve_transfer(request, transfer_id):
                 approved_qty_param = request.POST.get("approved_quantity")
                 if approved_qty_param:
                     try:
-                        approved_qty = int(approved_qty_param)
-                    except ValueError:
+                        from decimal import Decimal
+                        approved_qty = Decimal(approved_qty_param)
+                    except (ValueError, TypeError):
                         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                             return JsonResponse({"success": False, "message": "Invalid quantity!"}, status=400)
                         else:

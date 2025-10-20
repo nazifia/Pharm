@@ -66,8 +66,8 @@
               Retail → Wholesale
             {% endif %}
           </td>
-          <td>{{ transfer.requested_quantity }}</td>
-          <td>{{ transfer.approved_quantity|default:"N/A" }}</td>
+          <td>{{ transfer.requested_quantity|floatformat:2 }}</td>
+          <td>{% if transfer.approved_quantity %}{{ transfer.approved_quantity|floatformat:2 }}{% else %}N/A{% endif %}</td>
           <td>
             {% if transfer.from_wholesale %}
               ₦{{ transfer.retail_item.cost|intcomma }}
