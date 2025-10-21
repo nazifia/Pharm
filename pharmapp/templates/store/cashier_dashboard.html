@@ -11,6 +11,9 @@
                         <i class="fas fa-cash-register mr-2"></i>
                         {% if is_admin %}
                             Admin Dashboard - Payment Requests
+                            {% if selected_cashier %}
+                                <small class="text-muted">- {{ selected_cashier.name }}</small>
+                            {% endif %}
                         {% else %}
                             Retail Cashier Dashboard
                         {% endif %}
@@ -28,6 +31,37 @@
                         </a>
                     </div>
                 </div>
+
+                <!-- Cashier Selector for Admin/Manager -->
+                {% if is_admin %}
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <form method="get" class="form-inline">
+                            <label for="cashier_select" class="mr-2">
+                                <i class="fas fa-user-tie mr-1"></i>
+                                <strong>Select Cashier:</strong>
+                            </label>
+                            <select name="cashier_id" id="cashier_select" class="form-control mr-2" onchange="this.form.submit()">
+                                <option value="">All Cashiers</option>
+                                {% for cashier in all_cashiers %}
+                                    <option value="{{ cashier.cashier_id }}"
+                                        {% if selected_cashier and selected_cashier.cashier_id == cashier.cashier_id %}selected{% endif %}>
+                                        {{ cashier.name }} ({{ cashier.cashier_id }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter mr-1"></i>Filter
+                            </button>
+                            {% if selected_cashier %}
+                                <a href="{% url 'store:cashier_dashboard' %}" class="btn btn-secondary ml-2">
+                                    <i class="fas fa-times mr-1"></i>Clear Filter
+                                </a>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
 
                 {% if messages %}
                     <div class="alert-container mb-4">
@@ -105,6 +139,122 @@
                         </div>
                     </div>
                 </div>
+
+    <!-- Daily Payment Totals Section -->
+    {% if daily_payment_totals %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line mr-2"></i>
+                        {% if is_admin %}
+                            All Cashiers' Daily Payment Totals (Last 7 Days)
+                        {% else %}
+                            My Daily Payment Totals (Last 7 Days)
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if daily_payment_totals %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead class="thead-dark">
+                                    <tr>
+                                        <th>Date</th>
+                                        {% if is_admin %}
+                                            <th>Cashier</th>
+                                        {% endif %}
+                                        <th>Total Amount</th>
+                                        <th>Payment Methods</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for day_data in daily_payment_totals %}
+                                        {% for cashier_data in day_data.cashiers %}
+                                            <tr>
+                                                <td>{{ day_data.date|date:"Y-m-d" }}</td>
+                                                {% if is_admin %}
+                                                    <td>
+                                                        {{ cashier_data.name }}
+                                                        <small class="text-muted">({{ cashier_data.username }})</small>
+                                                    </td>
+                                                {% endif %}
+                                                <td>
+                                                    <strong class="text-success">₦{{ cashier_data.total_amount|floatformat:2 }}</strong>
+                                                </td>
+                                                <td>
+                                                    {% for method, amount in cashier_data.payment_methods.items %}
+                                                        <span class="badge badge-info mr-1">
+                                                            {{ method }}: ₦{{ amount|floatformat:2 }}
+                                                        </span>
+                                                    {% endfor %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot class="thead-light">
+                                    <tr>
+                                        <th colspan="{% if is_admin %}2{% else %}1{% endif %}">
+                                            Grand Total:
+                                        </th>
+                                        <th class="text-success">
+                                            ₦{% for day_data in daily_payment_totals %}
+                                                {% for cashier_data in day_data.cashiers %}
+                                                    {% if forloop.first %}
+                                                        {% if forloop.parentloop.first %}
+                                                            {{ cashier_data.total_amount }}
+                                                        {% endif %}
+                                                    {% else %}
+                                                        + {{ cashier_data.total_amount }}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endfor %}
+                                        </th>
+                                        <th></th>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        
+                        <!-- Summary Cards -->
+                        <div class="row mt-3">
+                            <div class="col-md-3">
+                                <div class="card bg-success text-white">
+                                    <div class="card-body text-center">
+                                        <h5>Today's Total</h5>
+                                        <h3>₦{{ today_total|floatformat:2 }}</h3>
+                                        <small>
+                                            {% for method, amount in today_payment_methods.items %}
+                                                {{ method }}: ₦{{ amount|floatformat:0 }}{% if not forloop.last %} | {% endif %}
+                                            {% endfor %}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <div class="card bg-info text-white">
+                                    <div class="card-body text-center">
+                                        <h5>7-Day Total</h5>
+                                        <h3>₦{{ seven_day_total|floatformat:2 }}</h3>
+                                        <small>Last 7 days including today</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-money-bill-wave fa-3x mb-3"></i>
+                            <p>No payment data available for the selected period.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     
     <div class="row">
         <!-- Pending Requests -->
@@ -225,24 +375,24 @@
             </div>
         </div>
 
-        <!-- My Completed Requests -->
+        <!-- Today's Processed Requests -->
         <div class="col-md-4">
             <div class="card">
                 <div class="card-header bg-success">
                     <h5 class="mb-0">
                         <i class="fas fa-history mr-2"></i>
-                        Processed ({{ my_requests.count }})
+                        Today's Processed ({{ today_processed_requests.count }})
                     </h5>
                 </div>
                 <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                    {% if my_requests %}
-                        {% for request in my_requests %}
+                    {% if today_processed_requests %}
+                        {% for request in today_processed_requests %}
                         <div class="border-bottom pb-3 mb-3">
                             <div class="row">
                                 <div class="col-8">
                                     <h6>{{ request.request_id }}</h6>
                                     <small class="text-muted">
-                                        {{ request.completed_at|date:"Y-m-d H:i" }} | 
+                                        {{ request.completed_at|date:"H:i" }} |
                                         {{ request.get_payment_type_display }}
                                     </small>
                                     <div>
@@ -254,21 +404,21 @@
                                         {% endif %}
                                     </div>
                                     <div>
-                                        <span class="badge badge-{{ request.status|lower }}">
-                                            {{ request.status|title }}
+                                        <span class="badge badge-success">
+                                            Completed
                                         </span>
                                         <strong>₦{{ request.total_amount|floatformat:2 }}</strong>
                                     </div>
                                 </div>
                                 <div class="col-4 text-right">
                                     {% if request.status == 'completed' and request.receipt %}
-                                    <a href="{% url 'store:receipt_detail' request.receipt.receipt_id %}" 
+                                    <a href="{% url 'store:receipt_detail' request.receipt.receipt_id %}"
                                        class="btn btn-primary btn-sm mb-2">
                                         <i class="fas fa-receipt mr-1"></i>Receipt
                                     </a>
                                     {% endif %}
                                     <br>
-                                    <a href="{% url 'store:payment_request_detail' request.request_id %}" 
+                                    <a href="{% url 'store:payment_request_detail' request.request_id %}"
                                        class="btn btn-info btn-sm">
                                         <i class="fas fa-eye mr-1"></i>View
                                     </a>
@@ -279,7 +429,7 @@
                     {% else %}
                         <div class="text-center text-muted py-4">
                             <i class="fas fa-clipboard fa-3x mb-3"></i>
-                            <p>No processed requests yet.</p>
+                            <p>No payments processed today.</p>
                         </div>
                     {% endif %}
                 </div>

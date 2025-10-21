@@ -16,7 +16,7 @@ from customer.models import *
 from .forms import *
 # Import functions from store.views carefully to avoid circular imports
 # These functions are defined at module level, so they can be imported directly
-from store.views import get_daily_sales, get_monthly_sales_with_expenses
+from store.views import get_daily_sales, get_monthly_sales_with_expenses, get_cashier_daily_payment_totals
 import logging
 
 # Import procurement permission functions
@@ -4185,13 +4185,13 @@ def wholesale_cashier_dashboard(request):
             
             if not is_cashier(request.user):
                 # Check if user is an admin/manager who can see cashier dashboard
-                if request.user.is_superuser or (hasattr(request.user, 'profile') and
-                    request.user.profile and request.user.profile.user_type in ['Admin', 'Manager']):
+                from userauth.permissions import is_admin_or_manager
+                if is_admin_or_manager(request.user):
                     is_admin = True
                 else:
                     messages.error(request, 'You need to be a cashier or admin/manager to access this page.')
                     return redirect('store:index')
-            
+
             # Get cashier info if available
             try:
                 cashier = request.user.cashier
@@ -4200,18 +4200,34 @@ def wholesale_cashier_dashboard(request):
                     return redirect('store:index')
             except Cashier.DoesNotExist:
                 pass  # User is a cashier through profile
-            
+
+            # For admin/manager, get all cashiers and check for selected cashier
+            all_cashiers = None
+            selected_cashier = None
+            if is_admin:
+                all_cashiers = Cashier.objects.filter(is_active=True).order_by('name')
+                selected_cashier_id = request.GET.get('cashier_id')
+                if selected_cashier_id:
+                    try:
+                        selected_cashier = Cashier.objects.get(cashier_id=selected_cashier_id)
+                    except Cashier.DoesNotExist:
+                        messages.warning(request, 'Selected cashier not found.')
+
             # Get pending wholesale payment requests (accessible by all authorized users)
             pending_requests = PaymentRequest.objects.filter(status='pending', payment_type='wholesale').order_by('-created_at')
-            
-            # Filter requests by cashier if this is a specific cashier (not admin)
+
+            # Filter requests by cashier if this is a specific cashier (not admin) or if admin selected a cashier
             if cashier and not is_admin:
                 my_requests = PaymentRequest.objects.filter(cashier=cashier, payment_type='wholesale').exclude(status='pending').order_by('-created_at')
                 cashier_display_name = cashier.name
+            elif is_admin and selected_cashier:
+                # Admin selected a specific cashier
+                my_requests = PaymentRequest.objects.filter(cashier=selected_cashier, payment_type='wholesale').exclude(status='pending').order_by('-created_at')
+                cashier_display_name = f"Admin View - {selected_cashier.name}"
             else:
-                # For admins, show all processed requests
+                # For admins without selection, show all processed requests
                 my_requests = PaymentRequest.objects.filter(payment_type='wholesale').exclude(status='pending').order_by('-created_at')
-                cashier_display_name = "Admin View" if is_admin else request.user.get_full_name() or request.user.username
+                cashier_display_name = "Admin View - All Cashiers" if is_admin else request.user.get_full_name() or request.user.username
             
             # Calculate comprehensive statistics
             all_processed = PaymentRequest.objects.filter(payment_type='wholesale', status='completed')
@@ -4258,22 +4274,63 @@ def wholesale_cashier_dashboard(request):
             
             # Get accepted wholesale payment requests
             accepted_requests = PaymentRequest.objects.filter(status='accepted', payment_type='wholesale').order_by('-accepted_at')
-            # Filter for specific cashier if not admin
+            # Filter for specific cashier if not admin or if admin selected a cashier
             if cashier and not is_admin:
                 accepted_requests = accepted_requests.filter(cashier=cashier)
-            
+            elif is_admin and selected_cashier:
+                accepted_requests = accepted_requests.filter(cashier=selected_cashier)
+
+            # Get daily payment totals for wholesale cashiers
+            from datetime import timedelta
+            end_date = timezone.now().date()
+            start_date = end_date - timedelta(days=7)  # Last 7 days
+
+            if is_admin and selected_cashier:
+                # Get daily totals for the selected cashier only
+                daily_payment_totals = get_cashier_daily_payment_totals(selected_cashier.user, start_date, end_date)
+            else:
+                # Get daily totals for current user or all cashiers
+                daily_payment_totals = get_cashier_daily_payment_totals(request.user, start_date, end_date)
+
+            # Calculate 7-day total and today's total
+            seven_day_total = Decimal('0.00')
+            today_total = Decimal('0.00')
+            today_payment_methods = {}
+
+            for day_data in daily_payment_totals:
+                for cashier_data in day_data['cashiers']:
+                    seven_day_total += cashier_data['total_amount']
+                    if day_data['date'] == timezone.now().date():
+                        today_total += cashier_data['total_amount']
+                        # Aggregate payment methods for today
+                        for method, amount in cashier_data['payment_methods'].items():
+                            if method in today_payment_methods:
+                                today_payment_methods[method] += amount
+                            else:
+                                today_payment_methods[method] = amount
+
+            # Filter my_requests to show only today's processed payments
+            today_processed_requests = my_requests.filter(completed_at__date=timezone.now().date())
+
             return render(request, 'wholesale/wholesale_cashier_dashboard.html', {
                 'pending_requests': pending_requests,
                 'accepted_requests': accepted_requests,
                 'my_requests': my_requests,
+                'today_processed_requests': today_processed_requests,
                 'cashier': cashier,
                 'is_admin': is_admin,
+                'all_cashiers': all_cashiers,
+                'selected_cashier': selected_cashier,
                 'stats': stats,
                 'recent_activity': recent_activity,
                 'recent_notifications': recent_notifications,
                 'cashier_display_name': cashier_display_name,
                 'today_stats': today_stats,
                 'summary': summary,
+                'daily_payment_totals': daily_payment_totals,
+                'seven_day_total': seven_day_total,
+                'today_total': today_total,
+                'today_payment_methods': today_payment_methods,
             })
             
         except Exception as e:
@@ -4611,6 +4668,52 @@ def complete_wholesale_payment_request(request, request_id):
             return redirect('wholesale:wholesale_cashier_dashboard')
     
     return redirect('store:index')
+
+
+@login_required
+def cashier_payment_totals(request):
+    """
+    View for displaying cashier daily payment totals with date filtering for wholesale
+    Cashiers see only their own totals, admins/managers see all cashiers
+    """
+    if request.user.is_authenticated:
+        from datetime import timedelta
+        
+        # Get date range from request parameters
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        
+        if start_date:
+            start_date = parse_date(start_date)
+        else:
+            start_date = timezone.now().date() - timedelta(days=30)  # Default to last 30 days
+            
+        if end_date:
+            end_date = parse_date(end_date)
+        else:
+            end_date = timezone.now().date()
+        
+        # Get daily payment totals
+        daily_payment_totals = get_cashier_daily_payment_totals(request.user, start_date, end_date)
+        
+        # Check if user is admin/manager
+        is_admin = (
+            request.user.is_superuser or 
+            request.user.is_staff or 
+            (hasattr(request.user, 'profile') and request.user.profile and 
+             request.user.profile.user_type in ['Admin', 'Manager'])
+        )
+        
+        context = {
+            'daily_payment_totals': daily_payment_totals,
+            'is_admin': is_admin,
+            'start_date': start_date,
+            'end_date': end_date,
+        }
+        
+        return render(request, 'wholesale/cashier_payment_totals.html', context)
+    else:
+        return redirect('store:index')
 
 
 

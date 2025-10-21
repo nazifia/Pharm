@@ -29,20 +29,24 @@
     <!-- HTMX for all pages - load synchronously to avoid timing issues -->
     <script src="{% static 'htmx/htmx.min.js' %}"></script>
     <script>
-        // Fallback if HTMX fails to load
-        if (typeof htmx === 'undefined') {
-            console.error('HTMX failed to load');
-            // Try to load from CDN as fallback
-            const script = document.createElement('script');
-            script.src = 'https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js';
-            script.onload = function() {
-                console.log('HTMX loaded from CDN fallback');
-            };
-            script.onerror = function() {
-                console.error('Failed to load HTMX from CDN');
-            };
-            document.head.appendChild(script);
-        }
+        // Ensure HTMX is loaded before continuing
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof htmx === 'undefined') {
+                console.error('HTMX failed to load');
+                // Try to load from CDN as fallback
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js';
+                script.onload = function() {
+                    console.log('HTMX loaded from CDN fallback');
+                    // Reload any htmx-enabled elements
+                    htmx.process(document.body);
+                };
+                script.onerror = function() {
+                    console.error('Failed to load HTMX from CDN');
+                };
+                document.head.appendChild(script);
+            }
+        });
     </script>
 
     <!-- Custom fonts for this template with async loading -->
@@ -461,6 +465,16 @@
                         {% if user|can_operate_wholesale %}
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_payment_requests' %}">
                             <i class="fas fa-receipt"></i> Wholesale Payment Requests</a>
+                        {% endif %}
+                        <div class="collapse-divider"></div>
+                        <h6 class="collapse-header">Cashier Payment Totals:</h6>
+                        {% if user|is_cashier or user.profile.user_type == 'Admin' or user.profile.user_type == 'Manager' %}
+                        <a class="collapse-item" href="{% url 'store:cashier_payment_totals' %}">
+                            <i class="fas fa-money-bill-wave"></i> Retail Payment Totals</a>
+                        {% endif %}
+                        {% if user|is_cashier or user.profile.user_type == 'Admin' or user.profile.user_type == 'Manager' %}
+                        <a class="collapse-item" href="{% url 'wholesale:cashier_payment_totals' %}">
+                            <i class="fas fa-money-bill-wave"></i> Wholesale Payment Totals</a>
                         {% endif %}
                     </div>
                 </div>

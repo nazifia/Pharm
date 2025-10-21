@@ -48,6 +48,7 @@ urlpatterns = [
     path('dispensing_log_stats/', views.dispensing_log_stats, name='dispensing_log_stats'),
     path('receipt_list/', views.receipt_list, name='receipt_list'),
     path('search_receipts/', views.search_receipts, name='search_receipts'),
+    path('cashier_payment_totals/', views.cashier_payment_totals, name='cashier_payment_totals'),
     path('daily_sales/', views.daily_sales, name='daily_sales'),
     path('monthly_sales/', views.monthly_sales, name='monthly_sales'),
     path('monthly_customer_performance/', views.monthly_customer_performance, name='monthly_customer_performance'),

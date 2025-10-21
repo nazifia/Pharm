@@ -98,6 +98,9 @@ urlpatterns = [
     # Wholesale Transfer URL
     path('transfer/multiple/', views.transfer_multiple_wholesale_items, name='transfer_multiple_wholesale_items'),
 
+    # Cashier Payment Totals
+    path('cashier_payment_totals/', views.cashier_payment_totals, name='cashier_payment_totals'),
+
     # Stock Check Enhancement URLs
     path('add_items_to_wholesale_stock_check/<int:stock_check_id>/', views.add_items_to_wholesale_stock_check, name='add_items_to_wholesale_stock_check'),
 ]

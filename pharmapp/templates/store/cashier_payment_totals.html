@@ -1,0 +1,222 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="fas fa-money-bill-wave mr-2"></i>
+                    {% if is_admin %}
+                        All Cashiers' Payment Totals
+                    {% else %}
+                        My Payment Totals
+                    {% endif %}
+                </h2>
+                <div>
+                    <a href="{% if request.user.is_staff or request.user.is_superuser %}{% url 'store:daily_sales' %}{% else %}{% url 'store:cashier_dashboard' %}{% endif %}" class="btn btn-outline-secondary mr-2">
+                        <i class="fas fa-arrow-left mr-2"></i>Back
+                    </a>
+                    {% if request.user.is_staff or request.user.is_superuser %}
+                    <a href="{% url 'store:dashboard' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-home mr-2"></i>Main Dashboard
+                    </a>
+                    {% else %}
+                    <a href="{% url 'store:cashier_dashboard' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-cash-register mr-2"></i>Cashier Dashboard
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Date Filter Form -->
+            <div class="card mb-4">
+                <div class="card-header bg-info">
+                    <h5 class="mb-0">
+                        <i class="fas fa-filter mr-2"></i>
+                        Filter by Date Range
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="GET" class="form-inline">
+                        <div class="form-group mr-3">
+                            <label for="start_date" class="mr-2">Start Date:</label>
+                            <input type="date" id="start_date" name="start_date" class="form-control" 
+                                   value="{{ start_date|date:'Y-m-d' }}" required>
+                        </div>
+                        <div class="form-group mr-3">
+                            <label for="end_date" class="mr-2">End Date:</label>
+                            <input type="date" id="end_date" name="end_date" class="form-control" 
+                                   value="{{ end_date|date:'Y-m-d' }}" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search mr-2"></i>Filter
+                        </button>
+                        <a href="{% url 'store:cashier_payment_totals' %}" class="btn btn-secondary ml-2">
+                            <i class="fas fa-times mr-2"></i>Clear
+                        </a>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Payment Totals Table -->
+            {% if daily_payment_totals %}
+                <div class="card">
+                    <div class="card-header bg-primary">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line mr-2"></i>
+                            Payment Totals from {{ start_date|date:"Y-m-d" }} to {{ end_date|date:"Y-m-d" }}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="thead-dark">
+                                    <tr>
+                                        <th>Date</th>
+                                        {% if is_admin %}
+                                            <th>Cashier</th>
+                                        {% endif %}
+                                        <th>Total Amount</th>
+                                        <th>Payment Methods</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for day_data in daily_payment_totals %}
+                                        {% for cashier_data in day_data.cashiers %}
+                                            <tr>
+                                                <td>{{ day_data.date|date:"Y-m-d" }}</td>
+                                                {% if is_admin %}
+                                                    <td>
+                                                        <strong>{{ cashier_data.name }}</strong>
+                                                        <br>
+                                                        <small class="text-muted">@{{ cashier_data.username }}</small>
+                                                    </td>
+                                                {% endif %}
+                                                <td>
+                                                    <span class="text-success font-weight-bold">
+                                                        ₦{{ cashier_data.total_amount|floatformat:2|intcomma }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {% for method, amount in cashier_data.payment_methods.items %}
+                                                        <span class="badge badge-info mr-1 mb-1">
+                                                            {{ method }}: ₦{{ amount|floatformat:2 }}
+                                                        </span>
+                                                    {% endfor %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Summary Statistics -->
+                        <div class="row mt-4">
+                            <div class="col-md-3">
+                                <div class="card bg-success text-white">
+                                    <div class="card-body text-center">
+                                        <h6>Total Period Amount</h6>
+                                        <h4>₦
+                                            {% widthratio 1 1 0 %}
+                                            {% for day_data in daily_payment_totals %}
+                                                {% for cashier_data in day_data.cashiers %}
+                                                    {% if forloop.first and forloop.parentloop.first %}
+                                                        {{ cashier_data.total_amount|floatformat:0 }}
+                                                    {% else %}
+                                                        + {{ cashier_data.total_amount|floatformat:0 }}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endfor %}
+                                        </h4>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3">
+                                <div class="card bg-info text-white">
+                                    <div class="card-body text-center">
+                                        <h6>Daily Average</h6>
+                                        <h4>₦
+                                            {% widthratio daily_payment_totals|length 1 0 %}
+                                            {% for day_data in daily_payment_totals %}
+                                                {% for cashier_data in day_data.cashiers %}
+                                                    {% if forloop.first and forloop.parentloop.first %}
+                                                        {{ cashier_data.total_amount|floatformat:0 }}
+                                                    {% else %}
+                                                        + {{ cashier_data.total_amount|floatformat:0 }}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endfor %}
+                                        </h4>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3">
+                                <div class="card bg-warning text-white">
+                                    <div class="card-body text-center">
+                                        <h6>Total Days</h6>
+                                        <h4>{{ daily_payment_totals|length }}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3">
+                                <div class="card bg-secondary text-white">
+                                    <div class="card-body text-center">
+                                        <h6>Total Transactions</h6>
+                                        <h4>
+                                            {% for day_data in daily_payment_totals %}
+                                                {% for cashier_data in day_data.cashiers %}
+                                                    {% if forloop.first and forloop.parentloop.first %}
+                                                        1
+                                                    {% else %}
+                                                        + 1
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endfor %}
+                                        </h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-money-bill-wave fa-4x text-muted mb-3"></i>
+                        <h4 class="text-muted">No payment data available</h4>
+                        <p class="text-muted">No payment transactions found for the selected period.</p>
+                        <a href="{% url 'store:cashier_payment_totals' %}" class="btn btn-primary">
+                            <i class="fas fa-calendar mr-2"></i>View Last 30 Days
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    // Set default date values if not provided
+    document.addEventListener('DOMContentLoaded', function() {
+        const startDateInput = document.getElementById('start_date');
+        const endDateInput = document.getElementById('end_date');
+        
+        if (!startDateInput.value) {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
+        }
+        
+        if (!endDateInput.value) {
+            endDateInput.value = new Date().toISOString().split('T')[0];
+        }
+    });
+</script>
+{% endblock %}
