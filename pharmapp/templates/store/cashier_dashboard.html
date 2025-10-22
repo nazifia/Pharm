@@ -121,7 +121,7 @@
                             <div class="card-body">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <h5>Completed Today</h5>
+                                        <h5>Completed {% if start_date and end_date %}in Period{% else %}Today{% endif %}</h5>
                                         <h3>{{ stats.completed_today_count }}</h3>
                                     </div>
                                     <div>
@@ -172,9 +172,12 @@
                     <h5 class="mb-0">
                         <i class="fas fa-chart-line mr-2"></i>
                         {% if is_admin %}
-                            All Cashiers' Daily Payment Totals (Last 7 Days)
+                            All Cashiers' Daily Payment Totals
                         {% else %}
-                            My Daily Payment Totals (Last 7 Days)
+                            My Daily Payment Totals
+                        {% endif %}
+                        {% if daily_start_date and daily_end_date %}
+                            ({{ daily_start_date|date:"Y-m-d" }} to {{ daily_end_date|date:"Y-m-d" }})
                         {% endif %}
                     </h5>
                 </div>
@@ -260,9 +263,15 @@
                             <div class="col-md-3">
                                 <div class="card bg-info text-white">
                                     <div class="card-body text-center">
-                                        <h5>7-Day Total</h5>
-                                        <h3>₦{{ seven_day_total|floatformat:2 }}</h3>
-                                        <small>Last 7 days including today</small>
+                                        <h5>Period Total</h5>
+                                        <h3>₦{{ period_total|floatformat:2 }}</h3>
+                                        <small>
+                                            {% if daily_start_date and daily_end_date %}
+                                                {{ daily_start_date|date:"Y-m-d" }} to {{ daily_end_date|date:"Y-m-d" }}
+                                            {% else %}
+                                                Last 7 days including today
+                                            {% endif %}
+                                        </small>
                                     </div>
                                 </div>
                             </div>

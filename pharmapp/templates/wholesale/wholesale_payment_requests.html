@@ -104,6 +104,21 @@
         </div>
     {% endif %}
 
+            <!-- Search Results Summary -->
+            {% if start_date or end_date or selected_cashier %}
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i>
+                <strong>Search Results:</strong> 
+                Found {{ payment_requests|length }} wholesale payment request{{ payment_requests|length|pluralize }}
+                {% if start_date or end_date %}
+                    for date range: {% if start_date %}{{ start_date }}{% endif %}{% if start_date and end_date %} to {% endif %}{% if end_date %}{{ end_date }}{% endif %}
+                {% endif %}
+                {% if selected_cashier %}
+                    {% if start_date or end_date %} | {% endif %}Cashier: {{ selected_cashier.name }}
+                {% endif %}
+            </div>
+            {% endif %}
+
             {% if payment_requests %}
         <!-- Payment Requests Table Card -->
         <div class="card shadow mb-4">
@@ -190,10 +205,20 @@
                 </div>
                 <h4 class="text-gray-800 mb-3">No Wholesale Payment Requests</h4>
                 <p class="text-muted mb-4">
-                    {% if is_admin %}
-                        No wholesale payment requests found matching your criteria.
+                    {% if start_date or end_date or selected_cashier %}
+                        No wholesale payment requests found matching your search criteria.
+                        {% if start_date or end_date %}
+                            Date range: {% if start_date %}{{ start_date }}{% endif %}{% if start_date and end_date %} to {% endif %}{% if end_date %}{{ end_date }}{% endif %}
+                        {% endif %}
+                        {% if selected_cashier %}
+                            {% if start_date or end_date %} | {% endif %}Cashier: {{ selected_cashier.name }}
+                        {% endif %}
                     {% else %}
-                        You haven't sent any wholesale payment requests to the cashier yet.
+                        {% if is_admin %}
+                            No wholesale payment requests found in the system.
+                        {% else %}
+                            You haven't sent any wholesale payment requests to the cashier yet.
+                        {% endif %}
                     {% endif %}
                 </p>
                 {% if not is_admin %}
