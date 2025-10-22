@@ -28,36 +28,59 @@
                     </div>
                 </div>
 
-                <!-- Cashier Selector for Admin/Manager -->
-                {% if is_admin %}
+                <!-- Search and Cashier Filters -->
                 <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-filter mr-2"></i>Search & Filter
+                        </h5>
+                    </div>
                     <div class="card-body">
-                        <form method="get" class="form-inline">
-                            <label for="cashier_select" class="mr-2">
-                                <i class="fas fa-user-tie mr-1"></i>
-                                <strong>Select Cashier:</strong>
-                            </label>
-                            <select name="cashier_id" id="cashier_select" class="form-control mr-2" onchange="this.form.submit()">
-                                <option value="">All Cashiers</option>
-                                {% for cashier in all_cashiers %}
-                                    <option value="{{ cashier.cashier_id }}"
-                                        {% if selected_cashier and selected_cashier.cashier_id == cashier.cashier_id %}selected{% endif %}>
-                                        {{ cashier.name }} ({{ cashier.cashier_id }})
-                                    </option>
-                                {% endfor %}
-                            </select>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-filter mr-1"></i>Filter
-                            </button>
-                            {% if selected_cashier %}
-                                <a href="{% url 'wholesale:wholesale_cashier_dashboard' %}" class="btn btn-secondary ml-2">
-                                    <i class="fas fa-times mr-1"></i>Clear Filter
-                                </a>
+                        <form method="get" class="row g-3">
+                            <!-- Date Range Filters -->
+                            <div class="col-md-3">
+                                <label for="start_date" class="form-label">Start Date:</label>
+                                <input type="date" id="start_date" name="start_date" class="form-control" 
+                                       value="{{ start_date|default:'' }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="end_date" class="form-label">End Date:</label>
+                                <input type="date" id="end_date" name="end_date" class="form-control" 
+                                       value="{{ end_date|default:'' }}">
+                            </div>
+                            
+                            <!-- Cashier Selector for Admin/Manager -->
+                            {% if is_admin and all_cashiers %}
+                            <div class="col-md-4">
+                                <label for="cashier_select" class="form-label">
+                                    <i class="fas fa-user-tie mr-1"></i>Select Cashier:
+                                </label>
+                                <select name="cashier_id" id="cashier_select" class="form-select">
+                                    <option value="">All Cashiers</option>
+                                    {% for cashier in all_cashiers %}
+                                        <option value="{{ cashier.cashier_id }}"
+                                            {% if selected_cashier and selected_cashier.cashier_id == cashier.cashier_id %}selected{% endif %}>
+                                            {{ cashier.name }} ({{ cashier.cashier_id }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                             {% endif %}
+                            
+                            <!-- Filter Buttons -->
+                            <div class="col-md-2 d-flex align-items-end">
+                                <div class="btn-group w-100">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                    <a href="{% url 'wholesale:wholesale_cashier_dashboard' %}" class="btn btn-secondary">
+                                        <i class="fas fa-times"></i>
+                                    </a>
+                                </div>
+                            </div>
                         </form>
                     </div>
                 </div>
-                {% endif %}
 
                 {% if messages %}
                     <div class="alert-container mb-4">

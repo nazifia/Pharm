@@ -4127,20 +4127,81 @@ def send_to_wholesale_cashier(request):
 
 @login_required
 def wholesale_payment_requests(request):
-    """Show dispenser's wholesale payment requests history"""
+    """Show dispenser's wholesale payment requests history with date and cashier search"""
     if request.user.is_authenticated:
-        from userauth.permissions import can_dispense_items
+        from userauth.permissions import can_dispense_items, is_admin_or_manager
+        from django.utils.dateparse import parse_date
         
-        # Check if user can dispense items (is a dispenser)
-        if not can_dispense_items(request.user):
-            messages.error(request, 'You do not have dispenser permissions to view wholesale payment requests.')
+        # Check if user can dispense items (is a dispenser) or is admin/manager
+        is_admin_user = is_admin_or_manager(request.user)
+        if not can_dispense_items(request.user) and not is_admin_user:
+            messages.error(request, 'You do not have permissions to view wholesale payment requests.')
             return redirect('store:index')
         
-        from store.models import PaymentRequest
-        payment_requests = PaymentRequest.objects.filter(dispenser=request.user, payment_type='wholesale').order_by('-created_at')
+        # Get filter parameters
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        cashier_id = request.GET.get('cashier_id')
+        
+        # Parse dates
+        start_date_parsed = None
+        end_date_parsed = None
+        if start_date:
+            try:
+                start_date_parsed = parse_date(start_date)
+            except (ValueError, TypeError):
+                messages.warning(request, 'Invalid start date format.')
+                start_date = None
+        
+        if end_date:
+            try:
+                end_date_parsed = parse_date(end_date)
+            except (ValueError, TypeError):
+                messages.warning(request, 'Invalid end date format.')
+                end_date = None
+        
+        # Base query - show user's requests if dispenser, all if admin
+        if is_admin_user:
+            from store.models import PaymentRequest
+            payment_requests = PaymentRequest.objects.filter(payment_type='wholesale').order_by('-created_at')
+        else:
+            from store.models import PaymentRequest
+            payment_requests = PaymentRequest.objects.filter(dispenser=request.user, payment_type='wholesale').order_by('-created_at')
+        
+        # Apply date filters
+        if start_date_parsed:
+            start_datetime = timezone.make_aware(timezone.datetime.combine(start_date_parsed, timezone.datetime.min.time()))
+            payment_requests = payment_requests.filter(created_at__gte=start_datetime)
+        if end_date_parsed:
+            end_datetime = timezone.make_aware(timezone.datetime.combine(end_date_parsed, timezone.datetime.max.time()))
+            payment_requests = payment_requests.filter(created_at__lte=end_datetime)
+        
+        # Apply cashier filter
+        if cashier_id:
+            try:
+                from store.models import Cashier
+                selected_cashier = Cashier.objects.get(cashier_id=cashier_id)
+                payment_requests = payment_requests.filter(cashier=selected_cashier)
+            except Cashier.DoesNotExist:
+                messages.warning(request, 'Selected cashier not found.')
+                cashier_id = None
+                selected_cashier = None
+        else:
+            selected_cashier = None
+        
+        # Get all cashiers for filter dropdown (only if admin)
+        all_cashiers = None
+        if is_admin_user:
+            from store.models import Cashier
+            all_cashiers = Cashier.objects.filter(is_active=True).order_by('name')
         
         return render(request, 'wholesale/wholesale_payment_requests.html', {
             'payment_requests': payment_requests,
+            'all_cashiers': all_cashiers,
+            'selected_cashier': selected_cashier,
+            'start_date': start_date,
+            'end_date': end_date,
+            'is_admin': is_admin_user,
         })
     
     return redirect('store:index')
@@ -4213,8 +4274,42 @@ def wholesale_cashier_dashboard(request):
                     except Cashier.DoesNotExist:
                         messages.warning(request, 'Selected cashier not found.')
 
+            # Get date filters from request
+            start_date = request.GET.get('start_date')
+            end_date = request.GET.get('end_date')
+            filter_start_date_parsed = None
+            filter_end_date_parsed = None
+            
+            if start_date:
+                try:
+                    from django.utils.dateparse import parse_date
+                    filter_start_date_parsed = parse_date(start_date)
+                except (ValueError, TypeError):
+                    messages.warning(request, 'Invalid start date format.')
+                    start_date = None
+                    
+            if end_date:
+                try:
+                    from django.utils.dateparse import parse_date
+                    filter_end_date_parsed = parse_date(end_date)
+                except (ValueError, TypeError):
+                    messages.warning(request, 'Invalid end date format.')
+                    end_date = None
+
             # Get pending wholesale payment requests (accessible by all authorized users)
             pending_requests = PaymentRequest.objects.filter(status='pending', payment_type='wholesale').order_by('-created_at')
+            
+            # Apply cashier filter to pending requests (for admin with selected cashier)
+            if is_admin and selected_cashier:
+                pending_requests = pending_requests.filter(cashier=selected_cashier)
+            
+            # Apply date filters to pending requests
+            if filter_start_date_parsed:
+                start_datetime = timezone.make_aware(timezone.datetime.combine(filter_start_date_parsed, timezone.datetime.min.time()))
+                pending_requests = pending_requests.filter(created_at__gte=start_datetime)
+            if filter_end_date_parsed:
+                end_datetime = timezone.make_aware(timezone.datetime.combine(filter_end_date_parsed, timezone.datetime.max.time()))
+                pending_requests = pending_requests.filter(created_at__lte=end_datetime)
 
             # Filter requests by cashier if this is a specific cashier (not admin) or if admin selected a cashier
             if cashier and not is_admin:
@@ -4228,6 +4323,14 @@ def wholesale_cashier_dashboard(request):
                 # For admins without selection, show all processed requests
                 my_requests = PaymentRequest.objects.filter(payment_type='wholesale').exclude(status='pending').order_by('-created_at')
                 cashier_display_name = "Admin View - All Cashiers" if is_admin else request.user.get_full_name() or request.user.username
+            
+            # Apply date filters to my_requests
+            if filter_start_date_parsed:
+                start_datetime = timezone.make_aware(timezone.datetime.combine(filter_start_date_parsed, timezone.datetime.min.time()))
+                my_requests = my_requests.filter(created_at__gte=start_datetime)
+            if filter_end_date_parsed:
+                end_datetime = timezone.make_aware(timezone.datetime.combine(filter_end_date_parsed, timezone.datetime.max.time()))
+                my_requests = my_requests.filter(created_at__lte=end_datetime)
             
             # Calculate comprehensive statistics
             all_processed = PaymentRequest.objects.filter(payment_type='wholesale', status='completed')
@@ -4274,6 +4377,15 @@ def wholesale_cashier_dashboard(request):
             
             # Get accepted wholesale payment requests
             accepted_requests = PaymentRequest.objects.filter(status='accepted', payment_type='wholesale').order_by('-accepted_at')
+            
+            # Apply date filters to accepted requests
+            if filter_start_date_parsed:
+                start_datetime = timezone.make_aware(timezone.datetime.combine(filter_start_date_parsed, timezone.datetime.min.time()))
+                accepted_requests = accepted_requests.filter(accepted_at__gte=start_datetime)
+            if filter_end_date_parsed:
+                end_datetime = timezone.make_aware(timezone.datetime.combine(filter_end_date_parsed, timezone.datetime.max.time()))
+                accepted_requests = accepted_requests.filter(accepted_at__lte=end_datetime)
+            
             # Filter for specific cashier if not admin or if admin selected a cashier
             if cashier and not is_admin:
                 accepted_requests = accepted_requests.filter(cashier=cashier)
@@ -4322,6 +4434,8 @@ def wholesale_cashier_dashboard(request):
                 'all_cashiers': all_cashiers,
                 'selected_cashier': selected_cashier,
                 'stats': stats,
+                'start_date': start_date,
+                'end_date': end_date,
                 'recent_activity': recent_activity,
                 'recent_notifications': recent_notifications,
                 'cashier_display_name': cashier_display_name,

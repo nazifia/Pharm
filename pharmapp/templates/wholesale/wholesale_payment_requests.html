@@ -20,7 +20,12 @@
     <!-- Page Heading -->
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">
-            <i class="fas fa-store text-primary"></i> Wholesale Payment Requests
+            <i class="fas fa-store text-primary"></i> 
+            {% if is_admin %}
+                All Wholesale Payment Requests
+            {% else %}
+                My Wholesale Payment Requests
+            {% endif %}
         </h1>
         <div>
             {% if user.is_authenticated %}
@@ -33,6 +38,56 @@
             <a href="{% url 'store:dashboard' %}" class="btn btn-primary">
                 <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
             </a>
+        </div>
+    </div>
+
+    <!-- Search Filters -->
+    <div class="card shadow mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-filter mr-2"></i>Search & Filter
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <!-- Date Range Filters -->
+                <div class="col-md-4">
+                    <label for="start_date" class="form-label">Start Date:</label>
+                    <input type="date" id="start_date" name="start_date" class="form-control" 
+                           value="{{ start_date|default:'' }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="end_date" class="form-label">End Date:</label>
+                    <input type="date" id="end_date" name="end_date" class="form-control" 
+                           value="{{ end_date|default:'' }}">
+                </div>
+                
+                <!-- Cashier Filter (Admin Only) -->
+                {% if is_admin and all_cashiers %}
+                <div class="col-md-4">
+                    <label for="cashier_id" class="form-label">Cashier:</label>
+                    <select id="cashier_id" name="cashier_id" class="form-select">
+                        <option value="">All Cashiers</option>
+                        {% for cashier in all_cashiers %}
+                            <option value="{{ cashier.cashier_id }}"
+                                {% if selected_cashier and selected_cashier.cashier_id == cashier.cashier_id %}selected{% endif %}>
+                                {{ cashier.name }} ({{ cashier.cashier_id }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                
+                <!-- Filter Buttons -->
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search mr-2"></i>Apply Filters
+                    </button>
+                    <a href="{% url 'wholesale:wholesale_payment_requests' %}" class="btn btn-secondary">
+                        <i class="fas fa-times mr-2"></i>Clear Filters
+                    </a>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -134,12 +189,20 @@
                     <i class="fas fa-receipt text-muted" style="font-size: 4rem;"></i>
                 </div>
                 <h4 class="text-gray-800 mb-3">No Wholesale Payment Requests</h4>
-                <p class="text-muted mb-4">You haven't sent any wholesale payment requests to the cashier yet.</p>
+                <p class="text-muted mb-4">
+                    {% if is_admin %}
+                        No wholesale payment requests found matching your criteria.
+                    {% else %}
+                        You haven't sent any wholesale payment requests to the cashier yet.
+                    {% endif %}
+                </p>
+                {% if not is_admin %}
                 <div class="d-flex justify-content-center">
                     <a href="{% url 'wholesale:wholesale_cart' %}" class="btn btn-primary btn-lg">
                         <i class="fas fa-shopping-cart mr-2"></i>Go to Wholesale Cart
                     </a>
                 </div>
+                {% endif %}
             </div>
         </div>
     {% endif %}
