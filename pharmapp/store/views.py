@@ -2391,7 +2391,7 @@ def get_daily_sales():
         .values('day', 'user__username')
         .annotate(
             total_sales=Sum('amount'),
-            total_cost=Sum('amount') * 0.7,  # Simplified cost calculation (70% of sales)
+            total_cost=Sum('amount') * Decimal('0.7'),  # Simplified cost calculation (70% of sales)
             transaction_count=Count('id', distinct=True)
         )
     )
@@ -2404,7 +2404,7 @@ def get_daily_sales():
         .values('day', 'user__username')
         .annotate(
             total_returns=Sum('amount'),
-            total_return_cost=Sum('amount') * 0.7,  # Simplified cost calculation (70% of returns)
+            total_return_cost=Sum('amount') * Decimal('0.7'),  # Simplified cost calculation (70% of returns)
             transaction_count=Count('id', distinct=True)
         )
     )
