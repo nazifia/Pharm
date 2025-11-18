@@ -18,7 +18,8 @@ class SyncManager {
             initialData: '/api/data/initial/',
             receipts: '/api/receipts/sync/',
             dispensing: '/api/dispensing/sync/',
-            cart: '/api/cart/sync/'
+            cart: '/api/cart/sync/',
+            wholesale_cart: '/api/wholesale-cart/sync/'
         };
     }
 
@@ -174,12 +175,15 @@ class SyncManager {
             wholesale: [],
             receipts: [],
             dispensing: [],
-            cart: []
+            cart: [],
+            wholesale_cart: []
         };
 
         actions.forEach(action => {
             const type = action.actionType || action.type;
-            if (type.includes('item') || type.includes('inventory')) {
+            if (type.includes('wholesale_cart')) {
+                grouped.wholesale_cart.push(action);
+            } else if (type.includes('item') || type.includes('inventory')) {
                 grouped.inventory.push(action);
             } else if (type.includes('sale')) {
                 grouped.sales.push(action);
@@ -354,7 +358,7 @@ class SyncManager {
     /**
      * Schedule automatic sync
      */
-    scheduleAutoSync(intervalMinutes = 5) {
+    scheduleAutoSync(intervalMinutes = 1) {
         // Clear existing interval if any
         if (this.syncInterval) {
             clearInterval(this.syncInterval);
@@ -368,7 +372,7 @@ class SyncManager {
             }
         }, intervalMinutes * 60 * 1000);
 
-        console.log(`[SyncManager] Auto-sync scheduled every ${intervalMinutes} minutes`);
+        console.log(`[SyncManager] Auto-sync scheduled every ${intervalMinutes} minute(s)`);
     }
 
     /**

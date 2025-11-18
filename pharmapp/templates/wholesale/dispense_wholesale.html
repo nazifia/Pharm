@@ -286,9 +286,22 @@ Dispense Wholesale Items - {{ block.super }}
 {% endblock %}
 
 {% block extra_js %}
+<!-- Set current user ID for offline cart support -->
+<script>
+    window.currentUserId = {{ user.id|default:'null' }};
+</script>
+
+<!-- Load offline cart support -->
+<script src="{% static 'js/cart-offline.js' %}"></script>
+
+<!-- Load cart clear handler -->
+<script src="{% static 'js/cart-clear-handler.js' %}"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Wholesale dispensing page loaded');
+    console.log('Current user ID:', window.currentUserId);
+    console.log('Offline mode available:', typeof isOfflineModeAvailable !== 'undefined' ? isOfflineModeAvailable() : 'unknown');
 
     // Ensure HTMX is loaded
     if (typeof htmx === 'undefined') {

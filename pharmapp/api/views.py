@@ -31,7 +31,7 @@ def serve_service_worker(request):
         return HttpResponse('Service Worker not found', status=404)
 
 @csrf_exempt
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "HEAD"])
 def health_check(request):
     """Health check endpoint for connectivity testing"""
     return JsonResponse({'status': 'ok', 'timestamp': timezone.now().isoformat()})
@@ -288,15 +288,227 @@ def cart_sync(request):
             return JsonResponse({'status': 'success', 'message': 'No actions to process'})
 
         synced_count = 0
+        failed_actions = []
 
         with transaction.atomic():
             for action in actions:
-                cart_data = action.get('data', {})
-                # Process cart data as needed
-                synced_count += 1
+                try:
+                    cart_data = action.get('data', {})
+                    action_type = action.get('actionType') or action.get('type')
 
-        return JsonResponse({'status': 'success', 'synced_count': synced_count})
+                    if action_type == 'add_to_cart':
+                        # Get user and item
+                        user_id = cart_data.get('user_id') or cart_data.get('user')
+                        item_id = cart_data.get('item_id') or cart_data.get('item')
+                        quantity = Decimal(str(cart_data.get('quantity', 1)))
+                        unit = cart_data.get('unit', 'unit')
+
+                        if not user_id or not item_id:
+                            failed_actions.append({
+                                'action': action,
+                                'error': 'Missing user_id or item_id'
+                            })
+                            continue
+
+                        # Get the item
+                        try:
+                            item = Item.objects.get(id=item_id)
+                        except Item.DoesNotExist:
+                            failed_actions.append({
+                                'action': action,
+                                'error': f'Item {item_id} not found'
+                            })
+                            continue
+
+                        # Check stock
+                        if quantity > item.stock:
+                            failed_actions.append({
+                                'action': action,
+                                'error': f'Insufficient stock for {item.name}'
+                            })
+                            continue
+
+                        # Add or update cart item
+                        from userauth.models import User
+                        try:
+                            user = User.objects.get(id=user_id)
+                        except User.DoesNotExist:
+                            failed_actions.append({
+                                'action': action,
+                                'error': f'User {user_id} not found'
+                            })
+                            continue
+
+                        cart_item, created = Cart.objects.get_or_create(
+                            user=user,
+                            item=item,
+                            unit=unit,
+                            defaults={'quantity': quantity, 'price': item.price}
+                        )
+
+                        if not created:
+                            cart_item.quantity += quantity
+                            cart_item.price = item.price
+
+                        cart_item.save()
+                        synced_count += 1
+
+                    elif action_type == 'update_cart':
+                        cart_id = cart_data.get('id')
+                        if cart_id:
+                            Cart.objects.filter(id=cart_id).update(**{
+                                k: v for k, v in cart_data.items()
+                                if k not in ['id', 'user', 'item']
+                            })
+                            synced_count += 1
+
+                    elif action_type == 'remove_from_cart':
+                        cart_id = cart_data.get('id')
+                        if cart_id:
+                            Cart.objects.filter(id=cart_id).delete()
+                            synced_count += 1
+                    else:
+                        failed_actions.append({
+                            'action': action,
+                            'error': f'Unknown action type: {action_type}'
+                        })
+
+                except Exception as e:
+                    logger.error(f"Error processing cart action: {str(e)}")
+                    failed_actions.append({
+                        'action': action,
+                        'error': str(e)
+                    })
+
+        response_data = {
+            'status': 'success' if not failed_actions else 'partial',
+            'synced_count': synced_count,
+            'failed_count': len(failed_actions),
+            'failed_actions': failed_actions
+        }
+
+        return JsonResponse(response_data)
 
     except Exception as e:
         logger.error(f"Error in cart_sync: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def wholesale_cart_sync(request):
+    """Sync wholesale cart items from offline storage"""
+    try:
+        data = json.loads(request.body)
+        actions = data.get('pendingActions', [])
+
+        if not actions:
+            return JsonResponse({'status': 'success', 'message': 'No actions to process'})
+
+        synced_count = 0
+        failed_actions = []
+
+        with transaction.atomic():
+            for action in actions:
+                try:
+                    cart_data = action.get('data', {})
+                    action_type = action.get('actionType') or action.get('type')
+
+                    if action_type == 'add_to_wholesale_cart':
+                        # Get user and item
+                        user_id = cart_data.get('user_id') or cart_data.get('user')
+                        item_id = cart_data.get('item_id') or cart_data.get('item')
+                        quantity = Decimal(str(cart_data.get('quantity', 0.5)))
+                        unit = cart_data.get('unit', 'unit')
+
+                        if not user_id or not item_id:
+                            failed_actions.append({
+                                'action': action,
+                                'error': 'Missing user_id or item_id'
+                            })
+                            continue
+
+                        # Get the wholesale item
+                        try:
+                            item = WholesaleItem.objects.get(id=item_id)
+                        except WholesaleItem.DoesNotExist:
+                            failed_actions.append({
+                                'action': action,
+                                'error': f'Wholesale item {item_id} not found'
+                            })
+                            continue
+
+                        # Check stock
+                        if quantity > item.stock:
+                            failed_actions.append({
+                                'action': action,
+                                'error': f'Insufficient stock for {item.name}'
+                            })
+                            continue
+
+                        # Add or update cart item
+                        from userauth.models import User
+                        try:
+                            user = User.objects.get(id=user_id)
+                        except User.DoesNotExist:
+                            failed_actions.append({
+                                'action': action,
+                                'error': f'User {user_id} not found'
+                            })
+                            continue
+
+                        from store.models import WholesaleCart
+                        cart_item, created = WholesaleCart.objects.get_or_create(
+                            user=user,
+                            item=item,
+                            unit=unit,
+                            defaults={'quantity': quantity, 'price': item.price}
+                        )
+
+                        if not created:
+                            cart_item.quantity += quantity
+                            cart_item.price = item.price
+
+                        cart_item.save()
+                        synced_count += 1
+
+                    elif action_type == 'update_wholesale_cart':
+                        cart_id = cart_data.get('id')
+                        if cart_id:
+                            from store.models import WholesaleCart
+                            WholesaleCart.objects.filter(id=cart_id).update(**{
+                                k: v for k, v in cart_data.items()
+                                if k not in ['id', 'user', 'item']
+                            })
+                            synced_count += 1
+
+                    elif action_type == 'remove_from_wholesale_cart':
+                        cart_id = cart_data.get('id')
+                        if cart_id:
+                            from store.models import WholesaleCart
+                            WholesaleCart.objects.filter(id=cart_id).delete()
+                            synced_count += 1
+                    else:
+                        failed_actions.append({
+                            'action': action,
+                            'error': f'Unknown action type: {action_type}'
+                        })
+
+                except Exception as e:
+                    logger.error(f"Error processing wholesale cart action: {str(e)}")
+                    failed_actions.append({
+                        'action': action,
+                        'error': str(e)
+                    })
+
+        response_data = {
+            'status': 'success' if not failed_actions else 'partial',
+            'synced_count': synced_count,
+            'failed_count': len(failed_actions),
+            'failed_actions': failed_actions
+        }
+
+        return JsonResponse(response_data)
+
+    except Exception as e:
+        logger.error(f"Error in wholesale_cart_sync: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)

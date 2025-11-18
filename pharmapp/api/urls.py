@@ -13,5 +13,6 @@ urlpatterns = [
     path('receipts/sync/', views.receipts_sync, name='receipts_sync'),
     path('dispensing/sync/', views.dispensing_sync, name='dispensing_sync'),
     path('cart/sync/', views.cart_sync, name='cart_sync'),
+    path('wholesale-cart/sync/', views.wholesale_cart_sync, name='wholesale_cart_sync'),
     path('data/initial/', views.get_initial_data, name='get_initial_data'),
 ]

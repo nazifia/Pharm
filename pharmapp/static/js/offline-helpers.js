@@ -163,27 +163,33 @@ async function getExpiringItemsOffline(days = 30, isWholesale = false) {
 }
 
 /**
- * Add item to cart with offline support
+ * Add item to cart with offline support (retail or wholesale)
  * @param {object} cartItem - Cart item data
+ * @param {boolean} isWholesale - Whether this is a wholesale cart
  * @returns {Promise<boolean>} Success status
  */
-async function addToCartOffline(cartItem) {
+async function addToCartOffline(cartItem, isWholesale = false) {
     try {
         if (!window.dbManager) {
             console.warn('[OfflineHelpers] Database not available');
             return false;
         }
 
-        // Add to IndexedDB cart
-        await window.dbManager.put(window.dbManager.stores.cart, {
+        const cartStore = isWholesale ? window.dbManager.stores.wholesaleCart : window.dbManager.stores.cart;
+        const actionType = isWholesale ? 'add_to_wholesale_cart' : 'add_to_cart';
+
+        // Add to IndexedDB cart (retail or wholesale)
+        await window.dbManager.put(cartStore, {
             ...cartItem,
             id: Date.now(), // Temporary ID
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            is_wholesale: isWholesale
         });
 
         // Queue for sync
-        await queueOfflineAction('add_to_cart', cartItem, 4);
+        await queueOfflineAction(actionType, cartItem, 4);
 
+        console.log(`[OfflineHelpers] Added to ${isWholesale ? 'wholesale' : 'retail'} cart offline`);
         return true;
 
     } catch (error) {
@@ -193,19 +199,21 @@ async function addToCartOffline(cartItem) {
 }
 
 /**
- * Get cart items
+ * Get cart items (retail or wholesale)
  * @param {number} userId - User ID (optional)
+ * @param {boolean} isWholesale - Whether to get wholesale cart
  * @returns {Promise<Array>} Cart items
  */
-async function getCartItemsOffline(userId = null) {
+async function getCartItemsOffline(userId = null, isWholesale = false) {
     if (!window.dbManager) {
         return [];
     }
 
     try {
+        const cartStore = isWholesale ? window.dbManager.stores.wholesaleCart : window.dbManager.stores.cart;
         return userId
-            ? await window.dbManager.getAll(window.dbManager.stores.cart, 'user_id', userId)
-            : await window.dbManager.getAll(window.dbManager.stores.cart);
+            ? await window.dbManager.getAll(cartStore, 'user_id', userId)
+            : await window.dbManager.getAll(cartStore);
     } catch (error) {
         console.error('[OfflineHelpers] Failed to get cart items:', error);
         return [];
@@ -213,20 +221,47 @@ async function getCartItemsOffline(userId = null) {
 }
 
 /**
- * Get cart total
+ * Get cart total (retail or wholesale)
  * @param {number} userId - User ID (optional)
+ * @param {boolean} isWholesale - Whether to get wholesale cart total
  * @returns {Promise<number>} Cart total
  */
-async function getCartTotalOffline(userId = null) {
+async function getCartTotalOffline(userId = null, isWholesale = false) {
     if (!window.dbManager) {
         return 0;
     }
 
     try {
-        return await window.dbManager.getCartTotal(userId);
+        const cartItems = await getCartItemsOffline(userId, isWholesale);
+        return cartItems.reduce((total, item) => {
+            const subtotal = (parseFloat(item.price || 0) * parseFloat(item.quantity || 0)) - parseFloat(item.discount_amount || 0);
+            return total + Math.max(subtotal, 0);
+        }, 0);
     } catch (error) {
         console.error('[OfflineHelpers] Failed to get cart total:', error);
         return 0;
+    }
+}
+
+/**
+ * Clear offline cart (retail or wholesale)
+ * @param {boolean} isWholesale - Whether to clear wholesale cart
+ * @returns {Promise<boolean>} Success status
+ */
+async function clearCartOffline(isWholesale = false) {
+    if (!window.dbManager) {
+        console.warn('[OfflineHelpers] Database not available');
+        return false;
+    }
+
+    try {
+        const cartStore = isWholesale ? window.dbManager.stores.wholesaleCart : window.dbManager.stores.cart;
+        await window.dbManager.clear(cartStore);
+        console.log(`[OfflineHelpers] Cleared ${isWholesale ? 'wholesale' : 'retail'} cart offline`);
+        return true;
+    } catch (error) {
+        console.error('[OfflineHelpers] Failed to clear cart:', error);
+        return false;
     }
 }
 
@@ -434,6 +469,7 @@ if (typeof module !== 'undefined' && module.exports) {
         addToCartOffline,
         getCartItemsOffline,
         getCartTotalOffline,
+        clearCartOffline,
         showSuccessMessage,
         showErrorMessage,
         showWarningMessage,

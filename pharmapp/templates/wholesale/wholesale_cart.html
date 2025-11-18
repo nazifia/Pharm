@@ -698,3 +698,21 @@
 </div>
 
 {% endblock %}
+
+{% block extra_js %}
+<!-- Set current user ID for offline cart support -->
+<script>
+    window.currentUserId = {{ user.id|default:'null' }};
+</script>
+
+<!-- Load offline cart support -->
+<script src="{% static 'js/cart-offline.js' %}"></script>
+
+<!-- Load cart clear handler -->
+<script src="{% static 'js/cart-clear-handler.js' %}"></script>
+
+<script>
+    console.log('[Wholesale Cart Page] Offline cart support loaded');
+    console.log('[Wholesale Cart Page] Current user ID:', window.currentUserId);
+</script>
+{% endblock %}

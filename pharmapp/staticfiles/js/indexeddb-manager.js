@@ -6,7 +6,7 @@
 class IndexedDBManager {
     constructor() {
         this.dbName = 'PharmAppDB';
-        this.version = 3;
+        this.version = 4;
         this.db = null;
         this.stores = {
             items: 'items',
@@ -18,6 +18,7 @@ class IndexedDBManager {
             pendingActions: 'pendingActions',
             receipts: 'receipts',
             cart: 'cart',
+            wholesaleCart: 'wholesaleCart',
             dispensingLog: 'dispensingLog',
             syncMetadata: 'syncMetadata'
         };
@@ -105,11 +106,18 @@ class IndexedDBManager {
             receiptStore.createIndex('synced', 'synced', { unique: false });
         }
 
-        // Cart store
+        // Cart store (retail)
         if (!db.objectStoreNames.contains(this.stores.cart)) {
             const cartStore = db.createObjectStore(this.stores.cart, { keyPath: 'id', autoIncrement: true });
             cartStore.createIndex('item_id', 'item_id', { unique: false });
             cartStore.createIndex('user_id', 'user_id', { unique: false });
+        }
+
+        // Wholesale cart store
+        if (!db.objectStoreNames.contains(this.stores.wholesaleCart)) {
+            const wholesaleCartStore = db.createObjectStore(this.stores.wholesaleCart, { keyPath: 'id', autoIncrement: true });
+            wholesaleCartStore.createIndex('item_id', 'item_id', { unique: false });
+            wholesaleCartStore.createIndex('user_id', 'user_id', { unique: false });
         }
 
         // Dispensing log store

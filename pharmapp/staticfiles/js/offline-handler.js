@@ -121,7 +121,7 @@ class OfflineHandler {
                     await this.triggerSync();
                 }
             }
-        }, 30000); // Check every 30 seconds
+        }, 10000); // Check every 10 seconds
     }
 
     /**
@@ -232,7 +232,7 @@ class OfflineHandler {
                 if (this.syncStatus) {
                     this.syncStatus.classList.add('hidden');
                 }
-            }, 2000);
+            }, 1000);
         }
     }
 
@@ -300,7 +300,7 @@ class OfflineHandler {
         } else {
             setTimeout(() => {
                 this.syncStatus?.classList.add('hidden');
-            }, 2000);
+            }, 1000);
         }
     }
 
@@ -360,11 +360,11 @@ class OfflineHandler {
 
         document.body.appendChild(notification);
 
-        // Auto-remove after 5 seconds
+        // Auto-remove after 3 seconds
         setTimeout(() => {
             notification.classList.remove('show');
             setTimeout(() => notification.remove(), 150);
-        }, 5000);
+        }, 3000);
     }
 
     /**
@@ -482,7 +482,7 @@ if (typeof window !== 'undefined') {
         if (window.dbManager) {
             setInterval(() => {
                 offlineHandler.updatePendingCount();
-            }, 10000); // Every 10 seconds
+            }, 3000); // Every 3 seconds
         }
 
         console.log('[OfflineHandler] Ready');

@@ -24,8 +24,12 @@
             </div>
         </div>
         <div class="col-md-4">
-            <form method="POST" 
+            <form method="POST"
                   action="{% url 'store:add_to_cart' item.id %}"
+                  data-item-name="{{ item.name|default:'Unknown Item' }}"
+                  data-item-price="{{ item.price|default:0 }}"
+                  data-item-id="{{ item.id }}"
+                  class="add-to-cart-form"
                   hx-post="{% url 'store:add_to_cart' item.id %}?from_dispense=true"
                   hx-target="#cart-summary-widget"
                   hx-swap="outerHTML"
@@ -33,12 +37,12 @@
                 {% csrf_token %}
                 <div class="quantity-form">
                     <label for="quantity_{{ item.id|default:'unknown' }}" class="form-label mb-0">Qty:</label>
-                    <input type="number" 
-                           name="quantity" 
+                    <input type="number"
+                           name="quantity"
                            id="quantity_{{ item.id|default:'unknown' }}"
-                           class="form-control quantity-input" 
-                           value="1" 
-                           min="1" 
+                           class="form-control quantity-input"
+                           value="1"
+                           min="1"
                            max="{{ item.stock|default:1 }}"
                            required>
                     <input type="hidden" name="unit" value="{{ item.unit|default:'unit' }}">
