@@ -62,6 +62,9 @@
     <link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet" media="print" onload="this.media='all'">
     <noscript><link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet"></noscript>
 
+    <!-- Offline indicator styles -->
+    <link href="{% static 'css/offline-indicator.css' %}" rel="stylesheet">
+
     <!-- Extra CSS block for child templates -->
     {% block extra_css %}{% endblock %}
 
@@ -1126,7 +1129,16 @@
 
 
     <div class="offline-status-container">
-        <div id="connection-status"></div>
+        <div id="connection-status">
+            <div class="status-indicator">
+                <span class="status-dot online"></span>
+                <span class="status-text">Online</span>
+            </div>
+            <div class="sync-status hidden">
+                <span class="sync-icon">↻</span>
+                <span class="sync-text">Syncing...</span>
+            </div>
+        </div>
         {% if user.is_authenticated %}
             <button id="sync-button" class="btn btn-sm btn-primary">Sync Data</button>
         {% endif %}
@@ -1206,9 +1218,6 @@
     {% endif %}
 
 
-    <!-- Offline JavaScript-->
-    <script src="{% static 'js/offline.js' %}"></script>
-
     <!-- Bootstrap core JavaScript-->
     <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
     <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
@@ -1224,13 +1233,34 @@
 
     <!-- Page level custom scripts -->
 
-    <!-- Custom script for footer copyright -->
+    <!-- Offline-first functionality scripts -->
+    <script src="{% static 'js/indexeddb-manager.js' %}"></script>
+    <script src="{% static 'js/sync-manager.js' %}"></script>
+    <script src="{% static 'js/offline-handler.js' %}"></script>
+    <script src="{% static 'js/offline-helpers.js' %}"></script>
+
+    <!-- Register Service Worker -->
     <script>
-        document.getElementById('year').innerHTML = new Date().getFullYear();
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('[Base Template] Service Worker registered:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.error('[Base Template] Service Worker registration failed:', error);
+                    });
+            });
+        }
     </script>
 
-    <!-- Add offline.js script -->
-    <script src="{% static 'js/offline.js' %}"></script>
+    <!-- Custom script for footer copyright -->
+    <script>
+        const yearElement = document.getElementById('year');
+        if (yearElement) {
+            yearElement.innerHTML = new Date().getFullYear();
+        }
+    </script>
 
     <!-- Add this style section to your existing styles -->
     <style>
@@ -1326,8 +1356,10 @@
             })
             .then(html => {
                 // Update the marquee content
-                document.getElementById('dynamic-marquee').innerHTML =
-                    `<h4 class="marquee-text">${newText}</h4>`;
+                const marqueeElement = document.getElementById('dynamic-marquee');
+                if (marqueeElement) {
+                    marqueeElement.innerHTML = `<h4 class="marquee-text">${newText}</h4>`;
+                }
 
                 // Switch back to display mode
                 toggleMarqueeEdit();
@@ -1342,13 +1374,16 @@
         }
 
         // Add keyboard event listener for the input
-        document.getElementById('marquee-input').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                saveMarquee();
-            } else if (e.key === 'Escape') {
-                toggleMarqueeEdit();
-            }
-        });
+        const marqueeInput = document.getElementById('marquee-input');
+        if (marqueeInput) {
+            marqueeInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    saveMarquee();
+                } else if (e.key === 'Escape') {
+                    toggleMarqueeEdit();
+                }
+            });
+        }
     </script>
 
     <!-- Chat Unread Badge Update Script -->

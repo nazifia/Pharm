@@ -41,15 +41,14 @@ class OfflineHandler {
     }
 
     /**
-     * Register service worker
+     * Wait for service worker (registered in base.html)
      */
     async registerServiceWorker() {
         try {
-            const registration = await navigator.serviceWorker.register('/static/js/sw.js', {
-                scope: '/'
-            });
+            // Wait for service worker to be ready (registered by base template)
+            const registration = await navigator.serviceWorker.ready;
 
-            console.log('[OfflineHandler] Service Worker registered:', registration.scope);
+            console.log('[OfflineHandler] Service Worker ready:', registration.scope);
 
             // Handle updates
             registration.addEventListener('updatefound', () => {
@@ -67,7 +66,7 @@ class OfflineHandler {
             return registration;
 
         } catch (error) {
-            console.error('[OfflineHandler] Service Worker registration failed:', error);
+            console.error('[OfflineHandler] Service Worker not available:', error);
         }
     }
 
@@ -75,13 +74,14 @@ class OfflineHandler {
      * Register background sync
      */
     async registerBackgroundSync() {
-        if (!('sync' in self.registration)) {
-            console.warn('[OfflineHandler] Background Sync not supported');
-            return;
-        }
-
         try {
             const registration = await navigator.serviceWorker.ready;
+
+            if (!registration || !('sync' in registration)) {
+                console.warn('[OfflineHandler] Background Sync not supported');
+                return;
+            }
+
             await registration.sync.register('sync-pending-actions');
             this.syncRegistered = true;
             console.log('[OfflineHandler] Background Sync registered');

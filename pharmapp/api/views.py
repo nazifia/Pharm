@@ -1,8 +1,9 @@
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.db import transaction
 from django.utils import timezone
+from django.conf import settings
 from store.models import Item, Sales, SalesItem, WholesaleItem, Receipt, DispensingLog, Cart
 from customer.models import Customer, WholesaleCustomer
 from supplier.models import Supplier
@@ -10,8 +11,24 @@ from wholesale.models import *
 from decimal import Decimal, InvalidOperation
 import json
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+
+def serve_service_worker(request):
+    """Serve service worker from root path to enable full scope control"""
+    sw_path = os.path.join(settings.BASE_DIR, 'static', 'sw.js')
+
+    try:
+        with open(sw_path, 'r', encoding='utf-8') as f:
+            sw_content = f.read()
+
+        response = HttpResponse(sw_content, content_type='application/javascript')
+        response['Service-Worker-Allowed'] = '/'
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
+    except FileNotFoundError:
+        return HttpResponse('Service Worker not found', status=404)
 
 @csrf_exempt
 @require_http_methods(["GET"])
