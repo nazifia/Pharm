@@ -3299,9 +3299,8 @@ def cashier_payment_totals(request):
         else:
             end_date = timezone.now().date()
         
-        # Get daily payment totals - temporarily disabled to fix annotation conflicts
-        # daily_payment_totals = get_cashier_daily_payment_totals(request.user, start_date, end_date)
-        daily_payment_totals = []
+        # Get daily payment totals
+        daily_payment_totals = get_cashier_daily_payment_totals(request.user, start_date, end_date)
         
         # Check if user is admin/manager
         is_admin = (
