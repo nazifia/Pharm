@@ -1,10 +1,11 @@
 /**
  * Enhanced Service Worker for PharmApp
  * Provides offline-first caching and background sync
+ * Updated: NEVER cache HTML pages - always fetch fresh from network
  */
 
-const CACHE_NAME = 'pharmapp-v3';
-const API_CACHE_NAME = 'pharmapp-api-v3';
+const CACHE_NAME = 'pharmapp-v5';
+const API_CACHE_NAME = 'pharmapp-api-v5';
 const OFFLINE_URL = '/offline/';
 
 // Core app shell files - only verified static resources
@@ -75,8 +76,10 @@ self.addEventListener('activate', event => {
 });
 
 /**
- * Fetch event - serve from cache, fallback to network
- * Implements stale-while-revalidate strategy for most requests
+ * Fetch event - Smart caching strategy
+ * - HTML pages: network-first (always fresh when online)
+ * - API calls: network-first (always fresh when online)
+ * - Static assets: cache-first (performance optimization)
  */
 self.addEventListener('fetch', event => {
     const { request } = event;
@@ -98,7 +101,31 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // Static files and pages - cache first, network fallback
+    // HTML navigation requests (pages) - ALWAYS fetch from network (no cache!)
+    // This ensures pages are NEVER served from cache when online
+    if (request.mode === 'navigate' || request.headers.get('accept').includes('text/html')) {
+        event.respondWith(
+            fetch(request, { cache: 'no-store' })
+                .then(response => {
+                    // Don't cache HTML responses at all
+                    return response;
+                })
+                .catch(error => {
+                    // Only use cache as fallback when offline
+                    console.log('[ServiceWorker] Network failed, trying cache for:', request.url);
+                    return caches.match(request).then(cachedResponse => {
+                        if (cachedResponse) {
+                            return cachedResponse;
+                        }
+                        // Return offline page if available
+                        return caches.match(OFFLINE_URL);
+                    });
+                })
+        );
+        return;
+    }
+
+    // Static files (CSS, JS, images, fonts) - cache first for performance
     event.respondWith(cacheFirstStrategy(request));
 });
 

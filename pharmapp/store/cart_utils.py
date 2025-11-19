@@ -22,14 +22,14 @@ def get_user_cart_items(user, cart_type='retail'):
         cart_type: 'retail' or 'wholesale'
 
     Returns:
-        QuerySet: Cart items for the user
+        QuerySet: Cart items for the user (only active items)
     """
     if cart_type == 'wholesale':
         # Import here to avoid circular imports
-        from wholesale.models import WholesaleCart
-        return WholesaleCart.objects.filter(user=user).select_related('item')
+        from store.models import WholesaleCart
+        return WholesaleCart.objects.filter(user=user, status='active').select_related('item')
     else:
-        return Cart.objects.filter(user=user).select_related('item')
+        return Cart.objects.filter(user=user, status='active').select_related('item')
 
 
 def get_user_cart_summary(user, cart_type='retail'):
@@ -117,6 +117,7 @@ def add_item_to_user_cart(user, item, quantity, unit=None, cart_type='retail', p
                 user=user,
                 item=item,
                 unit=unit,
+                status='active',  # Only create/modify active cart items
                 defaults={
                     'quantity': quantity,
                     'price': price or item.price
@@ -127,6 +128,7 @@ def add_item_to_user_cart(user, item, quantity, unit=None, cart_type='retail', p
                 user=user,
                 item=item,
                 unit=unit,
+                status='active',  # Only create/modify active cart items
                 defaults={
                     'quantity': quantity,
                     'price': price or item.price
@@ -363,7 +365,7 @@ def clear_user_cart_session(request, cart_type='retail'):
 
 def is_cart_empty(user, cart_type='retail'):
     """
-    Check if user's cart is empty.
+    Check if user's cart is empty (only active items).
 
     Args:
         user: The user object
@@ -375,9 +377,9 @@ def is_cart_empty(user, cart_type='retail'):
     try:
         if cart_type == 'wholesale':
             from store.models import WholesaleCart
-            return not WholesaleCart.objects.filter(user=user).exists()
+            return not WholesaleCart.objects.filter(user=user, status='active').exists()
         else:
-            return not Cart.objects.filter(user=user).exists()
+            return not Cart.objects.filter(user=user, status='active').exists()
     except Exception as e:
         logger.error(f"Error checking cart status for user {user.username}: {e}")
         return True  # Assume empty on error

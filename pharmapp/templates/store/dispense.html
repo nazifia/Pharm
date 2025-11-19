@@ -348,6 +348,136 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.error('HTMX is not loaded!');
     }
+
+    // Real-time auto-refresh for dispense page when data changes
+    let lastCartHash = '{{ cart_count|default:0 }}';  // Will be updated on first check
+    let refreshInterval = null;
+    let isPageVisible = !document.hidden;
+
+    // Function to check for cart updates
+    async function checkForUpdates() {
+        if (!isPageVisible || !navigator.onLine) {
+            return;
+        }
+
+        try {
+            // Fetch current cart data without reloading page
+            // Add timestamp to URL to bust browser cache
+            const timestamp = Date.now();
+            const url = '{% url "store:view_cart" %}' + '?_=' + timestamp;
+
+            const response = await fetch(url, {
+                method: 'GET',
+                cache: 'no-store',  // Force bypass all caches
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            });
+
+            if (response.ok) {
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const cartElement = doc.querySelector('[data-cart-hash]');
+
+                if (cartElement) {
+                    const currentCartHash = cartElement.dataset.cartHash || '';
+                    const currentCartCount = parseInt(cartElement.dataset.cartCount) || 0;
+
+                    // Compare hash to detect ANY cart changes (count, items, status, etc)
+                    if (currentCartHash !== lastCartHash) {
+                        console.log('[Dispense] Cart changed detected - reloading page');
+                        console.log('  Previous hash:', lastCartHash);
+                        console.log('  Current hash:', currentCartHash);
+                        console.log('  Cart count:', currentCartCount);
+                        lastCartHash = currentCartHash;
+                        window.location.reload(true);
+                    } else {
+                        console.log('[Dispense] No cart changes detected');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[Dispense] Update check failed:', error);
+        }
+    }
+
+    // Start auto-refresh when page is visible
+    function startAutoRefresh() {
+        if (refreshInterval) return;
+
+        console.log('[Dispense] Auto-refresh started (every 30 seconds)');
+
+        // Immediate check
+        checkForUpdates();
+
+        // Then check every 30 seconds
+        refreshInterval = setInterval(checkForUpdates, 30000);
+    }
+
+    // Stop auto-refresh when page is hidden
+    function stopAutoRefresh() {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+            refreshInterval = null;
+            console.log('[Dispense] Auto-refresh paused (page hidden)');
+        }
+    }
+
+    // Handle visibility changes
+    document.addEventListener('visibilitychange', function() {
+        isPageVisible = !document.hidden;
+
+        if (isPageVisible) {
+            console.log('[Dispense] Page visible - checking for updates');
+            startAutoRefresh();
+        } else {
+            stopAutoRefresh();
+        }
+    });
+
+    // Force refresh on page show (browser back/forward)
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted || performance.navigation.type === 2) {
+            console.log('[Dispense] Page loaded from cache - reloading for fresh data');
+            window.location.reload(true);
+        }
+    });
+
+    // Start auto-refresh if page is visible
+    if (isPageVisible) {
+        startAutoRefresh();
+    }
+
+    console.log('[Dispense] Real-time auto-refresh enabled - page will update automatically');
+
+    // Listen for localStorage changes (payment request sent from another tab/window)
+    window.addEventListener('storage', function(event) {
+        if (event.key === 'payment_request_sent' && event.newValue) {
+            console.log('[Dispense] Payment request detected via storage event - refreshing immediately');
+            window.location.reload(true);
+        }
+    });
+
+    // Also check localStorage on page load (same tab scenario)
+    const paymentRequestFlag = localStorage.getItem('payment_request_sent');
+    if (paymentRequestFlag) {
+        const flagTime = parseInt(paymentRequestFlag);
+        const currentTime = Date.now();
+
+        // If flag is less than 5 seconds old, trigger immediate refresh
+        if (currentTime - flagTime < 5000) {
+            console.log('[Dispense] Recent payment request detected - refreshing immediately');
+            localStorage.removeItem('payment_request_sent');
+            window.location.reload(true);
+        } else {
+            // Flag is stale, remove it
+            localStorage.removeItem('payment_request_sent');
+        }
+    }
 });
 </script>
 {% endblock %}

@@ -12,6 +12,11 @@
     <meta name="description" content="">
     <meta name="author" content="">
 
+    <!-- Cache Control - Prevent browser caching of dynamic pages -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
     <title>Nazz| Tech</title>
 
     <!-- Favicon configuration -->
@@ -29,6 +34,13 @@
     <!-- HTMX for all pages - load synchronously to avoid timing issues -->
     <script src="{% static 'htmx/htmx.min.js' %}"></script>
     <script>
+        // Configure HTMX to NOT cache requests - ensures fresh data on every request
+        document.body.setAttribute('hx-headers', JSON.stringify({
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }));
+
         // Ensure HTMX is loaded before continuing
         document.addEventListener('DOMContentLoaded', function() {
             if (typeof htmx === 'undefined') {
@@ -45,6 +57,8 @@
                     console.error('Failed to load HTMX from CDN');
                 };
                 document.head.appendChild(script);
+            } else {
+                console.log('[HTMX] Loaded successfully - cache disabled for all requests');
             }
         });
     </script>
@@ -1476,6 +1490,65 @@
             setInterval(updateChatUnreadBadge, 5000); // Update every 5 seconds instead of 30
         }
     });
+    </script>
+
+    <!-- Auto-refresh on page navigation/show (Offline-Aware) -->
+    <script>
+    // Auto-refresh functionality that respects offline mode
+    (function() {
+        // Check if user is online before attempting refresh
+        function isOnline() {
+            return navigator.onLine;
+        }
+
+        // Force page reload when user navigates back/forward to prevent stale data
+        // BUT ONLY if online to preserve offline functionality
+        window.addEventListener('pageshow', function(event) {
+            // Check if page is loaded from cache (bfcache)
+            if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+                // Only reload if online - preserve offline mode functionality
+                if (isOnline()) {
+                    console.log('[Auto-Refresh] Reloading page to prevent stale data (online mode)');
+                    window.location.reload();
+                } else {
+                    console.log('[Auto-Refresh] Skipping reload - offline mode active');
+                }
+            }
+        });
+
+        // Also handle visibility change to refresh when tab becomes visible after being hidden
+        // BUT ONLY if online
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden && isOnline()) {
+                // Tab became visible and we're online, check if data might be stale
+                const lastRefresh = sessionStorage.getItem('lastPageRefresh');
+                const now = Date.now();
+
+                // If last refresh was more than 30 seconds ago, reload
+                if (!lastRefresh || (now - parseInt(lastRefresh)) > 30000) {
+                    console.log('[Auto-Refresh] Refreshing stale page data (online mode)');
+                    sessionStorage.setItem('lastPageRefresh', now.toString());
+                    window.location.reload();
+                } else {
+                    console.log('[Auto-Refresh] Data still fresh, no reload needed');
+                }
+            } else if (!document.hidden && !isOnline()) {
+                console.log('[Auto-Refresh] Skipping reload - offline mode active');
+            }
+        });
+
+        // Update last refresh timestamp on page load
+        sessionStorage.setItem('lastPageRefresh', Date.now().toString());
+
+        // Listen for online/offline events to provide feedback
+        window.addEventListener('online', function() {
+            console.log('[Auto-Refresh] Connection restored - auto-refresh enabled');
+        });
+
+        window.addEventListener('offline', function() {
+            console.log('[Auto-Refresh] Offline mode - auto-refresh disabled');
+        });
+    })();
     </script>
 </body>
 

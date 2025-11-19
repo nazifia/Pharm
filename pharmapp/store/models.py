@@ -223,6 +223,12 @@ class Cart(models.Model):
 
 
 class WholesaleCart(models.Model):
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('sent_to_cashier', 'Sent to Cashier'),
+        ('processed', 'Processed'),
+    ]
+    
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     item = models.ForeignKey(WholesaleItem, on_delete=models.CASCADE)
     dosage_form = models.ForeignKey(Formulation, on_delete=models.CASCADE, blank=True, null=True)
@@ -233,6 +239,7 @@ class WholesaleCart(models.Model):
     discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Discount amount to be subtracted from subtotal")
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     cart_id = ShortUUIDField(unique=True, length=5, max_length=50, prefix='CID: ', alphabet='1234567890')
 
     def __str__(self):

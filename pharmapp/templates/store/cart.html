@@ -108,7 +108,10 @@
 
         <a class="btn btn-secondary btn-sm" href="{{ request.META.HTTP_REFERER }}">Back</a>
     </div>
-    <div class="col-md-8 offset-md-3 cart-table table-responsive">
+    <div class="col-md-8 offset-md-3 cart-table table-responsive"
+         data-cart-count="{{ cart_items|length }}"
+         data-cart-timestamp="{{ cart_items.0.created_at.timestamp|default:0 }}"
+         data-cart-hash="{{ cart_items|length }}{% for item in cart_items %}{{ item.id }}{{ item.quantity }}{{ item.status }}{% endfor %}">
         <h3 style="text-align: center;">Retail Cart</h3>
         {% for message in messages %}
         <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>

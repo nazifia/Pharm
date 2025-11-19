@@ -8,6 +8,7 @@ from decimal import Decimal
 from django.db.models import Sum, Q, F
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
+from django.views.decorators.cache import never_cache
 import uuid
 from store.models import *
 from store.forms import *
@@ -56,6 +57,7 @@ def search_wholesale_for_adjustment(request):
     return render(request, 'wholesale/search_wholesale_for_adjustment.html', {'items': items})
 
 
+@never_cache
 @login_required
 def search_wholesale_items(request):
     """API endpoint for searching wholesale items for stock check"""
@@ -125,6 +127,7 @@ def is_admin_or_manager(user):
 def wholesale_page(request):
     return render(request, 'wholesale_page.html')
 
+@never_cache
 @login_required
 def wholesale_dashboard(request):
     """
@@ -179,6 +182,7 @@ def wholesale_dashboard(request):
     else:
         return redirect('store:index')
 
+@never_cache
 @login_required
 def wholesales(request):
     if request.user.is_authenticated:
@@ -228,6 +232,7 @@ def wholesales(request):
     else:
         return redirect('store:index')
 
+@never_cache
 @login_required
 def search_wholesale_item(request):
     if request.user.is_authenticated:
@@ -630,6 +635,7 @@ def wholesale_exp_alert(request):
 
 
 
+@never_cache
 def dispense_wholesale(request):
     print(f"DEBUG: dispense_wholesale view called by user: {request.user}")
     print(f"DEBUG: User authenticated: {request.user.is_authenticated}")
@@ -653,7 +659,12 @@ def dispense_wholesale(request):
         # Check if this is an HTMX request (for modal)
         if request.headers.get('HX-Request'):
             print(f"DEBUG: HTMX request detected")
-            return render(request, 'partials/wholesale_dispense_modal.html', {'form': form, 'results': results})
+            response = render(request, 'partials/wholesale_dispense_modal.html', {'form': form, 'results': results})
+            # Add explicit cache-control headers for HTMX requests
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+            response['Pragma'] = 'no-cache'
+            response['Expires'] = '0'
+            return response
         else:
             print(f"DEBUG: Regular page request")
             # Regular page request - get cart summary for the new dynamic interface
@@ -673,11 +684,17 @@ def dispense_wholesale(request):
                 'cart_total': cart_total
             }
             print(f"DEBUG: Rendering wholesale/dispense_wholesale.html with context: {context}")
-            return render(request, 'wholesale/dispense_wholesale.html', context)
+            response = render(request, 'wholesale/dispense_wholesale.html', context)
+            # Add explicit cache-control headers for regular requests
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+            response['Pragma'] = 'no-cache'
+            response['Expires'] = '0'
+            return response
     else:
         return redirect('store:index')
 
 
+@never_cache
 def dispense_wholesale_no_auth(request):
     """Wholesale dispensing without authentication for testing"""
     # Get cart summary (will be empty for unauthenticated users)
@@ -840,6 +857,7 @@ def debug_dispense_wholesale(request):
         return redirect('store:index')
 
 
+@never_cache
 @login_required
 def dispense_wholesale_simple(request):
     """Simple version of wholesale dispensing for testing"""
@@ -858,6 +876,7 @@ def dispense_wholesale_simple(request):
         return redirect('store:index')
 
 
+@never_cache
 def wholesale_dispense_search_items(request):
     """HTMX endpoint for dynamic item search in wholesale dispensing"""
     print(f"DEBUG: wholesale_dispense_search_items called")
@@ -898,10 +917,12 @@ def add_to_wholesale_cart(request, item_id):
             return redirect('wholesale:wholesale_cart')
 
         # Add the item to the cart or update its quantity if it already exists
+        # Only work with active cart items
         cart_item, created = WholesaleCart.objects.get_or_create(
             user=request.user,
             item=item,
             unit=unit,
+            status='active',  # Only create/modify active cart items
             defaults={'quantity': quantity, 'price': item.price}
         )
         if not created:
@@ -919,7 +940,7 @@ def add_to_wholesale_cart(request, item_id):
 
         # Return the cart summary as JSON if this was an HTMX request
         if request.headers.get('HX-Request'):
-            cart_items = WholesaleCart.objects.filter(user=request.user)
+            cart_items = WholesaleCart.objects.filter(user=request.user, status='active')  # Only count active items
             total_price = sum(cart_item.subtotal for cart_item in cart_items)
 
             # Check if this is from the dispensing page (has specific header or parameter)
@@ -1361,10 +1382,15 @@ def select_wholesale_items(request, pk):
 
 
 
+@never_cache
 @login_required
 def wholesale_cart(request):
     if request.user.is_authenticated:
-        cart_items = WholesaleCart.objects.select_related('item').filter(user=request.user)
+        # Only show active cart items (exclude those sent to cashier or processed)
+        cart_items = WholesaleCart.objects.select_related('item').filter(
+            user=request.user, 
+            status='active'
+        )
 
         # Check if cart is empty and cleanup session if needed
         from store.cart_utils import auto_cleanup_empty_cart_session
@@ -2074,6 +2100,8 @@ def wholesale_receipt(request):
             'sales': sales,  # Add sales object for template access
         })
 
+        # Mark cart items as processed before deleting
+        cart_items.update(status='processed')
         # Now clear the cart after rendering the receipt
         cart_items.delete()
 
@@ -2245,6 +2273,7 @@ def return_wholesale_items_for_customer(request, pk):
         return redirect('store:index')
 
 
+@never_cache
 def wholesale_receipt_list(request):
     if request.user.is_authenticated:
         receipts = WholesaleReceipt.objects.all().order_by('-date')  # Only wholesale receipts
@@ -2253,6 +2282,7 @@ def wholesale_receipt_list(request):
         return redirect('store:index')
 
 
+@never_cache
 def search_wholesale_receipts(request):
     if request.user.is_authenticated:
         from utils.date_utils import filter_queryset_by_date, get_date_filter_context
@@ -2787,6 +2817,7 @@ def register_wholesale_customers(request):
 
 
 
+@never_cache
 def wholesale_customers(request):
     if request.user.is_authenticated:
         from userauth.permissions import can_manage_wholesale_customers
@@ -4112,8 +4143,8 @@ def send_to_wholesale_cashier(request):
                     related_payment_request=payment_request
                 )
             
-            # Mark cart items as sent to cashier (optional status change)
-            # cart_items.update(status='sent_to_cashier')  # You'll need to add this field to WholesaleCart model
+            # Mark cart items as sent to cashier
+            cart_items.update(status='sent_to_cashier')
             
             messages.success(request, f'Wholesale payment request {payment_request.request_id} sent to cashier successfully.')
             return redirect('wholesale:wholesale_payment_requests')
@@ -4240,6 +4271,7 @@ def wholesale_payment_request_detail(request, request_id):
     return redirect('store:index')
 
 
+@never_cache
 @login_required
 def wholesale_cashier_dashboard(request):
     """Enhanced wholesale cashier dashboard with comprehensive payment management"""

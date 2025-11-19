@@ -6,6 +6,7 @@ from collections import defaultdict
 from decimal import Decimal
 import json
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.cache import never_cache
 from django.http import HttpResponse, JsonResponse
 from django.db.models.functions import TruncMonth, TruncDay
 from django.shortcuts import get_object_or_404, render, redirect
@@ -273,6 +274,7 @@ def logout_user(request):
 
 
 
+@never_cache
 @login_required
 def store(request):
     if request.user.is_authenticated:
@@ -373,6 +375,7 @@ def add_item(request):
         return redirect('store:index')
 
 
+@never_cache
 @login_required
 def search_item(request):
     if request.user.is_authenticated:
@@ -449,6 +452,7 @@ def edit_item(request, pk):
         return redirect('store:index')
 
 
+@never_cache
 @login_required
 def dispense(request):
     print(f"DEBUG: STORE dispense view called by user: {request.user}")
@@ -487,7 +491,12 @@ def dispense(request):
 
         # Check if this is an HTMX request (for modal)
         if request.headers.get('HX-Request'):
-            return render(request, 'partials/dispense_modal.html', {'form': form, 'results': results})
+            response = render(request, 'partials/dispense_modal.html', {'form': form, 'results': results})
+            # Add explicit cache-control headers for HTMX requests
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+            response['Pragma'] = 'no-cache'
+            response['Expires'] = '0'
+            return response
         else:
             # Regular page request - get cart summary with optimized query
             cart_items = Cart.objects.select_related('item').filter(user=request.user)
@@ -500,11 +509,17 @@ def dispense(request):
                 'cart_count': cart_count,
                 'cart_total': cart_total
             }
-            return render(request, 'store/dispense.html', context)
+            response = render(request, 'store/dispense.html', context)
+            # Add explicit cache-control headers for regular requests
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+            response['Pragma'] = 'no-cache'
+            response['Expires'] = '0'
+            return response
     else:
         return redirect('store:index')
 
 
+@never_cache
 @login_required
 def dispense_search_items(request):
     """HTMX endpoint for dynamic item search in dispensing"""
@@ -545,8 +560,12 @@ def dispense_search_items(request):
 def cart(request):
     if request.user.is_authenticated:
         # Optimized query with select_related and only necessary fields
-        cart_items = Cart.objects.select_related('item').filter(user=request.user).only(
-            'id', 'user', 'item', 'quantity', 'price', 'discount_amount', 'subtotal',
+        # Only show active cart items (exclude those sent to cashier or processed)
+        cart_items = Cart.objects.select_related('item').filter(
+            user=request.user, 
+            status='active'
+        ).only(
+            'id', 'user', 'item', 'quantity', 'price', 'discount_amount', 'subtotal', 'status',
             'item__id', 'item__name', 'item__brand', 'item__dosage_form', 'item__unit', 
             'item__price', 'item__stock', 'item__exp_date'
         )
@@ -633,10 +652,12 @@ def add_to_cart(request, pk):
             return redirect('store:cart')
 
         # Add the item to the cart or update its quantity if it already exists
+        # Only work with active cart items
         cart_item, created = Cart.objects.get_or_create(
             user=request.user,
             item=item,
             unit=unit,
+            status='active',  # Only create/modify active cart items
             defaults={'quantity': quantity, 'price': item.price}
         )
         if not created:
@@ -656,7 +677,7 @@ def add_to_cart(request, pk):
 
         # Return the cart summary as JSON if this was an HTMX request
         if request.headers.get('HX-Request'):
-            cart_items = Cart.objects.filter(user=request.user)
+            cart_items = Cart.objects.filter(user=request.user, status='active')  # Only count active items
             total_price = sum(cart_item.subtotal for cart_item in cart_items)
 
             # Check if this is from the dispensing page (has specific header or parameter)
@@ -682,6 +703,7 @@ def add_to_cart(request, pk):
 
 
 
+@never_cache
 @login_required
 def view_cart(request):
     if request.user.is_authenticated:
@@ -1003,6 +1025,7 @@ def send_to_cashier(request):
     return redirect('store:index')
 
 
+@never_cache
 @login_required
 def payment_requests(request):
     """Show dispenser's payment requests history with date and cashier search"""
@@ -1113,6 +1136,7 @@ def payment_request_detail(request, request_id):
     return redirect('store:index')
 
 
+@never_cache
 @login_required
 def cashier_dashboard(request):
     """Cashier dashboard showing pending payment requests"""
@@ -1982,6 +2006,8 @@ def receipt(request):
         }
         request.session['receipt_id'] = str(receipt.receipt_id)
 
+        # Mark cart items as processed before deleting
+        cart_items.update(status='processed')
         cart_items.delete()
 
         # Comprehensive cart session cleanup after receipt generation
@@ -3933,6 +3959,7 @@ def select_items(request, pk):
 
 
 
+@never_cache
 @login_required
 def dispensing_log(request):
     if request.user.is_authenticated:
@@ -4291,6 +4318,7 @@ def dispensing_log_stats(request):
         return JsonResponse({'error': 'Unauthorized'}, status=401)
 
 
+@never_cache
 def receipt_list(request):
     if request.user.is_authenticated:
         receipts = Receipt.objects.all().order_by('-date')  # Order by date, latest first
