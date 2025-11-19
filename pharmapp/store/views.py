@@ -486,6 +486,12 @@ def dispense(request):
                         Q(name__icontains=q) | Q(brand__icontains=q)
                     ).filter(stock__gt=0).order_by('name')[:50]
         else:
+            # GET request - clear cart to ensure fresh dispensing experience
+            from store.cart_utils import clear_user_cart
+            cleared_count = clear_user_cart(request.user, 'retail')
+            if cleared_count > 0:
+                logger.info(f"Auto-cleared {cleared_count} items from cart on dispense page access")
+            
             form = dispenseForm()
             results = None
 
