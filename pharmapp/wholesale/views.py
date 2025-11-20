@@ -591,7 +591,7 @@ def return_wholesale_item(request, pk):
 
 
 @login_required
-@user_passes_test(lambda user: user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager'])
+@user_passes_test(lambda user: user.is_authenticated and (user.is_superuser or (hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager'])))
 def delete_wholesale_item(request, pk):
     if request.user.is_authenticated:
         item = get_object_or_404(WholesaleItem, id=pk)
@@ -1733,7 +1733,12 @@ def wholesale_payment_requests(request):
 
         # Check if user can dispense items (is a dispenser) or is admin/manager
         is_admin_user = is_admin_or_manager(request.user)
-        if not can_dispense_items(request.user) and not is_admin_user:
+
+        # Superusers have access to everything
+        if request.user.is_superuser:
+            # Continue to the rest of the function
+            pass
+        elif not can_dispense_items(request.user) and not is_admin_user:
             messages.error(request, 'You do not have permissions to view payment requests.')
             return redirect('store:index')
 
@@ -1759,8 +1764,8 @@ def wholesale_payment_requests(request):
                 messages.warning(request, 'Invalid end date format.')
                 end_date = None
 
-        # Base query - show user's wholesale requests if dispenser, all wholesale if admin
-        if is_admin_user:
+        # Base query - show user's wholesale requests if dispenser, all wholesale if admin/superuser
+        if request.user.is_superuser or is_admin_user:
             payment_requests = PaymentRequest.objects.filter(payment_type='wholesale').order_by('-created_at')
         else:
             payment_requests = PaymentRequest.objects.filter(
@@ -1789,9 +1794,9 @@ def wholesale_payment_requests(request):
         else:
             selected_cashier = None
 
-        # Get all cashiers for filter dropdown (only if admin)
+        # Get all cashiers for filter dropdown (only if admin/superuser)
         all_cashiers = None
-        if is_admin_user:
+        if request.user.is_superuser or is_admin_user:
             from store.models import Cashier
             all_cashiers = Cashier.objects.filter(
                 is_active=True
@@ -1805,7 +1810,7 @@ def wholesale_payment_requests(request):
             'selected_cashier': selected_cashier,
             'start_date': start_date,
             'end_date': end_date,
-            'is_admin': is_admin_user,
+            'is_admin': request.user.is_superuser or is_admin_user,
         })
 
     return redirect('store:index')
@@ -4528,7 +4533,12 @@ def wholesale_payment_requests(request):
         
         # Check if user can dispense items (is a dispenser) or is admin/manager
         is_admin_user = is_admin_or_manager(request.user)
-        if not can_dispense_items(request.user) and not is_admin_user:
+        
+        # Superusers have access to everything
+        if request.user.is_superuser:
+            # Continue to the rest of the function
+            pass
+        elif not can_dispense_items(request.user) and not is_admin_user:
             messages.error(request, 'You do not have permissions to view wholesale payment requests.')
             return redirect('store:index')
         
@@ -4614,12 +4624,20 @@ def wholesale_payment_requests(request):
 def wholesale_payment_request_detail(request, request_id):
     """Show wholesale payment request details"""
     if request.user.is_authenticated:
+        from userauth.permissions import is_admin_or_manager
         try:
             from store.models import PaymentRequest
             payment_request = PaymentRequest.objects.get(request_id=request_id, payment_type='wholesale')
-            
-            # Check if user is authorized (either the dispenser or a cashier)
-            if payment_request.dispenser != request.user and not hasattr(request.user, 'cashier'):
+
+            # Check if user is authorized (dispenser, cashier, admin, or superuser)
+            is_authorized = (
+                payment_request.dispenser == request.user or
+                hasattr(request.user, 'cashier') or
+                request.user.is_superuser or
+                is_admin_or_manager(request.user)
+            )
+
+            if not is_authorized:
                 messages.error(request, 'You are not authorized to view this wholesale payment request.')
                 return redirect('wholesale:wholesale_payment_requests')
             
