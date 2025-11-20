@@ -19,7 +19,8 @@ const URLS_TO_CACHE = [
     '/static/js/indexeddb-manager.js',
     '/static/js/sync-manager.js',
     '/static/js/offline-handler.js',
-    '/static/js/offline-helpers.js'
+    '/static/js/offline-helpers.js',
+    '/static/js/htmx-offline-adapter.js'
 ];
 
 console.log('[ServiceWorker] Loading...');
@@ -344,7 +345,7 @@ async function syncFromServer() {
  */
 function openDatabase() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open('PharmAppDB', 3);
+        const request = indexedDB.open('PharmAppDB', 4);
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

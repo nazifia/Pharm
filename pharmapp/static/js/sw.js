@@ -3,8 +3,8 @@
  * Provides offline-first caching and background sync
  */
 
-const CACHE_NAME = 'pharmapp-v3';
-const API_CACHE_NAME = 'pharmapp-api-v3';
+const CACHE_NAME = 'pharmapp-v5';
+const API_CACHE_NAME = 'pharmapp-api-v5';
 const OFFLINE_URL = '/offline/';
 
 // Core app shell files
@@ -18,6 +18,7 @@ const URLS_TO_CACHE = [
     '/static/vendor/jquery-easing/jquery.easing.min.js',
     '/static/js/sb-admin-2.min.js',
     '/static/js/indexeddb-manager.js',
+    '/static/js/htmx-offline-adapter.js',
     '/static/js/sync-manager.js',
     '/static/js/offline-handler.js'
 ];
@@ -316,7 +317,7 @@ async function syncFromServer() {
  */
 function openDatabase() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open('PharmAppDB', 3);
+        const request = indexedDB.open('PharmAppDB', 4);
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

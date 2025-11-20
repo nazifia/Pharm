@@ -1,450 +1,484 @@
-# Offline-First Functionality Guide
+# PharmApp Offline Functionality Guide
 
 ## Overview
 
-PharmApp now includes comprehensive offline-first functionality that allows the application to work seamlessly without an internet connection. All changes made offline are automatically queued and synchronized when the connection is restored.
+PharmApp includes comprehensive **offline-first** capabilities that allow users to continue working without internet connection. All changes are saved locally and automatically synchronized when the connection is restored.
 
-## Features
+## How It Works
 
 ### 1. **Automatic Offline Detection**
-- Real-time connection status monitoring
-- Visual indicators for online/offline state
-- Automatic fallback to offline mode
+- The app continuously monitors internet connectivity
+- Visual indicators show current connection status (top-right corner)
+- Automatic fallback to offline mode when connection is lost
 
-### 2. **Local Data Storage**
-- IndexedDB for robust client-side storage
-- Stores all critical data (inventory, customers, suppliers, sales, etc.)
-- Automatic data persistence across sessions
+### 2. **Local Data Storage (IndexedDB)**
+- All critical data is cached locally in the browser
+- Includes: inventory items, customers, suppliers, cart data
+- Supports both retail and wholesale operations
 
-### 3. **Background Sync**
-- Automatic synchronization when connection is restored
-- Queued actions with retry mechanism
-- Conflict resolution for data integrity
+### 3. **Action Queue**
+- User actions performed offline are queued locally
+- Each action has a priority level (1=highest, 10=lowest)
+- Actions are automatically synced when connection is restored
 
-### 4. **Progressive Web App (PWA)**
-- Installable on desktop and mobile devices
-- Offline-capable with service worker
-- App-like experience
+### 4. **Automatic Synchronization**
+- Background sync triggers automatically when online
+- Bidirectional sync: upload pending changes + download latest data
+- Conflict resolution ensures data integrity
 
-## Architecture
+---
 
-```
-┌─────────────────────────────────────────────┐
-│           User Interface (Django)            │
-└──────────────────┬──────────────────────────┘
-                   │
-    ┌──────────────┼──────────────┐
-    │              │              │
-    ▼              ▼              ▼
-┌────────┐  ┌─────────────┐  ┌─────────┐
-│ Online │  │ Offline     │  │ Service │
-│ API    │  │ IndexedDB   │  │ Worker  │
-└────────┘  └─────────────┘  └─────────┘
-    │              │              │
-    └──────────────┴──────────────┘
-                   │
-            ┌──────┴──────┐
-            │             │
-            ▼             ▼
-    ┌──────────────┐  ┌──────────────┐
-    │ Sync Manager │  │ DB Manager   │
-    └──────────────┘  └──────────────┘
-```
+## Supported Offline Operations
 
-## Components
+### ✅ **Fully Supported (Work Offline)**
 
-### 1. IndexedDB Manager (`indexeddb-manager.js`)
-Handles all client-side data storage operations.
+#### Inventory Management
+- View all inventory items (retail & wholesale)
+- Search items by name, brand, or dosage form
+- Check stock levels and prices
+- View low stock items
+- View expiring items (within 30 days)
 
-**Key Methods:**
-- `init()` - Initialize the database
-- `put(storeName, data)` - Add/update a record
-- `bulkPut(storeName, dataArray)` - Bulk insert records
-- `get(storeName, key)` - Retrieve a record
-- `getAll(storeName)` - Get all records
-- `addPendingAction(action)` - Queue an action for sync
-- `getPendingActions()` - Get all unsynced actions
+#### Cart Operations
+- **Add items to cart** (retail & wholesale)
+- Update cart quantities
+- Remove items from cart
+- View cart totals
+- All cart changes saved locally
 
-### 2. Sync Manager (`sync-manager.js`)
-Manages bidirectional data synchronization.
+#### Customer Management
+- View customer lists
+- Search customers
+- View customer wallet balances
 
-**Key Methods:**
-- `downloadInitialData()` - Download data from server
-- `syncPendingActions()` - Upload pending changes
-- `performFullSync()` - Full bidirectional sync
-- `scheduleAutoSync(minutes)` - Schedule automatic sync
+#### Supplier Management
+- View supplier lists
+- Search suppliers
 
-### 3. Offline Handler (`offline-handler.js`)
-Coordinates offline functionality and UI updates.
+### ⚠️ **Limited Support (Requires Online)**
+- Creating new inventory items (queued for sync)
+- Processing payments and receipts
+- Procurement operations
+- User management
+- Reports and analytics
 
-**Key Methods:**
-- `init()` - Initialize offline handler
-- `queueAction(actionType, data, priority)` - Queue an action
-- `manualSync()` - Trigger manual sync
-- `showNotification(title, message, type)` - Show user notification
+---
 
-### 4. Service Worker (`sw.js`)
-Provides offline-first caching and background sync.
-
-**Features:**
-- Cache-first strategy for static resources
-- Network-first strategy for API calls
-- Background sync for pending actions
-- Automatic cache management
-
-## Usage
-
-### Basic Integration
-
-#### 1. Queuing Offline Actions
-
-When performing an operation that modifies data, queue it for sync:
-
-```javascript
-// Example: Adding a new item
-async function addItemOffline(itemData) {
-    if (window.offlineHandler) {
-        await window.offlineHandler.queueAction('add_item', itemData, 5);
-        console.log('Item queued for sync');
-    }
-}
-```
-
-#### 2. Checking Connection Status
-
-```javascript
-// Check if online
-if (window.offlineHandler && window.offlineHandler.isOnline) {
-    // Perform online-only operations
-} else {
-    // Use offline mode
-}
-```
-
-#### 3. Manual Sync
-
-```javascript
-// Trigger manual sync
-if (window.offlineHandler) {
-    await window.offlineHandler.manualSync();
-}
-```
-
-### Advanced Integration
-
-#### 1. Form Submission with Offline Support
-
-```javascript
-document.querySelector('#myForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const formData = {
-        name: document.querySelector('#name').value,
-        quantity: document.querySelector('#quantity').value,
-        // ... other fields
-    };
-
-    // Try online submission first
-    if (navigator.onLine) {
-        try {
-            const response = await fetch('/api/items/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
-
-            if (response.ok) {
-                showSuccess('Item added successfully');
-                return;
-            }
-        } catch (error) {
-            console.log('Online submission failed, using offline mode');
-        }
-    }
-
-    // Fallback to offline mode
-    await window.offlineHandler.queueAction('add_item', formData);
-    showSuccess('Item queued. Will sync when online.');
-});
-```
-
-#### 2. Searching Offline Data
-
-```javascript
-async function searchItems(searchTerm) {
-    if (window.dbManager) {
-        const results = await window.dbManager.searchItems(searchTerm);
-        displayResults(results);
-    }
-}
-```
-
-#### 3. Getting Cart Total
-
-```javascript
-async function updateCartTotal() {
-    if (window.dbManager) {
-        const total = await window.dbManager.getCartTotal();
-        document.querySelector('#cartTotal').textContent = total.toFixed(2);
-    }
-}
-```
-
-## Action Types
-
-The system supports the following action types:
-
-### Inventory Actions
-- `add_item` - Add new inventory item
-- `update_item` - Update existing item
-- `delete_item` - Delete item
-
-### Sales Actions
-- `add_sale` - Create new sale
-- `add_receipt` - Generate receipt
-- `add_dispensing` - Log dispensing
-
-### Customer Actions
-- `add_customer` - Add new customer
-- `update_customer` - Update customer info
-
-### Supplier Actions
-- `add_supplier` - Add new supplier
-- `update_supplier` - Update supplier info
-
-### Wholesale Actions
-- `add_wholesale_item` - Add wholesale item
-- `add_wholesale_sale` - Create wholesale sale
-
-### Cart Actions
-- `add_to_cart` - Add item to cart
-- `update_cart` - Update cart item
-- `remove_from_cart` - Remove from cart
-
-## UI Components
+## User Interface Elements
 
 ### Connection Status Indicator
+**Location:** Top-right corner of every page
 
-Already integrated in `base.html`:
+- 🟢 **Green Dot + "Online"**: Connected to internet
+- 🔴 **Red Dot + "Offline"**: No internet connection
+- ↻ **Sync Icon**: Synchronization in progress
 
-```html
-<div id="connection-status" class="connection-status">
-    <div class="status-indicator">
-        <span class="status-dot"></span>
-        <span class="status-text">Online</span>
-    </div>
-    <div class="sync-status hidden">
-        <span class="sync-icon">↻</span>
-        <span class="sync-text">Syncing...</span>
-    </div>
-</div>
+### Pending Actions Badge
+**Shows:** Number of queued offline actions waiting to sync
+
+- Displayed when there are pending changes
+- Updates in real-time
+- Disappears after successful sync
+
+### Offline Notifications
+- **Success (Green)**: Action saved successfully
+- **Warning (Yellow)**: Action saved offline, will sync later
+- **Error (Red)**: Action failed
+
+---
+
+## Step-by-Step Usage Guide
+
+### Scenario 1: Working While Offline
+
+**Step 1:** User loses internet connection
+```
+→ Status indicator changes to "Offline" (red dot)
+→ Optional notification: "You're offline"
 ```
 
-### Manual Sync Button
-
-Add to your template:
-
-```html
-<button onclick="window.offlineHandler.manualSync()" class="sync-button">
-    Sync Now
-</button>
+**Step 2:** User adds items to cart
+```
+→ Item is added to local IndexedDB
+→ Action is queued for synchronization
+→ User sees: "Added [item] to cart (offline). Will sync when connection is restored."
+→ Pending actions count increases
 ```
 
-### Pending Actions Counter
+**Step 3:** User continues working
+```
+→ All supported operations work normally
+→ Each action is saved locally and queued
+```
 
-Automatically displayed when there are pending actions.
+**Step 4:** Connection restored
+```
+→ Status indicator changes to "Online" (green)
+→ Background sync automatically triggered
+→ Queued actions uploaded to server
+→ Latest data downloaded from server
+→ Notification: "Sync Complete - All changes synced to server"
+→ Pending count returns to 0
+```
+
+### Scenario 2: Starting Offline (First Time)
+
+**If user opens app without internet:**
+```
+1. App loads from cached files (Service Worker)
+2. Shows offline page with available features
+3. User can view cached data
+4. User can perform offline operations
+5. When online, initial data is downloaded automatically
+```
+
+---
+
+## Technical Architecture
+
+### Components
+
+#### 1. **Service Worker** (`static/js/sw.js`)
+- Caches app shell and static assets
+- Intercepts network requests
+- Provides offline fallbacks
+- Handles background sync events
+
+#### 2. **IndexedDB Manager** (`static/js/indexeddb-manager.js`)
+- Manages local database (PharmAppDB)
+- Stores: items, customers, suppliers, carts, pending actions
+- Provides search and query methods
+
+#### 3. **Sync Manager** (`static/js/sync-manager.js`)
+- Handles bidirectional synchronization
+- Groups actions by type for batch processing
+- Implements retry logic (max 3 attempts)
+- Manages CSRF tokens for Django
+
+#### 4. **Offline Handler** (`static/js/offline-handler.js`)
+- Coordinates all offline functionality
+- Monitors connection status
+- Manages UI updates and notifications
+- Triggers sync on connection restore
+
+#### 5. **Offline Helpers** (`static/js/offline-helpers.js`)
+- Convenient wrapper functions
+- `queueOfflineAction()` - Queue any action
+- `submitFormWithOffline()` - Submit forms with offline support
+- `searchItemsOffline()` - Search local data
+- `addToCartOffline()` - Add to cart offline
+
+#### 6. **Cart Offline** (`static/js/cart-offline.js`)
+- Specialized cart operations
+- Handles add to cart (retail & wholesale)
+- Updates local cart displays
+- Syncs cart with server
+
+### Data Flow
+
+```
+┌─────────────┐
+│   User      │
+│   Action    │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────────┐      Online?
+│  Check Network  │────────────┐
+│     Status      │            │
+└─────────┬───────┘            │
+          │                    │
+    ┌─────▼─────┐         ┌───▼────┐
+    │  Offline  │         │ Online │
+    └─────┬─────┘         └───┬────┘
+          │                   │
+          ▼                   ▼
+  ┌───────────────┐   ┌───────────────┐
+  │   IndexedDB   │   │   Django API  │
+  │  + Queue for  │   │   (Direct)    │
+  │     Sync      │   └───────────────┘
+  └───────┬───────┘
+          │
+    ┌─────▼─────┐
+    │  Online?  │
+    └─────┬─────┘
+          │ Yes
+          ▼
+  ┌───────────────┐
+  │  Background   │
+  │     Sync      │
+  └───────┬───────┘
+          │
+          ▼
+  ┌───────────────┐
+  │  Django API   │
+  │   (Batch)     │
+  └───────────────┘
+```
+
+---
 
 ## API Endpoints
 
-### Health Check
-```
-GET /api/health/
-```
-Returns: `{ "status": "ok", "timestamp": "..." }`
+### Sync Endpoints (All POST)
+- `/api/inventory/sync/` - Sync inventory changes
+- `/api/cart/sync/` - Sync cart actions
+- `/api/wholesale-cart/sync/` - Sync wholesale cart
+- `/api/sales/sync/` - Sync sales transactions
+- `/api/customers/sync/` - Sync customer data
+- `/api/suppliers/sync/` - Sync supplier data
+- `/api/receipts/sync/` - Sync receipts
+- `/api/dispensing/sync/` - Sync dispensing logs
 
-### Initial Data Download
-```
-GET /api/data/initial/
-```
-Returns: All inventory, customers, suppliers, wholesale items
+### Data Endpoints
+- `GET /api/health/` - Check server connectivity
+- `GET /api/data/initial/` - Download all data for offline cache
 
-### Sync Endpoints
-```
-POST /api/inventory/sync/
-POST /api/sales/sync/
-POST /api/customers/sync/
-POST /api/suppliers/sync/
-POST /api/wholesale/sync/
-POST /api/receipts/sync/
-POST /api/dispensing/sync/
-POST /api/cart/sync/
+---
+
+## Developer Guide
+
+### Adding Offline Support to a New Form
+
+**Method 1: Using the Partial Template**
+```django
+{% include 'partials/offline_form.html' with
+    form_id="my-form"
+    action_type="add_my_entity"
+    entity_name="record"
+%}
 ```
 
-All sync endpoints expect:
-```json
-{
-    "pendingActions": [
-        {
-            "actionType": "add_item",
-            "data": { ... },
-            "timestamp": "2025-01-17T12:00:00Z",
-            "priority": 5
+**Method 2: Custom JavaScript**
+```javascript
+// In your template
+<form id="myForm" action="/api/my-endpoint/" method="post">
+    {% csrf_token %}
+    <!-- form fields -->
+    <button type="submit">Save</button>
+</form>
+
+<script>
+document.getElementById('myForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    await submitFormWithOffline(
+        this,
+        '/api/my-endpoint/',
+        'add_my_entity',
+        (result) => {
+            if (result.offline) {
+                showWarningMessage('Saved offline. Will sync later.');
+            } else {
+                showSuccessMessage('Saved successfully!');
+            }
+        },
+        (error) => {
+            showErrorMessage('Failed: ' + error.message);
         }
-    ]
+    );
+});
+</script>
+```
+
+### Queuing Custom Actions
+
+```javascript
+// Queue any offline action
+await queueOfflineAction('custom_action', {
+    field1: 'value1',
+    field2: 'value2'
+}, 5); // priority 5
+```
+
+### Searching Offline Data
+
+```javascript
+// Search items
+const results = await searchItemsOffline('aspirin', false); // retail
+const wholesaleResults = await searchItemsOffline('aspirin', true); // wholesale
+
+// Get low stock items
+const lowStock = await getLowStockItemsOffline(false);
+
+// Get expiring items (within 30 days)
+const expiring = await getExpiringItemsOffline(30, false);
+```
+
+### Manual Sync Trigger
+
+```javascript
+// Trigger sync manually
+if (window.offlineHandler) {
+    await window.offlineHandler.manualSync();
+}
+
+// Or use sync manager directly
+if (window.syncManager) {
+    await window.syncManager.performFullSync();
 }
 ```
 
-## Event System
+---
 
-The offline system dispatches custom events:
+## Adding a Manual Sync Button
 
-### IndexedDB Ready
-```javascript
-window.addEventListener('indexeddb-ready', () => {
-    console.log('IndexedDB is ready');
-});
-```
+Add this to any template:
 
-### Sync Status Change
-```javascript
-window.addEventListener('sync-status-change', (event) => {
-    const { status, message } = event.detail;
-    console.log(`Sync status: ${status} - ${message}`);
-});
-```
+```html
+<button onclick="triggerManualSync()" class="btn btn-primary">
+    <i class="fas fa-sync"></i> Sync Now
+</button>
 
-### Data Updated
-```javascript
-window.addEventListener('data-updated', () => {
-    console.log('Data has been updated, refresh UI');
-});
-```
-
-## Best Practices
-
-### 1. **Always Check for Availability**
-```javascript
-if (window.dbManager && window.syncManager && window.offlineHandler) {
-    // Offline functionality is available
-}
-```
-
-### 2. **Provide User Feedback**
-Always inform users about offline operations:
-```javascript
-if (!navigator.onLine) {
-    showWarning('You are offline. Changes will sync when online.');
-}
-```
-
-### 3. **Handle Sync Failures**
-```javascript
-window.addEventListener('sync-status-change', (event) => {
-    if (event.detail.status === 'error') {
-        showError('Sync failed. Will retry automatically.');
+<script>
+async function triggerManualSync() {
+    if (!window.offlineHandler) {
+        alert('Offline functionality not available');
+        return;
     }
-});
+
+    const success = await window.offlineHandler.manualSync();
+
+    if (success) {
+        console.log('Sync completed successfully');
+    }
+}
+</script>
 ```
 
-### 4. **Prioritize Critical Actions**
-Use higher priority (lower number) for critical operations:
-```javascript
-// Critical sale - priority 1
-await window.offlineHandler.queueAction('add_sale', saleData, 1);
-
-// Regular update - priority 5
-await window.offlineHandler.queueAction('update_item', itemData, 5);
-```
-
-### 5. **Test Offline Scenarios**
-Use Chrome DevTools:
-1. Open DevTools (F12)
-2. Go to Network tab
-3. Select "Offline" from throttling dropdown
-4. Test your application
+---
 
 ## Troubleshooting
 
-### Issue: Service Worker Not Registering
-**Solution:** Check browser console for errors. Ensure HTTPS or localhost.
-
-### Issue: Data Not Syncing
-**Solution:**
+### Problem: Offline mode not working
+**Solutions:**
 1. Check browser console for errors
-2. Verify network connectivity
-3. Check pending actions: `await window.dbManager.getPendingActions()`
+2. Verify IndexedDB is supported: `'indexedDB' in window`
+3. Verify Service Worker is registered: Check DevTools → Application → Service Workers
+4. Clear cache and reload: `Ctrl+Shift+R` (Windows) or `Cmd+Shift+R` (Mac)
 
-### Issue: IndexedDB Not Working
-**Solution:**
-1. Check if IndexedDB is supported: `!!window.indexedDB`
-2. Clear browser data and reload
-3. Check browser privacy settings
+### Problem: Data not syncing
+**Solutions:**
+1. Check internet connection
+2. Check browser console for sync errors
+3. Manually trigger sync: Call `window.offlineHandler.manualSync()`
+4. Check pending actions: `window.dbManager.getPendingActions()`
 
-### Issue: Duplicate Data After Sync
-**Solution:** Ensure unique IDs are used for all records. Check sync endpoint logic for proper update vs. create logic.
+### Problem: Service Worker not registering
+**Solutions:**
+1. Ensure site is served over HTTPS (or localhost)
+2. Check `/sw.js` is accessible
+3. Check for JavaScript errors in console
+4. Verify service worker scope in DevTools
+
+### Problem: Sync failing with CSRF errors
+**Solutions:**
+1. Verify CSRF token is present in cookies
+2. Check Django CSRF middleware is enabled
+3. Ensure `X-CSRFToken` header is sent in requests
+
+---
+
+## Testing Offline Mode
+
+### Chrome DevTools Method
+1. Open Chrome DevTools (F12)
+2. Go to **Network** tab
+3. Select **Offline** from throttling dropdown
+4. Test application functionality
+5. Switch back to **Online** and verify sync
+
+### Manual Testing Steps
+1. ✅ Add items to cart while online → verify success
+2. ✅ Disconnect internet
+3. ✅ Verify status indicator shows "Offline"
+4. ✅ Add more items to cart → verify they're queued
+5. ✅ Check pending actions count
+6. ✅ Reconnect internet
+7. ✅ Verify automatic sync occurs
+8. ✅ Verify all changes reflected in database
+9. ✅ Verify pending count returns to 0
+
+---
 
 ## Performance Considerations
 
-### 1. **Batch Operations**
-Use `bulkPut` for multiple records:
-```javascript
-await window.dbManager.bulkPut('items', itemsArray);
-```
+### Cache Management
+- Service Worker caches up to **50MB** of data
+- Old caches automatically deleted on version upgrade
+- IndexedDB has no practical size limit (browser-dependent)
 
-### 2. **Limit Auto-Sync Frequency**
-Default is 5 minutes. Adjust if needed:
-```javascript
-window.syncManager.scheduleAutoSync(10); // 10 minutes
-```
+### Sync Frequency
+- **Automatic:** Triggered when connection restored
+- **Background:** Every 5 minutes when online
+- **Manual:** User can trigger anytime
 
-### 3. **Clean Up Old Data**
-Periodically clear synced actions:
-```javascript
-// This is handled automatically by the sync manager
-```
+### Optimization Tips
+1. **Limit bulk operations** - Sync in batches to avoid timeout
+2. **Priority queuing** - Critical actions sync first
+3. **Retry logic** - Failed actions retry up to 3 times
+4. **Data freshness** - Download initial data only on first load
 
-### 4. **Monitor Storage Usage**
-```javascript
-if (navigator.storage && navigator.storage.estimate) {
-    const estimate = await navigator.storage.estimate();
-    console.log(`Used: ${estimate.usage} / ${estimate.quota} bytes`);
-}
-```
+---
 
 ## Security Considerations
 
-1. **CSRF Protection:** All POST requests include CSRF token
-2. **Data Validation:** Server validates all synced data
-3. **Authentication:** Sync requires authenticated user
-4. **Encryption:** Use HTTPS in production for data transmission
+### CSRF Protection
+All API requests include Django CSRF token from cookies
+
+### Data Validation
+Server validates all synced data before saving
+
+### User Authentication
+Offline operations tied to authenticated user ID
+
+### Sensitive Data
+Payment and financial data requires online connection
+
+---
+
+## Browser Compatibility
+
+| Feature | Chrome | Firefox | Safari | Edge |
+|---------|--------|---------|--------|------|
+| Service Worker | ✅ | ✅ | ✅ | ✅ |
+| IndexedDB | ✅ | ✅ | ✅ | ✅ |
+| Background Sync | ✅ | ❌ | ❌ | ✅ |
+| Push Notifications | ✅ | ✅ | ✅ | ✅ |
+
+**Note:** Without Background Sync, fallback to manual/periodic sync is used.
+
+---
 
 ## Future Enhancements
 
-- Conflict resolution UI for manual merge
-- Selective sync (choose what to sync)
-- Compression for large data transfers
-- Differential sync (only changed fields)
-- Multi-device sync detection
+- [ ] Offline sales transaction processing
+- [ ] Offline receipt generation
+- [ ] Conflict resolution UI
+- [ ] Sync progress indicators
+- [ ] Selective data download (reduce initial load)
+- [ ] Push notifications for sync completion
+- [ ] Export/import offline data
+
+---
 
 ## Support
 
 For issues or questions:
 1. Check browser console for error messages
 2. Review this documentation
-3. Check the codebase architecture in CLAUDE.md
-4. Contact development team
+3. Contact system administrator
+4. File bug report with detailed logs
 
-## Testing Checklist
+---
 
-- [ ] Service Worker registers successfully
-- [ ] IndexedDB initializes without errors
-- [ ] Connection status indicator works
-- [ ] Data persists in offline mode
-- [ ] Pending actions queue correctly
-- [ ] Sync triggers when coming online
-- [ ] Manual sync works
-- [ ] Notifications display correctly
-- [ ] Forms work in offline mode
-- [ ] Data doesn't duplicate after sync
-- [ ] Performance is acceptable
-- [ ] Works on target browsers/devices
+## Summary
+
+PharmApp's offline functionality provides:
+- ✅ **Zero-downtime** cart and inventory operations
+- ✅ **Automatic sync** when connection restored
+- ✅ **Visual feedback** for all operations
+- ✅ **Data integrity** with retry and conflict handling
+- ✅ **Browser-native** technology (no plugins required)
+
+Users can work seamlessly regardless of internet connectivity!
