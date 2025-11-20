@@ -106,7 +106,7 @@
             <button type="submit" class="btn btn-outline-dark btn-sm">Clear Cart</button>
         </form>
 
-        <a class="btn btn-secondary btn-sm" href="{{ request.META.HTTP_REFERER }}">Back</a>
+        <a class="btn btn-secondary btn-sm" href="{% url 'store:dispense' %}">Back to Dispense</a>
     </div>
     <div class="col-md-8 offset-md-3 cart-table table-responsive"
          data-cart-count="{{ cart_items|length }}"

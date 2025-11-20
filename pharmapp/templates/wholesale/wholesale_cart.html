@@ -107,7 +107,7 @@
             </button>
         </form>
 
-        <a class="btn btn-secondary btn-sm" href="{{ request.META.HTTP_REFERER }}">Back</a>
+        <a class="btn btn-secondary btn-sm" href="{% url 'wholesale:dispense_wholesale' %}">Back to Dispense</a>
     </div>
 
     <div class="col-md-8 offset-md-3 cart-table table-responsive"

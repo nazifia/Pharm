@@ -192,7 +192,7 @@
             {% endif %}
             {% else %}
             <h4>No Sales for the Day</h4>
-            <a href="{{ request.META.HTTP_REFERER }}" class="btn btn-secondary form-control" style="width: 100%;">Go
+            <a href="{% url 'store:index' %}" class="btn btn-secondary form-control" style="width: 100%;">Go
                 Back</a>
             {% endif %}
         </div>
