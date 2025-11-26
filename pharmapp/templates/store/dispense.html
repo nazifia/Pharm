@@ -275,13 +275,20 @@ Dispense Items - {{ block.super }}
                                class="form-control search-input"
                                id="search-input"
                                name="q"
-                               placeholder="Search by item name or brand..."
+                               placeholder="Search by name, brand, or scan barcode..."
                                hx-get="{% url 'store:dispense_search_items' %}"
                                hx-trigger="keyup changed delay:300ms"
                                hx-target="#search-results-container"
                                hx-swap="innerHTML"
                                hx-indicator="#search-indicator"
                                autocomplete="off">
+                        <button type="button" class="btn btn-outline-primary"
+                                data-toggle="modal"
+                                data-target="#barcodeScannerModal"
+                                data-mode="retail"
+                                title="Scan Barcode">
+                            <i class="fas fa-barcode"></i> Scan
+                        </button>
                     </div>
                     <div id="search-indicator" class="htmx-indicator mt-2" style="display:none">
                         <div class="d-flex align-items-center">
@@ -308,6 +315,10 @@ Dispense Items - {{ block.super }}
         </div>
     </div>
 </div>
+
+<!-- Include Barcode Scanner Modal -->
+{% include 'partials/barcode_scanner_modal.html' %}
+
 {% endblock %}
 
 {% block extra_js %}
@@ -479,5 +490,31 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 });
+
+// Barcode scanner callback
+window.onBarcodeItemFound = function(item, barcode) {
+    console.log('[Dispense] Barcode scanned:', barcode, 'Item:', item);
+
+    // Fill the search input with the scanned barcode
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.value = barcode;
+
+        // Trigger the HTMX search
+        htmx.trigger(searchInput, 'keyup');
+    }
+
+    // Close the scanner modal
+    $('#barcodeScannerModal').modal('hide');
+
+    // Show success notification
+    if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+        window.offlineHandler.showInAppNotification(
+            'Barcode Scanned',
+            `Found: ${item.name} - ${item.brand || ''}`,
+            'success'
+        );
+    }
+};
 </script>
 {% endblock %}

@@ -97,6 +97,24 @@
             <label for="name">Brand Name:</label>
             <input type="text" name="brand" class="form-control mb-3" value="{{ item.brand }}">
         </div>
+
+        <!-- Barcode field with scan button -->
+        <div class="form-group">
+            <label for="barcode">Barcode (Optional):</label>
+            <div class="input-group">
+                <input type="text" name="barcode" id="edit-barcode" placeholder="Enter barcode or scan"
+                       class="form-control" maxlength="200" value="{{ item.barcode|default:'' }}">
+                <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-primary btn-sm"
+                            onclick="openBarcodeScannerForEditItem()"
+                            title="Scan Barcode">
+                        <i class="fas fa-barcode"></i>
+                    </button>
+                </div>
+            </div>
+            <small class="form-text text-muted">UPC, EAN-13, Code-128, or QR code</small>
+        </div>
+
         <div class="form-group">
             <label for="name">Item Unit:</label>
             <!-- Unit Selection Dropdown -->
@@ -245,4 +263,23 @@
     // Add event listeners for cost and markup changes
     costInput.addEventListener('input', calculatePrice);
     markupSelect.addEventListener('change', calculatePrice);
+
+    // Function to open barcode scanner for edit item
+    function openBarcodeScannerForEditItem() {
+        // Set the callback for when barcode is scanned
+        window.onBarcodeItemFound = function(item, barcode) {
+            // Fill the barcode field
+            document.getElementById('edit-barcode').value = barcode;
+
+            // Close modal
+            $('#barcodeScannerModal').modal('hide');
+        };
+
+        // Open the scanner modal
+        const modal = document.getElementById('barcodeScannerModal');
+        if (modal) {
+            modal.dataset.mode = 'retail';
+            $('#barcodeScannerModal').modal('show');
+        }
+    }
 </script>

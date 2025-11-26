@@ -381,15 +381,31 @@ def search_item(request):
     if request.user.is_authenticated:
         query = request.GET.get('search', '').strip()
         if query:
+            # Check if query looks like a barcode (numeric, 8-14 digits)
+            is_barcode = query.isdigit() and 8 <= len(query) <= 14
+
             # Optimized search with better performance
             # Use istartswith for better index utilization, fallback to icontains
             if len(query) >= 2:  # Only search if query is meaningful
-                items = Item.objects.filter(
-                    Q(name__istartswith=query) |  # Faster prefix search
-                    Q(brand__istartswith=query) |
-                    Q(name__icontains=query) |  # Fallback for partial matches
-                    Q(brand__icontains=query)
-                ).distinct().order_by('name')[:50]  # Limit results for performance
+                if is_barcode:
+                    # Try barcode lookup first
+                    items = Item.objects.filter(barcode=query).order_by('name')[:50]
+                    if not items.exists():
+                        # Fallback to name/brand search if barcode not found
+                        items = Item.objects.filter(
+                            Q(name__istartswith=query) |
+                            Q(brand__istartswith=query) |
+                            Q(name__icontains=query) |
+                            Q(brand__icontains=query)
+                        ).distinct().order_by('name')[:50]
+                else:
+                    # Regular name/brand search
+                    items = Item.objects.filter(
+                        Q(name__istartswith=query) |  # Faster prefix search
+                        Q(brand__istartswith=query) |
+                        Q(name__icontains=query) |  # Fallback for partial matches
+                        Q(brand__icontains=query)
+                    ).distinct().order_by('name')[:50]  # Limit results for performance
             else:
                 items = Item.objects.none()  # Don't search for very short queries
         else:
@@ -535,26 +551,40 @@ def dispense_search_items(request):
 
         if query and len(query) >= 2:
             try:
+                # Check if query looks like a barcode (numeric, 8-14 digits)
+                is_barcode = query.isdigit() and 8 <= len(query) <= 14
+
                 # Use cached search results for better performance
                 cache_key = get_search_cache_key('item', query, request.user.id)
                 cached_results = get_cached_search_results(cache_key)
-                
+
                 if cached_results:
                     # Use cached results directly as they're already in the right format
                     results = cached_results
                 else:
-                    # Optimized database query with all necessary fields for template
-                    results = Item.objects.filter(
-                        Q(name__icontains=query) | Q(brand__icontains=query)
-                    ).filter(stock__gt=0).order_by('name')[:50]  # Limit results for performance
-                    
+                    if is_barcode:
+                        # Try barcode lookup first
+                        barcode_results = Item.objects.filter(barcode=query).filter(stock__gt=0).order_by('name')[:50]
+                        if barcode_results.exists():
+                            results = barcode_results
+                        else:
+                            # Fallback to name/brand search if barcode not found
+                            results = Item.objects.filter(
+                                Q(name__icontains=query) | Q(brand__icontains=query)
+                            ).filter(stock__gt=0).order_by('name')[:50]
+                    else:
+                        # Regular name/brand search
+                        results = Item.objects.filter(
+                            Q(name__icontains=query) | Q(brand__icontains=query)
+                        ).filter(stock__gt=0).order_by('name')[:50]
+
                     # Cache the results for 5 minutes
                     cache_search_results(cache_key, results)
             except Exception as e:
                 logger.error(f"Error in dispense search: {e}")
                 # Fallback to basic query without caching if something goes wrong
                 results = Item.objects.filter(
-                    Q(name__icontains=query) | Q(brand__icontains=query)
+                    Q(name__icontains=query) | Q(brand__icontains=query) | Q(barcode=query)
                 ).filter(stock__gt=0).order_by('name')[:50]
 
         return render(request, 'partials/dispense_search_results.html', {'results': results, 'query': query})

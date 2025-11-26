@@ -512,3 +512,176 @@ def wholesale_cart_sync(request):
     except Exception as e:
         logger.error(f"Error in wholesale_cart_sync: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# Barcode Scanning API Endpoints
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def barcode_lookup(request):
+    """
+    Look up item by barcode in retail or wholesale mode
+    POST body: {"barcode": "123456789012", "mode": "retail"|"wholesale"}
+    """
+    try:
+        data = json.loads(request.body)
+        barcode = data.get('barcode', '').strip()
+        mode = data.get('mode', 'retail')
+
+        if not barcode:
+            return JsonResponse({'error': 'Barcode is required'}, status=400)
+
+        # Select appropriate model based on mode
+        ItemModel = Item if mode == 'retail' else WholesaleItem
+
+        try:
+            # Try exact barcode match
+            item = ItemModel.objects.get(barcode=barcode)
+
+            return JsonResponse({
+                'status': 'success',
+                'item': {
+                    'id': item.id,
+                    'name': item.name,
+                    'brand': item.brand or '',
+                    'dosage_form': item.dosage_form or '',
+                    'unit': item.unit or '',
+                    'price': str(item.price),
+                    'cost': str(item.cost),
+                    'stock': str(item.stock),
+                    'barcode': item.barcode or '',
+                    'barcode_type': item.barcode_type or '',
+                    'exp_date': item.exp_date.isoformat() if item.exp_date else None,
+                }
+            })
+        except ItemModel.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Item not found'
+            }, status=404)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error in barcode_lookup: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def assign_barcode(request):
+    """
+    Assign or update barcode for an existing item
+    POST body: {"item_id": 123, "barcode": "123456789012", "barcode_type": "UPC", "mode": "retail"}
+    """
+    try:
+        data = json.loads(request.body)
+        item_id = data.get('item_id')
+        barcode = data.get('barcode', '').strip()
+        barcode_type = data.get('barcode_type', 'OTHER')
+        mode = data.get('mode', 'retail')
+
+        if not item_id or not barcode:
+            return JsonResponse({'error': 'item_id and barcode are required'}, status=400)
+
+        # Select appropriate model based on mode
+        ItemModel = Item if mode == 'retail' else WholesaleItem
+
+        try:
+            item = ItemModel.objects.get(id=item_id)
+
+            # Check if barcode is already used by another item
+            existing = ItemModel.objects.filter(barcode=barcode).exclude(id=item_id).first()
+            if existing:
+                return JsonResponse({
+                    'status': 'warning',
+                    'message': f'Barcode already assigned to: {existing.name}',
+                    'existing_item': {
+                        'id': existing.id,
+                        'name': existing.name,
+                        'brand': existing.brand or ''
+                    }
+                }, status=409)
+
+            # Assign barcode
+            item.barcode = barcode
+            item.barcode_type = barcode_type
+            item.save(update_fields=['barcode', 'barcode_type'])
+
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Barcode assigned successfully',
+                'item': {
+                    'id': item.id,
+                    'name': item.name,
+                    'barcode': item.barcode,
+                    'barcode_type': item.barcode_type
+                }
+            })
+
+        except ItemModel.DoesNotExist:
+            return JsonResponse({'error': 'Item not found'}, status=404)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error in assign_barcode: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def barcode_batch_lookup(request):
+    """
+    Look up multiple items by barcode for rapid scanning
+    POST body: {"barcodes": ["123", "456", "789"], "mode": "retail"}
+    """
+    try:
+        data = json.loads(request.body)
+        barcodes = data.get('barcodes', [])
+        mode = data.get('mode', 'retail')
+
+        if not barcodes or not isinstance(barcodes, list):
+            return JsonResponse({'error': 'barcodes array is required'}, status=400)
+
+        # Select appropriate model based on mode
+        ItemModel = Item if mode == 'retail' else WholesaleItem
+
+        results = []
+        not_found = []
+
+        for barcode in barcodes:
+            try:
+                item = ItemModel.objects.get(barcode=barcode.strip())
+                results.append({
+                    'barcode': barcode,
+                    'found': True,
+                    'item': {
+                        'id': item.id,
+                        'name': item.name,
+                        'brand': item.brand or '',
+                        'price': str(item.price),
+                        'stock': str(item.stock),
+                    }
+                })
+            except ItemModel.DoesNotExist:
+                not_found.append(barcode)
+                results.append({
+                    'barcode': barcode,
+                    'found': False
+                })
+
+        return JsonResponse({
+            'status': 'success',
+            'total': len(barcodes),
+            'found_count': len(barcodes) - len(not_found),
+            'not_found_count': len(not_found),
+            'results': results,
+            'not_found': not_found
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error in barcode_batch_lookup: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)

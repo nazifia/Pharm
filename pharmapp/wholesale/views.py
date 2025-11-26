@@ -887,14 +887,33 @@ def wholesale_dispense_search_items(request):
 
     if query and len(query) >= 2:
         try:
-            # Use the same search logic as the original dispense view
-            results = WholesaleItem.objects.filter(
-                Q(name__icontains=query) | Q(brand__icontains=query)
-            ).filter(stock__gt=0).order_by('name')[:50]  # Limit results for performance
-            print(f"DEBUG: Found {len(results)} results")
+            # Check if query looks like a barcode (numeric, 8-14 digits)
+            is_barcode = query.isdigit() and 8 <= len(query) <= 14
+
+            if is_barcode:
+                # Try barcode lookup first
+                barcode_results = WholesaleItem.objects.filter(barcode=query).filter(stock__gt=0).order_by('name')[:50]
+                if barcode_results.exists():
+                    results = barcode_results
+                    print(f"DEBUG: Found {len(results)} results by barcode")
+                else:
+                    # Fallback to name/brand search if barcode not found
+                    results = WholesaleItem.objects.filter(
+                        Q(name__icontains=query) | Q(brand__icontains=query)
+                    ).filter(stock__gt=0).order_by('name')[:50]
+                    print(f"DEBUG: Barcode not found, found {len(results)} results by name/brand")
+            else:
+                # Regular name/brand search
+                results = WholesaleItem.objects.filter(
+                    Q(name__icontains=query) | Q(brand__icontains=query)
+                ).filter(stock__gt=0).order_by('name')[:50]
+                print(f"DEBUG: Found {len(results)} results")
         except Exception as e:
             print(f"DEBUG: Error searching items: {e}")
-            results = []
+            # Fallback to basic query including barcode
+            results = WholesaleItem.objects.filter(
+                Q(name__icontains=query) | Q(brand__icontains=query) | Q(barcode=query)
+            ).filter(stock__gt=0).order_by('name')[:50]
 
     return render(request, 'partials/wholesale_dispense_search_results.html', {'results': results, 'query': query})
 

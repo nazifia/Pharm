@@ -1,0 +1,287 @@
+<!-- Barcode/QR Scanner Modal -->
+<div class="modal fade" id="barcodeScannerModal" tabindex="-1" role="dialog" aria-labelledby="barcodeScannerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="barcodeScannerModalLabel">
+                    <i class="fas fa-barcode"></i> Scan Barcode or QR Code
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Scanner Status -->
+                <div id="scanner-status" class="alert alert-info" style="display: none;">
+                    <i class="fas fa-info-circle"></i> <span id="scanner-status-text">Initializing scanner...</span>
+                </div>
+
+                <!-- Camera view container -->
+                <div id="barcode-scanner" class="scanner-container" style="width: 100%; min-height: 300px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden;"></div>
+
+                <!-- Scanner Controls -->
+                <div class="scanner-controls mt-3 text-center">
+                    <button type="button" id="start-scan-btn" class="btn btn-success">
+                        <i class="fas fa-camera"></i> Start Camera
+                    </button>
+                    <button type="button" id="stop-scan-btn" class="btn btn-danger" style="display: none;">
+                        <i class="fas fa-stop"></i> Stop Camera
+                    </button>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Manual entry fallback -->
+                <div class="manual-entry">
+                    <label class="font-weight-bold">
+                        <i class="fas fa-keyboard"></i> Or enter barcode manually:
+                    </label>
+                    <div class="input-group">
+                        <input type="text" id="manual-barcode-input" class="form-control"
+                               placeholder="Enter barcode number"
+                               autocomplete="off">
+                        <div class="input-group-append">
+                            <button class="btn btn-primary" type="button" id="manual-lookup-btn">
+                                <i class="fas fa-search"></i> Lookup
+                            </button>
+                        </div>
+                    </div>
+                    <small class="form-text text-muted">
+                        Supports UPC, EAN-13, Code-128, and QR codes
+                    </small>
+                </div>
+
+                <hr class="my-3">
+
+                <!-- File upload for barcode image -->
+                <div class="file-upload">
+                    <label class="font-weight-bold">
+                        <i class="fas fa-image"></i> Or upload barcode image:
+                    </label>
+                    <input type="file" id="barcode-file-input" class="form-control-file"
+                           accept="image/*">
+                    <small class="form-text text-muted">
+                        Upload a photo of a barcode to scan
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Scanner container styles */
+    #barcode-scanner {
+        background-color: #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+    }
+
+    #barcode-scanner video {
+        width: 100%;
+        height: auto;
+        border-radius: 6px;
+    }
+
+    .scanner-container:empty::before {
+        content: 'Camera will appear here';
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 300px;
+        color: #999;
+    }
+
+    /* Manual input focus */
+    #manual-barcode-input:focus {
+        border-color: #4e73df;
+        box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    }
+
+    /* Scanner status styles */
+    #scanner-status {
+        margin-bottom: 1rem;
+    }
+</style>
+
+<script>
+(function() {
+    let barcodeScanner = null;
+    const modal = document.getElementById('barcodeScannerModal');
+    const startBtn = document.getElementById('start-scan-btn');
+    const stopBtn = document.getElementById('stop-scan-btn');
+    const manualInput = document.getElementById('manual-barcode-input');
+    const manualLookupBtn = document.getElementById('manual-lookup-btn');
+    const fileInput = document.getElementById('barcode-file-input');
+    const statusDiv = document.getElementById('scanner-status');
+    const statusText = document.getElementById('scanner-status-text');
+
+    /**
+     * Show status message
+     */
+    function showStatus(message, type = 'info') {
+        statusText.textContent = message;
+        statusDiv.className = `alert alert-${type}`;
+        statusDiv.style.display = 'block';
+
+        // Auto-hide success messages after 3 seconds
+        if (type === 'success') {
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+    }
+
+    /**
+     * Hide status message
+     */
+    function hideStatus() {
+        statusDiv.style.display = 'none';
+    }
+
+    /**
+     * Initialize scanner when modal opens
+     */
+    $(modal).on('shown.bs.modal', function() {
+        const mode = this.dataset.mode || 'retail';
+
+        // Initialize scanner with callback from parent page
+        barcodeScanner = new BarcodeScanner({
+            scannerId: 'barcode-scanner',
+            mode: mode,
+            onSuccess: window.onBarcodeItemFound || defaultSuccessHandler,
+            onError: defaultErrorHandler
+        });
+
+        barcodeScanner.init();
+        hideStatus();
+        console.log('[Scanner Modal] Initialized in', mode, 'mode');
+    });
+
+    /**
+     * Clean up when modal closes
+     */
+    $(modal).on('hidden.bs.modal', async function() {
+        if (barcodeScanner) {
+            await barcodeScanner.destroy();
+            barcodeScanner = null;
+        }
+
+        // Reset UI
+        startBtn.style.display = 'inline-block';
+        stopBtn.style.display = 'none';
+        manualInput.value = '';
+        fileInput.value = '';
+        hideStatus();
+        document.getElementById('barcode-scanner').innerHTML = '';
+
+        console.log('[Scanner Modal] Cleaned up');
+    });
+
+    /**
+     * Start scanning button
+     */
+    startBtn.addEventListener('click', async function() {
+        if (!barcodeScanner) {
+            showStatus('Scanner not initialized', 'danger');
+            return;
+        }
+
+        showStatus('Starting camera...', 'info');
+
+        try {
+            await barcodeScanner.startScanning();
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+            showStatus('Camera ready - point at barcode', 'success');
+        } catch (error) {
+            showStatus('Failed to start camera. Please check permissions.', 'danger');
+        }
+    });
+
+    /**
+     * Stop scanning button
+     */
+    stopBtn.addEventListener('click', async function() {
+        if (barcodeScanner) {
+            await barcodeScanner.stopScanning();
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+            showStatus('Camera stopped', 'info');
+        }
+    });
+
+    /**
+     * Manual lookup button
+     */
+    manualLookupBtn.addEventListener('click', function() {
+        const barcode = manualInput.value.trim();
+        if (!barcode) {
+            showStatus('Please enter a barcode', 'warning');
+            return;
+        }
+
+        if (barcodeScanner) {
+            showStatus('Looking up barcode...', 'info');
+            barcodeScanner.lookupBarcode(barcode);
+        } else {
+            showStatus('Scanner not initialized', 'danger');
+        }
+    });
+
+    /**
+     * Manual input - Enter key support
+     */
+    manualInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            manualLookupBtn.click();
+        }
+    });
+
+    /**
+     * File upload handler
+     */
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!barcodeScanner) {
+            showStatus('Scanner not initialized', 'danger');
+            return;
+        }
+
+        showStatus('Scanning image...', 'info');
+        barcodeScanner.scanFile(file);
+    });
+
+    /**
+     * Default success handler (if not overridden by parent page)
+     */
+    function defaultSuccessHandler(item, barcode) {
+        showStatus(`Found: ${item.name}`, 'success');
+        console.log('[Scanner Modal] Item found:', item);
+
+        // Auto-close modal after 2 seconds
+        setTimeout(() => {
+            $(modal).modal('hide');
+        }, 2000);
+    }
+
+    /**
+     * Default error handler
+     */
+    function defaultErrorHandler(error, barcode) {
+        showStatus(`Item not found for barcode: ${barcode}`, 'danger');
+        console.error('[Scanner Modal] Error:', error);
+    }
+
+    console.log('[Scanner Modal] Script loaded');
+})();
+</script>

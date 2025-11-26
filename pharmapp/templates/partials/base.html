@@ -1253,6 +1253,10 @@
     <script src="{% static 'js/offline-handler.js' %}"></script>
     <script src="{% static 'js/offline-helpers.js' %}"></script>
 
+    <!-- Barcode/QR-code scanning library -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="{% static 'js/barcode-scanner.js' %}"></script>
+
     <!-- Register Service Worker -->
     <script>
         if ('serviceWorker' in navigator) {

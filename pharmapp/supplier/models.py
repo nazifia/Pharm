@@ -153,6 +153,7 @@ class ProcurementItem(models.Model):
     markup = models.FloatField(choices=MARKUP_CHOICES, default=0)
     expiry_date = models.DateField(null=True, blank=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
+    barcode = models.CharField(max_length=200, blank=True, null=True, help_text="Barcode for this item")
 
     def save(self, *args, **kwargs):
         # Set default values for empty fields
@@ -253,6 +254,7 @@ class WholesaleProcurementItem(models.Model):
     markup = models.FloatField(choices=MARKUP_CHOICES, default=0)
     expiry_date = models.DateField(null=True, blank=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
+    barcode = models.CharField(max_length=200, blank=True, null=True, help_text="Barcode for this item")
 
     def save(self, *args, **kwargs):
         # Set default values for empty fields

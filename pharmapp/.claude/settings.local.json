@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(python manage.py runserver:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(python manage.py makemigrations:*)",
+      "Bash(python manage.py migrate:*)"
     ],
     "deny": [],
     "ask": []

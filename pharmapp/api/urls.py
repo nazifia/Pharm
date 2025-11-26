@@ -15,4 +15,8 @@ urlpatterns = [
     path('cart/sync/', views.cart_sync, name='cart_sync'),
     path('wholesale-cart/sync/', views.wholesale_cart_sync, name='wholesale_cart_sync'),
     path('data/initial/', views.get_initial_data, name='get_initial_data'),
+    # Barcode scanning endpoints
+    path('barcode/lookup/', views.barcode_lookup, name='barcode_lookup'),
+    path('barcode/assign/', views.assign_barcode, name='assign_barcode'),
+    path('barcode/batch-lookup/', views.barcode_batch_lookup, name='barcode_batch_lookup'),
 ]
