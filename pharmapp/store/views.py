@@ -6356,6 +6356,18 @@ def user_dispensing_details(request, user_id=None):
         # Order by most recent first
         logs = logs.order_by('-created_at')
 
+        # Pagination
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        paginator = Paginator(logs, 50)  # 50 records per page
+        page = request.GET.get('page', 1)
+
+        try:
+            logs_page = paginator.page(page)
+        except PageNotAnInteger:
+            logs_page = paginator.page(1)
+        except EmptyPage:
+            logs_page = paginator.page(paginator.num_pages)
+
         # Get users for filter dropdown based on permissions
         if can_view_all_users:
             all_users = User.objects.filter(dispensinglog__isnull=False).distinct()
@@ -6371,7 +6383,7 @@ def user_dispensing_details(request, user_id=None):
         ]
 
         context = {
-            'logs': logs,
+            'logs': logs_page,
             'target_user': target_user,
             'all_users': all_users,
             'can_view_all_users': can_view_all_users,
