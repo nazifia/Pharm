@@ -5,6 +5,8 @@
 Dispense Wholesale Items - {{ block.super }}
 {% endblock %}
 
+{% comment %}CACHE BUSTER: v3.0.0 - 2025-11-27 14:36 - WHOLESALE CALLBACK FIX{% endcomment %}
+
 {% block extra_css %}
 <style>
 /* Simplified Wholesale Dispense Page Styles */
@@ -302,6 +304,14 @@ Dispense Wholesale Items - {{ block.super }}
 <!-- Set current user ID for offline cart support -->
 <script>
     window.currentUserId = {{ user.id|default:'null' }};
+
+    // Force refresh of wholesale dispense page scripts for debugging
+    console.log('[Wholesale Dispense] Dispense script loaded at:', new Date().toISOString());
+    console.log('🔧 WHOLESALE DISPENSE PAGE - CALLBACK FIX VERSION 3.0');
+
+    // Add a unique marker to ensure latest code is loaded
+    window.WHOLESALE_DISPENSE_SCRIPT_VERSION = '2025-11-27-FIX-V3';
+    console.log('[Wholesale Dispense] Script version:', window.WHOLESALE_DISPENSE_SCRIPT_VERSION);
 </script>
 
 <!-- Load offline cart support -->
@@ -383,12 +393,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Compare hash to detect ANY cart changes (count, items, status, etc)
                     if (currentCartHash !== lastCartHash) {
-                        console.log('[Wholesale Dispense] Cart changed detected - reloading page');
+                        console.log('[Wholesale Dispense] Cart changed detected - updating display dynamically');
                         console.log('  Previous hash:', lastCartHash);
                         console.log('  Current hash:', currentCartHash);
                         console.log('  Cart count:', currentCartCount);
                         lastCartHash = currentCartHash;
-                        window.location.reload(true);
+
+                        // Update cart display without reloading page - items persist
+                        // Cart content is managed via HTMX and will update automatically
+                        // NO RELOAD: window.location.reload(true);
                     } else {
                         console.log('[Wholesale Dispense] No cart changes detected');
                     }
@@ -469,7 +482,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Barcode scanner callback for wholesale
+// Barcode scanner callback for wholesale - Define immediately
+console.log('[Wholesale Dispense] Defining barcode callback');
+
 window.onBarcodeItemFound = function(item, barcode) {
     console.log('[Wholesale Dispense] Barcode scanned:', barcode, 'Item:', item);
 

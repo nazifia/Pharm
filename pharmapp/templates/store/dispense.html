@@ -410,12 +410,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Compare hash to detect ANY cart changes (count, items, status, etc)
                     if (currentCartHash !== lastCartHash) {
-                        console.log('[Dispense] Cart changed detected - reloading page');
+                        console.log('[Dispense] Cart changed detected - updating display dynamically');
                         console.log('  Previous hash:', lastCartHash);
                         console.log('  Current hash:', currentCartHash);
                         console.log('  Cart count:', currentCartCount);
                         lastCartHash = currentCartHash;
-                        window.location.reload(true);
+
+                        // Update cart display without reloading page - items persist
+                        // Cart content is managed via HTMX and will update automatically
+                        // NO RELOAD: window.location.reload(true);
                     } else {
                         console.log('[Dispense] No cart changes detected');
                     }
