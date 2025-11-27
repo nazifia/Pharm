@@ -3,8 +3,8 @@
  * Provides offline-first caching and background sync
  */
 
-const CACHE_NAME = 'pharmapp-v5';
-const API_CACHE_NAME = 'pharmapp-api-v5';
+const CACHE_NAME = 'pharmapp-v6';
+const API_CACHE_NAME = 'pharmapp-api-v6';
 const OFFLINE_URL = '/offline/';
 
 // Core app shell files
@@ -100,7 +100,13 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // Static files and pages - cache first, network fallback
+    // HTML pages - always fetch fresh to avoid stale cached templates
+    if (request.mode === 'navigate' || request.headers.get('accept').includes('text/html')) {
+        event.respondWith(networkFirstStrategy(request));
+        return;
+    }
+
+    // Static files only - cache first, network fallback
     event.respondWith(cacheFirstStrategy(request));
 });
 

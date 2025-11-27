@@ -5,6 +5,8 @@
 Dispense Items - {{ block.super }}
 {% endblock %}
 
+{% comment %}CACHE BUSTER: v3.0.0 - 2025-11-27 13:58 - SERVICE WORKER FIX{% endcomment %}
+
 {% block extra_css %}
 <style>
 /* Dispense Page Specific Styles */
@@ -328,9 +330,10 @@ Dispense Items - {{ block.super }}
     
     // Force refresh of dispense page scripts for debugging
     console.log('[Dispense] Dispense script loaded at:', new Date().toISOString());
-    
+    console.log('🔧 DISPENSE PAGE - CALLBACK FIX VERSION 3.0');
+
     // Add a unique marker to ensure latest code is loaded
-    window.DISPENSE_SCRIPT_VERSION = '2024-11-27-1';
+    window.DISPENSE_SCRIPT_VERSION = '2025-11-27-FIX-V3';
     console.log('[Dispense] Script version:', window.DISPENSE_SCRIPT_VERSION);
 </script>
 
@@ -498,15 +501,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Barcode scanner callback
-// Simple test - add immediately on page load
-window.TEST_BARCODE_CALLBACK = function() {
-    console.log('*** TEST BARCODE CALLBACK WORKING ***');
-};
+// Barcode scanner callback - Define immediately
+console.log('[Dispense] Defining barcode callback');
 
-// Override the barcode scanner callback after modal has loaded
-setTimeout(() => {
-    window.onBarcodeItemFound = function(item, barcode) {
+window.onBarcodeItemFound = function(item, barcode) {
         console.log('*** BARCODE SCANNER CALLBACK TRIGGERED ***');
         console.log('[Dispense] Barcode scanned:', barcode, 'Item:', item);
         
@@ -630,7 +628,6 @@ setTimeout(() => {
 
     // Close the scanner modal
     $('#barcodeScannerModal').modal('hide');
-}; // Added missing closing brace for onBarcodeItemFound function
 
     // Show success notification
     if (window.offlineHandler && window.offlineHandler.showInAppNotification) {

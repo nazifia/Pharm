@@ -203,17 +203,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         try {
-            // Initialize scanner with callback from parent page
+            // Initialize scanner with dynamic callback lookup from parent page
+            // This ensures we call the callback at runtime, not at initialization time
             barcodeScanner = new BarcodeScanner({
                 scannerId: 'barcode-scanner',
                 mode: mode,
-                onSuccess: window.onBarcodeItemFound || defaultSuccessHandler,
+                onSuccess: function(item, barcode) {
+                    // Lookup callback at runtime to ensure it's the latest version
+                    const callback = window.onBarcodeItemFound || defaultSuccessHandler;
+                    console.log('[Scanner Modal] Invoking callback, type:', typeof callback);
+                    callback(item, barcode);
+                },
                 onError: defaultErrorHandler
             });
 
             await barcodeScanner.init();
             hideStatus();
             console.log('[Scanner Modal] Initialized successfully in', mode, 'mode');
+            console.log('[Scanner Modal] Callback available:', typeof window.onBarcodeItemFound !== 'undefined');
         } catch (error) {
             showStatus('Failed to initialize scanner: ' + error.message, 'danger');
             console.error('[Scanner Modal] Initialization error:', error);

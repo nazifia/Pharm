@@ -6,7 +6,7 @@
 class IndexedDBManager {
     constructor() {
         this.dbName = 'PharmAppDB';
-        this.version = 4;
+        this.version = 5;  // Incremented for barcode support
         this.db = null;
         this.stores = {
             items: 'items',
@@ -63,6 +63,14 @@ class IndexedDBManager {
             itemStore.createIndex('brand', 'brand', { unique: false });
             itemStore.createIndex('dosage_form', 'dosage_form', { unique: false });
             itemStore.createIndex('updated_at', 'updated_at', { unique: false });
+            itemStore.createIndex('barcode', 'barcode', { unique: false });  // Barcode index
+        } else if (db.version >= 5) {
+            // Add barcode index to existing store
+            const transaction = event.target.transaction;
+            const itemStore = transaction.objectStore(this.stores.items);
+            if (!itemStore.indexNames.contains('barcode')) {
+                itemStore.createIndex('barcode', 'barcode', { unique: false });
+            }
         }
 
         // Wholesale items store
@@ -71,6 +79,14 @@ class IndexedDBManager {
             wholesaleStore.createIndex('name', 'name', { unique: false });
             wholesaleStore.createIndex('brand', 'brand', { unique: false });
             wholesaleStore.createIndex('updated_at', 'updated_at', { unique: false });
+            wholesaleStore.createIndex('barcode', 'barcode', { unique: false });  // Barcode index
+        } else if (db.version >= 5) {
+            // Add barcode index to existing store
+            const transaction = event.target.transaction;
+            const wholesaleStore = transaction.objectStore(this.stores.wholesaleItems);
+            if (!wholesaleStore.indexNames.contains('barcode')) {
+                wholesaleStore.createIndex('barcode', 'barcode', { unique: false });
+            }
         }
 
         // Customers store (retail)
@@ -339,6 +355,82 @@ class IndexedDBManager {
             const subtotal = (parseFloat(item.price || 0) * parseFloat(item.quantity || 0)) - parseFloat(item.discount_amount || 0);
             return total + Math.max(subtotal, 0);
         }, 0);
+    }
+
+    /**
+     * Search for item by barcode
+     * @param {string} barcode - The barcode to search for
+     * @param {boolean} isWholesale - Whether to search in wholesale items
+     * @returns {Promise<Object|null>} - The item if found, null otherwise
+     */
+    async searchByBarcode(barcode, isWholesale = false) {
+        const storeName = isWholesale ? this.stores.wholesaleItems : this.stores.items;
+
+        if (!this.db) {
+            await this.init();
+        }
+
+        return new Promise((resolve, reject) => {
+            try {
+                const transaction = this.db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const index = store.index('barcode');
+
+                const request = index.get(barcode);
+
+                request.onsuccess = () => {
+                    const result = request.result;
+                    console.log('[IndexedDB] Barcode search result:', result);
+                    resolve(result || null);
+                };
+
+                request.onerror = () => {
+                    console.error('[IndexedDB] Barcode search error:', request.error);
+                    reject(request.error);
+                };
+            } catch (error) {
+                console.error('[IndexedDB] Barcode search exception:', error);
+                reject(error);
+            }
+        });
+    }
+
+    /**
+     * Get all items with a specific barcode (handles duplicates)
+     * @param {string} barcode - The barcode to search for
+     * @param {boolean} isWholesale - Whether to search in wholesale items
+     * @returns {Promise<Array>} - Array of items with matching barcode
+     */
+    async getAllByBarcode(barcode, isWholesale = false) {
+        const storeName = isWholesale ? this.stores.wholesaleItems : this.stores.items;
+
+        if (!this.db) {
+            await this.init();
+        }
+
+        return new Promise((resolve, reject) => {
+            try {
+                const transaction = this.db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const index = store.index('barcode');
+
+                const request = index.getAll(barcode);
+
+                request.onsuccess = () => {
+                    const results = request.result || [];
+                    console.log('[IndexedDB] Found', results.length, 'items with barcode:', barcode);
+                    resolve(results);
+                };
+
+                request.onerror = () => {
+                    console.error('[IndexedDB] Barcode getAll error:', request.error);
+                    reject(request.error);
+                };
+            } catch (error) {
+                console.error('[IndexedDB] Barcode getAll exception:', error);
+                reject(error);
+            }
+        });
     }
 
     /**

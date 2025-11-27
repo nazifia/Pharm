@@ -3,8 +3,8 @@
  * Provides offline-first caching and background sync
  */
 
-const CACHE_NAME = 'pharmapp-v3';
-const API_CACHE_NAME = 'pharmapp-api-v3';
+const CACHE_NAME = 'pharmapp-v6';
+const API_CACHE_NAME = 'pharmapp-api-v6';
 const OFFLINE_URL = '/offline/';
 
 // Core app shell files
@@ -18,6 +18,7 @@ const URLS_TO_CACHE = [
     '/static/vendor/jquery-easing/jquery.easing.min.js',
     '/static/js/sb-admin-2.min.js',
     '/static/js/indexeddb-manager.js',
+    '/static/js/htmx-offline-adapter.js',
     '/static/js/sync-manager.js',
     '/static/js/offline-handler.js'
 ];
@@ -99,7 +100,13 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // Static files and pages - cache first, network fallback
+    // HTML pages - always fetch fresh to avoid stale cached templates
+    if (request.mode === 'navigate' || request.headers.get('accept').includes('text/html')) {
+        event.respondWith(networkFirstStrategy(request));
+        return;
+    }
+
+    // Static files only - cache first, network fallback
     event.respondWith(cacheFirstStrategy(request));
 });
 
@@ -316,7 +323,7 @@ async function syncFromServer() {
  */
 function openDatabase() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open('PharmAppDB', 3);
+        const request = indexedDB.open('PharmAppDB', 4);
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
