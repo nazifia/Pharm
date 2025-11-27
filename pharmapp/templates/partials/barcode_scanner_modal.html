@@ -112,26 +112,26 @@
 </style>
 
 <script>
-// Wait for DOM and jQuery to be ready
-document.addEventListener('DOMContentLoaded', function() {
+// Initialize modal - works for both initial page load and HTMX-loaded content
+(function initBarcodeScannerModal() {
     console.log('[Scanner Modal] Script loading...');
-    
+
     // Default handlers
     function defaultSuccessHandler(item, barcode) {
         console.log('[Scanner Modal] Item found:', item);
     }
-    
+
     function defaultErrorHandler(error) {
         console.error('[Scanner Modal] Error:', error);
     }
 
-    // Check if jQuery is available
+    // Check if jQuery is available - if not, wait and retry
     if (typeof jQuery === 'undefined') {
-        console.error('[Scanner Modal] jQuery not loaded!');
+        console.warn('[Scanner Modal] jQuery not loaded yet, retrying in 100ms...');
+        setTimeout(initBarcodeScannerModal, 100);
         return;
     }
 
-(function() {
     console.log('[Scanner Modal] Initializing script...');
 
     let barcodeScanner = null;
@@ -154,7 +154,16 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
+    // Check if already initialized to prevent duplicate event listeners
+    if (modal.dataset.initialized === 'true') {
+        console.log('[Scanner Modal] Already initialized, skipping setup');
+        return;
+    }
+
     console.log('[Scanner Modal] All elements found, setting up event listeners...');
+
+    // Mark as initialized
+    modal.dataset.initialized = 'true';
 
     /**
      * Show status message
@@ -178,6 +187,23 @@ document.addEventListener('DOMContentLoaded', function() {
     function hideStatus() {
         statusDiv.style.display = 'none';
     }
+
+    /**
+     * Transfer data-mode from button to modal before opening
+     */
+    $(modal).on('show.bs.modal', function(event) {
+        // Get the button that triggered the modal
+        const button = event.relatedTarget;
+        if (button && button.dataset.mode) {
+            // Transfer mode from button to modal
+            this.dataset.mode = button.dataset.mode;
+            console.log('[Scanner Modal] Mode set from button:', button.dataset.mode);
+        } else {
+            // Default to retail if no mode specified
+            this.dataset.mode = 'retail';
+            console.log('[Scanner Modal] No mode on button, defaulting to retail');
+        }
+    });
 
     /**
      * Initialize scanner when modal opens
@@ -367,7 +393,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     console.log('[Scanner Modal] Script loaded and ready');
-})(); // End IIFE
-
-}); // End DOMContentLoaded
+})(); // End IIFE - executes immediately on script load
 </script>

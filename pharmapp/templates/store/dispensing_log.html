@@ -224,7 +224,7 @@
                     <form method="GET"
                           hx-get="{% url 'store:dispensing_log' %}"
                           hx-target="#logsTable"
-                          hx-trigger="input delay:200ms from:input[name='item_name'], input delay:200ms from:input[name='brand'], change from:input[name='date_from'], change from:input[name='date_to'], change from:select[name='status'], change from:select[name='user']"
+                          hx-trigger="input delay:100ms from:input[name='item_name'], input delay:100ms from:input[name='brand'], change from:input[name='date_from'], change from:input[name='date_to'], change from:select[name='status'], change from:select[name='user']"
                           hx-indicator=".htmx-indicator">
                         <div class="row">
                             <div class="col-md-2">
@@ -442,7 +442,7 @@
 
             itemNameInput.addEventListener('blur', function() {
                 // Delay hiding to allow click on suggestions
-                setTimeout(() => hideSuggestions(), 150);
+                setTimeout(() => hideSuggestions(), 100);
             });
         }
 

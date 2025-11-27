@@ -391,7 +391,7 @@
                 <input type="text" class="form-control" id="item-search" name="q" placeholder="Search for items..."
                     hx-get="{% url 'store:search_items' %}" hx-trigger="keyup changed delay:150ms"
                     hx-target="#for-customer" hx-swap="innerHTML" hx-indicator=".htmx-indicator">
-                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#barcodeScannerModal">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#barcodeScannerModal" data-mode="retail">
                     <i class="fas fa-barcode"></i> Scan
                 </button>
             </div>

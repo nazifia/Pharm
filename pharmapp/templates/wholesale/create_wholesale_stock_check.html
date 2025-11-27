@@ -17,7 +17,7 @@
             <div class="mb-3">
                 <label for="itemSearch" class="form-label">Search for specific items (optional):</label>
                 <input type="text" class="form-control" id="itemSearch" name="q" placeholder="Enter item name, brand, or dosage form"
-                    hx-get="{% url 'wholesale:search_wholesale_items' %}" hx-trigger="keyup changed delay:300ms"
+                    hx-get="{% url 'wholesale:search_wholesale_items' %}" hx-trigger="keyup changed delay:150ms"
                     hx-target="#searchResults" hx-indicator=".htmx-indicator">
                 <div class="htmx-indicator" style="display:none">
                     <div class="spinner-border spinner-border-sm text-primary" role="status">

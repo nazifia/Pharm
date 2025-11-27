@@ -19,10 +19,10 @@
 <div class="mb-3">
     <div class="input-group">
         <input type="text" class="form-control" id="wholesale-item-search" name="q" placeholder="Search for wholesale items..."
-            hx-get="{% url 'wholesale:search_wholesale_items' %}" hx-trigger="keyup changed delay:300ms"
+            hx-get="{% url 'wholesale:search_wholesale_items' %}" hx-trigger="keyup changed delay:150ms"
             hx-target="#for-customer" hx-swap="innerHTML" hx-indicator=".htmx-indicator"
             style="background-color: rgb(210, 247, 253);">
-        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#barcodeScannerModal">
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#barcodeScannerModal" data-mode="wholesale">
             <i class="fas fa-barcode"></i> Scan
         </button>
     </div>

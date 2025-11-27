@@ -41,7 +41,7 @@
                                placeholder="Search by supplier name..." 
                                value="{{ request.GET.name }}"
                                hx-get="{% url 'wholesale:search_wholesale_procurement' %}"
-                               hx-trigger="keyup changed delay:300ms"
+                               hx-trigger="keyup changed delay:150ms"
                                hx-target="#procurement-results"
                                hx-indicator="#search-indicator">
                     </div>

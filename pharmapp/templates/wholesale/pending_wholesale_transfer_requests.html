@@ -149,9 +149,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Remove row after delay
                     setTimeout(() => {
                         rowElement.style.opacity = '0';
-                        rowElement.style.transition = 'opacity 0.5s';
-                        setTimeout(() => rowElement.remove(), 500);
-                    }, 2000);
+                        rowElement.style.transition = 'opacity 0.3s';
+                        setTimeout(() => rowElement.remove(), 300);
+                    }, 1000);
                 } else {
                     // Show error in the row
                     const actionsCell = rowElement.querySelector('td:last-child');
@@ -238,9 +238,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     rowElement.style.backgroundColor = '#f8d7da';
                     setTimeout(() => {
                         rowElement.style.opacity = '0';
-                        rowElement.style.transition = 'opacity 0.5s';
-                        setTimeout(() => rowElement.remove(), 500);
-                    }, 3000);
+                        rowElement.style.transition = 'opacity 0.3s';
+                        setTimeout(() => rowElement.remove(), 300);
+                    }, 1500);
                 } else {
                     // Show error
                     const actionsCell = rowElement.querySelector('td:last-child');
