@@ -115,6 +115,15 @@
 // Wait for DOM and jQuery to be ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('[Scanner Modal] Script loading...');
+    
+    // Default handlers
+    function defaultSuccessHandler(item, barcode) {
+        console.log('[Scanner Modal] Item found:', item);
+    }
+    
+    function defaultErrorHandler(error) {
+        console.error('[Scanner Modal] Error:', error);
+    }
 
     // Check if jQuery is available
     if (typeof jQuery === 'undefined') {

@@ -325,6 +325,13 @@ Dispense Items - {{ block.super }}
 <!-- Set current user ID for offline cart support -->
 <script>
     window.currentUserId = {{ user.id|default:'null' }};
+    
+    // Force refresh of dispense page scripts for debugging
+    console.log('[Dispense] Dispense script loaded at:', new Date().toISOString());
+    
+    // Add a unique marker to ensure latest code is loaded
+    window.DISPENSE_SCRIPT_VERSION = '2024-11-27-1';
+    console.log('[Dispense] Script version:', window.DISPENSE_SCRIPT_VERSION);
 </script>
 
 <!-- Load offline cart support -->
@@ -492,20 +499,130 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Barcode scanner callback
-window.onBarcodeItemFound = function(item, barcode) {
-    console.log('[Dispense] Barcode scanned:', barcode, 'Item:', item);
+// Simple test - add immediately on page load
+window.TEST_BARCODE_CALLBACK = function() {
+    console.log('*** TEST BARCODE CALLBACK WORKING ***');
+};
+
+// Override the barcode scanner callback after modal has loaded
+setTimeout(() => {
+    window.onBarcodeItemFound = function(item, barcode) {
+        console.log('*** BARCODE SCANNER CALLBACK TRIGGERED ***');
+        console.log('[Dispense] Barcode scanned:', barcode, 'Item:', item);
+        
+        // Prevent multiple submissions
+        if (window.isProcessingBarcode) {
+            console.log('[Dispense] Already processing barcode, ignoring...');
+            return;
+        }
+        
+        window.isProcessingBarcode = true;
+        
+        setTimeout(() => {
+            window.isProcessingBarcode = false;
+        }, 2000); // Reset after 2 seconds
 
     // Fill the search input with the item name (not barcode number)
     const searchInput = document.getElementById('search-input');
+    console.log('[Dispense] *** Search input element:', searchInput);
+    
     if (searchInput && item) {
+        console.log('[Dispense] *** Search input found and item is valid');
         // Use item name for searching
         searchInput.value = item.name;
         console.log('[Dispense] Search input filled with:', item.name);
+        console.log('[Dispense] Input value after setting:', searchInput.value);
+        console.log('[Dispense] Input length:', searchInput.value.length);
 
         // Trigger the HTMX search with a delay to ensure value is set
         setTimeout(() => {
-            htmx.trigger(searchInput, 'keyup');
-            console.log('[Dispense] HTMX search triggered');
+            // Force change event before keyup to ensure HTMX detects the value
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            setTimeout(() => {
+                htmx.trigger(searchInput, 'keyup');
+                console.log('[Dispense] HTMX search triggered after input event');
+            }, 50);
+            
+            // Wait for search results to load, then find and click the Add to Cart button
+            setTimeout(() => {
+                // Try simpler approach: just create form data and submit directly
+                console.log('[Dispense] Directly adding to cart:', item.name, 'ID:', item.id);
+                
+                const formData = new FormData();
+                formData.append('quantity', '1');
+                formData.append('unit', item.unit || 'Pcs');
+                formData.append('from_dispense', 'true');
+                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                
+                // Submit directly to add_to_cart view
+                fetch(`/add_to_cart/${item.id}/?from_dispense=true`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'HX-Request': 'true'
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        console.log('[Dispense] Item added to cart successfully');
+                        // Update cart widget manually if needed
+                        return response.text();
+                    } else {
+                        console.error('[Dispense] Failed to add item to cart:', response.status);
+                    }
+                })
+                .then(html => {
+                    console.log('[Dispense] Updating cart widget');
+                    document.getElementById('cart-summary-widget').outerHTML = html;
+                })
+                .catch(err => {
+                    console.error('[Dispense] Error adding to cart:', err);
+                });
+                
+                if (addToCartForm) {
+                    console.log('[Dispense] Found add-to-cart form for item:', item.name);
+                    const submitBtn = addToCartForm.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        console.log('[Dispense] Submitting add-to-cart form...');
+                        // Use HTMX to submit the form properly
+                        htmx.trigger(submitBtn, 'click');
+                    } else {
+                        console.error('[Dispense] Submit button not found in form');
+                    }
+                } else {
+                    console.error('[Dispense] Add-to-cart form not found for item ID:', item.id);
+                    // If form not found, try to find it by item name as fallback
+                    const allForms = document.querySelectorAll('.add-to-cart-form');
+                    console.log('[Dispense] Checking all forms:', allForms.length, 'forms found');
+                    let foundForm = false;
+                    for (let form of allForms) {
+                        const itemName = form.getAttribute('data-item-name');
+                        const itemId = form.getAttribute('data-item-id');
+                        console.log('[Dispense] Checking form:', itemName, 'ID:', itemId);
+                        if (itemName && itemName.toLowerCase() === item.name.toLowerCase()) {
+                            console.log('[Dispense] Found form by item name as fallback');
+                            const submitBtn = form.querySelector('button[type="submit"]');
+                            if (submitBtn) {
+                                console.log('[Dispense] Submitting fallback form...');
+                                htmx.trigger(submitBtn, 'click');
+                                foundForm = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!foundForm) {
+                        console.error('[Dispense] Could not find any matching add-to-cart form');
+                        // Log all form data-attributes for debugging
+                        document.querySelectorAll('.add-to-cart-form').forEach((form, index) => {
+                            console.log(`[Dispense] Form ${index}:`, {
+                                'data-item-id': form.getAttribute('data-item-id'),
+                                'data-item-name': form.getAttribute('data-item-name')
+                            });
+                        });
+                    }
+                }
+            }, 800); // Increased wait time for HTMX to load the search results
         }, 100);
     } else {
         console.error('[Dispense] Search input not found or item is null');
@@ -513,6 +630,7 @@ window.onBarcodeItemFound = function(item, barcode) {
 
     // Close the scanner modal
     $('#barcodeScannerModal').modal('hide');
+}; // Added missing closing brace for onBarcodeItemFound function
 
     // Show success notification
     if (window.offlineHandler && window.offlineHandler.showInAppNotification) {

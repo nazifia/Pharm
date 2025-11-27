@@ -18,7 +18,7 @@ SECRET_KEY = config('SECRET_KEY') #default='django-insecure-745$ysi)dtow@&h&g9%u
 DEBUG = config('DEBUG') #)
 
 # ALLOWED_HOSTS - get from environment or use development defaults
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=Csv())
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,testserver', cast=Csv())
 
 # Security settings for production
 if not DEBUG:
