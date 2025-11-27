@@ -112,7 +112,19 @@
 </style>
 
 <script>
+// Wait for DOM and jQuery to be ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('[Scanner Modal] Script loading...');
+
+    // Check if jQuery is available
+    if (typeof jQuery === 'undefined') {
+        console.error('[Scanner Modal] jQuery not loaded!');
+        return;
+    }
+
 (function() {
+    console.log('[Scanner Modal] Initializing script...');
+
     let barcodeScanner = null;
     const modal = document.getElementById('barcodeScannerModal');
     const startBtn = document.getElementById('start-scan-btn');
@@ -122,6 +134,18 @@
     const fileInput = document.getElementById('barcode-file-input');
     const statusDiv = document.getElementById('scanner-status');
     const statusText = document.getElementById('scanner-status-text');
+
+    // Check if all elements were found
+    if (!modal) {
+        console.error('[Scanner Modal] Modal element not found!');
+        return;
+    }
+    if (!startBtn || !stopBtn) {
+        console.error('[Scanner Modal] Button elements not found!');
+        return;
+    }
+
+    console.log('[Scanner Modal] All elements found, setting up event listeners...');
 
     /**
      * Show status message
@@ -149,20 +173,42 @@
     /**
      * Initialize scanner when modal opens
      */
-    $(modal).on('shown.bs.modal', function() {
+    $(modal).on('shown.bs.modal', async function() {
         const mode = this.dataset.mode || 'retail';
 
-        // Initialize scanner with callback from parent page
-        barcodeScanner = new BarcodeScanner({
-            scannerId: 'barcode-scanner',
-            mode: mode,
-            onSuccess: window.onBarcodeItemFound || defaultSuccessHandler,
-            onError: defaultErrorHandler
-        });
+        console.log('[Scanner Modal] Modal opened in', mode, 'mode');
+        console.log('[Scanner Modal] BarcodeScanner class available:', typeof BarcodeScanner !== 'undefined');
+        console.log('[Scanner Modal] Html5Qrcode library available:', typeof Html5Qrcode !== 'undefined');
 
-        barcodeScanner.init();
-        hideStatus();
-        console.log('[Scanner Modal] Initialized in', mode, 'mode');
+        // Check if required libraries are loaded
+        if (typeof BarcodeScanner === 'undefined') {
+            showStatus('Barcode scanner not loaded. Please refresh the page.', 'danger');
+            console.error('[Scanner Modal] BarcodeScanner class not found!');
+            return;
+        }
+
+        if (typeof Html5Qrcode === 'undefined') {
+            showStatus('Camera library not loaded. Please refresh the page.', 'danger');
+            console.error('[Scanner Modal] Html5Qrcode library not found!');
+            return;
+        }
+
+        try {
+            // Initialize scanner with callback from parent page
+            barcodeScanner = new BarcodeScanner({
+                scannerId: 'barcode-scanner',
+                mode: mode,
+                onSuccess: window.onBarcodeItemFound || defaultSuccessHandler,
+                onError: defaultErrorHandler
+            });
+
+            await barcodeScanner.init();
+            hideStatus();
+            console.log('[Scanner Modal] Initialized successfully in', mode, 'mode');
+        } catch (error) {
+            showStatus('Failed to initialize scanner: ' + error.message, 'danger');
+            console.error('[Scanner Modal] Initialization error:', error);
+        }
     });
 
     /**
@@ -190,19 +236,41 @@
      */
     startBtn.addEventListener('click', async function() {
         if (!barcodeScanner) {
-            showStatus('Scanner not initialized', 'danger');
+            showStatus('Scanner not initialized. Please close and reopen this modal.', 'danger');
+            console.error('[Scanner Modal] Scanner instance is null');
+            return;
+        }
+
+        // Check if Html5Qrcode library is loaded
+        if (typeof Html5Qrcode === 'undefined') {
+            showStatus('Barcode scanner library not loaded. Please refresh the page.', 'danger');
+            console.error('[Scanner Modal] Html5Qrcode library not found');
             return;
         }
 
         showStatus('Starting camera...', 'info');
+        console.log('[Scanner Modal] Attempting to start camera...');
 
         try {
             await barcodeScanner.startScanning();
             startBtn.style.display = 'none';
             stopBtn.style.display = 'inline-block';
             showStatus('Camera ready - point at barcode', 'success');
+            console.log('[Scanner Modal] Camera started successfully');
         } catch (error) {
-            showStatus('Failed to start camera. Please check permissions.', 'danger');
+            console.error('[Scanner Modal] Failed to start camera:', error);
+
+            // Error message is already shown by barcodeScanner.startScanning()
+            // Just log additional info here
+            if (error.name === 'NotAllowedError') {
+                showStatus('Camera permission denied. Please allow camera access in your browser settings.', 'danger');
+            } else if (error.name === 'NotFoundError') {
+                showStatus('No camera found on this device.', 'danger');
+            } else if (error.name === 'NotReadableError') {
+                showStatus('Camera is in use by another application.', 'danger');
+            } else {
+                showStatus('Failed to start camera: ' + (error.message || 'Unknown error'), 'danger');
+            }
         }
     });
 
@@ -282,6 +350,8 @@
         console.error('[Scanner Modal] Error:', error);
     }
 
-    console.log('[Scanner Modal] Script loaded');
-})();
+    console.log('[Scanner Modal] Script loaded and ready');
+})(); // End IIFE
+
+}); // End DOMContentLoaded
 </script>

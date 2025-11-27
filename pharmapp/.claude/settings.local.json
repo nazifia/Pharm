@@ -4,7 +4,9 @@
       "Bash(python manage.py runserver:*)",
       "Bash(mkdir:*)",
       "Bash(python manage.py makemigrations:*)",
-      "Bash(python manage.py migrate:*)"
+      "Bash(python manage.py migrate:*)",
+      "Bash(timeout 5 bash -c 'while ! curl -s http://127.0.0.1:8000 > /dev/null 2>&1; do sleep 0.5; done && echo \"\"Server is ready\"\"')",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

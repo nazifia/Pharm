@@ -318,6 +318,9 @@
     </div>
 </div>
 
+<!-- Include Barcode Scanner Modal -->
+{% include 'partials/barcode_scanner_modal.html' %}
+
 <script>
     function calculatePrice() {
         const cost = parseFloat(document.getElementById("cost").value) || 0;

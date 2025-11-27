@@ -4,6 +4,8 @@
  * Supports UPC, EAN-13, Code-128, and QR codes
  */
 
+console.log('[Barcode Scanner] Loading module...');
+
 class BarcodeScanner {
     constructor(options = {}) {
         this.scannerId = options.scannerId || 'barcode-scanner';
@@ -12,18 +14,23 @@ class BarcodeScanner {
         this.onError = options.onError || this.defaultErrorHandler;
         this.scanner = null;
         this.isScanning = false;
+
+        // Safe configuration that works with or without Html5QrcodeSupportedFormats
         this.config = {
             fps: 10,
             qrbox: { width: 250, height: 250 },
-            formatsToSupport: [
-                Html5QrcodeSupportedFormats.QR_CODE,
-                Html5QrcodeSupportedFormats.UPC_A,
-                Html5QrcodeSupportedFormats.UPC_E,
-                Html5QrcodeSupportedFormats.EAN_13,
-                Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.CODE_39,
-            ]
+            // Use formatsToSupport if available, otherwise rely on default formats
+            ...(typeof Html5QrcodeSupportedFormats !== 'undefined' && {
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.QR_CODE,
+                    Html5QrcodeSupportedFormats.UPC_A,
+                    Html5QrcodeSupportedFormats.UPC_E,
+                    Html5QrcodeSupportedFormats.EAN_13,
+                    Html5QrcodeSupportedFormats.EAN_8,
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.CODE_39,
+                ]
+            })
         };
     }
 
@@ -52,22 +59,51 @@ class BarcodeScanner {
         }
 
         try {
-            if (!this.scanner) {
-                await this.init();
+            // Check if Html5Qrcode is available
+            if (typeof Html5Qrcode === 'undefined') {
+                throw new Error('Html5Qrcode library not loaded');
             }
 
+            // Initialize scanner if not already initialized
+            if (!this.scanner) {
+                const initialized = await this.init();
+                if (!initialized) {
+                    throw new Error('Scanner initialization failed');
+                }
+            }
+
+            // Request camera permission explicitly
+            console.log('[Barcode Scanner] Requesting camera permission...');
+
+            // Start the scanner with proper configuration
             await this.scanner.start(
-                { facingMode: "environment" }, // Use back camera
+                { facingMode: "environment" }, // Use back camera on mobile
                 this.config,
                 this.onScanSuccess.bind(this),
                 this.onScanFailure.bind(this)
             );
 
             this.isScanning = true;
-            console.log('[Barcode Scanner] Camera started');
+            console.log('[Barcode Scanner] Camera started successfully');
         } catch (error) {
             console.error('[Barcode Scanner] Failed to start camera:', error);
-            this.showError('Failed to start camera. Please check permissions.');
+
+            // Provide more specific error messages
+            let errorMessage = 'Failed to start camera. ';
+            if (error.name === 'NotAllowedError' || error.message.includes('Permission')) {
+                errorMessage += 'Camera access was denied. Please allow camera permissions and try again.';
+            } else if (error.name === 'NotFoundError') {
+                errorMessage += 'No camera found on this device.';
+            } else if (error.name === 'NotReadableError') {
+                errorMessage += 'Camera is already in use by another application.';
+            } else if (error.message.includes('library not loaded')) {
+                errorMessage += 'Barcode scanner library failed to load. Please refresh the page.';
+            } else {
+                errorMessage += error.message || 'Please check your camera permissions and try again.';
+            }
+
+            this.showError(errorMessage);
+            throw error;
         }
     }
 
@@ -286,4 +322,10 @@ class BarcodeScanner {
 // Make BarcodeScanner available globally
 window.BarcodeScanner = BarcodeScanner;
 
-console.log('[Barcode Scanner] Module loaded');
+// Check if Html5Qrcode library is loaded
+if (typeof Html5Qrcode !== 'undefined') {
+    console.log('[Barcode Scanner] Module loaded successfully - Html5Qrcode library available');
+} else {
+    console.error('[Barcode Scanner] Module loaded but Html5Qrcode library NOT available!');
+    console.error('[Barcode Scanner] Make sure html5-qrcode library is loaded before barcode-scanner.js');
+}
