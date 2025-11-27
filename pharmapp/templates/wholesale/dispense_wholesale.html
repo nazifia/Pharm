@@ -473,13 +473,20 @@ document.addEventListener('DOMContentLoaded', function() {
 window.onBarcodeItemFound = function(item, barcode) {
     console.log('[Wholesale Dispense] Barcode scanned:', barcode, 'Item:', item);
 
-    // Fill the search input with the scanned barcode
+    // Fill the search input with the item name (not barcode number)
     const searchInput = document.getElementById('search-input');
-    if (searchInput) {
-        searchInput.value = barcode;
+    if (searchInput && item) {
+        // Use item name for searching
+        searchInput.value = item.name;
+        console.log('[Wholesale Dispense] Search input filled with:', item.name);
 
-        // Trigger the HTMX search
-        htmx.trigger(searchInput, 'keyup');
+        // Trigger the HTMX search with a delay to ensure value is set
+        setTimeout(() => {
+            htmx.trigger(searchInput, 'keyup');
+            console.log('[Wholesale Dispense] HTMX search triggered');
+        }, 100);
+    } else {
+        console.error('[Wholesale Dispense] Search input not found or item is null');
     }
 
     // Close the scanner modal
@@ -489,7 +496,7 @@ window.onBarcodeItemFound = function(item, barcode) {
     if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
         window.offlineHandler.showInAppNotification(
             'Barcode Scanned',
-            `Found: ${item.name} - ${item.brand || ''}`,
+            `Found: ${item.name}${item.brand ? ' - ' + item.brand : ''}`,
             'success'
         );
     }

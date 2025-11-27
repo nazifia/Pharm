@@ -102,6 +102,17 @@
         </div>
 
         <div class="form-group">
+            <label for="barcode_type">Barcode Type:</label>
+            <select name="barcode_type" id="edit-wholesale-barcode_type" class="form-control">
+                <option value="" {% if not item.barcode_type %}selected{% endif %}>Select Type</option>
+                <option value="UPC" {% if item.barcode_type == 'UPC' %}selected{% endif %}>UPC</option>
+                <option value="EAN13" {% if item.barcode_type == 'EAN13' %}selected{% endif %}>EAN-13</option>
+                <option value="CODE128" {% if item.barcode_type == 'CODE128' %}selected{% endif %}>Code-128</option>
+                <option value="QR" {% if item.barcode_type == 'QR' %}selected{% endif %}>QR Code</option>
+            </select>
+        </div>
+
+        <div class="form-group">
             <label for="name">Item Unit:</label>
             <!-- Unit Selection Dropdown -->
             <select name="unit" class="form-control mt-3" required>

@@ -61,6 +61,18 @@
             <small class="form-text text-muted">UPC, EAN-13, Code-128, or QR code</small>
         </div>
 
+        <!-- Barcode Type -->
+        <div class="mt-3">
+            <label for="barcode_type" class="form-label">Barcode Type</label>
+            <select name="barcode_type" id="barcode_type" class="form-control">
+                <option value="">Select Type</option>
+                <option value="UPC">UPC</option>
+                <option value="EAN13">EAN-13</option>
+                <option value="CODE128">Code-128</option>
+                <option value="QR">QR Code</option>
+            </select>
+        </div>
+
         <!-- Hidden input for unit that will be set by the dropdown or custom input -->
         <input type="hidden" name="unit" id="unit_hidden">
         <!-- Unit Selection Dropdown -->
