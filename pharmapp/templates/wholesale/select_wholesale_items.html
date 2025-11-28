@@ -275,6 +275,54 @@
     };
 
     console.log('[Wholesale Item Selection] Barcode callback ready');
+
+    // ==================== HARDWARE BARCODE SCANNER SUPPORT ====================
+    // Supports USB/Bluetooth handheld barcode scanners for wholesale registered customers
+    // No need to click scan button - just point and scan!
+    // ==========================================================================
+
+    // Load hardware scanner module
+    const hardwareScannerScript = document.createElement('script');
+    hardwareScannerScript.src = "{% static 'js/hardware-scanner.js' %}";
+    hardwareScannerScript.onload = function() {
+        console.log('[Wholesale Item Selection] Hardware scanner module loaded');
+
+        // Initialize hardware scanner for wholesale registered customers
+        window.selectWholesaleItemsPageHardwareScanner = new HardwareScannerHandler({
+            mode: 'wholesale',
+            scannerSpeed: 50,        // Max 50ms between characters
+            minBarcodeLength: 3,     // Min barcode length
+            maxBarcodeLength: 50     // Max barcode length
+        });
+
+        // Start listening for scanner input
+        window.selectWholesaleItemsPageHardwareScanner.init();
+        console.log('[Wholesale Item Selection] Hardware scanner initialized - Ready to scan!');
+
+        // Disable hardware scanner when camera modal is open (avoid conflicts)
+        $('#barcodeScannerModal').on('shown.bs.modal', function() {
+            if (window.selectWholesaleItemsPageHardwareScanner) {
+                window.selectWholesaleItemsPageHardwareScanner.disable();
+                console.log('[Wholesale Item Selection] Hardware scanner disabled (camera active)');
+            }
+        });
+
+        // Re-enable hardware scanner when camera modal is closed
+        $('#barcodeScannerModal').on('hidden.bs.modal', function() {
+            if (window.selectWholesaleItemsPageHardwareScanner) {
+                window.selectWholesaleItemsPageHardwareScanner.enable();
+                console.log('[Wholesale Item Selection] Hardware scanner enabled');
+            }
+        });
+    };
+    document.head.appendChild(hardwareScannerScript);
+
+    // ==========================================================================
+    // USAGE: Just scan with your USB/Bluetooth barcode scanner!
+    // - Point scanner at barcode
+    // - Press trigger
+    // - Item automatically appears in search results
+    // ==========================================================================
 </script>
 
 {% endblock %}
