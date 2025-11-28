@@ -228,7 +228,7 @@ class BarcodeScanner {
     }
 
     /**
-     * Look up barcode in IndexedDB (offline)
+     * Look up barcode or QR code in IndexedDB (offline)
      */
     async lookupBarcodeOffline(barcode) {
         if (!window.dbManager) {
@@ -240,16 +240,42 @@ class BarcodeScanner {
             const storeName = this.mode === 'retail' ? 'items' : 'wholesaleItems';
             const allItems = await window.dbManager.getAll(storeName);
 
-            // Find item with matching barcode
-            const item = allItems.find(item => item.barcode === barcode);
+            // Check if this is a PharmApp QR code
+            const isQRCode = barcode.startsWith('PHARM-');
 
-            if (item) {
-                console.log('[Barcode Scanner] Item found offline:', item);
-                return item;
+            let item = null;
+
+            if (isQRCode) {
+                // Parse QR code: PHARM-RETAIL-123 or PHARM-WHOLESALE-123
+                const parts = barcode.split('-');
+                if (parts.length === 3) {
+                    const qrMode = parts[1].toLowerCase();
+                    const itemId = parseInt(parts[2]);
+
+                    // Verify mode matches
+                    if (qrMode === this.mode) {
+                        // Find item by ID
+                        item = allItems.find(item => item.id === itemId);
+                        if (item) {
+                            console.log('[Barcode Scanner] Item found offline by QR code:', item);
+                        }
+                    } else {
+                        console.warn(`[Barcode Scanner] QR code mode mismatch: ${qrMode} vs ${this.mode}`);
+                    }
+                }
+            } else {
+                // Traditional barcode lookup
+                item = allItems.find(item => item.barcode === barcode);
+                if (item) {
+                    console.log('[Barcode Scanner] Item found offline by barcode:', item);
+                }
             }
 
-            console.log('[Barcode Scanner] Item not found in offline storage');
-            return null;
+            if (!item) {
+                console.log('[Barcode Scanner] Item not found in offline storage');
+            }
+
+            return item;
 
         } catch (error) {
             console.error('[Barcode Scanner] Offline lookup error:', error);

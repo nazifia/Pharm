@@ -138,4 +138,11 @@ urlpatterns = [
     path('api/quick-supplier-search/', views.quick_supplier_search, name='quick_supplier_search'),
     path('api/quick-procurement-search/', views.quick_procurement_search, name='quick_procurement_search'),
     path('api/supplier-stats/<int:supplier_id>/', views.supplier_stats_api, name='supplier_stats_api'),
+
+    # QR Code Generation URLs
+    path('qr/item/<int:item_id>/', views.generate_item_qr, name='generate_item_qr'),
+    path('qr/item/<int:item_id>/label/', views.generate_item_label, name='generate_item_label'),
+    path('qr/receipt/<int:receipt_id>/', views.generate_receipt_qr, name='generate_receipt_qr'),
+    path('print-labels/', views.print_item_labels, name='print_item_labels'),
+    path('qr/bulk-labels/', views.bulk_generate_labels, name='bulk_generate_labels'),
 ]

@@ -7,7 +7,7 @@ from datetime import timedelta, datetime
 from decimal import Decimal
 from django.db.models import Sum, Q, F
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.views.decorators.cache import never_cache
 import uuid
 from store.models import *
@@ -918,7 +918,7 @@ def wholesale_dispense_search_items(request):
     return render(request, 'partials/wholesale_dispense_search_results.html', {'results': results, 'query': query})
 
 
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 @login_required
 @require_POST
 def add_to_wholesale_cart(request, item_id):
@@ -5327,4 +5327,136 @@ def cashier_payment_totals(request):
         return redirect('store:index')
 
 
+
+
+# QR Code Generation Views for Wholesale
+import sys
+sys.path.insert(0, '../store')
+from store.qr_utils import (
+    generate_qr_code_base64,
+    generate_item_qr_data,
+    generate_receipt_qr_data,
+    generate_item_label_base64
+)
+
+@login_required
+@require_http_methods(['GET'])
+def generate_wholesale_item_qr(request, item_id):
+    """Generate QR code for a specific wholesale item"""
+    try:
+        item = get_object_or_404(WholesaleItem, id=item_id)
+        qr_data = generate_item_qr_data(item, mode='wholesale')
+        qr_image = generate_qr_code_base64(qr_data, size=10, border=2)
+        
+        return JsonResponse({
+            'success': True,
+            'qr_image': qr_image,
+            'qr_data': qr_data,
+            'item': {
+                'id': item.id,
+                'name': item.name,
+                'barcode': item.barcode if hasattr(item, 'barcode') else None,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+@require_http_methods(['GET'])
+def generate_wholesale_item_label(request, item_id):
+    """Generate printable QR code label for a wholesale item"""
+    try:
+        item = get_object_or_404(WholesaleItem, id=item_id)
+        include_price = request.GET.get('include_price', 'true').lower() == 'true'
+        
+        label_image = generate_item_label_base64(item, mode='wholesale', include_price=include_price)
+        
+        return JsonResponse({
+            'success': True,
+            'label_image': label_image,
+            'item': {
+                'id': item.id,
+                'name': item.name,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+@require_http_methods(['GET'])
+def generate_wholesale_receipt_qr(request, receipt_id):
+    """Generate QR code for a specific wholesale receipt"""
+    try:
+        receipt = get_object_or_404(WholesaleReceipt, id=receipt_id)
+        qr_data = generate_receipt_qr_data(receipt, mode='wholesale')
+        qr_image = generate_qr_code_base64(qr_data, size=10, border=2)
+        
+        return JsonResponse({
+            'success': True,
+            'qr_image': qr_image,
+            'qr_data': qr_data,
+            'receipt': {
+                'id': receipt.id,
+                'receipt_no': receipt.receipt_no,
+                'total': str(receipt.total_amount),
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+def print_wholesale_item_labels(request):
+    """Render page for bulk printing wholesale item labels with QR codes"""
+    items = WholesaleItem.objects.filter(stock__gt=0).order_by('name')
+    
+    context = {
+        'items': items,
+        'mode': 'wholesale',
+    }
+    return render(request, 'wholesale/print_wholesale_item_labels.html', context)
+
+
+@login_required
+@require_http_methods(['POST'])
+def bulk_generate_wholesale_labels(request):
+    """Generate multiple wholesale item labels at once"""
+    try:
+        item_ids = request.POST.getlist('item_ids[]')
+        include_price = request.POST.get('include_price', 'true').lower() == 'true'
+        
+        labels = []
+        for item_id in item_ids:
+            try:
+                item = WholesaleItem.objects.get(id=item_id)
+                label_image = generate_item_label_base64(item, mode='wholesale', include_price=include_price)
+                labels.append({
+                    'item_id': item.id,
+                    'item_name': item.name,
+                    'label_image': label_image
+                })
+            except WholesaleItem.DoesNotExist:
+                continue
+        
+        return JsonResponse({
+            'success': True,
+            'labels': labels,
+            'count': len(labels)
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
 

@@ -7265,3 +7265,132 @@ def supplier_stats_api(request, supplier_id):
 
 
 
+
+# QR Code Generation Views
+from .qr_utils import (
+    generate_qr_code_base64,
+    generate_item_qr_data,
+    generate_receipt_qr_data,
+    generate_item_label_base64
+)
+
+@login_required
+@require_http_methods(['GET'])
+def generate_item_qr(request, item_id):
+    """Generate QR code for a specific item"""
+    try:
+        item = get_object_or_404(Item, id=item_id)
+        qr_data = generate_item_qr_data(item, mode='retail')
+        qr_image = generate_qr_code_base64(qr_data, size=10, border=2)
+        
+        return JsonResponse({
+            'success': True,
+            'qr_image': qr_image,
+            'qr_data': qr_data,
+            'item': {
+                'id': item.id,
+                'name': item.name,
+                'barcode': item.barcode if hasattr(item, 'barcode') else None,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+@require_http_methods(['GET'])
+def generate_item_label(request, item_id):
+    """Generate printable QR code label for an item"""
+    try:
+        item = get_object_or_404(Item, id=item_id)
+        include_price = request.GET.get('include_price', 'true').lower() == 'true'
+        
+        label_image = generate_item_label_base64(item, mode='retail', include_price=include_price)
+        
+        return JsonResponse({
+            'success': True,
+            'label_image': label_image,
+            'item': {
+                'id': item.id,
+                'name': item.name,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+@require_http_methods(['GET'])
+def generate_receipt_qr(request, receipt_id):
+    """Generate QR code for a specific receipt"""
+    try:
+        receipt = get_object_or_404(Receipt, id=receipt_id)
+        qr_data = generate_receipt_qr_data(receipt, mode='retail')
+        qr_image = generate_qr_code_base64(qr_data, size=10, border=2)
+        
+        return JsonResponse({
+            'success': True,
+            'qr_image': qr_image,
+            'qr_data': qr_data,
+            'receipt': {
+                'id': receipt.id,
+                'receipt_no': receipt.receipt_no,
+                'total': str(receipt.total_amount),
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+def print_item_labels(request):
+    """Render page for bulk printing item labels with QR codes"""
+    items = Item.objects.filter(stock__gt=0).order_by('name')
+    
+    context = {
+        'items': items,
+    }
+    return render(request, 'store/print_item_labels.html', context)
+
+
+@login_required
+@require_http_methods(['POST'])
+def bulk_generate_labels(request):
+    """Generate multiple item labels at once"""
+    try:
+        item_ids = request.POST.getlist('item_ids[]')
+        include_price = request.POST.get('include_price', 'true').lower() == 'true'
+        
+        labels = []
+        for item_id in item_ids:
+            try:
+                item = Item.objects.get(id=item_id)
+                label_image = generate_item_label_base64(item, mode='retail', include_price=include_price)
+                labels.append({
+                    'item_id': item.id,
+                    'item_name': item.name,
+                    'label_image': label_image
+                })
+            except Item.DoesNotExist:
+                continue
+        
+        return JsonResponse({
+            'success': True,
+            'labels': labels,
+            'count': len(labels)
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+

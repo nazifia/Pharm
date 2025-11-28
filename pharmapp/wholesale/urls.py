@@ -103,4 +103,11 @@ urlpatterns = [
 
     # Stock Check Enhancement URLs
     path('add_items_to_wholesale_stock_check/<int:stock_check_id>/', views.add_items_to_wholesale_stock_check, name='add_items_to_wholesale_stock_check'),
+
+    # QR Code Generation URLs
+    path('qr/item/<int:item_id>/', views.generate_wholesale_item_qr, name='generate_wholesale_item_qr'),
+    path('qr/item/<int:item_id>/label/', views.generate_wholesale_item_label, name='generate_wholesale_item_label'),
+    path('qr/receipt/<int:receipt_id>/', views.generate_wholesale_receipt_qr, name='generate_wholesale_receipt_qr'),
+    path('print-labels/', views.print_wholesale_item_labels, name='print_wholesale_item_labels'),
+    path('qr/bulk-labels/', views.bulk_generate_wholesale_labels, name='bulk_generate_wholesale_labels'),
 ]

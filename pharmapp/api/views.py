@@ -520,8 +520,12 @@ def wholesale_cart_sync(request):
 @require_http_methods(["POST"])
 def barcode_lookup(request):
     """
-    Look up item by barcode in retail or wholesale mode
-    POST body: {"barcode": "123456789012", "mode": "retail"|"wholesale"}
+    Look up item by barcode or QR code in retail or wholesale mode
+    POST body: {"barcode": "123456789012" or "PHARM-RETAIL-123", "mode": "retail"|"wholesale"}
+
+    Supports:
+    - Traditional barcodes (UPC, EAN, etc.)
+    - PharmApp QR codes (PHARM-RETAIL-ID or PHARM-WHOLESALE-ID format)
     """
     try:
         data = json.loads(request.body)
@@ -534,31 +538,88 @@ def barcode_lookup(request):
         # Select appropriate model based on mode
         ItemModel = Item if mode == 'retail' else WholesaleItem
 
-        try:
-            # Try exact barcode match
-            item = ItemModel.objects.get(barcode=barcode)
+        # Check if this is a PharmApp QR code
+        is_qr_code = barcode.startswith('PHARM-')
 
-            return JsonResponse({
-                'status': 'success',
-                'item': {
-                    'id': item.id,
-                    'name': item.name,
-                    'brand': item.brand or '',
-                    'dosage_form': item.dosage_form or '',
-                    'unit': item.unit or '',
-                    'price': str(item.price),
-                    'cost': str(item.cost),
-                    'stock': str(item.stock),
-                    'barcode': item.barcode or '',
-                    'barcode_type': item.barcode_type or '',
-                    'exp_date': item.exp_date.isoformat() if item.exp_date else None,
-                }
-            })
-        except ItemModel.DoesNotExist:
-            return JsonResponse({
-                'status': 'error',
-                'error': 'Item not found'
-            }, status=404)
+        if is_qr_code:
+            # Parse QR code format: PHARM-RETAIL-123 or PHARM-WHOLESALE-123
+            try:
+                parts = barcode.split('-')
+                if len(parts) != 3:
+                    return JsonResponse({
+                        'status': 'error',
+                        'error': 'Invalid QR code format'
+                    }, status=400)
+
+                qr_mode = parts[1].lower()  # 'retail' or 'wholesale'
+                item_id = int(parts[2])
+
+                # Verify mode matches
+                if qr_mode != mode:
+                    return JsonResponse({
+                        'status': 'error',
+                        'error': f'QR code is for {qr_mode} mode, but scanning in {mode} mode'
+                    }, status=400)
+
+                # Look up by ID
+                item = ItemModel.objects.get(id=item_id)
+
+                return JsonResponse({
+                    'status': 'success',
+                    'lookup_type': 'qr_code',
+                    'item': {
+                        'id': item.id,
+                        'name': item.name,
+                        'brand': item.brand or '',
+                        'dosage_form': item.dosage_form or '',
+                        'unit': item.unit or '',
+                        'price': str(item.price),
+                        'cost': str(item.cost),
+                        'stock': str(item.stock),
+                        'barcode': item.barcode or '',
+                        'barcode_type': item.barcode_type or 'QR',
+                        'exp_date': item.exp_date.isoformat() if item.exp_date else None,
+                    }
+                })
+
+            except (ValueError, IndexError):
+                return JsonResponse({
+                    'status': 'error',
+                    'error': 'Invalid QR code format'
+                }, status=400)
+            except ItemModel.DoesNotExist:
+                return JsonResponse({
+                    'status': 'error',
+                    'error': 'Item not found for QR code'
+                }, status=404)
+        else:
+            # Traditional barcode lookup
+            try:
+                # Try exact barcode match
+                item = ItemModel.objects.get(barcode=barcode)
+
+                return JsonResponse({
+                    'status': 'success',
+                    'lookup_type': 'barcode',
+                    'item': {
+                        'id': item.id,
+                        'name': item.name,
+                        'brand': item.brand or '',
+                        'dosage_form': item.dosage_form or '',
+                        'unit': item.unit or '',
+                        'price': str(item.price),
+                        'cost': str(item.cost),
+                        'stock': str(item.stock),
+                        'barcode': item.barcode or '',
+                        'barcode_type': item.barcode_type or '',
+                        'exp_date': item.exp_date.isoformat() if item.exp_date else None,
+                    }
+                })
+            except ItemModel.DoesNotExist:
+                return JsonResponse({
+                    'status': 'error',
+                    'error': 'Item not found'
+                }, status=404)
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
