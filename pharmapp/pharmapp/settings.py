@@ -10,12 +10,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # SECURITY WARNING: keep the secret key used in production secret!
-# Get SECRET_KEY from environment variable or use development fallback
-SECRET_KEY = config('SECRET_KEY') #default='django-insecure-745$ysi)dtow@&h&g9%um@8m-7#8)xkva&4r1q4vx_mpg3pg&3')
+# Get SECRET_KEY from .env file (required - no default for security)
+# Generate new key: python generate_secret_key.py
+SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # Get DEBUG from environment variable or use development fallback
-DEBUG = config('DEBUG') #)
+DEBUG = config('DEBUG', default='True', cast=bool)
 
 # ALLOWED_HOSTS - get from environment or use development defaults
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,testserver', cast=Csv())
@@ -46,9 +47,9 @@ INSTALLED_APPS = [
     'whitenoise.runserver_nostatic',
     'django.contrib.humanize',
     'django_htmx',
-    'crispy_forms',  # Removed - using simple HTML/CSS instead
-    'crispy_bootstrap5',  # Removed - using simple HTML/CSS instead
-    # 'channels',  # Add channels for WebSocket support (temporarily disabled)
+    'crispy_forms',  # Legacy - still installed but unused (using simple HTML/CSS forms instead)
+    'crispy_bootstrap5',  # Legacy - still installed but unused (using simple HTML/CSS forms instead)
+    # 'channels',  # WebSocket support (disabled - not currently used)
     'store',
     'userauth',
     'customer',
@@ -105,9 +106,7 @@ CORS_ALLOW_METHODS = [
     'OPTIONS'
 ]
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# Performance optimizations
+# Performance optimizations for static files
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 WHITENOISE_USE_FINDERS = True
 WHITENOISE_MAX_AGE = 31536000  # 1 year for static files in production
@@ -210,7 +209,7 @@ STATICFILES_DIRS = [
 ]
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR /'media'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 AUTH_USER_MODEL = 'userauth.User'
 
@@ -291,10 +290,6 @@ DATABASES = {
 # }
 # ===== END DATABASE CONFIGURATION OPTIONS =====
 
-# Session optimizations
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'default'
-
 # File upload optimizations
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB in memory before writing to disk
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
@@ -314,18 +309,16 @@ MESSAGE_TAGS = {
 SESSION_COOKIE_AGE = 1200  # 20 minutes in seconds
 SESSION_SAVE_EVERY_REQUEST = True  # Reset the session expiration time on each request
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
-SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
 SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookies
 SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database sessions for better isolation
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database sessions for better user isolation
+# Note: SESSION_COOKIE_SECURE is set above based on DEBUG flag (True in production, False in development)
 
 # Auto logout settings
 AUTO_LOGOUT_DELAY = 20  # Auto logout after 20 minutes of inactivity
 
-# Additional security settings for session isolation
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
+# Note: Security settings (XSS filter, content type nosniff, X-Frame-Options) are configured
+# in the production security block above (lines 24-33) based on DEBUG flag
 
 
 
