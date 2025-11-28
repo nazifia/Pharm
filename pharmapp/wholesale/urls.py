@@ -25,6 +25,7 @@ urlpatterns = [
     path('test_template/', views.test_template_view, name='test_template'),
     path('wholesale_cart/', views.wholesale_cart, name='wholesale_cart'),
     path('clear_wholesale_cart/', views.clear_wholesale_cart, name='clear_wholesale_cart'),
+    path('validate_wholesale_cart_stock/', views.validate_wholesale_cart_stock, name='validate_wholesale_cart_stock'),
     path('update_wholesale_cart_quantity/<int:pk>/', views.update_wholesale_cart_quantity, name='update_wholesale_cart_quantity'),
     path('wholesale_receipt/', views.wholesale_receipt, name='wholesale_receipt'),
     path('wholesale_receipt_list/', views.wholesale_receipt_list, name='wholesale_receipt_list'),

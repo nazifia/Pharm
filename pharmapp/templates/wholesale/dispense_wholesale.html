@@ -543,7 +543,7 @@ window.onBarcodeItemFound = function(item, barcode) {
 
     setTimeout(function() {
         window.isProcessingBarcode = false;
-    }, 2000); // Reset after 2 seconds
+    }, 800); // Reset after 800ms for faster scanning (reduced from 2000ms)
 
     // Fill the search input with the item name (not barcode number)
     const searchInput = document.getElementById('search-input');

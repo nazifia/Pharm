@@ -248,7 +248,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
         'OPTIONS': {
-            'timeout': 20,
+            'timeout': 60,  # Increased from 20 to 60 seconds for better concurrency
             'check_same_thread': False,
         },
         'CONN_MAX_AGE': 60,  # Reuse database connections for 60 seconds
@@ -257,7 +257,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'offline.sqlite3',
         'OPTIONS': {
-            'timeout': 20,
+            'timeout': 60,  # Increased from 20 to 60 seconds for better concurrency
             'check_same_thread': False,
         },
         'CONN_MAX_AGE': 60,  # Reuse database connections for 60 seconds

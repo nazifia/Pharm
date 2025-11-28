@@ -671,6 +671,7 @@ def cart(request):
 
 @login_required
 @require_POST
+@transaction.atomic
 def add_to_cart(request, pk):
     if request.user.is_authenticated:
         item = get_object_or_404(Item, id=pk)
@@ -681,8 +682,22 @@ def add_to_cart(request, pk):
             messages.warning(request, "Quantity must be greater than zero.")
             return redirect('store:cart')
 
-        if quantity > item.stock:
-            messages.error(request, f"Not enough stock for {item.name}. Available stock: {item.stock}")
+        # Validate stock availability (but don't deduct yet)
+        # Get existing cart quantity for this item
+        existing_cart_items = Cart.objects.filter(
+            user=request.user,
+            item=item,
+            status='active'
+        )
+        current_cart_quantity = sum(cart_item.quantity for cart_item in existing_cart_items)
+        total_needed = current_cart_quantity + quantity
+
+        if total_needed > item.stock:
+            messages.error(
+                request,
+                f"Not enough stock for {item.name}. Available: {item.stock}, "
+                f"Already in cart: {current_cart_quantity}, Requested: {quantity}"
+            )
             return redirect('store:cart')
 
         # Add the item to the cart or update its quantity if it already exists
@@ -703,9 +718,8 @@ def add_to_cart(request, pk):
         # Save the cart item (subtotal is recalculated in the model's save method)
         cart_item.save()
 
-        # Update stock quantity in the wholesale inventory
-        item.stock -= quantity
-        item.save()
+        # NOTE: Stock is NOT deducted here anymore
+        # Stock will be deducted when receipt is created (payment completion)
 
         messages.success(request, f"{quantity} {item.unit} of {item.name} added to cart.")
 
@@ -823,8 +837,8 @@ def update_cart_quantity(request, pk):
             except ValueError:
                 return JsonResponse({'error': 'Invalid quantity value'}, status=400)
             if 0 < quantity_to_return <= cart_item.quantity:
-                cart_item.item.stock += quantity_to_return
-                cart_item.item.save()
+                # NOTE: Stock is NOT restored here anymore
+                # Stock was never deducted at cart level (only at receipt level)
 
                 # Adjust DispensingLog entries - consider discounted amount
                 discounted_amount = (cart_item.item.price * quantity_to_return) - (cart_item.discount_amount or Decimal('0.00'))
@@ -903,11 +917,10 @@ def clear_cart(request):
                             for receipt in receipts:
                                 total_refund += receipt.total_amount
 
-                    # Always return items to stock and clear cart (preserve existing functionality)
+                    # Always clear cart (preserve existing functionality)
                     for cart_item in cart_items:
-                        # Return items to stock
-                        cart_item.item.stock += cart_item.quantity
-                        cart_item.item.save()
+                        # NOTE: Stock is NOT restored here anymore
+                        # Stock was never deducted at cart level (only at receipt level)
 
                         # Remove DispensingLog entries (only if they exist)
                         DispensingLog.objects.filter(
@@ -981,6 +994,62 @@ def clear_cart(request):
         return redirect('store:cart')
     return redirect('store:index')
 
+
+@login_required
+def validate_cart_stock(request):
+    """
+    Validate that all cart items have sufficient stock available.
+    Returns JSON with validation results and unavailable items.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    try:
+        # Get all active cart items for the user
+        cart_items = Cart.objects.filter(user=request.user, status='active').select_related('item')
+
+        if not cart_items.exists():
+            return JsonResponse({
+                'valid': True,
+                'message': 'Cart is empty',
+                'unavailable_items': []
+            })
+
+        unavailable_items = []
+
+        # Check each cart item's stock availability
+        for cart_item in cart_items:
+            item = cart_item.item
+            if cart_item.quantity > item.stock:
+                unavailable_items.append({
+                    'id': cart_item.id,
+                    'item_id': item.id,
+                    'name': item.name,
+                    'brand': item.brand or 'N/A',
+                    'requested_quantity': float(cart_item.quantity),
+                    'available_stock': float(item.stock),
+                    'unit': item.unit,
+                    'price': float(item.price)
+                })
+
+        if unavailable_items:
+            return JsonResponse({
+                'valid': False,
+                'message': f'{len(unavailable_items)} item(s) have insufficient stock',
+                'unavailable_items': unavailable_items
+            })
+        else:
+            return JsonResponse({
+                'valid': True,
+                'message': 'All items have sufficient stock',
+                'unavailable_items': []
+            })
+
+    except Exception as e:
+        logger.error(f"Error validating cart stock: {str(e)}")
+        return JsonResponse({
+            'error': f'Validation error: {str(e)}'
+        }, status=500)
 
 
 @transaction.atomic
@@ -1487,35 +1556,34 @@ def accept_payment_request(request, request_id):
 
 
 @login_required
+@transaction.atomic
 def reject_payment_request(request, request_id):
     """Reject a payment request"""
     if request.user.is_authenticated:
         try:
             payment_request = PaymentRequest.objects.get(request_id=request_id)
-            
+
             # Check if user is a cashier or admin
-            is_cashier = (hasattr(request.user, 'cashier') or 
-                        (hasattr(request.user, 'profile') and request.user.profile and 
+            is_cashier = (hasattr(request.user, 'cashier') or
+                        (hasattr(request.user, 'profile') and request.user.profile and
                          request.user.profile.user_type == 'Cashier'))
-            
-            if not (is_cashier or request.user.is_superuser or 
-                (hasattr(request.user, 'profile') and request.user.profile and 
+
+            if not (is_cashier or request.user.is_superuser or
+                (hasattr(request.user, 'profile') and request.user.profile and
                  request.user.profile.user_type in ['Admin', 'Manager'])):
                 messages.error(request, 'You are not authorized to reject payment requests.')
                 return redirect('store:cashier_dashboard')
-            
+
             if payment_request.status != 'pending':
                 messages.error(request, 'This payment request has already been processed.')
                 return redirect('store:cashier_dashboard')
-            
+
             payment_request.status = 'rejected'
             payment_request.save()
-            
-            # Return items to stock and clear cart
-            for payment_item in payment_request.items.all():
-                if payment_item.retail_item:
-                    payment_item.retail_item.stock += payment_item.quantity
-                    payment_item.retail_item.save()
+
+            # NOTE: Stock is NOT restored here anymore
+            # Stock was never deducted at cart level (only at receipt level)
+            # If payment is rejected BEFORE completion, there's nothing to restore
             
             # Clear the cart for the dispenser whose payment request was rejected
             try:
@@ -1543,13 +1611,18 @@ def reject_payment_request(request, request_id):
     return redirect('store:index')
 
 
-@transaction.atomic
 @login_required
+@transaction.atomic
 def complete_payment_request(request, request_id):
     """Complete a payment request and generate receipt"""
     if request.user.is_authenticated:
         try:
-            payment_request = PaymentRequest.objects.get(request_id=request_id)
+            # Use select_for_update() only for databases that support row-level locking
+            from django.db import connection
+            if connection.vendor == 'sqlite':
+                payment_request = PaymentRequest.objects.get(request_id=request_id)
+            else:
+                payment_request = PaymentRequest.objects.select_for_update().get(request_id=request_id)
             
             # Check if user is the assigned cashier or admin
             is_cashier = (hasattr(request.user, 'cashier') or 
@@ -1612,18 +1685,33 @@ def complete_payment_request(request, request_id):
                 # Create sales items from payment request items
                 for payment_item in payment_request.items.all():
                     if payment_item.retail_item:
+                        # Lock the item row for update to prevent race conditions (skip for SQLite)
+                        if connection.vendor == 'sqlite':
+                            item = Item.objects.get(id=payment_item.retail_item.id)
+                        else:
+                            item = Item.objects.select_for_update().get(id=payment_item.retail_item.id)
+
+                        # Validate stock availability before deduction
+                        if item.stock < payment_item.quantity:
+                            # Rollback will happen automatically due to @transaction.atomic
+                            messages.error(
+                                request,
+                                f"Insufficient stock for {item.name}. Available: {item.stock}, Required: {payment_item.quantity}"
+                            )
+                            return redirect('store:cashier_dashboard')
+
                         SalesItem.objects.create(
                             sales=sales,
-                            item=payment_item.retail_item,
+                            item=item,
                             price=payment_item.unit_price,
                             quantity=payment_item.quantity,
                             discount_amount=payment_item.discount_amount,
                             brand=payment_item.brand
                         )
-                        
-                        # Update stock
-                        payment_item.retail_item.stock -= payment_item.quantity
-                        payment_item.retail_item.save()
+
+                        # Deduct stock (ONLY place where stock is deducted)
+                        item.stock -= payment_item.quantity
+                        item.save()
                         
                         # Create dispensing log
                         DispensingLog.objects.create(

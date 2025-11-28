@@ -16,9 +16,11 @@ class BarcodeScanner {
         this.isScanning = false;
 
         // Safe configuration that works with or without Html5QrcodeSupportedFormats
+        // Enhanced for better sensitivity and faster scanning
         this.config = {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
+            fps: 25,  // Increased from 10 to 25 for faster scan detection
+            qrbox: { width: 300, height: 300 },  // Larger scanning area (was 250x250)
+            aspectRatio: 1.777778,  // 16:9 for better camera utilization
             // Use formatsToSupport if available, otherwise rely on default formats
             ...(typeof Html5QrcodeSupportedFormats !== 'undefined' && {
                 formatsToSupport: [
