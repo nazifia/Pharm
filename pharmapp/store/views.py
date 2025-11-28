@@ -815,7 +815,13 @@ def update_cart_quantity(request, pk):
         # Ensure user can only update their own cart items
         cart_item = get_object_or_404(Cart, id=pk, user=request.user)
         if request.method == 'POST':
-            quantity_to_return = int(request.POST.get('quantity', 0))
+            quantity_str = request.POST.get('quantity', '').strip()
+            if not quantity_str:
+                return JsonResponse({'error': 'Quantity is required'}, status=400)
+            try:
+                quantity_to_return = int(quantity_str)
+            except ValueError:
+                return JsonResponse({'error': 'Invalid quantity value'}, status=400)
             if 0 < quantity_to_return <= cart_item.quantity:
                 cart_item.item.stock += quantity_to_return
                 cart_item.item.save()

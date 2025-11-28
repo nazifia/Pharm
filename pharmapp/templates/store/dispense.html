@@ -233,6 +233,51 @@ Dispense Items - {{ block.super }}
         margin-bottom: 0.5rem;
     }
 }
+
+/* Barcode scanned item highlight */
+.barcode-scanned-item {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%) !important;
+    border: 3px solid #ffc107 !important;
+    box-shadow: 0 0 20px rgba(255, 193, 7, 0.5) !important;
+    animation: pulse-highlight 2s ease-in-out infinite;
+    transform: translateX(0) !important; /* Override hover transform */
+}
+
+.barcode-scanned-item .item-name {
+    font-weight: 700;
+    color: #856404;
+}
+
+.barcode-scanned-item .add-to-cart-btn {
+    animation: btn-pulse 1s ease-in-out infinite;
+    box-shadow: 0 0 15px rgba(40, 167, 69, 0.6);
+}
+
+@keyframes pulse-highlight {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(255, 193, 7, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(255, 193, 7, 0.8);
+    }
+}
+
+@keyframes btn-pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+/* Mobile responsive for highlight */
+@media (max-width: 768px) {
+    .barcode-scanned-item {
+        margin: 0 -1rem;
+        padding: 1.5rem !important;
+    }
+}
 </style>
 {% endblock %}
 
@@ -535,6 +580,9 @@ window.onBarcodeItemFound = function(item, barcode) {
         console.log('[Dispense] Input value after setting:', searchInput.value);
         console.log('[Dispense] Input length:', searchInput.value.length);
 
+        // Store scanned item ID for highlighting after results load
+        window.scannedItemId = item.id;
+
         // Trigger the HTMX search with a delay to ensure value is set
         setTimeout(() => {
             // Force change event before keyup to ensure HTMX detects the value
@@ -543,87 +591,11 @@ window.onBarcodeItemFound = function(item, barcode) {
                 htmx.trigger(searchInput, 'keyup');
                 console.log('[Dispense] HTMX search triggered after input event');
             }, 50);
-            
-            // Wait for search results to load, then find and click the Add to Cart button
+
+            // Wait for search results to load, then highlight the scanned item
             setTimeout(() => {
-                // Try simpler approach: just create form data and submit directly
-                console.log('[Dispense] Directly adding to cart:', item.name, 'ID:', item.id);
-                
-                const formData = new FormData();
-                formData.append('quantity', '1');
-                formData.append('unit', item.unit || 'Pcs');
-                formData.append('from_dispense', 'true');
-                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-                
-                // Submit directly to add_to_cart view
-                fetch(`/add_to_cart/${item.id}/?from_dispense=true`, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'HX-Request': 'true'
-                    }
-                })
-                .then(response => {
-                    if (response.ok) {
-                        console.log('[Dispense] Item added to cart successfully');
-                        // Update cart widget manually if needed
-                        return response.text();
-                    } else {
-                        console.error('[Dispense] Failed to add item to cart:', response.status);
-                    }
-                })
-                .then(html => {
-                    console.log('[Dispense] Updating cart widget');
-                    document.getElementById('cart-summary-widget').outerHTML = html;
-                })
-                .catch(err => {
-                    console.error('[Dispense] Error adding to cart:', err);
-                });
-                
-                if (addToCartForm) {
-                    console.log('[Dispense] Found add-to-cart form for item:', item.name);
-                    const submitBtn = addToCartForm.querySelector('button[type="submit"]');
-                    if (submitBtn) {
-                        console.log('[Dispense] Submitting add-to-cart form...');
-                        // Use HTMX to submit the form properly
-                        htmx.trigger(submitBtn, 'click');
-                    } else {
-                        console.error('[Dispense] Submit button not found in form');
-                    }
-                } else {
-                    console.error('[Dispense] Add-to-cart form not found for item ID:', item.id);
-                    // If form not found, try to find it by item name as fallback
-                    const allForms = document.querySelectorAll('.add-to-cart-form');
-                    console.log('[Dispense] Checking all forms:', allForms.length, 'forms found');
-                    let foundForm = false;
-                    for (let form of allForms) {
-                        const itemName = form.getAttribute('data-item-name');
-                        const itemId = form.getAttribute('data-item-id');
-                        console.log('[Dispense] Checking form:', itemName, 'ID:', itemId);
-                        if (itemName && itemName.toLowerCase() === item.name.toLowerCase()) {
-                            console.log('[Dispense] Found form by item name as fallback');
-                            const submitBtn = form.querySelector('button[type="submit"]');
-                            if (submitBtn) {
-                                console.log('[Dispense] Submitting fallback form...');
-                                htmx.trigger(submitBtn, 'click');
-                                foundForm = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!foundForm) {
-                        console.error('[Dispense] Could not find any matching add-to-cart form');
-                        // Log all form data-attributes for debugging
-                        document.querySelectorAll('.add-to-cart-form').forEach((form, index) => {
-                            console.log(`[Dispense] Form ${index}:`, {
-                                'data-item-id': form.getAttribute('data-item-id'),
-                                'data-item-name': form.getAttribute('data-item-name')
-                            });
-                        });
-                    }
-                }
-            }, 800); // Increased wait time for HTMX to load the search results
+                highlightScannedItem(item.id);
+            }, 500); // Reduced from 800ms since we're not doing fetch
         }, 100);
     } else {
         console.error('[Dispense] Search input not found or item is null');
@@ -632,14 +604,60 @@ window.onBarcodeItemFound = function(item, barcode) {
     // Close the scanner modal
     $('#barcodeScannerModal').modal('hide');
 
-    // Show success notification
+    // Show notification that item was found in results
     if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
         window.offlineHandler.showInAppNotification(
-            'Barcode Scanned',
-            `Found: ${item.name}${item.brand ? ' - ' + item.brand : ''}`,
-            'success'
+            'Item Found',
+            `${item.name}${item.brand ? ' - ' + item.brand : ''} is now in search results. Click "Add to Cart" to add.`,
+            'info'
         );
     }
 };
+
+// Function to highlight the scanned item in search results
+function highlightScannedItem(itemId) {
+    console.log('[Dispense] Highlighting scanned item:', itemId);
+
+    // Find the item card with matching data-item-id
+    const formElement = document.querySelector(`.add-to-cart-form[data-item-id="${itemId}"]`);
+    const itemCard = formElement ? formElement.closest('.item-card') : null;
+
+    if (itemCard) {
+        console.log('[Dispense] Found item card to highlight');
+
+        // Add highlight class
+        itemCard.classList.add('barcode-scanned-item');
+
+        // Scroll into view smoothly
+        itemCard.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+
+        // Focus the quantity input for immediate interaction
+        const quantityInput = itemCard.querySelector('input[name="quantity"]');
+        if (quantityInput) {
+            quantityInput.focus();
+            quantityInput.select(); // Highlight current value for easy replacement
+        }
+
+        // Remove highlight after 5 seconds
+        setTimeout(() => {
+            itemCard.classList.remove('barcode-scanned-item');
+        }, 5000);
+    } else {
+        console.warn('[Dispense] Could not find item card for ID:', itemId);
+        // Item might not be in results (out of stock, deleted, etc.)
+        if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+            window.offlineHandler.showInAppNotification(
+                'Item Not Available',
+                'The scanned item was not found in available inventory.',
+                'warning'
+            );
+        }
+    }
+}
+
+console.log('[Dispense] Barcode callback and highlight function ready');
 </script>
 {% endblock %}
