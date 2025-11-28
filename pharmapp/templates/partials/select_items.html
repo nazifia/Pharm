@@ -55,6 +55,8 @@
         box-shadow: 0 8px 25px rgba(79, 172, 254, 0.4);
         color: white;
     }
+
+    .customer-info h4 {
         display: flex;
         align-items: center;
     }
@@ -185,8 +187,6 @@
 
         .customer-info h4 {
             font-size: 1.1rem;
-        }
-
         }
 
         .form-select, .form-control {
@@ -432,7 +432,7 @@
                     {% for item in items %}
                     <tr>
                         <td data-label="Select">
-                            <input type="checkbox" name="item_ids" value="{{ item.id }}">
+                            <input type="checkbox" name="item_ids" value="{{ item.id }}" data-item-id="{{ item.id }}">
                         </td>
                         <td data-label="Item" class="item-name">{{ item.name|title }}</td>
                         <td data-label="D/form">{{ item.dosage_form|default:"N/A" }}</td>
@@ -443,8 +443,8 @@
                             {{ item.stock }}
                         </td>
                         <td data-label="Quantity">
-                            <input type="number" name="quantities" min="1" max="{{ item.stock_quantity }}" value="1"
-                                class="form-control input-sm" disabled>
+                            <input type="number" name="quantities" min="1" max="{{ item.stock }}" value="1"
+                                class="form-control input-sm" data-item-id="{{ item.id }}" disabled>
                         </td>
                     </tr>
                     {% endfor %}
