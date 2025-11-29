@@ -516,7 +516,6 @@ def wholesale_cart_sync(request):
 
 # Barcode Scanning API Endpoints
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def barcode_lookup(request):
     """
@@ -532,8 +531,15 @@ def barcode_lookup(request):
         barcode = data.get('barcode', '').strip()
         mode = data.get('mode', 'retail')
 
+        # Log request for debugging
+        logger.info(f"Barcode lookup: {barcode} (mode: {mode})")
+
         if not barcode:
-            return JsonResponse({'error': 'Barcode is required'}, status=400)
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Barcode is required',
+                'user_message': 'Please scan or enter a barcode'
+            }, status=400)
 
         # Select appropriate model based on mode
         ItemModel = Item if mode == 'retail' else WholesaleItem
@@ -548,7 +554,8 @@ def barcode_lookup(request):
                 if len(parts) != 3:
                     return JsonResponse({
                         'status': 'error',
-                        'error': 'Invalid QR code format'
+                        'error': 'Invalid QR code format',
+                        'user_message': 'QR code format is invalid. Expected: PHARM-RETAIL-123'
                     }, status=400)
 
                 qr_mode = parts[1].lower()  # 'retail' or 'wholesale'
@@ -558,11 +565,14 @@ def barcode_lookup(request):
                 if qr_mode != mode:
                     return JsonResponse({
                         'status': 'error',
-                        'error': f'QR code is for {qr_mode} mode, but scanning in {mode} mode'
+                        'error': f'Mode mismatch: {qr_mode} vs {mode}',
+                        'user_message': f'This QR code is for {qr_mode} mode. Please switch modes or scan a different code.'
                     }, status=400)
 
                 # Look up by ID
                 item = ItemModel.objects.get(id=item_id)
+
+                logger.info(f"QR code found: {item.name} (ID: {item.id})")
 
                 return JsonResponse({
                     'status': 'success',
@@ -582,21 +592,27 @@ def barcode_lookup(request):
                     }
                 })
 
-            except (ValueError, IndexError):
+            except (ValueError, IndexError) as e:
+                logger.warning(f"Invalid QR code format: {barcode}")
                 return JsonResponse({
                     'status': 'error',
-                    'error': 'Invalid QR code format'
+                    'error': 'Invalid QR code format',
+                    'user_message': 'Unable to parse QR code. Please try scanning again.'
                 }, status=400)
             except ItemModel.DoesNotExist:
+                logger.warning(f"Item not found for QR code: {barcode}")
                 return JsonResponse({
                     'status': 'error',
-                    'error': 'Item not found for QR code'
+                    'error': 'Item not found',
+                    'user_message': 'Item not found for this QR code. It may have been deleted.'
                 }, status=404)
         else:
             # Traditional barcode lookup
             try:
                 # Try exact barcode match
                 item = ItemModel.objects.get(barcode=barcode)
+
+                logger.info(f"Barcode found: {item.name} (barcode: {barcode})")
 
                 return JsonResponse({
                     'status': 'success',
@@ -616,16 +632,27 @@ def barcode_lookup(request):
                     }
                 })
             except ItemModel.DoesNotExist:
+                logger.warning(f"Barcode not found: {barcode} (mode: {mode})")
                 return JsonResponse({
                     'status': 'error',
-                    'error': 'Item not found'
+                    'error': 'Item not found',
+                    'user_message': f'No item found with barcode: {barcode}. Please check if the barcode is assigned.'
                 }, status=404)
 
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in barcode lookup: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'error': 'Invalid JSON',
+            'user_message': 'Request format error. Please try again.'
+        }, status=400)
     except Exception as e:
-        logger.error(f"Error in barcode_lookup: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+        logger.error(f"Unexpected error in barcode_lookup: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'status': 'error',
+            'error': str(e),
+            'user_message': 'An unexpected error occurred. Please try again or contact support.'
+        }, status=500)
 
 
 @csrf_exempt

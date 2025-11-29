@@ -652,7 +652,7 @@
         // Initialize hardware scanner for retail registered customers
         window.selectItemsHardwareScanner = new HardwareScannerHandler({
             mode: 'retail',
-            scannerSpeed: 50,        // Max 50ms between characters
+            scannerSpeed: 100,       // UPDATED: Increased from 50ms to 100ms for Bluetooth scanners
             minBarcodeLength: 3,     // Min barcode length
             maxBarcodeLength: 50     // Max barcode length
         });

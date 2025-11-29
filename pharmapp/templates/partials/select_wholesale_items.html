@@ -737,7 +737,7 @@
         // Initialize hardware scanner for wholesale registered customers
         window.selectWholesaleItemsHardwareScanner = new HardwareScannerHandler({
             mode: 'wholesale',
-            scannerSpeed: 50,        // Max 50ms between characters
+            scannerSpeed: 100,       // UPDATED: Increased from 50ms to 100ms for Bluetooth scanners
             minBarcodeLength: 3,     // Min barcode length
             maxBarcodeLength: 50     // Max barcode length
         });

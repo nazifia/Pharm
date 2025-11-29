@@ -27,6 +27,14 @@
                     <button type="button" id="stop-scan-btn" class="btn btn-danger" style="display: none;">
                         <i class="fas fa-stop"></i> Stop Camera
                     </button>
+
+                    <!-- Auto-start option -->
+                    <div class="form-check mt-3">
+                        <input type="checkbox" class="form-check-input" id="auto-start-checkbox">
+                        <label class="form-check-label" for="auto-start-checkbox">
+                            <small>Auto-start camera when opening scanner</small>
+                        </label>
+                    </div>
                 </div>
 
                 <hr class="my-4">
@@ -212,32 +220,41 @@
         const mode = this.dataset.mode || 'retail';
 
         console.log('[Scanner Modal] Modal opened in', mode, 'mode');
-        console.log('[Scanner Modal] BarcodeScanner class available:', typeof BarcodeScanner !== 'undefined');
-        console.log('[Scanner Modal] Html5Qrcode library available:', typeof Html5Qrcode !== 'undefined');
 
-        // Check if required libraries are loaded
-        if (typeof BarcodeScanner === 'undefined') {
-            showStatus('Barcode scanner not loaded. Please refresh the page.', 'danger');
-            console.error('[Scanner Modal] BarcodeScanner class not found!');
+        // Wait for library to be ready (max 3 seconds)
+        let libraryReady = false;
+        let attempts = 0;
+        const maxAttempts = 30;  // 30 attempts * 100ms = 3 seconds
+
+        while (!libraryReady && attempts < maxAttempts) {
+            if (typeof Html5Qrcode !== 'undefined' && typeof BarcodeScanner !== 'undefined') {
+                libraryReady = true;
+                break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+
+            if (attempts % 10 === 0) {
+                console.log('[Scanner Modal] Waiting for libraries... (' + (attempts * 100) + 'ms)');
+            }
+        }
+
+        if (!libraryReady) {
+            showStatus('Scanner library failed to load. Please refresh the page.', 'danger');
+            console.error('[Scanner Modal] Timeout waiting for libraries');
             return;
         }
 
-        if (typeof Html5Qrcode === 'undefined') {
-            showStatus('Camera library not loaded. Please refresh the page.', 'danger');
-            console.error('[Scanner Modal] Html5Qrcode library not found!');
-            return;
-        }
+        console.log('[Scanner Modal] Libraries ready after ' + (attempts * 100) + 'ms');
 
         try {
             // Initialize scanner with dynamic callback lookup from parent page
-            // This ensures we call the callback at runtime, not at initialization time
             barcodeScanner = new BarcodeScanner({
                 scannerId: 'barcode-scanner',
                 mode: mode,
                 onSuccess: function(item, barcode) {
-                    // Lookup callback at runtime to ensure it's the latest version
                     const callback = window.onBarcodeItemFound || defaultSuccessHandler;
-                    console.log('[Scanner Modal] Invoking callback, type:', typeof callback);
+                    console.log('[Scanner Modal] Invoking callback');
                     callback(item, barcode);
                 },
                 onError: defaultErrorHandler
@@ -245,8 +262,15 @@
 
             await barcodeScanner.init();
             hideStatus();
-            console.log('[Scanner Modal] Initialized successfully in', mode, 'mode');
-            console.log('[Scanner Modal] Callback available:', typeof window.onBarcodeItemFound !== 'undefined');
+            console.log('[Scanner Modal] Initialized successfully');
+
+            // Auto-start option (check localStorage setting)
+            const autoStart = localStorage.getItem('barcode_auto_start') === 'true';
+            if (autoStart) {
+                console.log('[Scanner Modal] Auto-starting camera...');
+                setTimeout(() => startBtn.click(), 200);
+            }
+
         } catch (error) {
             showStatus('Failed to initialize scanner: ' + error.message, 'danger');
             console.error('[Scanner Modal] Initialization error:', error);
@@ -394,4 +418,19 @@
 
     console.log('[Scanner Modal] Script loaded and ready');
 })(); // End IIFE - executes immediately on script load
+
+// Handle auto-start checkbox preference
+document.addEventListener('DOMContentLoaded', function() {
+    const checkbox = document.getElementById('auto-start-checkbox');
+    if (checkbox) {
+        // Load saved preference
+        checkbox.checked = localStorage.getItem('barcode_auto_start') === 'true';
+
+        // Save preference when changed
+        checkbox.addEventListener('change', function() {
+            localStorage.setItem('barcode_auto_start', this.checked);
+            console.log('[Scanner Modal] Auto-start preference saved:', this.checked);
+        });
+    }
+});
 </script>

@@ -16,22 +16,59 @@ class BarcodeScanner {
         this.isScanning = false;
 
         // Safe configuration that works with or without Html5QrcodeSupportedFormats
+        // Optimized for better detection reliability
         this.config = {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            // Use formatsToSupport if available, otherwise rely on default formats
-            ...(typeof Html5QrcodeSupportedFormats !== 'undefined' && {
-                formatsToSupport: [
-                    Html5QrcodeSupportedFormats.QR_CODE,
-                    Html5QrcodeSupportedFormats.UPC_A,
-                    Html5QrcodeSupportedFormats.UPC_E,
-                    Html5QrcodeSupportedFormats.EAN_13,
-                    Html5QrcodeSupportedFormats.EAN_8,
-                    Html5QrcodeSupportedFormats.CODE_128,
-                    Html5QrcodeSupportedFormats.CODE_39,
-                ]
-            })
+            fps: 10,  // Reduced from 25 to 10 for better camera compatibility and stability
+            qrbox: this.calculateQrBoxSize(),  // Dynamic sizing based on screen width
+            aspectRatio: 1.777778,  // 16:9 for better camera utilization
+            // Use formatsToSupport only if library is confirmed loaded
+            formatsToSupport: this.getSupportedFormats()
         };
+    }
+
+    /**
+     * Calculate responsive QR box size based on screen width
+     */
+    calculateQrBoxSize() {
+        const width = window.innerWidth;
+        if (width < 576) return { width: 200, height: 200 };  // Mobile
+        if (width < 768) return { width: 250, height: 250 };  // Large mobile
+        if (width < 992) return { width: 300, height: 300 };  // Tablet
+        return { width: 350, height: 350 };  // Desktop
+    }
+
+    /**
+     * Get supported barcode formats safely
+     */
+    getSupportedFormats() {
+        if (typeof Html5QrcodeSupportedFormats === 'undefined') {
+            console.warn('[Barcode Scanner] Html5QrcodeSupportedFormats not available, using defaults');
+            return undefined;  // Let library use all default formats
+        }
+
+        return [
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+        ];
+    }
+
+    /**
+     * Get CSRF token from cookies
+     */
+    getCsrfToken() {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'csrftoken') {
+                return value;
+            }
+        }
+        return '';
     }
 
     /**
@@ -143,6 +180,10 @@ class BarcodeScanner {
     async onScanSuccess(decodedText, decodedResult) {
         console.log('[Barcode Scanner] Scanned:', decodedText);
 
+        // Visual and audio feedback
+        this.playSuccessBeep();
+        this.flashSuccessIndicator();
+
         // Stop scanning to prevent multiple reads
         if (this.isScanning) {
             await this.stopScanning();
@@ -171,6 +212,7 @@ class BarcodeScanner {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': this.getCsrfToken()
                     },
                     body: JSON.stringify({
                         barcode: barcode,
@@ -330,6 +372,45 @@ class BarcodeScanner {
                 message,
                 'success'
             );
+        }
+    }
+
+    /**
+     * Play success beep sound
+     */
+    playSuccessBeep() {
+        if (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined') {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                const audioCtx = new AudioCtx();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.frequency.value = 800;  // High pitch for success
+                oscillator.type = 'sine';
+                gainNode.gain.value = 0.3;
+
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.1);
+            } catch (e) {
+                console.log('[Barcode Scanner] Audio feedback not available');
+            }
+        }
+    }
+
+    /**
+     * Flash success indicator on scanner element
+     */
+    flashSuccessIndicator() {
+        const scanner = document.getElementById(this.scannerId);
+        if (scanner) {
+            scanner.style.border = '5px solid #28a745';
+            setTimeout(() => {
+                scanner.style.border = '';
+            }, 500);
         }
     }
 
