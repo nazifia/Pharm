@@ -204,6 +204,24 @@ class IndexedDBManager {
     }
 
     /**
+     * Get a single record by index
+     */
+    async getByIndex(storeName, indexName, key) {
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            const index = store.index(indexName);
+            const request = index.get(key);
+
+            request.onsuccess = () => {
+                // Return first result or null if not found
+                resolve(request.result || null);
+            };
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
      * Get all records from a store
      */
     async getAll(storeName, indexName = null, query = null) {

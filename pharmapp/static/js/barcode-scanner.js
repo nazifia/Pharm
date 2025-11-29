@@ -15,10 +15,19 @@ class BarcodeScanner {
         this.scanner = null;
         this.isScanning = false;
 
-        // Safe configuration that works with or without Html5QrcodeSupportedFormats
-        // Optimized for better detection reliability
+        // Debouncing to prevent multiple scans of same barcode
+        this.lastScannedCode = null;
+        this.lastScanTime = 0;
+        this.scanCooldown = 500; // Reduced to 0.5 second for faster scanning
+        this.isProcessing = false; // Flag to prevent processing multiple scans simultaneously
+        
+        // Performance optimization: cache for recently scanned items
+        this.recentlyScanned = new Map(); // barcode -> {item, timestamp}
+        this.recentScanCacheTimeout = 30000; // 30 seconds cache
+        
+        // Optimized configuration for fast scanning
         this.config = {
-            fps: 10,  // Reduced from 25 to 10 for better camera compatibility and stability
+            fps: 60,  // Increased to 60 FPS for faster detection
             qrbox: this.calculateQrBoxSize(),  // Dynamic sizing based on screen width
             aspectRatio: 1.777778,  // 16:9 for better camera utilization
             // Use formatsToSupport only if library is confirmed loaded
@@ -127,16 +136,21 @@ class BarcodeScanner {
 
             // Provide more specific error messages
             let errorMessage = 'Failed to start camera. ';
-            if (error.name === 'NotAllowedError' || error.message.includes('Permission')) {
+
+            // Defensive checks for error properties to prevent undefined errors
+            const errorName = error?.name || '';
+            const errorMsg = error?.message || '';
+
+            if (errorName === 'NotAllowedError' || errorMsg.includes('Permission')) {
                 errorMessage += 'Camera access was denied. Please allow camera permissions and try again.';
-            } else if (error.name === 'NotFoundError') {
+            } else if (errorName === 'NotFoundError') {
                 errorMessage += 'No camera found on this device.';
-            } else if (error.name === 'NotReadableError') {
+            } else if (errorName === 'NotReadableError') {
                 errorMessage += 'Camera is already in use by another application.';
-            } else if (error.message.includes('library not loaded')) {
+            } else if (errorMsg.includes('library not loaded')) {
                 errorMessage += 'Barcode scanner library failed to load. Please refresh the page.';
             } else {
-                errorMessage += error.message || 'Please check your camera permissions and try again.';
+                errorMessage += errorMsg || 'Please check your camera permissions and try again.';
             }
 
             this.showError(errorMessage);
@@ -178,19 +192,69 @@ class BarcodeScanner {
      * Handle successful scan
      */
     async onScanSuccess(decodedText, decodedResult) {
+        // Performance logging
+        const scanStartTime = performance.now();
+        
+        // Debouncing - prevent processing same barcode multiple times rapidly
+        const currentTime = Date.now();
+
+        if (this.isProcessing) {
+            console.log('[Barcode Scanner] Already processing a scan, skipping...');
+            return;
+        }
+
+        // Check cache first for recently scanned items
+        const cachedScan = this.recentlyScanned.get(decodedText);
+        if (cachedScan && (currentTime - cachedScan.timestamp) < this.recentScanCacheTimeout) {
+            console.log('[Barcode Scanner] Found in cache:', cachedScan.item);
+            this.playSuccessBeep();
+            this.flashSuccessIndicator();
+            this.onSuccess(cachedScan.item, decodedText);
+            
+            const scanTime = performance.now() - scanStartTime;
+            console.log(`[Barcode Scanner] Cache hit processed in ${scanTime.toFixed(2)}ms`);
+            return;
+        }
+
+        if (this.lastScannedCode === decodedText &&
+            (currentTime - this.lastScanTime) < this.scanCooldown) {
+            console.log('[Barcode Scanner] Same barcode scanned too soon, ignoring');
+            return;
+        }
+
+        // Mark as processing
+        this.isProcessing = true;
+        this.lastScannedCode = decodedText;
+        this.lastScanTime = currentTime;
+
         console.log('[Barcode Scanner] Scanned:', decodedText);
 
         // Visual and audio feedback
         this.playSuccessBeep();
         this.flashSuccessIndicator();
 
-        // Stop scanning to prevent multiple reads
-        if (this.isScanning) {
-            await this.stopScanning();
-        }
-
-        // Lookup the barcode
-        await this.lookupBarcode(decodedText);
+        // Keep scanner running for continuous scanning
+        // Lookup the barcode asynchronously without blocking the scanner
+        this.lookupBarcode(decodedText)
+            .then(item => {
+                if (item) {
+                    // Cache the successful lookup
+                    this.recentlyScanned.set(decodedText, {
+                        item: item,
+                        timestamp: currentTime
+                    });
+                    
+                    // Clean old cache entries
+                    this.cleanExpiredCache();
+                }
+            })
+            .finally(() => {
+                // Reset processing flag immediately for faster response
+                this.isProcessing = false;
+                
+                const scanTime = performance.now() - scanStartTime;
+                console.log(`[Barcode Scanner] Scan processed in ${scanTime.toFixed(2)}ms`);
+            });
     }
 
     /**
@@ -270,7 +334,27 @@ class BarcodeScanner {
     }
 
     /**
-     * Look up barcode or QR code in IndexedDB (offline)
+     * Clean expired entries from the scan cache
+     */
+    cleanExpiredCache() {
+        const currentTime = Date.now();
+        const expiredKeys = [];
+        
+        for (const [barcode, scanData] of this.recentlyScanned.entries()) {
+            if (currentTime - scanData.timestamp > this.recentScanCacheTimeout) {
+                expiredKeys.push(barcode);
+            }
+        }
+        
+        expiredKeys.forEach(key => this.recentlyScanned.delete(key));
+        
+        if (expiredKeys.length > 0) {
+            console.log(`[Barcode Scanner] Cleaned ${expiredKeys.length} expired cache entries`);
+        }
+    }
+
+    /**
+     * Look up barcode or QR code in IndexedDB (offline) - optimized for performance
      */
     async lookupBarcodeOffline(barcode) {
         if (!window.dbManager) {
@@ -280,7 +364,6 @@ class BarcodeScanner {
 
         try {
             const storeName = this.mode === 'retail' ? 'items' : 'wholesaleItems';
-            const allItems = await window.dbManager.getAll(storeName);
 
             // Check if this is a PharmApp QR code
             const isQRCode = barcode.startsWith('PHARM-');
@@ -296,20 +379,46 @@ class BarcodeScanner {
 
                     // Verify mode matches
                     if (qrMode === this.mode) {
-                        // Find item by ID
+                        // Optimized: Try to get specific item by ID using index if available
+                        try {
+                            item = await window.dbManager.get(storeName, itemId);
+                            if (item) {
+                                console.log('[Barcode Scanner] Item found offline by QR code (optimized):', item);
+                                return item;
+                            }
+                        } catch (indexError) {
+                            // Fallback to search if index not available
+                            console.log('[Barcode Scanner] Index lookup failed, falling back to search');
+                        }
+                        
+                        // Fallback: search through all items
+                        const allItems = await window.dbManager.getAll(storeName);
                         item = allItems.find(item => item.id === itemId);
                         if (item) {
-                            console.log('[Barcode Scanner] Item found offline by QR code:', item);
+                            console.log('[Barcode Scanner] Item found offline by QR code (fallback):', item);
                         }
                     } else {
                         console.warn(`[Barcode Scanner] QR code mode mismatch: ${qrMode} vs ${this.mode}`);
                     }
                 }
             } else {
-                // Traditional barcode lookup
+                // Optimized: Try to get item by barcode using index if available
+                try {
+                    item = await window.dbManager.getByIndex(storeName, 'barcode', barcode);
+                    if (item) {
+                        console.log('[Barcode Scanner] Item found offline by barcode (optimized):', item);
+                        return item;
+                    }
+                } catch (indexError) {
+                    // Fallback to search if index not available
+                    console.log('[Barcode Scanner] Index lookup failed, falling back to search');
+                }
+                
+                // Fallback: search through all items only if necessary
+                const allItems = await window.dbManager.getAll(storeName);
                 item = allItems.find(item => item.barcode === barcode);
                 if (item) {
-                    console.log('[Barcode Scanner] Item found offline by barcode:', item);
+                    console.log('[Barcode Scanner] Item found offline by barcode (fallback):', item);
                 }
             }
 
@@ -412,6 +521,18 @@ class BarcodeScanner {
                 scanner.style.border = '';
             }, 500);
         }
+    }
+
+    /**
+     * Clear last scanned code to allow immediate re-scan
+     * Useful when user wants to scan the same item again
+     */
+    clearLastScan() {
+        this.lastScannedCode = null;
+        this.lastScanTime = 0;
+        this.isProcessing = false;
+        this.recentlyScanned.clear(); // Clear cache for fresh start
+        console.log('[Barcode Scanner] Scan history and cache cleared - ready for immediate re-scan');
     }
 
     /**
