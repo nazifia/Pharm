@@ -201,12 +201,23 @@
                 <div id="collapseCustomers" class="collapse" aria-labelledby="headingCustomers" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
                         <h6 class="collapse-header">Retail Customers:</h6>
+                        <a class="collapse-item" href="" data-toggle="modal" data-target="#registerCustomerModal"
+                            hx-get="{% url 'store:register_customers' %}"
+                            hx-target="{% url 'store:register_customers' %}" hx-trigger="click">
+                            <i class="fas fa-user-plus"></i> Register New Customer
+                        </a>
                         <a class="collapse-item" href="{% url 'store:customer_list' %}">
                             <i class="fas fa-list"></i> Retail Customers</a>
                         <a class="collapse-item" href="{% url 'store:customers_on_negative' %}">
                             <i class="fas fa-exclamation-triangle"></i> Customers on Negative (Retail)</a>
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Wholesale Customers:</h6>
+                        <a class="collapse-item" href="" data-toggle="modal"
+                            data-target="#registerWholesaleCustomerModal"
+                            hx-get="{% url 'wholesale:register_wholesale_customers' %}"
+                            hx-target="{% url 'wholesale:register_wholesale_customers' %}" hx-trigger="click">
+                            <i class="fas fa-user-plus"></i> New Wholesale Customer
+                        </a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_customers' %}">
                             <i class="fas fa-list"></i> Wholesale Customers</a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_customers_on_negative' %}">
@@ -385,8 +396,8 @@
                         <h6 class="collapse-header">Expenses:</h6>
                         <a class="collapse-item" href="{% url 'store:expense_list' %}">
                             <i class="fas fa-list"></i> View Expenses</a>
-                        <a class="collapse-item" href="{% url 'store:add_expense_form' %}">
-                            <i class="fas fa-plus"></i> Add Expense</a>
+                        {% comment %} <a class="collapse-item" href="{% url 'store:add_expense_form' %}">
+                            <i class="fas fa-plus"></i> Add Expense</a> {% endcomment %}
                     </div>
                 </div>
             </li>
