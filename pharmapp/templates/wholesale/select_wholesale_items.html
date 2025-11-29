@@ -17,11 +17,16 @@
 
 <!-- Search field to filter items -->
 <div class="mb-3">
-    <input type="text" class="form-control" id="wholesale-item-search" name="q" placeholder="Search for items..."
-        hx-get="{% url 'wholesale:search_wholesale_items' %}" hx-trigger="keyup changed delay:300ms"
-        hx-target="#for-customer" hx-swap="innerHTML" hx-indicator=".htmx-indicator"
-        style="background-color: rgb(210, 247, 253);">
-    <div class="htmx-indicator" style="display:none">
+    <div class="input-group">
+        <input type="text" class="form-control" id="wholesale-item-search" name="q" placeholder="Search for wholesale items..."
+            hx-get="{% url 'wholesale:search_wholesale_items' %}" hx-trigger="keyup changed delay:150ms"
+            hx-target="#for-customer" hx-swap="innerHTML" hx-indicator=".htmx-indicator"
+            style="background-color: rgb(210, 247, 253);">
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#barcodeScannerModal" data-mode="wholesale">
+            <i class="fas fa-barcode"></i> Scan
+        </button>
+    </div>
+    <div class="htmx-indicator" style="display:none; margin-top: 10px;">
         <div class="spinner-border spinner-border-sm text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
@@ -60,7 +65,7 @@
                     <td>{{ item.price }}</td>
                     <td>{{ item.stock }}</td>
                     <td>
-                        <input type="number" name="quantities" min="1" max="{{ item.stock_quantity }}" value="1"
+                        <input type="number" name="quantities" min="0.5" max="{{ item.stock_quantity }}" value="1" step="0.5"
                             class="form-control input-sm" disabled>
                     </td>
                 </tr>
@@ -207,6 +212,117 @@
         actionInput.value = this.value;
         form.appendChild(actionInput);
     });
+</script>
+
+<!-- Barcode Scanner Integration -->
+{% include 'partials/barcode_scanner_modal.html' %}
+
+<!-- Barcode Scanner Callback for Wholesale Item Selection -->
+<script>
+    console.log('[Wholesale Item Selection] Defining barcode callback');
+
+    window.onBarcodeItemFound = function(item, barcode) {
+        console.log('[Wholesale Item Selection] Barcode scanned:', barcode, 'Item:', item);
+
+        // Fill the search input with the item name
+        const searchInput = document.getElementById('wholesale-item-search');
+        if (searchInput && item) {
+            searchInput.value = item.name;
+            console.log('[Wholesale Item Selection] Search input filled with:', item.name);
+
+            // Trigger HTMX search
+            setTimeout(() => {
+                htmx.trigger(searchInput, 'keyup');
+                console.log('[Wholesale Item Selection] HTMX search triggered');
+
+                // Wait for search results to load, then auto-select the item
+                setTimeout(() => {
+                    // Find the checkbox for this wholesale item
+                    const checkbox = document.querySelector(`input[type="checkbox"][data-item-id="${item.id}"]`);
+                    if (checkbox && !checkbox.checked) {
+                        checkbox.checked = true;
+                        console.log('[Wholesale Item Selection] Item checkbox auto-selected');
+
+                        // Find and set quantity to 1 if not already set
+                        const quantityInput = document.querySelector(`input[name="quantities"][data-item-id="${item.id}"]`);
+                        if (quantityInput && (!quantityInput.value || quantityInput.value === '0')) {
+                            quantityInput.value = '1';
+                            quantityInput.disabled = false;
+                            console.log('[Wholesale Item Selection] Quantity set to 1');
+                        }
+                    }
+                }, 800); // Wait for HTMX to load results
+            }, 100);
+        } else {
+            console.error('[Wholesale Item Selection] Search input not found or item is null');
+        }
+
+        // Close the scanner modal
+        const modalElement = document.getElementById('barcodeScannerModal');
+        if (modalElement) {
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) modal.hide();
+        }
+
+        // Show success notification
+        if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+            window.offlineHandler.showInAppNotification(
+                'Wholesale Item Scanned',
+                `${item.name} added to selection`,
+                'success'
+            );
+        }
+    };
+
+    console.log('[Wholesale Item Selection] Barcode callback ready');
+
+    // ==================== HARDWARE BARCODE SCANNER SUPPORT ====================
+    // Supports USB/Bluetooth handheld barcode scanners for wholesale registered customers
+    // No need to click scan button - just point and scan!
+    // ==========================================================================
+
+    // Load hardware scanner module
+    const hardwareScannerScript = document.createElement('script');
+    hardwareScannerScript.src = "{% static 'js/hardware-scanner.js' %}";
+    hardwareScannerScript.onload = function() {
+        console.log('[Wholesale Item Selection] Hardware scanner module loaded');
+
+        // Initialize hardware scanner for wholesale registered customers
+        window.selectWholesaleItemsPageHardwareScanner = new HardwareScannerHandler({
+            mode: 'wholesale',
+            scannerSpeed: 50,        // Max 50ms between characters
+            minBarcodeLength: 3,     // Min barcode length
+            maxBarcodeLength: 50     // Max barcode length
+        });
+
+        // Start listening for scanner input
+        window.selectWholesaleItemsPageHardwareScanner.init();
+        console.log('[Wholesale Item Selection] Hardware scanner initialized - Ready to scan!');
+
+        // Disable hardware scanner when camera modal is open (avoid conflicts)
+        $('#barcodeScannerModal').on('shown.bs.modal', function() {
+            if (window.selectWholesaleItemsPageHardwareScanner) {
+                window.selectWholesaleItemsPageHardwareScanner.disable();
+                console.log('[Wholesale Item Selection] Hardware scanner disabled (camera active)');
+            }
+        });
+
+        // Re-enable hardware scanner when camera modal is closed
+        $('#barcodeScannerModal').on('hidden.bs.modal', function() {
+            if (window.selectWholesaleItemsPageHardwareScanner) {
+                window.selectWholesaleItemsPageHardwareScanner.enable();
+                console.log('[Wholesale Item Selection] Hardware scanner enabled');
+            }
+        });
+    };
+    document.head.appendChild(hardwareScannerScript);
+
+    // ==========================================================================
+    // USAGE: Just scan with your USB/Bluetooth barcode scanner!
+    // - Point scanner at barcode
+    // - Press trigger
+    // - Item automatically appears in search results
+    // ==========================================================================
 </script>
 
 {% endblock %}

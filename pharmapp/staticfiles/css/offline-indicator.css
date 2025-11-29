@@ -1,42 +1,85 @@
+/**
+ * Offline Indicator Styles
+ * Visual indicators for connection and sync status
+ */
+
 .connection-status {
     position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 10px;
-    border-radius: 5px;
-    background: #fff;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    z-index: 1000;
+    top: 10px;
+    right: 10px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    padding: 8px 16px;
+    z-index: 9998;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.connection-status.offline {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
 }
 
 .status-indicator {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 8px;
 }
 
 .status-dot {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #ccc;
+    background: #28a745;
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
+    animation: pulse 2s infinite;
 }
 
-.online .status-dot {
-    background: #4CAF50;
+.status-dot.online {
+    background: #28a745;
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
 }
 
-.offline .status-dot {
-    background: #f44336;
+.status-dot.offline {
+    background: #dc3545;
+    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
+    animation: pulse-offline 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 0 4px rgba(40, 167, 69, 0.1);
+    }
+}
+
+@keyframes pulse-offline {
+    0%, 100% {
+        box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.1);
+    }
+}
+
+.status-text {
+    font-weight: 500;
+    color: #333;
 }
 
 .sync-status {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
+    color: #007bff;
+    border-left: 1px solid #dee2e6;
+    padding-left: 12px;
 }
 
 .sync-status.hidden {
@@ -45,9 +88,162 @@
 
 .sync-icon {
     animation: rotate 1s linear infinite;
+    font-size: 16px;
 }
 
 @keyframes rotate {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.sync-text {
+    font-size: 13px;
+}
+
+.pending-actions-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff3cd;
+    color: #856404;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.pending-actions-indicator.hidden {
+    display: none;
+}
+
+.pending-icon {
+    font-size: 14px;
+}
+
+.pending-count {
+    font-weight: 700;
+}
+
+/* Offline notification styles */
+.offline-notification {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Offline mode overlay */
+.offline-overlay {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(255, 193, 7, 0.9), transparent);
+    padding: 12px;
+    text-align: center;
+    color: #333;
+    font-weight: 600;
+    z-index: 9997;
+    display: none;
+}
+
+.offline-overlay.show {
+    display: block;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+    .connection-status {
+        top: 5px;
+        right: 5px;
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+    }
+
+    .sync-status {
+        padding-left: 8px;
+    }
+
+    .pending-actions-indicator {
+        padding: 3px 8px;
+        font-size: 11px;
+    }
+}
+
+/* Loading spinner for sync */
+.sync-spinner {
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007bff;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Sync button styles */
+.sync-button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.sync-button:hover {
+    background: #0056b3;
+}
+
+.sync-button:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+}
+
+/* Data freshness indicator */
+.data-freshness {
+    font-size: 11px;
+    color: #6c757d;
+    margin-top: 4px;
+}
+
+.data-stale {
+    color: #ffc107;
+}
+
+.data-fresh {
+    color: #28a745;
 }

@@ -192,7 +192,7 @@
         <button class="btn btn-info btn-sm" onclick="submitFormAndPrint()">
             <i class="fas fa-save"></i> Save & Print
         </button>
-        <a href="{{ request.META.HTTP_REFERER }}" class="btn btn-outline-dark btn-sm">Back</a>
+        <a href="{% url 'store:dispense' %}" class="btn btn-outline-dark btn-sm">Back to Dispense</a>
     </div>
 
     <script>

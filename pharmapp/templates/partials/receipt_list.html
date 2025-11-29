@@ -134,7 +134,7 @@
                 <label for="date">Search by Date</label>
                 <input type="date" name="date" id="date" class="form-control"
                     style="background-color: rgb(212, 248, 159);" hx-get="{% url 'store:search_receipts' %}"
-                    hx-target="#sales-data" hx-trigger="change delay:300ms" value="{{ request.GET.date }}">
+                    hx-target="#sales-data" hx-trigger="change delay:150ms" value="{{ request.GET.date }}">
             </div>
         </div>
     </form>

@@ -1,0 +1,83 @@
+<!-- Reusable QR Code Display Component -->
+<!-- Usage: {% include 'partials/qr_code_display.html' with item_id=item.id mode='retail' %} -->
+
+<div class="qr-code-container" id="qr-container-{{ mode }}-{{ item_id|default:receipt_id }}">
+    <div class="text-center">
+        <button class="btn btn-sm btn-outline-primary" onclick="loadQRCode{{ item_id|default:receipt_id }}()">
+            <i class="fas fa-qrcode"></i> Show QR Code
+        </button>
+    </div>
+    <div id="qr-display-{{ item_id|default:receipt_id }}" class="mt-3" style="display:none;">
+        <div class="text-center">
+            <img id="qr-image-{{ item_id|default:receipt_id }}" src="" alt="QR Code" class="img-fluid" style="max-width: 200px;">
+            <div class="mt-2">
+                <button class="btn btn-sm btn-success" onclick="printQR{{ item_id|default:receipt_id }}()">
+                    <i class="fas fa-print"></i> Print
+                </button>
+                <button class="btn btn-sm btn-info" onclick="downloadQR{{ item_id|default:receipt_id }}()">
+                    <i class="fas fa-download"></i> Download
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let qrLoaded{{ item_id|default:receipt_id }} = false;
+
+    async function loadQRCode{{ item_id|default:receipt_id }}() {
+        if (qrLoaded{{ item_id|default:receipt_id }}) {
+            const display = document.getElementById('qr-display-{{ item_id|default:receipt_id }}');
+            display.style.display = display.style.display === 'none' ? 'block' : 'none';
+            return;
+        }
+
+        const display = document.getElementById('qr-display-{{ item_id|default:receipt_id }}');
+        display.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm"></div><p>Loading...</p></div>';
+        display.style.display = 'block';
+
+        try {
+            {% if item_id %}
+            const url = '{% url "store:generate_item_qr" item_id %}';
+            {% elif receipt_id %}
+            const url = '{% url "store:generate_receipt_qr" receipt_id %}';
+            {% endif %}
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById('qr-image-{{ item_id|default:receipt_id }}').src = data.qr_image;
+                display.innerHTML = document.getElementById('qr-display-{{ item_id|default:receipt_id }}').innerHTML;
+                qrLoaded{{ item_id|default:receipt_id }} = true;
+            } else {
+                display.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+            }
+        } catch (error) {
+            display.innerHTML = `<div class="alert alert-danger">Error loading QR code</div>`;
+        }
+    }
+
+    function printQR{{ item_id|default:receipt_id }}() {
+        const img = document.getElementById('qr-image-{{ item_id|default:receipt_id }}');
+        const win = window.open('', '_blank');
+        win.document.write(`
+            <html>
+                <head><title>QR Code</title></head>
+                <body style="text-align:center;padding:20px;">
+                    <img src="${img.src}" style="max-width:400px;">
+                </body>
+            </html>
+        `);
+        win.document.close();
+        win.print();
+    }
+
+    function downloadQR{{ item_id|default:receipt_id }}() {
+        const img = document.getElementById('qr-image-{{ item_id|default:receipt_id }}');
+        const link = document.createElement('a');
+        link.href = img.src;
+        link.download = 'qr-code-{{ item_id|default:receipt_id }}.png';
+        link.click();
+    }
+</script>

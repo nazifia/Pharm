@@ -284,7 +284,7 @@
                 {% else %}
                 <h4>No Sales for the Month</h4>
                 <a
-                    href="{{ request.META.HTTP_REFERER }}"
+                    href="{% url 'store:index' %}"
                     class="btn btn-secondary form-control mt-3"
                     style="width: 100%"
                     >Go Back</a

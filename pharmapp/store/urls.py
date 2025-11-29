@@ -25,6 +25,7 @@ urlpatterns = [
     path('view_cart/', views.view_cart, name='view_cart'),
     path('update_cart_quantity/<int:pk>/', views.update_cart_quantity, name='update_cart_quantity'),
     path('clear_cart/', views.clear_cart, name='clear_cart'),
+    path('validate_cart_stock/', views.validate_cart_stock, name='validate_cart_stock'),
     path('send_to_cashier/', views.send_to_cashier, name='send_to_cashier'),
     path('payment_requests/', views.payment_requests, name='payment_requests'),
     path('payment_request/<str:request_id>/', views.payment_request_detail, name='payment_request_detail'),
@@ -138,4 +139,11 @@ urlpatterns = [
     path('api/quick-supplier-search/', views.quick_supplier_search, name='quick_supplier_search'),
     path('api/quick-procurement-search/', views.quick_procurement_search, name='quick_procurement_search'),
     path('api/supplier-stats/<int:supplier_id>/', views.supplier_stats_api, name='supplier_stats_api'),
+
+    # QR Code Generation URLs
+    path('qr/item/<int:item_id>/', views.generate_item_qr, name='generate_item_qr'),
+    path('qr/item/<int:item_id>/label/', views.generate_item_label, name='generate_item_label'),
+    path('qr/receipt/<int:receipt_id>/', views.generate_receipt_qr, name='generate_receipt_qr'),
+    path('print-labels/', views.print_item_labels, name='print_item_labels'),
+    path('qr/bulk-labels/', views.bulk_generate_labels, name='bulk_generate_labels'),
 ]

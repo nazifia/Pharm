@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python manage.py runserver:*)",
+      "Bash(mkdir:*)",
+      "Bash(python manage.py makemigrations:*)",
+      "Bash(python manage.py migrate:*)",
+      "Bash(timeout 5 bash -c 'while ! curl -s http://127.0.0.1:8000 > /dev/null 2>&1; do sleep 0.5; done && echo \"\"Server is ready\"\"')",
+      "Bash(curl:*)",
+      "Bash(python manage.py shell:*)",
+      "Bash(git checkout:*)",
+      "Bash(python manage.py collectstatic:*)",
+      "Bash(timeout 2 curl:*)",
+      "Bash(find:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(echo:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -33,8 +33,8 @@
 
             <!-- Date Filter Form -->
             <div class="card mb-4">
-                <div class="card-header bg-info">
-                    <h5 class="mb-0">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0 text-white">
                         <i class="fas fa-filter mr-2"></i>
                         Filter by Date Range
                     </h5>
@@ -64,8 +64,8 @@
             <!-- Payment Totals Table -->
             {% if daily_payment_totals %}
                 <div class="card">
-                    <div class="card-header bg-primary">
-                        <h5 class="mb-0">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0 text-white">
                             <i class="fas fa-chart-line mr-2"></i>
                             Payment Totals from {{ start_date|date:"Y-m-d" }} to {{ end_date|date:"Y-m-d" }}
                         </h5>
@@ -86,7 +86,7 @@
                                 <tbody>
                                     {% for day_data in daily_payment_totals %}
                                         {% for cashier_data in day_data.cashiers %}
-                                            <tr>
+                                            <tr data-amount="{{ cashier_data.total_amount }}">
                                                 <td>{{ day_data.date|date:"Y-m-d" }}</td>
                                                 {% if is_admin %}
                                                     <td>
@@ -103,7 +103,7 @@
                                                 <td>
                                                     {% for method, amount in cashier_data.payment_methods.items %}
                                                         <span class="badge badge-info mr-1 mb-1">
-                                                            {{ method }}: ₦{{ amount|floatformat:2 }}
+                                                            {{ method }}: ₦{{ amount|floatformat:2|intcomma }}
                                                         </span>
                                                     {% endfor %}
                                                 </td>
@@ -119,67 +119,35 @@
                             <div class="col-md-3">
                                 <div class="card bg-success text-white">
                                     <div class="card-body text-center">
-                                        <h6>Total Period Amount</h6>
-                                        <h4>₦
-                                            {% widthratio 1 1 0 %}
-                                            {% for day_data in daily_payment_totals %}
-                                                {% for cashier_data in day_data.cashiers %}
-                                                    {% if forloop.first and forloop.parentloop.first %}
-                                                        {{ cashier_data.total_amount|floatformat:0 }}
-                                                    {% else %}
-                                                        + {{ cashier_data.total_amount|floatformat:0 }}
-                                                    {% endif %}
-                                                {% endfor %}
-                                            {% endfor %}
-                                        </h4>
+                                        <h6 class="text-white">Total Period Amount</h6>
+                                        <h4 id="total-period-amount">₦0.00</h4>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="col-md-3">
                                 <div class="card bg-info text-white">
                                     <div class="card-body text-center">
-                                        <h6>Daily Average</h6>
-                                        <h4>₦
-                                            {% widthratio daily_payment_totals|length 1 0 %}
-                                            {% for day_data in daily_payment_totals %}
-                                                {% for cashier_data in day_data.cashiers %}
-                                                    {% if forloop.first and forloop.parentloop.first %}
-                                                        {{ cashier_data.total_amount|floatformat:0 }}
-                                                    {% else %}
-                                                        + {{ cashier_data.total_amount|floatformat:0 }}
-                                                    {% endif %}
-                                                {% endfor %}
-                                            {% endfor %}
-                                        </h4>
+                                        <h6 class="text-white">Daily Average</h6>
+                                        <h4 id="daily-average">₦0.00</h4>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="col-md-3">
                                 <div class="card bg-warning text-white">
                                     <div class="card-body text-center">
-                                        <h6>Total Days</h6>
-                                        <h4>{{ daily_payment_totals|length }}</h4>
+                                        <h6 class="text-white">Total Days</h6>
+                                        <h4 id="total-days">{{ daily_payment_totals|length }}</h4>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="col-md-3">
                                 <div class="card bg-secondary text-white">
                                     <div class="card-body text-center">
-                                        <h6>Total Transactions</h6>
-                                        <h4>
-                                            {% for day_data in daily_payment_totals %}
-                                                {% for cashier_data in day_data.cashiers %}
-                                                    {% if forloop.first and forloop.parentloop.first %}
-                                                        1
-                                                    {% else %}
-                                                        + 1
-                                                    {% endif %}
-                                                {% endfor %}
-                                            {% endfor %}
-                                        </h4>
+                                        <h6 class="text-white">Total Transactions</h6>
+                                        <h4 id="total-transactions">0</h4>
                                     </div>
                                 </div>
                             </div>
@@ -203,20 +171,113 @@
 </div>
 
 <script>
-    // Set default date values if not provided
+    // Set default date values if not provided and calculate statistics
     document.addEventListener('DOMContentLoaded', function() {
         const startDateInput = document.getElementById('start_date');
         const endDateInput = document.getElementById('end_date');
-        
+
         if (!startDateInput.value) {
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
         }
-        
+
         if (!endDateInput.value) {
             endDateInput.value = new Date().toISOString().split('T')[0];
         }
+
+        // Calculate summary statistics after page loads
+        setTimeout(calculateStatistics, 50);
     });
+
+    function formatCurrency(amount) {
+        // Ensure amount is a number
+        const numAmount = parseFloat(amount) || 0;
+        return numAmount.toLocaleString('en-NG', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function calculateStatistics() {
+        try {
+            // Get all rows with payment data from the payment totals table
+            const paymentTable = document.querySelector('.table-responsive table tbody');
+            if (!paymentTable) {
+                console.warn('Payment table not found');
+                return;
+            }
+
+            const paymentRows = paymentTable.querySelectorAll('tr[data-amount]');
+
+            if (paymentRows.length === 0) {
+                console.log('No payment rows found');
+                return;
+            }
+
+            let totalAmount = 0;
+            let transactionCount = 0;
+
+            // Collect unique dates for accurate day counting
+            const uniqueDates = new Set();
+
+            // Sum up all amounts and count transactions
+            paymentRows.forEach(row => {
+                const amountStr = row.getAttribute('data-amount');
+                const amount = parseFloat(amountStr);
+
+                if (!isNaN(amount) && amount > 0) {
+                    totalAmount += amount;
+                    transactionCount++;
+
+                    // Get the date from the first cell
+                    const dateCell = row.querySelector('td:first-child');
+                    if (dateCell) {
+                        uniqueDates.add(dateCell.textContent.trim());
+                    }
+                }
+            });
+
+            // Use unique dates count, fallback to total-days element, then fallback to 1
+            let totalDays = uniqueDates.size;
+            if (totalDays === 0) {
+                const totalDaysElement = document.getElementById('total-days');
+                totalDays = totalDaysElement ? parseInt(totalDaysElement.textContent) : 1;
+            }
+
+            // Ensure totalDays is at least 1 to avoid division by zero
+            totalDays = Math.max(totalDays, 1);
+
+            // Calculate daily average
+            const dailyAverage = totalAmount / totalDays;
+
+            // Update the display elements
+            const totalPeriodElement = document.getElementById('total-period-amount');
+            const dailyAverageElement = document.getElementById('daily-average');
+            const totalTransactionsElement = document.getElementById('total-transactions');
+
+            if (totalPeriodElement) {
+                totalPeriodElement.textContent = '₦' + formatCurrency(totalAmount);
+            }
+
+            if (dailyAverageElement) {
+                dailyAverageElement.textContent = '₦' + formatCurrency(dailyAverage);
+            }
+
+            if (totalTransactionsElement) {
+                totalTransactionsElement.textContent = transactionCount;
+            }
+
+            console.log('Statistics calculated:', {
+                totalAmount,
+                totalDays,
+                dailyAverage,
+                transactionCount
+            });
+
+        } catch (error) {
+            console.error('Error calculating statistics:', error);
+        }
+    }
 </script>
 {% endblock %}

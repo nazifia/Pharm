@@ -25,6 +25,7 @@ urlpatterns = [
     path('test_template/', views.test_template_view, name='test_template'),
     path('wholesale_cart/', views.wholesale_cart, name='wholesale_cart'),
     path('clear_wholesale_cart/', views.clear_wholesale_cart, name='clear_wholesale_cart'),
+    path('validate_wholesale_cart_stock/', views.validate_wholesale_cart_stock, name='validate_wholesale_cart_stock'),
     path('update_wholesale_cart_quantity/<int:pk>/', views.update_wholesale_cart_quantity, name='update_wholesale_cart_quantity'),
     path('wholesale_receipt/', views.wholesale_receipt, name='wholesale_receipt'),
     path('wholesale_receipt_list/', views.wholesale_receipt_list, name='wholesale_receipt_list'),
@@ -103,4 +104,11 @@ urlpatterns = [
 
     # Stock Check Enhancement URLs
     path('add_items_to_wholesale_stock_check/<int:stock_check_id>/', views.add_items_to_wholesale_stock_check, name='add_items_to_wholesale_stock_check'),
+
+    # QR Code Generation URLs
+    path('qr/item/<int:item_id>/', views.generate_wholesale_item_qr, name='generate_wholesale_item_qr'),
+    path('qr/item/<int:item_id>/label/', views.generate_wholesale_item_label, name='generate_wholesale_item_label'),
+    path('qr/receipt/<int:receipt_id>/', views.generate_wholesale_receipt_qr, name='generate_wholesale_receipt_qr'),
+    path('print-labels/', views.print_wholesale_item_labels, name='print_wholesale_item_labels'),
+    path('qr/bulk-labels/', views.bulk_generate_wholesale_labels, name='bulk_generate_wholesale_labels'),
 ]

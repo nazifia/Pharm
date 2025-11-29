@@ -1,0 +1,240 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline - PharmApp</title>
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'vendor/fontawesome-free/css/all.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/sb-admin-2.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/offline-indicator.css' %}">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .offline-container {
+            max-width: 600px;
+            text-align: center;
+            background: white;
+            padding: 3rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        .offline-icon {
+            font-size: 80px;
+            color: #ffc107;
+            margin-bottom: 1.5rem;
+            animation: pulse-slow 2s infinite;
+        }
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .offline-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 1rem;
+        }
+        .offline-message {
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 2rem;
+        }
+        .feature-list {
+            text-align: left;
+            margin: 2rem 0;
+            padding: 0;
+            list-style: none;
+        }
+        .feature-list li {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+        }
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+        .feature-list i {
+            color: #28a745;
+            margin-right: 1rem;
+            font-size: 1.2rem;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 2rem;
+        }
+        .action-buttons .btn {
+            min-width: 150px;
+        }
+        .connection-check {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: #999;
+        }
+        .sync-info {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+        .sync-info .badge {
+            font-size: 1rem;
+            padding: 0.5rem 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="offline-icon">
+            <i class="fas fa-wifi"></i>
+            <i class="fas fa-slash" style="position: absolute; margin-left: -60px;"></i>
+        </div>
+
+        <h1 class="offline-title">You're Offline</h1>
+
+        <p class="offline-message">
+            Don't worry! PharmApp works offline. Your data is safe and will sync automatically when you're back online.
+        </p>
+
+        <div class="sync-info">
+            <h5>Offline Mode Active</h5>
+            <div id="pending-count-display" class="mt-2">
+                <span class="badge bg-warning text-dark">
+                    <span id="pending-count">0</span> pending actions
+                </span>
+            </div>
+        </div>
+
+        <ul class="feature-list">
+            <li>
+                <i class="fas fa-check-circle"></i>
+                <span>View inventory items and stock levels</span>
+            </li>
+            <li>
+                <i class="fas fa-check-circle"></i>
+                <span>Add items to cart (retail & wholesale)</span>
+            </li>
+            <li>
+                <i class="fas fa-check-circle"></i>
+                <span>Search products and customers</span>
+            </li>
+            <li>
+                <i class="fas fa-check-circle"></i>
+                <span>View low stock and expiring items</span>
+            </li>
+            <li>
+                <i class="fas fa-check-circle"></i>
+                <span>All changes saved locally and synced later</span>
+            </li>
+        </ul>
+
+        <div class="action-buttons">
+            <button class="btn btn-primary" onclick="retryConnection()">
+                <i class="fas fa-sync"></i> Retry Connection
+            </button>
+            {% if is_authenticated %}
+            <a href="{% url 'store:dashboard' %}" class="btn btn-success">
+                <i class="fas fa-home"></i> Go to Dashboard
+            </a>
+            {% else %}
+            <a href="{% url 'store:index' %}" class="btn btn-success">
+                <i class="fas fa-sign-in-alt"></i> Go to Login
+            </a>
+            {% endif %}
+        </div>
+
+        <div class="connection-check">
+            <small>Checking connection status...</small>
+            <div id="connection-status-text" class="mt-1"></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
+    <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/indexeddb-manager.js' %}"></script>
+    <script src="{% static 'js/offline-helpers.js' %}"></script>
+
+    <script>
+        // Check connection periodically
+        async function checkConnection() {
+            try {
+                const response = await fetch('/api/health/', {
+                    method: 'HEAD',
+                    cache: 'no-cache'
+                });
+
+                if (response.ok) {
+                    document.getElementById('connection-status-text').innerHTML =
+                        '<span class="text-success"><i class="fas fa-check-circle"></i> Connection restored! Redirecting...</span>';
+
+                    // Redirect after a short delay
+                    setTimeout(() => {
+                        {% if is_authenticated %}
+                        window.location.href = "{% url 'store:dashboard' %}";
+                        {% else %}
+                        window.location.href = "{% url 'store:index' %}";
+                        {% endif %}
+                    }, 1500);
+
+                    return true;
+                }
+            } catch (error) {
+                document.getElementById('connection-status-text').innerHTML =
+                    '<span class="text-muted"><i class="fas fa-times-circle"></i> Still offline</span>';
+            }
+            return false;
+        }
+
+        // Retry connection
+        async function retryConnection() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+            btn.disabled = true;
+
+            await checkConnection();
+
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+
+        // Check connection every 10 seconds
+        setInterval(checkConnection, 10000);
+        checkConnection(); // Initial check
+
+        // Update pending count
+        async function updatePendingCount() {
+            if (window.dbManager) {
+                try {
+                    const pendingActions = await window.dbManager.getPendingActions();
+                    document.getElementById('pending-count').textContent = pendingActions.length;
+                } catch (error) {
+                    console.error('Failed to get pending count:', error);
+                }
+            }
+        }
+
+        // Wait for IndexedDB to be ready
+        window.addEventListener('indexeddb-ready', () => {
+            updatePendingCount();
+            setInterval(updatePendingCount, 5000); // Update every 5 seconds
+        });
+
+        // Listen for online event
+        window.addEventListener('online', () => {
+            checkConnection();
+        });
+    </script>
+</body>
+</html>

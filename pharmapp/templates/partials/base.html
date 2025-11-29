@@ -12,6 +12,11 @@
     <meta name="description" content="">
     <meta name="author" content="">
 
+    <!-- Cache Control - Prevent browser caching of dynamic pages -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
     <title>Nazz| Tech</title>
 
     <!-- Favicon configuration -->
@@ -29,6 +34,13 @@
     <!-- HTMX for all pages - load synchronously to avoid timing issues -->
     <script src="{% static 'htmx/htmx.min.js' %}"></script>
     <script>
+        // Configure HTMX to NOT cache requests - ensures fresh data on every request
+        document.body.setAttribute('hx-headers', JSON.stringify({
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }));
+
         // Ensure HTMX is loaded before continuing
         document.addEventListener('DOMContentLoaded', function() {
             if (typeof htmx === 'undefined') {
@@ -45,6 +57,8 @@
                     console.error('Failed to load HTMX from CDN');
                 };
                 document.head.appendChild(script);
+            } else {
+                console.log('[HTMX] Loaded successfully - cache disabled for all requests');
             }
         });
     </script>
@@ -61,6 +75,9 @@
     <!-- Custom styles for this template with async loading -->
     <link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet" media="print" onload="this.media='all'">
     <noscript><link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet"></noscript>
+
+    <!-- Offline indicator styles -->
+    <link href="{% static 'css/offline-indicator.css' %}" rel="stylesheet">
 
     <!-- Extra CSS block for child templates -->
     {% block extra_css %}{% endblock %}
@@ -135,7 +152,7 @@
             <!-- Divider -->
             <hr class="sidebar-divider my-0">
 
-            <!-- Nav Item - Dashboard -->
+            <!-- ==================== DASHBOARD ==================== -->
             <li class="nav-item active">
                 <a class="nav-link" href="{% url 'store:dashboard' %}">
                     <i class="fas fa-fw fa-tachometer-alt"></i>
@@ -145,97 +162,93 @@
             <!-- Divider -->
             <hr class="sidebar-divider">
 
-            <!-- Heading -->
+            <!-- ==================== OPERATIONS ==================== -->
             <div class="sidebar-heading">
-                Core Operations
+                Operations
             </div>
 
-            <!-- Nav Item - Store Operations -->
+            <!-- Dispensing -->
             <li class="nav-item">
-                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseStore"
-                    aria-expanded="true" aria-controls="collapseStore">
-                    <i class="fas fa-fw fa-store"></i>
-                    <span>Dispensing Operations</span>
+                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseDispensing"
+                    aria-expanded="true" aria-controls="collapseDispensing">
+                    <i class="fas fa-fw fa-pills"></i>
+                    <span>Dispensing</span>
                 </a>
-                <div id="collapseStore" class="collapse" aria-labelledby="headingStore" data-parent="#accordionSidebar">
+                <div id="collapseDispensing" class="collapse" aria-labelledby="headingDispensing" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
                         {% if user|can_operate_retail %}
-                        <h6 class="collapse-header">Retail Store:</h6>
-                        {% comment %} <a class="collapse-item" href="{% url 'store:store' %}">
-                            <i class="fas fa-shopping-cart"></i> Store Interface</a>
-                        <a class="collapse-item" href="{% url 'store:add_item' %}">
-                            <i class="fas fa-plus"></i> Add New Item</a>
-                        <a class="collapse-item" href="{% url 'store:search_item' %}">
-                            <i class="fas fa-search"></i> Search Items</a> {% endcomment %}
+                        <h6 class="collapse-header">Retail:</h6>
                         <a class="collapse-item" href="{% url 'store:dispense' %}">
-                            <i class="fas fa-pills"></i> Dispense Retail</a>
-                        {% comment %} <a class="collapse-item" href="{% url 'store:cart' %}">
-                            <i class="fas fa-shopping-basket"></i> Shopping Cart</a> {% endcomment %}
+                            <i class="fas fa-pills"></i> Retail Dispense</a>
                         {% endif %}
                         {% if user|can_operate_wholesale %}
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Wholesale:</h6>
                         <a class="collapse-item" href="{% url 'wholesale:dispense_wholesale' %}">
-                            <i class="fas fa-warehouse"></i> Dispense Wholesale</a>
-                        {% comment %} <a class="collapse-item" href="{% url 'wholesale:wholesales' %}">
-                            <i class="fas fa-warehouse"></i> Wholesale Interface</a>
-                        <a class="collapse-item" href="{% url 'wholesale:add_to_wholesale' %}">
-                            <i class="fas fa-plus"></i> Add Wholesale Item</a>
-                        <a class="collapse-item" href="{% url 'wholesale:search_wholesale_item' %}">
-                            <i class="fas fa-search"></i> Search Wholesale</a>
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_cart' %}">
-                            <i class="fas fa-shopping-cart"></i> Wholesale Cart</a> {% endcomment %}
-                        
+                            <i class="fas fa-warehouse"></i> Wholesale Dispense</a>
                         {% endif %}
                     </div>
                 </div>
             </li>
 
-
-
-            <!-- Nav Item - Chat System -->
+            <!-- Customers -->
             <li class="nav-item">
-                <a class="nav-link" href="{% url 'chat:chat_view_default' %}">
-                    <i class="fas fa-fw fa-comments"></i>
-                    <span>Chat System</span>
-                    <span id="sidebar-unread-badge" class="badge badge-danger badge-counter" style="display: none;">0</span>
+                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseCustomers"
+                    aria-expanded="true" aria-controls="collapseCustomers">
+                    <i class="fas fa-fw fa-users"></i>
+                    <span>Customers</span>
                 </a>
-            </li>
-
-            <!-- Nav Item - Notifications -->
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'store:notification_list' %}">
-                    <i class="fas fa-fw fa-bell"></i>
-                    <span>Notifications</span>
-                    <span id="notification-badge" class="badge badge-warning badge-counter" style="display: none;">0</span>
-                </a>
-            </li>
-
-            <!-- Nav Item - Notebook -->
-            <li class="nav-item">
-                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseNotebook"
-                    aria-expanded="true" aria-controls="collapseNotebook">
-                    <i class="fas fa-fw fa-book"></i>
-                    <span>Notebook</span>
-                    <span id="notebook-new-indicator" class="badge badge-success badge-counter" style="display: none;">NEW</span>
-                </a>
-                <div id="collapseNotebook" class="collapse" aria-labelledby="headingNotebook" data-parent="#accordionSidebar">
+                <div id="collapseCustomers" class="collapse" aria-labelledby="headingCustomers" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
-                        <h6 class="collapse-header">Note Management:</h6>
-                        <a class="collapse-item" href="{% url 'notebook:dashboard' %}">
-                            <i class="fas fa-tachometer-alt"></i> Dashboard</a>
-                        <a class="collapse-item" href="{% url 'notebook:note_list' %}">
-                            <i class="fas fa-sticky-note"></i> All Notes</a>
-                        <a class="collapse-item" href="{% url 'notebook:note_create' %}">
-                            <i class="fas fa-plus"></i> New Note</a>
-                        <a class="collapse-item" href="{% url 'notebook:archived_notes' %}">
-                            <i class="fas fa-archive"></i> Archived Notes</a>
+                        <h6 class="collapse-header">Retail Customers:</h6>
+                        <a class="collapse-item" href="{% url 'store:customer_list' %}">
+                            <i class="fas fa-list"></i> Retail Customers</a>
+                        <a class="collapse-item" href="{% url 'store:customers_on_negative' %}">
+                            <i class="fas fa-exclamation-triangle"></i> Customers on Negative (Retail)</a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Organization:</h6>
-                        <a class="collapse-item" href="{% url 'notebook:category_list' %}">
-                            <i class="fas fa-tags"></i> Categories</a>
-                        <a class="collapse-item" href="{% url 'notebook:category_create' %}">
-                            <i class="fas fa-plus"></i> New Category</a>
+                        <h6 class="collapse-header">Wholesale Customers:</h6>
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_customers' %}">
+                            <i class="fas fa-list"></i> Wholesale Customers</a>
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_customers_on_negative' %}">
+                            <i class="fas fa-exclamation-triangle"></i> Customers on Negative (Wholesale)</a>
+                    </div>
+                </div>
+            </li>
+
+            <!-- Payments -->
+            <li class="nav-item">
+                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePayments"
+                    aria-expanded="true" aria-controls="collapsePayments">
+                    <i class="fas fa-fw fa-credit-card"></i>
+                    <span>Payments</span>
+                </a>
+                <div id="collapsePayments" class="collapse" aria-labelledby="headingPayments" data-parent="#accordionSidebar">
+                    <div class="bg-white py-2 collapse-inner rounded">
+                        {% if user|can_dispense_items %}
+                        <h6 class="collapse-header">My Payment Requests (Dispenser):</h6>
+                        <a class="collapse-item" href="{% url 'store:payment_requests' %}">
+                            <i class="fas fa-receipt"></i> My Retail Requests</a>
+                        {% if user|can_operate_wholesale %}
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_payment_requests' %}">
+                            <i class="fas fa-receipt"></i> My Wholesale Requests</a>
+                        {% endif %}
+                        <div class="collapse-divider"></div>
+                        {% endif %}
+                        {% if user|is_cashier or user.profile.user_type == 'Admin' %}
+                        <h6 class="collapse-header">Cashier Dashboard:</h6>
+                        <a class="collapse-item" href="{% url 'store:cashier_dashboard' %}">
+                            <i class="fas fa-cash-register"></i> Cashier Dashboard (Retail)</a>
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_cashier_dashboard' %}">
+                            <i class="fas fa-cash-register"></i> Cashier Dashboard (Wholesale)</a>
+                        <div class="collapse-divider"></div>
+                        {% endif %}
+                        {% if user|is_cashier or user.profile.user_type == 'Admin' or user.profile.user_type == 'Manager' %}
+                        <h6 class="collapse-header">Payment Totals:</h6>
+                        <a class="collapse-item" href="{% url 'store:cashier_payment_totals' %}">
+                            <i class="fas fa-money-bill-wave"></i> Payment Totals (Retail)</a>
+                        <a class="collapse-item" href="{% url 'wholesale:cashier_payment_totals' %}">
+                            <i class="fas fa-money-bill-wave"></i> Payment Totals (Wholesale)</a>
+                        {% endif %}
                     </div>
                 </div>
             </li>
@@ -243,60 +256,79 @@
             <!-- Divider -->
             <hr class="sidebar-divider">
 
-            <!-- Heading -->
+            <!-- ==================== INVENTORY ==================== -->
             <div class="sidebar-heading">
-                Customer Management
+                Inventory
             </div>
 
-            <!-- Customer Management Collapse Menu -->
+            <!-- Inventory -->
             <li class="nav-item">
-                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseCustomers"
-                    aria-expanded="true" aria-controls="collapseCustomers">
-                    <i class="fas fa-fw fa-users"></i>
-                    <span>Customer Management</span>
+                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseInventory"
+                    aria-expanded="true" aria-controls="collapseInventory">
+                    <i class="fas fa-fw fa-boxes"></i>
+                    <span>Inventory</span>
                 </a>
-                <div id="collapseCustomers" class="collapse" aria-labelledby="headingCustomers" data-parent="#accordionSidebar">
+                <div id="collapseInventory" class="collapse" aria-labelledby="headingInventory" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
-                        <h6 class="collapse-header">Retail Customers:</h6>
-                        <a class="collapse-item" href="{% url 'store:customer_list' %}">
-                            <i class="fas fa-list"></i> Customer List</a>
-                        <a class="collapse-item" href="{% url 'store:customers_on_negative' %}">
-                            <i class="fas fa-exclamation-triangle"></i> Customers on Negative</a>
-                        <a class="collapse-item" href="" data-toggle="modal" data-target="#registerCustomerModal"
-                            hx-get="{% url 'store:register_customers' %}"
-                            hx-target="{% url 'store:register_customers' %}" hx-trigger="click">
-                            <i class="fas fa-user-plus"></i> Register New Customer</a>
+                        <h6 class="collapse-header">Stock Management:</h6>
+                        <a class="collapse-item" href="{% url 'store:adjust_stock_levels' %}">
+                            <i class="fas fa-edit"></i> Adjust Retail Stock</a>
+                        <a class="collapse-item" href="{% url 'wholesale:adjust_wholesale_stock_levels' %}">
+                            <i class="fas fa-edit"></i> Adjust Wholesale Stock</a>
+                        <a class="collapse-item" href="{% url 'store:exp_date_alert' %}">
+                            <i class="fas fa-calendar-times"></i> Retail Expiry Alerts</a>
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_exp_alert' %}">
+                            <i class="fas fa-calendar-times"></i> Wholesale Expiry Alerts</a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Wholesale Customers:</h6>
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_customers' %}">
-                            <i class="fas fa-list"></i> Wholesale Customer List</a>
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_customers_on_negative' %}">
-                            <i class="fas fa-exclamation-triangle"></i> Wholesale on Negative</a>
-                        <a class="collapse-item" href="" data-toggle="modal"
-                            data-target="#registerWholesaleCustomerModal"
-                            hx-get="{% url 'wholesale:register_wholesale_customers' %}"
-                            hx-target="{% url 'wholesale:register_wholesale_customers' %}" hx-trigger="click">
-                            <i class="fas fa-user-plus"></i> New Wholesale Customer</a>
+                        <h6 class="collapse-header">Stock Transfers:</h6>
+                        <a class="collapse-item" href="{% url 'store:transfer_multiple_store_items' %}">
+                            <i class="fas fa-exchange-alt"></i> Move Retail Items</a>
+                        <a class="collapse-item" href="{% url 'wholesale:transfer_multiple_wholesale_items' %}">
+                            <i class="fas fa-exchange-alt"></i> Move Wholesale Items</a>
+                        <div class="collapse-divider"></div>
+                        <h6 class="collapse-header">Quality Control:</h6>
+                        <a class="collapse-item" href="{% url 'store:create_stock_check' %}">
+                            <i class="fas fa-clipboard-check"></i> Create Stock Check (Retail)</a>
+                        <a class="collapse-item" href="{% url 'store:list_stock_checks' %}">
+                            <i class="fas fa-list"></i> Stock Check Reports (Retail)</a>
+                        <a class="collapse-item" href="{% url 'wholesale:create_wholesale_stock_check' %}">
+                            <i class="fas fa-clipboard-check"></i> Create Stock Check (Wholesale)</a>
+                        <a class="collapse-item" href="{% url 'wholesale:list_wholesale_stock_checks' %}">
+                            <i class="fas fa-list"></i> Stock Check Reports (Wholesale)</a>
                     </div>
                 </div>
             </li>
 
-            <!-- Dispensing Management -->
+            <!-- Divider -->
+            <hr class="sidebar-divider">
+
+            <!-- ==================== REPORTS & ANALYTICS ==================== -->
+            <div class="sidebar-heading">
+                Reports & Analytics
+            </div>
+
+            <!-- Reports & Analytics -->
             <li class="nav-item">
-                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseDispensing"
-                    aria-expanded="true" aria-controls="collapseDispensing">
-                    <i class="fas fa-fw fa-pills"></i>
-                    <span>Dispensing Management</span>
+                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseReports"
+                    aria-expanded="true" aria-controls="collapseReports">
+                    <i class="fas fa-fw fa-chart-line"></i>
+                    <span>Reports & Analytics</span>
                 </a>
-                <div id="collapseDispensing" class="collapse" aria-labelledby="headingDispensing" data-parent="#accordionSidebar">
+                <div id="collapseReports" class="collapse" aria-labelledby="headingReports" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
-                        <h6 class="collapse-header">Dispensing Operations:</h6>
-                        {% comment %} <a class="collapse-item" href="{% url 'store:dispense' %}">
-                            <i class="fas fa-pills"></i> Dispense Items</a> {% endcomment %}
+                        <h6 class="collapse-header">Sales Reports:</h6>
+                        <a class="collapse-item" href="{% url 'store:daily_sales' %}">
+                            <i class="fas fa-calendar-day"></i> Daily Sales</a>
+                        <a class="collapse-item" href="{% url 'store:monthly_sales' %}">
+                            <i class="fas fa-calendar-alt"></i> Monthly Sales</a>
+                        <a class="collapse-item" href="{% url 'store:sales_by_user' %}">
+                            <i class="fas fa-user-chart"></i> Sales by User (Retail)</a>
+                        <a class="collapse-item" href="{% url 'wholesale:wholesales_by_user' %}">
+                            <i class="fas fa-user-chart"></i> Sales by User (Wholesale)</a>
+                        <div class="collapse-divider"></div>
+                        <h6 class="collapse-header">Dispensing Reports:</h6>
                         <a class="collapse-item" href="{% url 'store:dispensing_log' %}">
                             <i class="fas fa-clipboard-list"></i> Dispensing Log</a>
-                        <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">User Analytics:</h6>
                         {% if user.is_superuser or user.is_staff or user.profile.user_type == 'Admin' or user.profile.user_type == 'Manager' %}
                         <a class="collapse-item" href="{% url 'store:user_dispensing_summary' %}">
                             <i class="fas fa-chart-bar"></i> All Users Summary</a>
@@ -307,34 +339,22 @@
                             <i class="fas fa-user-chart"></i> My Summary</a>
                         <a class="collapse-item" href="{% url 'store:my_dispensing_details' %}">
                             <i class="fas fa-user-cog"></i> My Details</a>
-                    </div>
-                </div>
-            </li>
-
-            <!-- Inventory Management -->
-            <li class="nav-item">
-                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseInventory"
-                    aria-expanded="true" aria-controls="collapseInventory">
-                    <i class="fas fa-fw fa-boxes"></i>
-                    <span>Inventory Management</span>
-                </a>
-                <div id="collapseInventory" class="collapse" aria-labelledby="headingInventory" data-parent="#accordionSidebar">
-                    <div class="bg-white py-2 collapse-inner rounded">
-                        <h6 class="collapse-header">Stock Management:</h6>
-                        <a class="collapse-item" href="{% url 'store:adjust_stock_levels' %}">
-                            <i class="fas fa-edit"></i> Adjust Stock Levels</a>
-                        <a class="collapse-item" href="{% url 'store:exp_date_alert' %}">
-                            <i class="fas fa-calendar-times"></i> Expiry Alerts</a>
-                        <a class="collapse-item" href="{% url 'wholesale:adjust_wholesale_stock_levels' %}">
-                            <i class="fas fa-edit"></i> Adjust Wholesale Stock</a>
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_exp_alert' %}">
-                            <i class="fas fa-calendar-times"></i> Wholesale Expiry</a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Stock Transfers:</h6>
-                        <a class="collapse-item" href="{% url 'store:transfer_multiple_store_items' %}">
-                            <i class="fas fa-exchange-alt"></i> Move Retail Items</a>
-                        <a class="collapse-item" href="{% url 'wholesale:transfer_multiple_wholesale_items' %}">
-                            <i class="fas fa-exchange-alt"></i> Move Wholesale Items</a>
+                        <h6 class="collapse-header">Customer Reports:</h6>
+                        <a class="collapse-item" href="{% url 'store:monthly_customer_performance' %}">
+                            <i class="fas fa-users-cog"></i> Monthly Customer Performance</a>
+                        <a class="collapse-item" href="{% url 'store:yearly_customer_performance' %}">
+                            <i class="fas fa-chart-line"></i> Yearly Customer Performance</a>
+                        <a class="collapse-item" href="{% url 'store:customer_list' %}">
+                            <i class="fas fa-history"></i> Retail Customer Records</a>
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_customers' %}">
+                            <i class="fas fa-history"></i> Wholesale Customer Records</a>
+                        <div class="collapse-divider"></div>
+                        <h6 class="collapse-header">Receipts:</h6>
+                        <a class="collapse-item" href="{% url 'store:receipt_list' %}">
+                            <i class="fas fa-receipt"></i> Retail Receipts</a>
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_receipt_list' %}">
+                            <i class="fas fa-receipt"></i> Wholesale Receipts</a>
                     </div>
                 </div>
             </li>
@@ -342,140 +362,31 @@
             <!-- Divider -->
             <hr class="sidebar-divider">
 
-            <!-- Heading -->
+            <!-- ==================== FINANCE ==================== -->
             <div class="sidebar-heading">
-                Reports & Analytics
+                Finance
             </div>
 
-            <!-- Nav Item - Reports Collapse Menu -->
-            <li class="nav-item">
-                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseReport"
-                    aria-expanded="true" aria-controls="collapseReport">
-                    <i class="fas fa-fw fa-chart-line"></i>
-                    <span>Reports & Analytics</span>
-                </a>
-                <div id="collapseReport" class="collapse" aria-labelledby="headingReport"
-                    data-parent="#accordionSidebar">
-                    <div class="bg-white py-2 collapse-inner rounded">
-                        <h6 class="collapse-header">General Reports:</h6>
-                        <a class="collapse-item" href="{% url 'store:dispensing_log' %}">
-                            <i class="fas fa-clipboard-list"></i> Dispensing Log</a>
-                        <a class="collapse-item" href="{% url 'store:user_dispensing_summary' %}">
-                            <i class="fas fa-users"></i> User Dispensing Summary</a>
-                        <a class="collapse-item" href="{% url 'store:user_dispensing_details' %}">
-                            <i class="fas fa-list-alt"></i> User Dispensing Details</a>
-                        <a class="collapse-item" href="{% url 'store:daily_sales' %}">
-                            <i class="fas fa-calendar-day"></i> Daily Sales</a>
-                        <a class="collapse-item" href="{% url 'store:monthly_sales' %}">
-                            <i class="fas fa-calendar-alt"></i> Monthly Sales</a>
-                        <a class="collapse-item" href="{% url 'store:monthly_customer_performance' %}">
-                            <i class="fas fa-users-cog"></i> Monthly Customer Performance</a>
-                        <a class="collapse-item" href="{% url 'store:yearly_customer_performance' %}">
-                            <i class="fas fa-chart-line"></i> Yearly Customer Performance</a>
-                        <a class="collapse-item" href="{% url 'store:expense_list' %}">
-                            <i class="fas fa-money-bill-wave"></i> Expense Management</a>
-                        <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Retail Reports:</h6>
-                        <a class="collapse-item" href="{% url 'store:sales_by_user' %}">
-                            <i class="fas fa-user-chart"></i> Sales by User</a>
-                        <a class="collapse-item" href="{% url 'store:receipt_list' %}">
-                            <i class="fas fa-receipt"></i> Retail Receipts</a>
-                        <a class="collapse-item" href="{% url 'store:customer_list' %}">
-                            <i class="fas fa-history"></i> Customer Records</a>
-                        <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Wholesale Reports:</h6>
-                        <a class="collapse-item" href="{% url 'wholesale:wholesales_by_user' %}">
-                            <i class="fas fa-user-chart"></i> Wholesale by User</a>
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_receipt_list' %}">
-                            <i class="fas fa-receipt"></i> Wholesale Receipts</a>
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_customers' %}">
-                            <i class="fas fa-history"></i> Wholesale Records</a>
-                    </div>
-                </div>
-            </li>
-
-            <!-- Financial Management -->
+            <!-- Finance -->
             <li class="nav-item">
                 <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseFinance"
                     aria-expanded="true" aria-controls="collapseFinance">
                     <i class="fas fa-fw fa-dollar-sign"></i>
-                    <span>Financial Management</span>
+                    <span>Finance</span>
                 </a>
                 <div id="collapseFinance" class="collapse" aria-labelledby="headingFinance" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
                         <h6 class="collapse-header">Customer Accounts:</h6>
                         <a class="collapse-item" href="{% url 'store:customer_list' %}">
-                            <i class="fas fa-plus-circle"></i> Retail Customer Funds</a>
+                            <i class="fas fa-wallet"></i> Retail Customer Funds</a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_customers' %}">
-                            <i class="fas fa-plus-circle"></i> Wholesale Customer Funds</a>
-                        {% comment %} <a class="collapse-item" href="{% url 'store:customer_list' %}">
-                            <i class="fas fa-wallet"></i> Customer Accounts</a> {% endcomment %}
+                            <i class="fas fa-wallet"></i> Wholesale Customer Funds</a>
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Expenses:</h6>
                         <a class="collapse-item" href="{% url 'store:expense_list' %}">
                             <i class="fas fa-list"></i> View Expenses</a>
                         <a class="collapse-item" href="{% url 'store:add_expense_form' %}">
-                            {% comment %} <i class="fas fa-plus"></i> Add Expense</a>
-                        <a class="collapse-item" href="{% url 'store:add_expense_category_form' %}">
-                            <i class="fas fa-tags"></i> Expense Categories</a> {% endcomment %}
-                    </div>
-                </div>
-            </li>
-
-            <!-- Payment Operations -->
-            <li class="nav-item">
-                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePayments"
-                    aria-expanded="true" aria-controls="collapsePayments">
-                    <i class="fas fa-fw fa-credit-card"></i>
-                    <span>Payment Operations</span>
-                </a>
-                <div id="collapsePayments" class="collapse" aria-labelledby="headingPayments" data-parent="#accordionSidebar">
-                    <div class="bg-white py-2 collapse-inner rounded">
-                        <h6 class="collapse-header">Dispenser Links:</h6>
-                        {% if user|can_dispense_items %}
-                        <a class="collapse-item" href="{% url 'store:payment_requests' %}">
-                            <i class="fas fa-pills"></i> My Retail Requests</a>
-                        {% endif %}
-                        {% if user|can_dispense_items and user|can_operate_wholesale %}
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_payment_requests' %}">
-                            <i class="fas fa-store"></i> My Wholesale Requests</a>
-                        {% endif %}
-                        <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Cashier Links:</h6>
-                        {% if user|is_cashier or user.profile.user_type == 'Admin' %}
-                        <a class="collapse-item" href="{% url 'store:cashier_dashboard' %}">
-                            <i class="fas fa-cash-register"></i> Retail Cashier</a>
-                        {% comment %} {% endif %} {% endcomment %}
-                        {% comment %} {% if user.is_authenticated and user|can_operate_wholesale %} {% endcomment %}
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_cashier_dashboard' %}">
-                            <i class="fas fa-store"></i> Wholesale Cashier</a>
-                            {% comment %} {% if user.cashier %} {% endcomment %}
-                            {% comment %} <span class="badge badge-success badge-counter" style="margin-left: 5px;">
-                                <i class="fas fa-star"></i>
-                            </span> {% endcomment %}
-                            {% comment %} {% endif %} {% endcomment %}
-                        {% endif %}
-                        <div class="collapse-divider"></div>
-                        <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Payment Requests:</h6>
-                        {% if user|can_operate_retail %}
-                        <a class="collapse-item" href="{% url 'store:payment_requests' %}">
-                            <i class="fas fa-receipt"></i> Retail Payment Requests</a>
-                        {% endif %}
-                        {% if user|can_operate_wholesale %}
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_payment_requests' %}">
-                            <i class="fas fa-receipt"></i> Wholesale Payment Requests</a>
-                        {% endif %}
-                        <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Cashier Payment Totals:</h6>
-                        {% if user|is_cashier or user.profile.user_type == 'Admin' or user.profile.user_type == 'Manager' %}
-                        <a class="collapse-item" href="{% url 'store:cashier_payment_totals' %}">
-                            <i class="fas fa-money-bill-wave"></i> Retail Payment Totals</a>
-                        {% endif %}
-                        {% if user|is_cashier or user.profile.user_type == 'Admin' or user.profile.user_type == 'Manager' %}
-                        <a class="collapse-item" href="{% url 'wholesale:cashier_payment_totals' %}">
-                            <i class="fas fa-money-bill-wave"></i> Wholesale Payment Totals</a>
-                        {% endif %}
+                            <i class="fas fa-plus"></i> Add Expense</a>
                     </div>
                 </div>
             </li>
@@ -483,17 +394,17 @@
             <!-- Divider -->
             <hr class="sidebar-divider">
 
-            <!-- Procurement Heading -->
+            <!-- ==================== PROCUREMENT ==================== -->
             <div class="sidebar-heading">
-                Procurement & Supply
+                Procurement
             </div>
 
-            <!-- Nav Procurement - Pages Collapse Menu -->
+            <!-- Procurement -->
             <li class="nav-item">
                 <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseProcurement"
                     aria-expanded="true" aria-controls="collapseProcurement">
                     <i class="fas fa-fw fa-truck"></i>
-                    <span>Procurement Management</span>
+                    <span>Procurement</span>
                 </a>
                 <div id="collapseProcurement" class="collapse" aria-labelledby="headingProcurement" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
@@ -503,23 +414,23 @@
                         <a class="collapse-item" href="{% url 'store:supplier_list' %}">
                             <i class="fas fa-list"></i> Supplier List</a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Procurement:</h6>
+                        <h6 class="collapse-header">Procurement (Retail):</h6>
                         <a class="collapse-item" href="{% url 'store:add_procurement' %}">
-                            <i class="fas fa-plus"></i> New Retail Procurement</a>
+                            <i class="fas fa-plus"></i> New Procurement</a>
                         <a class="collapse-item" href="{% url 'store:procurement_list' %}">
-                            <i class="fas fa-list"></i> Retail Procurement List</a>
+                            <i class="fas fa-list"></i> Procurement List</a>
                         <a class="collapse-item" href="{% url 'store:search_procurement' %}">
-                            <i class="fas fa-search"></i> Search Retail Procurement</a>
+                            <i class="fas fa-search"></i> Search Procurement</a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Wholesale Procurement:</h6>
+                        <h6 class="collapse-header">Procurement (Wholesale):</h6>
                         <a class="collapse-item" href="{% url 'wholesale:add_wholesale_procurement' %}">
-                            <i class="fas fa-plus"></i> New Wholesale-Procurement</a>
+                            <i class="fas fa-plus"></i> New Procurement</a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_procurement_list' %}">
-                            <i class="fas fa-list"></i> Wholesale-Procurement List</a>
+                            <i class="fas fa-list"></i> Procurement List</a>
                         <a class="collapse-item" href="{% url 'wholesale:search_wholesale_procurement' %}">
-                            <i class="fas fa-search"></i> Search Wholesale-Procurement</a>
+                            <i class="fas fa-search"></i> Search Procurement</a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Analytics & Reports:</h6>
+                        <h6 class="collapse-header">Analytics:</h6>
                         <a class="collapse-item" href="{% url 'store:supplier_monthly_analytics' %}">
                             <i class="fas fa-chart-line"></i> Monthly Analytics</a>
                         <a class="collapse-item" href="{% url 'store:supplier_performance_dashboard' %}">
@@ -532,50 +443,68 @@
                 </div>
             </li>
 
-            <!-- Quality Control & Stock Checks -->
+            <!-- Divider -->
+            <hr class="sidebar-divider">
+
+            <!-- ==================== COMMUNICATION ==================== -->
+            <div class="sidebar-heading">
+                Communication
+            </div>
+
+            <!-- Communication -->
             <li class="nav-item">
-                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseQuality"
-                    aria-expanded="true" aria-controls="collapseQuality">
-                    <i class="fas fa-fw fa-clipboard-check"></i>
-                    <span>Quality Control</span>
+                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseCommunication"
+                    aria-expanded="true" aria-controls="collapseCommunication">
+                    <i class="fas fa-fw fa-comments"></i>
+                    <span>Communication</span>
                 </a>
-                <div id="collapseQuality" class="collapse" aria-labelledby="headingQuality" data-parent="#accordionSidebar">
+                <div id="collapseCommunication" class="collapse" aria-labelledby="headingCommunication" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
-                        <h6 class="collapse-header">Stock Checks:</h6>
-                        <a class="collapse-item" href="{% url 'store:create_stock_check' %}">
-                            <i class="fas fa-search"></i> Create Stock Check</a>
-                        <a class="collapse-item" href="{% url 'store:list_stock_checks' %}">
-                            <i class="fas fa-list"></i> Stock Check Reports</a>
-                        <a class="collapse-item" href="{% url 'wholesale:create_wholesale_stock_check' %}">
-                            <i class="fas fa-search"></i> Wholesale Stock Check</a>
-                        <a class="collapse-item" href="{% url 'wholesale:list_wholesale_stock_checks' %}">
-                            <i class="fas fa-list"></i> Wholesale Stock Reports</a>
+                        <h6 class="collapse-header">Chat & Notifications:</h6>
+                        <a class="collapse-item" href="{% url 'chat:chat_view_default' %}">
+                            <i class="fas fa-comments"></i> Chat System
+                            <span id="sidebar-unread-badge" class="badge badge-danger badge-counter" style="display: none;">0</span>
+                        </a>
+                        {% if user.profile.user_type == 'Admin' or user.profile.user_type == 'Manager' %}
+                        <a class="collapse-item" href="{% url 'chat:bulk_message' %}">
+                            <i class="fas fa-bullhorn"></i> Bulk Message</a>
+                        {% endif %}
+                        <a class="collapse-item" href="{% url 'store:notification_list' %}">
+                            <i class="fas fa-bell"></i> Notifications
+                            <span id="notification-badge" class="badge badge-warning badge-counter" style="display: none;">0</span>
+                        </a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Returns & Adjustments:</h6>
-                        <a class="collapse-item" href="{% url 'store:store' %}">
-                            <i class="fas fa-undo"></i> Process Returns</a>
-                        <a class="collapse-item" href="{% url 'wholesale:wholesales' %}">
-                            <i class="fas fa-undo"></i> Wholesale Returns</a>
+                        <h6 class="collapse-header">Notebook:</h6>
+                        <a class="collapse-item" href="{% url 'notebook:dashboard' %}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                        <a class="collapse-item" href="{% url 'notebook:note_list' %}">
+                            <i class="fas fa-sticky-note"></i> All Notes</a>
+                        <a class="collapse-item" href="{% url 'notebook:note_create' %}">
+                            <i class="fas fa-plus"></i> New Note</a>
+                        <a class="collapse-item" href="{% url 'notebook:archived_notes' %}">
+                            <i class="fas fa-archive"></i> Archived Notes</a>
+                        <a class="collapse-item" href="{% url 'notebook:category_list' %}">
+                            <i class="fas fa-tags"></i> Categories</a>
+                        <a class="collapse-item" href="{% url 'notebook:category_create' %}">
+                            <i class="fas fa-plus"></i> New Category</a>
                     </div>
                 </div>
             </li>
 
-
-
             <!-- Divider -->
             <hr class="sidebar-divider">
 
-            <!-- Heading -->
+            <!-- ==================== ADMINISTRATION ==================== -->
             <div class="sidebar-heading">
-                System Administration
+                Administration
             </div>
 
-            <!-- Nav Admin - Pages Collapse Menu -->
+            <!-- Administration -->
             <li class="nav-item">
                 <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseAdmin"
                     aria-expanded="true" aria-controls="collapseAdmin">
                     <i class="fas fa-fw fa-user-cog"></i>
-                    <span>System Administration</span>
+                    <span>Administration</span>
                 </a>
                 <div id="collapseAdmin" class="collapse" aria-labelledby="headingAdmin" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
@@ -589,30 +518,6 @@
                         <a class="collapse-item" href="{% url 'userauth:profile' %}">
                             <i class="fas fa-user-circle"></i> My Profile</a>
                         <div class="collapse-divider"></div>
-                        {% comment %} <h6 class="collapse-header">Cashier Administration:</h6>
-                        {% if user.is_superuser %}
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_cashier_dashboard' %}">
-                            <i class="fas fa-cash-register"></i> Admin Cashier Access</a>
-                        {% endif %}
-                        {% if user.profile %}
-                            {% if user.profile.user_type == 'Admin' or user.profile.user_type == 'Manager' %}
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_cashier_dashboard' %}">
-                            <i class="fas fa-cash-register"></i> Manager Cashier Access</a>
-                            {% endif %}
-                        {% endif %} {% endcomment %}
-                        <div class="collapse-divider"></div>
-                        {% comment %} <h6 class="collapse-header">Payment Management:</h6>
-                        {% if user.is_superuser %}
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_payment_requests' %}">
-                            <i class="fas fa-list-alt"></i> All Payment Requests</a>
-                        {% endif %}
-                        {% if user.profile %}
-                            {% if user.profile.user_type == 'Admin' or user.profile.user_type == 'Manager' %}
-                        <a class="collapse-item" href="{% url 'wholesale:wholesale_payment_requests' %}">
-                            <i class="fas fa-list-alt"></i> Manage Payment Requests</a>
-                            {% endif %}
-                        {% endif %} {% endcomment %}
-                        <div class="collapse-divider"></div>
                         <h6 class="collapse-header">System Monitoring:</h6>
                         {% if user|has_permission:"view_activity_logs" %}
                         <a class="collapse-item" href="{% url 'userauth:activity_dashboard' %}">
@@ -621,50 +526,16 @@
                         <a class="collapse-item" href="{% url 'admin:index' %}">
                             <i class="fas fa-cog"></i> Django Admin</a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Communication:</h6>
+                        <h6 class="collapse-header">Communication Admin:</h6>
                         <a class="collapse-item" href="{% url 'chat:chat_view_default' %}">
                             <i class="fas fa-comments"></i> Chat Management</a>
                         {% if user.profile.user_type == 'Admin' or user.profile.user_type == 'Manager' %}
                         <a class="collapse-item" href="{% url 'chat:bulk_message' %}">
                             <i class="fas fa-bullhorn"></i> Bulk Message</a>
                         {% endif %}
-                        <a class="collapse-item" href="{% url 'admin:index' %}">
-                            <i class="fas fa-envelope"></i> Message Logs</a>
                     </div>
                 </div>
             </li>
-
-            <!-- Quick Actions -->
-            <li class="nav-item">
-                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseQuickActions"
-                    aria-expanded="true" aria-controls="collapseQuickActions">
-                    <i class="fas fa-fw fa-bolt"></i>
-                    <span>Quick Actions</span>
-                </a>
-                <div id="collapseQuickActions" class="collapse" aria-labelledby="headingQuickActions" data-parent="#accordionSidebar">
-                    <div class="bg-white py-2 collapse-inner rounded">
-                        <h6 class="collapse-header">Common Tasks:</h6>
-                        <a class="collapse-item" href="{% url 'store:add_item' %}">
-                            <i class="fas fa-plus"></i> Quick Add Item</a>
-                        <a class="collapse-item" href="{% url 'store:search_item' %}">
-                            <i class="fas fa-search"></i> Quick Search</a>
-                        <a class="collapse-item" href="{% url 'store:dispense' %}">
-                            <i class="fas fa-pills"></i> Quick Dispense</a>
-                        <a class="collapse-item" href="{% url 'store:cart' %}">
-                            <i class="fas fa-shopping-cart"></i> View Cart</a>
-                        <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Shortcuts:</h6>
-                        <a class="collapse-item" href="{% url 'store:daily_sales' %}">
-                            <i class="fas fa-chart-bar"></i> Today's Sales</a>
-                        <a class="collapse-item" href="{% url 'store:exp_date_alert' %}">
-                            <i class="fas fa-exclamation-triangle"></i> Expiry Alerts</a>
-                        <a class="collapse-item" href="{% url 'store:customers_on_negative' %}">
-                            <i class="fas fa-minus-circle"></i> Negative Balances</a>
-                    </div>
-                </div>
-            </li>
-
-
 
             <!-- Divider -->
             <hr class="sidebar-divider d-none d-md-block">
@@ -1126,7 +997,16 @@
 
 
     <div class="offline-status-container">
-        <div id="connection-status"></div>
+        <div id="connection-status">
+            <div class="status-indicator">
+                <span class="status-dot online"></span>
+                <span class="status-text">Online</span>
+            </div>
+            <div class="sync-status hidden">
+                <span class="sync-icon">↻</span>
+                <span class="sync-text">Syncing...</span>
+            </div>
+        </div>
         {% if user.is_authenticated %}
             <button id="sync-button" class="btn btn-sm btn-primary">Sync Data</button>
         {% endif %}
@@ -1206,9 +1086,6 @@
     {% endif %}
 
 
-    <!-- Offline JavaScript-->
-    <script src="{% static 'js/offline.js' %}"></script>
-
     <!-- Bootstrap core JavaScript-->
     <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
     <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
@@ -1224,13 +1101,38 @@
 
     <!-- Page level custom scripts -->
 
-    <!-- Custom script for footer copyright -->
+    <!-- Offline-first functionality scripts -->
+    <script src="{% static 'js/indexeddb-manager.js' %}"></script>
+    <script src="{% static 'js/sync-manager.js' %}"></script>
+    <script src="{% static 'js/offline-handler.js' %}"></script>
+    <script src="{% static 'js/offline-helpers.js' %}"></script>
+
+    <!-- Barcode/QR-code scanning library -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="{% static 'js/barcode-scanner.js' %}?v=2.1"></script>
+
+    <!-- Register Service Worker -->
     <script>
-        document.getElementById('year').innerHTML = new Date().getFullYear();
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('[Base Template] Service Worker registered:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.error('[Base Template] Service Worker registration failed:', error);
+                    });
+            });
+        }
     </script>
 
-    <!-- Add offline.js script -->
-    <script src="{% static 'js/offline.js' %}"></script>
+    <!-- Custom script for footer copyright -->
+    <script>
+        const yearElement = document.getElementById('year');
+        if (yearElement) {
+            yearElement.innerHTML = new Date().getFullYear();
+        }
+    </script>
 
     <!-- Add this style section to your existing styles -->
     <style>
@@ -1326,8 +1228,10 @@
             })
             .then(html => {
                 // Update the marquee content
-                document.getElementById('dynamic-marquee').innerHTML =
-                    `<h4 class="marquee-text">${newText}</h4>`;
+                const marqueeElement = document.getElementById('dynamic-marquee');
+                if (marqueeElement) {
+                    marqueeElement.innerHTML = `<h4 class="marquee-text">${newText}</h4>`;
+                }
 
                 // Switch back to display mode
                 toggleMarqueeEdit();
@@ -1342,13 +1246,16 @@
         }
 
         // Add keyboard event listener for the input
-        document.getElementById('marquee-input').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                saveMarquee();
-            } else if (e.key === 'Escape') {
-                toggleMarqueeEdit();
-            }
-        });
+        const marqueeInput = document.getElementById('marquee-input');
+        if (marqueeInput) {
+            marqueeInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    saveMarquee();
+                } else if (e.key === 'Escape') {
+                    toggleMarqueeEdit();
+                }
+            });
+        }
     </script>
 
     <!-- Chat Unread Badge Update Script -->
@@ -1442,6 +1349,68 @@
         }
     });
     </script>
+
+    <!-- Auto-refresh on page navigation/show (Offline-Aware) -->
+    <script>
+    // Auto-refresh functionality that respects offline mode
+    (function() {
+        // Check if user is online before attempting refresh
+        function isOnline() {
+            return navigator.onLine;
+        }
+
+        // Force page reload when user navigates back/forward to prevent stale data
+        // BUT ONLY if online to preserve offline functionality
+        window.addEventListener('pageshow', function(event) {
+            // Check if page is loaded from cache (bfcache)
+            if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+                // Only reload if online - preserve offline mode functionality
+                if (isOnline()) {
+                    console.log('[Auto-Refresh] Reloading page to prevent stale data (online mode)');
+                    window.location.reload();
+                } else {
+                    console.log('[Auto-Refresh] Skipping reload - offline mode active');
+                }
+            }
+        });
+
+        // Also handle visibility change to refresh when tab becomes visible after being hidden
+        // BUT ONLY if online
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden && isOnline()) {
+                // Tab became visible and we're online, check if data might be stale
+                const lastRefresh = sessionStorage.getItem('lastPageRefresh');
+                const now = Date.now();
+
+                // If last refresh was more than 30 seconds ago, reload
+                if (!lastRefresh || (now - parseInt(lastRefresh)) > 30000) {
+                    console.log('[Auto-Refresh] Refreshing stale page data (online mode)');
+                    sessionStorage.setItem('lastPageRefresh', now.toString());
+                    window.location.reload();
+                } else {
+                    console.log('[Auto-Refresh] Data still fresh, no reload needed');
+                }
+            } else if (!document.hidden && !isOnline()) {
+                console.log('[Auto-Refresh] Skipping reload - offline mode active');
+            }
+        });
+
+        // Update last refresh timestamp on page load
+        sessionStorage.setItem('lastPageRefresh', Date.now().toString());
+
+        // Listen for online/offline events to provide feedback
+        window.addEventListener('online', function() {
+            console.log('[Auto-Refresh] Connection restored - auto-refresh enabled');
+        });
+
+        window.addEventListener('offline', function() {
+            console.log('[Auto-Refresh] Offline mode - auto-refresh disabled');
+        });
+    })();
+    </script>
+
+    <!-- Allow child templates to inject additional JavaScript -->
+    {% block extra_js %}{% endblock %}
 </body>
 
 </html>

@@ -89,10 +89,15 @@ class addItemForm(forms.ModelForm):
     price = forms.DecimalField(max_digits=12, decimal_places=2, required=False)
     stock = forms.IntegerField()
     exp_date = forms.DateField()
+    barcode = forms.CharField(max_length=200, required=False)
+    barcode_type = forms.ChoiceField(
+        choices=[('', 'Select Type'), ('UPC', 'UPC'), ('EAN13', 'EAN-13'), ('CODE128', 'Code-128'), ('QR', 'QR Code')],
+        required=False
+    )
 
     class Meta:
         model = Item
-        fields = ('name', 'dosage_form', 'brand', 'unit', 'cost', 'markup', 'price', 'stock', 'exp_date')
+        fields = ('name', 'dosage_form', 'brand', 'unit', 'cost', 'markup', 'price', 'stock', 'exp_date', 'barcode', 'barcode_type')
 
 
 

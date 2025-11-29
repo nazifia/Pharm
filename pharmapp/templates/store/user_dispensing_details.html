@@ -96,10 +96,10 @@
     <div class="card">
         <div class="card-header">
             <h5>
-                <i class="fas fa-table"></i> 
+                <i class="fas fa-table"></i>
                 Detailed Dispensing Records
                 {% if logs %}
-                    <span class="badge badge-primary ml-2">{{ logs.count }} records</span>
+                    <span class="badge badge-primary ml-2">{{ logs.paginator.count }} total records</span>
                 {% endif %}
             </h5>
         </div>
@@ -146,6 +146,77 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination Controls -->
+            {% if logs.has_other_pages %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <!-- First Page -->
+                    {% if logs.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if filters.user_id %}user_id={{ filters.user_id }}&{% endif %}{% if filters.status %}status={{ filters.status }}&{% endif %}{% if filters.date_from %}date_from={{ filters.date_from }}&{% endif %}{% if filters.date_to %}date_to={{ filters.date_to }}&{% endif %}page=1">
+                            <i class="fas fa-angle-double-left"></i> First
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if filters.user_id %}user_id={{ filters.user_id }}&{% endif %}{% if filters.status %}status={{ filters.status }}&{% endif %}{% if filters.date_from %}date_from={{ filters.date_from }}&{% endif %}{% if filters.date_to %}date_to={{ filters.date_to }}&{% endif %}page={{ logs.previous_page_number }}">
+                            <i class="fas fa-angle-left"></i> Previous
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="fas fa-angle-double-left"></i> First</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link"><i class="fas fa-angle-left"></i> Previous</span>
+                    </li>
+                    {% endif %}
+
+                    <!-- Page Numbers -->
+                    {% for num in logs.paginator.page_range %}
+                        {% if logs.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% elif num > logs.number|add:'-3' and num < logs.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?{% if filters.user_id %}user_id={{ filters.user_id }}&{% endif %}{% if filters.status %}status={{ filters.status }}&{% endif %}{% if filters.date_from %}date_from={{ filters.date_from }}&{% endif %}{% if filters.date_to %}date_to={{ filters.date_to }}&{% endif %}page={{ num }}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    <!-- Next/Last Page -->
+                    {% if logs.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if filters.user_id %}user_id={{ filters.user_id }}&{% endif %}{% if filters.status %}status={{ filters.status }}&{% endif %}{% if filters.date_from %}date_from={{ filters.date_from }}&{% endif %}{% if filters.date_to %}date_to={{ filters.date_to }}&{% endif %}page={{ logs.next_page_number }}">
+                            Next <i class="fas fa-angle-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if filters.user_id %}user_id={{ filters.user_id }}&{% endif %}{% if filters.status %}status={{ filters.status }}&{% endif %}{% if filters.date_from %}date_from={{ filters.date_from }}&{% endif %}{% if filters.date_to %}date_to={{ filters.date_to }}&{% endif %}page={{ logs.paginator.num_pages }}">
+                            Last <i class="fas fa-angle-double-right"></i>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Next <i class="fas fa-angle-right"></i></span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Last <i class="fas fa-angle-double-right"></i></span>
+                    </li>
+                    {% endif %}
+                </ul>
+
+                <!-- Page Info -->
+                <div class="text-center mt-2">
+                    <small class="text-muted">
+                        Showing {{ logs.start_index }} to {{ logs.end_index }} of {{ logs.paginator.count }} records
+                        (Page {{ logs.number }} of {{ logs.paginator.num_pages }})
+                    </small>
+                </div>
+            </nav>
+            {% endif %}
+
             {% else %}
             <div class="text-center py-5">
                 <i class="fas fa-list-alt fa-3x text-muted mb-3"></i>

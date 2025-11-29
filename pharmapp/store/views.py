@@ -6,6 +6,7 @@ from collections import defaultdict
 from decimal import Decimal
 import json
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.cache import never_cache
 from django.http import HttpResponse, JsonResponse
 from django.db.models.functions import TruncMonth, TruncDay
 from django.shortcuts import get_object_or_404, render, redirect
@@ -273,6 +274,7 @@ def logout_user(request):
 
 
 
+@never_cache
 @login_required
 def store(request):
     if request.user.is_authenticated:
@@ -373,20 +375,37 @@ def add_item(request):
         return redirect('store:index')
 
 
+@never_cache
 @login_required
 def search_item(request):
     if request.user.is_authenticated:
         query = request.GET.get('search', '').strip()
         if query:
+            # Check if query looks like a barcode (numeric, 8-14 digits)
+            is_barcode = query.isdigit() and 8 <= len(query) <= 14
+
             # Optimized search with better performance
             # Use istartswith for better index utilization, fallback to icontains
             if len(query) >= 2:  # Only search if query is meaningful
-                items = Item.objects.filter(
-                    Q(name__istartswith=query) |  # Faster prefix search
-                    Q(brand__istartswith=query) |
-                    Q(name__icontains=query) |  # Fallback for partial matches
-                    Q(brand__icontains=query)
-                ).distinct().order_by('name')[:50]  # Limit results for performance
+                if is_barcode:
+                    # Try barcode lookup first
+                    items = Item.objects.filter(barcode=query).order_by('name')[:50]
+                    if not items.exists():
+                        # Fallback to name/brand search if barcode not found
+                        items = Item.objects.filter(
+                            Q(name__istartswith=query) |
+                            Q(brand__istartswith=query) |
+                            Q(name__icontains=query) |
+                            Q(brand__icontains=query)
+                        ).distinct().order_by('name')[:50]
+                else:
+                    # Regular name/brand search
+                    items = Item.objects.filter(
+                        Q(name__istartswith=query) |  # Faster prefix search
+                        Q(brand__istartswith=query) |
+                        Q(name__icontains=query) |  # Fallback for partial matches
+                        Q(brand__icontains=query)
+                    ).distinct().order_by('name')[:50]  # Limit results for performance
             else:
                 items = Item.objects.none()  # Don't search for very short queries
         else:
@@ -449,6 +468,7 @@ def edit_item(request, pk):
         return redirect('store:index')
 
 
+@never_cache
 @login_required
 def dispense(request):
     print(f"DEBUG: STORE dispense view called by user: {request.user}")
@@ -482,12 +502,21 @@ def dispense(request):
                         Q(name__icontains=q) | Q(brand__icontains=q)
                     ).filter(stock__gt=0).order_by('name')[:50]
         else:
+            # GET request - preserve cart items for continued dispensing
+            # Note: Cart is no longer auto-cleared to allow items to persist
+            # Users can manually clear cart using the "Clear Cart" button
+
             form = dispenseForm()
             results = None
 
         # Check if this is an HTMX request (for modal)
         if request.headers.get('HX-Request'):
-            return render(request, 'partials/dispense_modal.html', {'form': form, 'results': results})
+            response = render(request, 'partials/dispense_modal.html', {'form': form, 'results': results})
+            # Add explicit cache-control headers for HTMX requests
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+            response['Pragma'] = 'no-cache'
+            response['Expires'] = '0'
+            return response
         else:
             # Regular page request - get cart summary with optimized query
             cart_items = Cart.objects.select_related('item').filter(user=request.user)
@@ -500,11 +529,17 @@ def dispense(request):
                 'cart_count': cart_count,
                 'cart_total': cart_total
             }
-            return render(request, 'store/dispense.html', context)
+            response = render(request, 'store/dispense.html', context)
+            # Add explicit cache-control headers for regular requests
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+            response['Pragma'] = 'no-cache'
+            response['Expires'] = '0'
+            return response
     else:
         return redirect('store:index')
 
 
+@never_cache
 @login_required
 def dispense_search_items(request):
     """HTMX endpoint for dynamic item search in dispensing"""
@@ -514,26 +549,40 @@ def dispense_search_items(request):
 
         if query and len(query) >= 2:
             try:
+                # Check if query looks like a barcode (numeric, 8-14 digits)
+                is_barcode = query.isdigit() and 8 <= len(query) <= 14
+
                 # Use cached search results for better performance
                 cache_key = get_search_cache_key('item', query, request.user.id)
                 cached_results = get_cached_search_results(cache_key)
-                
+
                 if cached_results:
                     # Use cached results directly as they're already in the right format
                     results = cached_results
                 else:
-                    # Optimized database query with all necessary fields for template
-                    results = Item.objects.filter(
-                        Q(name__icontains=query) | Q(brand__icontains=query)
-                    ).filter(stock__gt=0).order_by('name')[:50]  # Limit results for performance
-                    
+                    if is_barcode:
+                        # Try barcode lookup first
+                        barcode_results = Item.objects.filter(barcode=query).filter(stock__gt=0).order_by('name')[:50]
+                        if barcode_results.exists():
+                            results = barcode_results
+                        else:
+                            # Fallback to name/brand search if barcode not found
+                            results = Item.objects.filter(
+                                Q(name__icontains=query) | Q(brand__icontains=query)
+                            ).filter(stock__gt=0).order_by('name')[:50]
+                    else:
+                        # Regular name/brand search
+                        results = Item.objects.filter(
+                            Q(name__icontains=query) | Q(brand__icontains=query)
+                        ).filter(stock__gt=0).order_by('name')[:50]
+
                     # Cache the results for 5 minutes
                     cache_search_results(cache_key, results)
             except Exception as e:
                 logger.error(f"Error in dispense search: {e}")
                 # Fallback to basic query without caching if something goes wrong
                 results = Item.objects.filter(
-                    Q(name__icontains=query) | Q(brand__icontains=query)
+                    Q(name__icontains=query) | Q(brand__icontains=query) | Q(barcode=query)
                 ).filter(stock__gt=0).order_by('name')[:50]
 
         return render(request, 'partials/dispense_search_results.html', {'results': results, 'query': query})
@@ -545,8 +594,12 @@ def dispense_search_items(request):
 def cart(request):
     if request.user.is_authenticated:
         # Optimized query with select_related and only necessary fields
-        cart_items = Cart.objects.select_related('item').filter(user=request.user).only(
-            'id', 'user', 'item', 'quantity', 'price', 'discount_amount', 'subtotal',
+        # Only show active cart items (exclude those sent to cashier or processed)
+        cart_items = Cart.objects.select_related('item').filter(
+            user=request.user, 
+            status='active'
+        ).only(
+            'id', 'user', 'item', 'quantity', 'price', 'discount_amount', 'subtotal', 'status',
             'item__id', 'item__name', 'item__brand', 'item__dosage_form', 'item__unit', 
             'item__price', 'item__stock', 'item__exp_date'
         )
@@ -618,6 +671,7 @@ def cart(request):
 
 @login_required
 @require_POST
+@transaction.atomic
 def add_to_cart(request, pk):
     if request.user.is_authenticated:
         item = get_object_or_404(Item, id=pk)
@@ -628,15 +682,31 @@ def add_to_cart(request, pk):
             messages.warning(request, "Quantity must be greater than zero.")
             return redirect('store:cart')
 
-        if quantity > item.stock:
-            messages.error(request, f"Not enough stock for {item.name}. Available stock: {item.stock}")
+        # Validate stock availability (but don't deduct yet)
+        # Get existing cart quantity for this item
+        existing_cart_items = Cart.objects.filter(
+            user=request.user,
+            item=item,
+            status='active'
+        )
+        current_cart_quantity = sum(cart_item.quantity for cart_item in existing_cart_items)
+        total_needed = current_cart_quantity + quantity
+
+        if total_needed > item.stock:
+            messages.error(
+                request,
+                f"Not enough stock for {item.name}. Available: {item.stock}, "
+                f"Already in cart: {current_cart_quantity}, Requested: {quantity}"
+            )
             return redirect('store:cart')
 
         # Add the item to the cart or update its quantity if it already exists
+        # Only work with active cart items
         cart_item, created = Cart.objects.get_or_create(
             user=request.user,
             item=item,
             unit=unit,
+            status='active',  # Only create/modify active cart items
             defaults={'quantity': quantity, 'price': item.price}
         )
         if not created:
@@ -648,15 +718,14 @@ def add_to_cart(request, pk):
         # Save the cart item (subtotal is recalculated in the model's save method)
         cart_item.save()
 
-        # Update stock quantity in the wholesale inventory
-        item.stock -= quantity
-        item.save()
+        # NOTE: Stock is NOT deducted here anymore
+        # Stock will be deducted when receipt is created (payment completion)
 
         messages.success(request, f"{quantity} {item.unit} of {item.name} added to cart.")
 
         # Return the cart summary as JSON if this was an HTMX request
         if request.headers.get('HX-Request'):
-            cart_items = Cart.objects.filter(user=request.user)
+            cart_items = Cart.objects.filter(user=request.user, status='active')  # Only count active items
             total_price = sum(cart_item.subtotal for cart_item in cart_items)
 
             # Check if this is from the dispensing page (has specific header or parameter)
@@ -682,6 +751,7 @@ def add_to_cart(request, pk):
 
 
 
+@never_cache
 @login_required
 def view_cart(request):
     if request.user.is_authenticated:
@@ -759,10 +829,16 @@ def update_cart_quantity(request, pk):
         # Ensure user can only update their own cart items
         cart_item = get_object_or_404(Cart, id=pk, user=request.user)
         if request.method == 'POST':
-            quantity_to_return = int(request.POST.get('quantity', 0))
+            quantity_str = request.POST.get('quantity', '').strip()
+            if not quantity_str:
+                return JsonResponse({'error': 'Quantity is required'}, status=400)
+            try:
+                quantity_to_return = int(quantity_str)
+            except ValueError:
+                return JsonResponse({'error': 'Invalid quantity value'}, status=400)
             if 0 < quantity_to_return <= cart_item.quantity:
-                cart_item.item.stock += quantity_to_return
-                cart_item.item.save()
+                # NOTE: Stock is NOT restored here anymore
+                # Stock was never deducted at cart level (only at receipt level)
 
                 # Adjust DispensingLog entries - consider discounted amount
                 discounted_amount = (cart_item.item.price * quantity_to_return) - (cart_item.discount_amount or Decimal('0.00'))
@@ -841,11 +917,10 @@ def clear_cart(request):
                             for receipt in receipts:
                                 total_refund += receipt.total_amount
 
-                    # Always return items to stock and clear cart (preserve existing functionality)
+                    # Always clear cart (preserve existing functionality)
                     for cart_item in cart_items:
-                        # Return items to stock
-                        cart_item.item.stock += cart_item.quantity
-                        cart_item.item.save()
+                        # NOTE: Stock is NOT restored here anymore
+                        # Stock was never deducted at cart level (only at receipt level)
 
                         # Remove DispensingLog entries (only if they exist)
                         DispensingLog.objects.filter(
@@ -919,6 +994,62 @@ def clear_cart(request):
         return redirect('store:cart')
     return redirect('store:index')
 
+
+@login_required
+def validate_cart_stock(request):
+    """
+    Validate that all cart items have sufficient stock available.
+    Returns JSON with validation results and unavailable items.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    try:
+        # Get all active cart items for the user
+        cart_items = Cart.objects.filter(user=request.user, status='active').select_related('item')
+
+        if not cart_items.exists():
+            return JsonResponse({
+                'valid': True,
+                'message': 'Cart is empty',
+                'unavailable_items': []
+            })
+
+        unavailable_items = []
+
+        # Check each cart item's stock availability
+        for cart_item in cart_items:
+            item = cart_item.item
+            if cart_item.quantity > item.stock:
+                unavailable_items.append({
+                    'id': cart_item.id,
+                    'item_id': item.id,
+                    'name': item.name,
+                    'brand': item.brand or 'N/A',
+                    'requested_quantity': float(cart_item.quantity),
+                    'available_stock': float(item.stock),
+                    'unit': item.unit,
+                    'price': float(item.price)
+                })
+
+        if unavailable_items:
+            return JsonResponse({
+                'valid': False,
+                'message': f'{len(unavailable_items)} item(s) have insufficient stock',
+                'unavailable_items': unavailable_items
+            })
+        else:
+            return JsonResponse({
+                'valid': True,
+                'message': 'All items have sufficient stock',
+                'unavailable_items': []
+            })
+
+    except Exception as e:
+        logger.error(f"Error validating cart stock: {str(e)}")
+        return JsonResponse({
+            'error': f'Validation error: {str(e)}'
+        }, status=500)
 
 
 @transaction.atomic
@@ -1003,6 +1134,7 @@ def send_to_cashier(request):
     return redirect('store:index')
 
 
+@never_cache
 @login_required
 def payment_requests(request):
     """Show dispenser's payment requests history with date and cashier search"""
@@ -1012,7 +1144,12 @@ def payment_requests(request):
         
         # Check if user can dispense items (is a dispenser) or is admin/manager
         is_admin_user = is_admin_or_manager(request.user)
-        if not can_dispense_items(request.user) and not is_admin_user:
+        
+        # Superusers have access to everything
+        if request.user.is_superuser:
+            # Continue to the rest of the function
+            pass
+        elif not can_dispense_items(request.user) and not is_admin_user:
             messages.error(request, 'You do not have permissions to view payment requests.')
             return redirect('store:index')
         
@@ -1038,8 +1175,8 @@ def payment_requests(request):
                 messages.warning(request, 'Invalid end date format.')
                 end_date = None
         
-        # Base query - show user's requests if dispenser, all if admin
-        if is_admin_user:
+        # Base query - show user's requests if dispenser, all if admin/superuser
+        if request.user.is_superuser or is_admin_user:
             payment_requests = PaymentRequest.objects.all().order_by('-created_at')
         else:
             payment_requests = PaymentRequest.objects.filter(dispenser=request.user).order_by('-created_at')
@@ -1072,9 +1209,9 @@ def payment_requests(request):
         else:
             selected_cashier = None
         
-        # Get all cashiers for filter dropdown (only if admin)
+        # Get all cashiers for filter dropdown (only if admin/superuser)
         all_cashiers = None
-        if is_admin_user:
+        if request.user.is_superuser or is_admin_user:
             from store.models import Cashier
             all_cashiers = Cashier.objects.filter(is_active=True).order_by('name')
         
@@ -1084,7 +1221,7 @@ def payment_requests(request):
             'selected_cashier': selected_cashier,
             'start_date': start_date,
             'end_date': end_date,
-            'is_admin': is_admin_user,
+            'is_admin': request.user.is_superuser or is_admin_user,
         })
     
     return redirect('store:index')
@@ -1094,11 +1231,19 @@ def payment_requests(request):
 def payment_request_detail(request, request_id):
     """Show payment request details"""
     if request.user.is_authenticated:
+        from userauth.permissions import is_admin_or_manager
         try:
             payment_request = PaymentRequest.objects.get(request_id=request_id)
-            
-            # Check if user is authorized (either the dispenser or a cashier)
-            if payment_request.dispenser != request.user and not hasattr(request.user, 'cashier'):
+
+            # Check if user is authorized (dispenser, cashier, admin, or superuser)
+            is_authorized = (
+                payment_request.dispenser == request.user or
+                hasattr(request.user, 'cashier') or
+                request.user.is_superuser or
+                is_admin_or_manager(request.user)
+            )
+
+            if not is_authorized:
                 messages.error(request, 'You are not authorized to view this payment request.')
                 return redirect('store:payment_requests')
             
@@ -1113,6 +1258,7 @@ def payment_request_detail(request, request_id):
     return redirect('store:index')
 
 
+@never_cache
 @login_required
 def cashier_dashboard(request):
     """Cashier dashboard showing pending payment requests"""
@@ -1410,35 +1556,34 @@ def accept_payment_request(request, request_id):
 
 
 @login_required
+@transaction.atomic
 def reject_payment_request(request, request_id):
     """Reject a payment request"""
     if request.user.is_authenticated:
         try:
             payment_request = PaymentRequest.objects.get(request_id=request_id)
-            
+
             # Check if user is a cashier or admin
-            is_cashier = (hasattr(request.user, 'cashier') or 
-                        (hasattr(request.user, 'profile') and request.user.profile and 
+            is_cashier = (hasattr(request.user, 'cashier') or
+                        (hasattr(request.user, 'profile') and request.user.profile and
                          request.user.profile.user_type == 'Cashier'))
-            
-            if not (is_cashier or request.user.is_superuser or 
-                (hasattr(request.user, 'profile') and request.user.profile and 
+
+            if not (is_cashier or request.user.is_superuser or
+                (hasattr(request.user, 'profile') and request.user.profile and
                  request.user.profile.user_type in ['Admin', 'Manager'])):
                 messages.error(request, 'You are not authorized to reject payment requests.')
                 return redirect('store:cashier_dashboard')
-            
+
             if payment_request.status != 'pending':
                 messages.error(request, 'This payment request has already been processed.')
                 return redirect('store:cashier_dashboard')
-            
+
             payment_request.status = 'rejected'
             payment_request.save()
-            
-            # Return items to stock and clear cart
-            for payment_item in payment_request.items.all():
-                if payment_item.retail_item:
-                    payment_item.retail_item.stock += payment_item.quantity
-                    payment_item.retail_item.save()
+
+            # NOTE: Stock is NOT restored here anymore
+            # Stock was never deducted at cart level (only at receipt level)
+            # If payment is rejected BEFORE completion, there's nothing to restore
             
             # Clear the cart for the dispenser whose payment request was rejected
             try:
@@ -1466,13 +1611,18 @@ def reject_payment_request(request, request_id):
     return redirect('store:index')
 
 
-@transaction.atomic
 @login_required
+@transaction.atomic
 def complete_payment_request(request, request_id):
     """Complete a payment request and generate receipt"""
     if request.user.is_authenticated:
         try:
-            payment_request = PaymentRequest.objects.get(request_id=request_id)
+            # Use select_for_update() only for databases that support row-level locking
+            from django.db import connection
+            if connection.vendor == 'sqlite':
+                payment_request = PaymentRequest.objects.get(request_id=request_id)
+            else:
+                payment_request = PaymentRequest.objects.select_for_update().get(request_id=request_id)
             
             # Check if user is the assigned cashier or admin
             is_cashier = (hasattr(request.user, 'cashier') or 
@@ -1535,18 +1685,33 @@ def complete_payment_request(request, request_id):
                 # Create sales items from payment request items
                 for payment_item in payment_request.items.all():
                     if payment_item.retail_item:
+                        # Lock the item row for update to prevent race conditions (skip for SQLite)
+                        if connection.vendor == 'sqlite':
+                            item = Item.objects.get(id=payment_item.retail_item.id)
+                        else:
+                            item = Item.objects.select_for_update().get(id=payment_item.retail_item.id)
+
+                        # Validate stock availability before deduction
+                        if item.stock < payment_item.quantity:
+                            # Rollback will happen automatically due to @transaction.atomic
+                            messages.error(
+                                request,
+                                f"Insufficient stock for {item.name}. Available: {item.stock}, Required: {payment_item.quantity}"
+                            )
+                            return redirect('store:cashier_dashboard')
+
                         SalesItem.objects.create(
                             sales=sales,
-                            item=payment_item.retail_item,
+                            item=item,
                             price=payment_item.unit_price,
                             quantity=payment_item.quantity,
                             discount_amount=payment_item.discount_amount,
                             brand=payment_item.brand
                         )
-                        
-                        # Update stock
-                        payment_item.retail_item.stock -= payment_item.quantity
-                        payment_item.retail_item.save()
+
+                        # Deduct stock (ONLY place where stock is deducted)
+                        item.stock -= payment_item.quantity
+                        item.save()
                         
                         # Create dispensing log
                         DispensingLog.objects.create(
@@ -1982,6 +2147,8 @@ def receipt(request):
         }
         request.session['receipt_id'] = str(receipt.receipt_id)
 
+        # Mark cart items as processed before deleting
+        cart_items.update(status='processed')
         cart_items.delete()
 
         # Comprehensive cart session cleanup after receipt generation
@@ -2368,7 +2535,7 @@ def return_item(request, pk):
 
 
 @login_required
-@user_passes_test(lambda user: user.is_authenticated and hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager'])
+@user_passes_test(lambda user: user.is_authenticated and (user.is_superuser or (hasattr(user, 'profile') and user.profile and user.profile.user_type in ['Admin', 'Manager'])))
 def delete_item(request, pk):
     if request.user.is_authenticated:
         item = get_object_or_404(Item, id=pk)
@@ -3299,9 +3466,8 @@ def cashier_payment_totals(request):
         else:
             end_date = timezone.now().date()
         
-        # Get daily payment totals - temporarily disabled to fix annotation conflicts
-        # daily_payment_totals = get_cashier_daily_payment_totals(request.user, start_date, end_date)
-        daily_payment_totals = []
+        # Get daily payment totals
+        daily_payment_totals = get_cashier_daily_payment_totals(request.user, start_date, end_date)
         
         # Check if user is admin/manager
         is_admin = (
@@ -3934,6 +4100,7 @@ def select_items(request, pk):
 
 
 
+@never_cache
 @login_required
 def dispensing_log(request):
     if request.user.is_authenticated:
@@ -4292,6 +4459,7 @@ def dispensing_log_stats(request):
         return JsonResponse({'error': 'Unauthorized'}, status=401)
 
 
+@never_cache
 def receipt_list(request):
     if request.user.is_authenticated:
         receipts = Receipt.objects.all().order_by('-date')  # Order by date, latest first
@@ -6310,6 +6478,18 @@ def user_dispensing_details(request, user_id=None):
         # Order by most recent first
         logs = logs.order_by('-created_at')
 
+        # Pagination
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        paginator = Paginator(logs, 50)  # 50 records per page
+        page = request.GET.get('page', 1)
+
+        try:
+            logs_page = paginator.page(page)
+        except PageNotAnInteger:
+            logs_page = paginator.page(1)
+        except EmptyPage:
+            logs_page = paginator.page(paginator.num_pages)
+
         # Get users for filter dropdown based on permissions
         if can_view_all_users:
             all_users = User.objects.filter(dispensinglog__isnull=False).distinct()
@@ -6325,7 +6505,7 @@ def user_dispensing_details(request, user_id=None):
         ]
 
         context = {
-            'logs': logs,
+            'logs': logs_page,
             'target_user': target_user,
             'all_users': all_users,
             'can_view_all_users': can_view_all_users,
@@ -7178,4 +7358,133 @@ def supplier_stats_api(request, supplier_id):
         return JsonResponse({'error': 'Unauthorized'}, status=401)
 
 
+
+
+# QR Code Generation Views
+from .qr_utils import (
+    generate_qr_code_base64,
+    generate_item_qr_data,
+    generate_receipt_qr_data,
+    generate_item_label_base64
+)
+
+@login_required
+@require_http_methods(['GET'])
+def generate_item_qr(request, item_id):
+    """Generate QR code for a specific item"""
+    try:
+        item = get_object_or_404(Item, id=item_id)
+        qr_data = generate_item_qr_data(item, mode='retail')
+        qr_image = generate_qr_code_base64(qr_data, size=10, border=2)
+        
+        return JsonResponse({
+            'success': True,
+            'qr_image': qr_image,
+            'qr_data': qr_data,
+            'item': {
+                'id': item.id,
+                'name': item.name,
+                'barcode': item.barcode if hasattr(item, 'barcode') else None,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+@require_http_methods(['GET'])
+def generate_item_label(request, item_id):
+    """Generate printable QR code label for an item"""
+    try:
+        item = get_object_or_404(Item, id=item_id)
+        include_price = request.GET.get('include_price', 'true').lower() == 'true'
+        
+        label_image = generate_item_label_base64(item, mode='retail', include_price=include_price)
+        
+        return JsonResponse({
+            'success': True,
+            'label_image': label_image,
+            'item': {
+                'id': item.id,
+                'name': item.name,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+@require_http_methods(['GET'])
+def generate_receipt_qr(request, receipt_id):
+    """Generate QR code for a specific receipt"""
+    try:
+        receipt = get_object_or_404(Receipt, id=receipt_id)
+        qr_data = generate_receipt_qr_data(receipt, mode='retail')
+        qr_image = generate_qr_code_base64(qr_data, size=10, border=2)
+        
+        return JsonResponse({
+            'success': True,
+            'qr_image': qr_image,
+            'qr_data': qr_data,
+            'receipt': {
+                'id': receipt.id,
+                'receipt_no': receipt.receipt_no,
+                'total': str(receipt.total_amount),
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+def print_item_labels(request):
+    """Render page for bulk printing item labels with QR codes"""
+    items = Item.objects.filter(stock__gt=0).order_by('name')
+    
+    context = {
+        'items': items,
+    }
+    return render(request, 'store/print_item_labels.html', context)
+
+
+@login_required
+@require_http_methods(['POST'])
+def bulk_generate_labels(request):
+    """Generate multiple item labels at once"""
+    try:
+        item_ids = request.POST.getlist('item_ids[]')
+        include_price = request.POST.get('include_price', 'true').lower() == 'true'
+        
+        labels = []
+        for item_id in item_ids:
+            try:
+                item = Item.objects.get(id=item_id)
+                label_image = generate_item_label_base64(item, mode='retail', include_price=include_price)
+                labels.append({
+                    'item_id': item.id,
+                    'item_name': item.name,
+                    'label_image': label_image
+                })
+            except Item.DoesNotExist:
+                continue
+        
+        return JsonResponse({
+            'success': True,
+            'labels': labels,
+            'count': len(labels)
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
 

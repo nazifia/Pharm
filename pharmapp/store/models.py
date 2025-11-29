@@ -132,12 +132,21 @@ class Item(models.Model):
     stock = models.PositiveIntegerField(default=0, null=True, blank=True)
     low_stock_threshold = models.PositiveIntegerField(default=0, null=True, blank=True)
     exp_date = models.DateField(null=True, blank=True)
+    barcode = models.CharField(max_length=200, blank=True, null=True, db_index=True, help_text="Primary barcode (UPC/EAN-13/Code-128/QR)")
+    barcode_type = models.CharField(max_length=20, choices=[
+        ('UPC', 'UPC'),
+        ('EAN13', 'EAN-13'),
+        ('CODE128', 'Code-128'),
+        ('QR', 'QR Code'),
+        ('OTHER', 'Other')
+    ], blank=True, null=True)
 
     class Meta:
         ordering = ('name',)
         indexes = [
             models.Index(fields=['name', 'brand']),  # Composite index for name+brand searches
             models.Index(fields=['name', 'dosage_form']),  # Composite index for name+dosage searches
+            models.Index(fields=['barcode']),  # Index for barcode searches
         ]
 
     def __str__(self):
@@ -163,11 +172,20 @@ class WholesaleItem(models.Model):
     stock = models.DecimalField(max_digits=6, decimal_places=2, default=0, null=True, blank=True)
     low_stock_threshold = models.DecimalField(max_digits=6, decimal_places=2, default=0, null=True, blank=True)
     exp_date = models.DateField(null=True, blank=True)
+    barcode = models.CharField(max_length=200, blank=True, null=True, db_index=True, help_text="Primary barcode (UPC/EAN-13/Code-128/QR)")
+    barcode_type = models.CharField(max_length=20, choices=[
+        ('UPC', 'UPC'),
+        ('EAN13', 'EAN-13'),
+        ('CODE128', 'Code-128'),
+        ('QR', 'QR Code'),
+        ('OTHER', 'Other')
+    ], blank=True, null=True)
     class Meta:
         ordering = ('name',)
         indexes = [
             models.Index(fields=['name', 'brand']),  # Composite index for name+brand searches
             models.Index(fields=['name', 'dosage_form']),  # Composite index for name+dosage searches
+            models.Index(fields=['barcode']),  # Index for barcode searches
         ]
 
     def __str__(self):
@@ -223,6 +241,12 @@ class Cart(models.Model):
 
 
 class WholesaleCart(models.Model):
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('sent_to_cashier', 'Sent to Cashier'),
+        ('processed', 'Processed'),
+    ]
+    
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     item = models.ForeignKey(WholesaleItem, on_delete=models.CASCADE)
     dosage_form = models.ForeignKey(Formulation, on_delete=models.CASCADE, blank=True, null=True)
@@ -233,6 +257,7 @@ class WholesaleCart(models.Model):
     discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Discount amount to be subtracted from subtotal")
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     cart_id = ShortUUIDField(unique=True, length=5, max_length=50, prefix='CID: ', alphabet='1234567890')
 
     def __str__(self):

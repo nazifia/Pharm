@@ -1,17 +1,19 @@
 {% for item in items %}
 <tr>
-    <td>
-        <input type="checkbox" name="item_ids" value="{{ item.id }}">
+    <td data-label="Select">
+        <input type="checkbox" name="item_ids" value="{{ item.id }}" data-item-id="{{ item.id }}">
     </td>
-    <td>{{ item.name|title }}</td>
-    <td>{{ item.dosage_form }}</td>
-    <td>{{ item.brand|title }}</td>
-    <td>{{ item.unit }}</td>
-    <td>{{ item.price }}</td>
-    <td>{{ item.stock }}</td>
-    <td>
-        <input type="number" name="quantities" min="1" max="{{ item.stock_quantity }}" value="1"
-            class="form-control input-sm" style="width: 80px" disabled>
+    <td data-label="Item" class="item-name">{{ item.name|title }}</td>
+    <td data-label="D/form">{{ item.dosage_form|default:"N/A" }}</td>
+    <td data-label="Brand">{{ item.brand|title|default:"N/A" }}</td>
+    <td data-label="Unit">{{ item.unit }}</td>
+    <td data-label="Price" class="price-cell">₦{{ item.price|floatformat:2 }}</td>
+    <td data-label="Stock" class="{% if item.stock > 10 %}stock-high{% elif item.stock > 5 %}stock-medium{% else %}stock-low{% endif %}">
+        {{ item.stock }}
+    </td>
+    <td data-label="Quantity">
+        <input type="number" name="quantities" min="1" max="{{ item.stock }}" value="1"
+            class="form-control input-sm" data-item-id="{{ item.id }}" disabled>
     </td>
 </tr>
 {% endfor %}

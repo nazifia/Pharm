@@ -136,8 +136,27 @@
         {% include 'chat/floating_chatbox.html' %}
     {% endif %}
 
-    <script src="{% static 'js/offline-storage.js' %}"></script>
-    <script src="{% static 'js/connection-handler.js' %}"></script>
+    <!-- Offline-first functionality scripts -->
+    <script src="{% static 'js/indexeddb-manager.js' %}"></script>
+    <script src="{% static 'js/sync-manager.js' %}"></script>
+    <script src="{% static 'js/offline-handler.js' %}"></script>
+    <script src="{% static 'js/offline-helpers.js' %}"></script>
+    <script src="{% static 'js/htmx-offline-adapter.js' %}"></script>
+
+    <!-- Register Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/js/sw.js')
+                    .then(registration => {
+                        console.log('[Base Template] Service Worker registered:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.error('[Base Template] Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
 
     {% if user.is_authenticated %}
     <script>

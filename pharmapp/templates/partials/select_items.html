@@ -31,9 +31,9 @@
     }
 
     .action-controls {
-        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+        background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
         border-radius: 15px;
-        box-shadow: 0 4px 20px rgba(255, 107, 107, 0.3);
+        box-shadow: 0 4px 20px rgba(142, 68, 173, 0.3);
     }
 
     .search-container {
@@ -55,6 +55,8 @@
         box-shadow: 0 8px 25px rgba(79, 172, 254, 0.4);
         color: white;
     }
+
+    .customer-info h4 {
         display: flex;
         align-items: center;
     }
@@ -185,8 +187,6 @@
 
         .customer-info h4 {
             font-size: 1.1rem;
-        }
-
         }
 
         .form-select, .form-control {
@@ -391,6 +391,9 @@
                 <input type="text" class="form-control" id="item-search" name="q" placeholder="Search for items..."
                     hx-get="{% url 'store:search_items' %}" hx-trigger="keyup changed delay:150ms"
                     hx-target="#for-customer" hx-swap="innerHTML" hx-indicator=".htmx-indicator">
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#barcodeScannerModal" data-mode="retail">
+                    <i class="fas fa-barcode"></i> Scan
+                </button>
             </div>
             <div class="htmx-indicator mt-2" style="display:none">
                 <div class="d-flex align-items-center">
@@ -429,7 +432,7 @@
                     {% for item in items %}
                     <tr>
                         <td data-label="Select">
-                            <input type="checkbox" name="item_ids" value="{{ item.id }}">
+                            <input type="checkbox" name="item_ids" value="{{ item.id }}" data-item-id="{{ item.id }}">
                         </td>
                         <td data-label="Item" class="item-name">{{ item.name|title }}</td>
                         <td data-label="D/form">{{ item.dosage_form|default:"N/A" }}</td>
@@ -440,8 +443,8 @@
                             {{ item.stock }}
                         </td>
                         <td data-label="Quantity">
-                            <input type="number" name="quantities" min="1" max="{{ item.stock_quantity }}" value="1"
-                                class="form-control input-sm" disabled>
+                            <input type="number" name="quantities" min="1" max="{{ item.stock }}" value="1"
+                                class="form-control input-sm" data-item-id="{{ item.id }}" disabled>
                         </td>
                     </tr>
                     {% endfor %}
@@ -571,6 +574,117 @@
         currentUrl.searchParams.set('action', selectedAction);
         window.location.href = currentUrl.toString();
     });
+</script>
+
+<!-- Barcode Scanner Integration -->
+{% include 'partials/barcode_scanner_modal.html' %}
+
+<!-- Barcode Scanner Callback for Select Items -->
+<script>
+    console.log('[Select Items] Defining barcode callback');
+
+    window.onBarcodeItemFound = function(item, barcode) {
+        console.log('[Select Items] Barcode scanned:', barcode, 'Item:', item);
+
+        // Fill the search input with the item name
+        const searchInput = document.getElementById('item-search');
+        if (searchInput && item) {
+            searchInput.value = item.name;
+            console.log('[Select Items] Search input filled with:', item.name);
+
+            // Trigger HTMX search
+            setTimeout(() => {
+                htmx.trigger(searchInput, 'keyup');
+                console.log('[Select Items] HTMX search triggered');
+
+                // Wait for search results to load, then auto-select the item
+                setTimeout(() => {
+                    // Find the checkbox for this item
+                    const checkbox = document.querySelector(`input[type="checkbox"][data-item-id="${item.id}"]`);
+                    if (checkbox && !checkbox.checked) {
+                        checkbox.checked = true;
+                        console.log('[Select Items] Item checkbox auto-selected');
+
+                        // Find and set quantity to 1 if not already set
+                        const quantityInput = document.querySelector(`input[name="quantities"][data-item-id="${item.id}"]`);
+                        if (quantityInput && (!quantityInput.value || quantityInput.value === '0')) {
+                            quantityInput.value = '1';
+                            quantityInput.disabled = false;
+                            console.log('[Select Items] Quantity set to 1');
+                        }
+                    }
+                }, 800); // Wait for HTMX to load results
+            }, 100);
+        } else {
+            console.error('[Select Items] Search input not found or item is null');
+        }
+
+        // Close the scanner modal
+        const modalElement = document.getElementById('barcodeScannerModal');
+        if (modalElement) {
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) modal.hide();
+        }
+
+        // Show success notification
+        if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+            window.offlineHandler.showInAppNotification(
+                'Item Scanned',
+                `${item.name} added to selection`,
+                'success'
+            );
+        }
+    };
+
+    console.log('[Select Items] Barcode callback ready');
+
+    // ==================== HARDWARE BARCODE SCANNER SUPPORT ====================
+    // Supports USB/Bluetooth handheld barcode scanners for registered customers
+    // No need to click scan button - just point and scan!
+    // ==========================================================================
+
+    // Load hardware scanner module
+    const hardwareScannerScript = document.createElement('script');
+    hardwareScannerScript.src = "{% static 'js/hardware-scanner.js' %}";
+    hardwareScannerScript.onload = function() {
+        console.log('[Select Items] Hardware scanner module loaded');
+
+        // Initialize hardware scanner for retail registered customers
+        window.selectItemsHardwareScanner = new HardwareScannerHandler({
+            mode: 'retail',
+            scannerSpeed: 50,        // Max 50ms between characters
+            minBarcodeLength: 3,     // Min barcode length
+            maxBarcodeLength: 50     // Max barcode length
+        });
+
+        // Start listening for scanner input
+        window.selectItemsHardwareScanner.init();
+        console.log('[Select Items] Hardware scanner initialized - Ready to scan!');
+
+        // Disable hardware scanner when camera modal is open (avoid conflicts)
+        $('#barcodeScannerModal').on('shown.bs.modal', function() {
+            if (window.selectItemsHardwareScanner) {
+                window.selectItemsHardwareScanner.disable();
+                console.log('[Select Items] Hardware scanner disabled (camera active)');
+            }
+        });
+
+        // Re-enable hardware scanner when camera modal is closed
+        $('#barcodeScannerModal').on('hidden.bs.modal', function() {
+            if (window.selectItemsHardwareScanner) {
+                window.selectItemsHardwareScanner.enable();
+                console.log('[Select Items] Hardware scanner enabled');
+            }
+        });
+    };
+    document.head.appendChild(hardwareScannerScript);
+
+    // ==========================================================================
+    // USAGE: Just scan with your USB/Bluetooth barcode scanner!
+    // - Point scanner at barcode
+    // - Press trigger
+    // - Item automatically appears in search results
+    // ==========================================================================
 </script>
 
 <!-- Bootstrap JavaScript -->

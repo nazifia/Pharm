@@ -64,7 +64,7 @@ Dispense Wholesale Items - {{ block.super }}
                            name="q"
                            placeholder="Search by item name or brand..." 
                            hx-get="{% url 'wholesale:wholesale_dispense_search_items' %}"
-                           hx-trigger="keyup changed delay:300ms"
+                           hx-trigger="keyup changed delay:150ms"
                            hx-target="#search-results-container" 
                            hx-swap="innerHTML"
                            hx-indicator="#search-indicator">

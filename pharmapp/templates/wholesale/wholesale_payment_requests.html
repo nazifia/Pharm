@@ -20,7 +20,7 @@
     <!-- Page Heading -->
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">
-            <i class="fas fa-store text-primary"></i> 
+            <i class="fas fa-store text-primary"></i>
             {% if is_admin %}
                 All Wholesale Payment Requests
             {% else %}
@@ -40,6 +40,27 @@
             </a>
         </div>
     </div>
+
+    <!-- Django Messages Display -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {% if message.tags == 'success' %}
+                    <i class="fas fa-check-circle"></i>
+                {% elif message.tags == 'error' or message.tags == 'danger' %}
+                    <i class="fas fa-exclamation-circle"></i>
+                {% elif message.tags == 'warning' %}
+                    <i class="fas fa-exclamation-triangle"></i>
+                {% elif message.tags == 'info' %}
+                    <i class="fas fa-info-circle"></i>
+                {% endif %}
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        {% endfor %}
+    {% endif %}
 
     <!-- Search Filters -->
     <div class="card shadow mb-4">
@@ -256,6 +277,27 @@ $(document).ready(function() {
                 next: "Next",
                 previous: "Previous"
             }
+        }
+    });
+
+    // Check if there's a success message about payment request being sent
+    const successMessages = document.querySelectorAll('.alert-success, .alert.alert-success');
+
+    successMessages.forEach(function(messageElement) {
+        const messageText = messageElement.textContent || messageElement.innerText;
+
+        // Check if message contains "sent to cashier successfully"
+        if (messageText.includes('sent to cashier successfully')) {
+            console.log('[Wholesale Payment Request] Payment sent to cashier - setting localStorage flag');
+
+            // Set flag with timestamp to trigger dispense page refresh
+            localStorage.setItem('wholesale_payment_request_sent', Date.now().toString());
+
+            // Clear flag after 5 seconds to prevent stale refreshes
+            setTimeout(function() {
+                localStorage.removeItem('wholesale_payment_request_sent');
+                console.log('[Wholesale Payment Request] localStorage flag cleared');
+            }, 5000);
         }
     });
 });

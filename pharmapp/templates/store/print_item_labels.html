@@ -1,0 +1,283 @@
+{% extends "partials/base.html" %}
+
+{% block title %}Print QR Code Labels{% endblock %}
+
+{% block extra_css %}
+<style>
+    .label-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+        gap: 20px;
+        padding: 20px;
+    }
+
+    .label-card {
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        background: white;
+        transition: all 0.3s ease;
+    }
+
+    .label-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+    }
+
+    .label-preview {
+        width: 100%;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 10px;
+    }
+
+    .print-section {
+        page-break-inside: avoid;
+        margin-bottom: 20px;
+    }
+
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+
+        .print-section, .print-section * {
+            visibility: visible;
+        }
+
+        .print-section {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+        }
+
+        .label-preview {
+            page-break-inside: avoid;
+            margin-bottom: 30px;
+        }
+
+        .no-print {
+            display: none !important;
+        }
+    }
+
+    .selection-controls {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .item-checkbox {
+        transform: scale(1.3);
+        margin-right: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4"><i class="fas fa-qrcode"></i> Print QR Code Labels</h2>
+
+            <!-- Selection Controls -->
+            <div class="selection-controls no-print">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="form-group">
+                            <label class="font-weight-bold">Quick Select:</label>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAll()">
+                                    <i class="fas fa-check-double"></i> Select All
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAll()">
+                                    <i class="fas fa-times"></i> Deselect All
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-info" onclick="selectLowStock()">
+                                    <i class="fas fa-exclamation-triangle"></i> Low Stock Only
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="includePriceCheck" checked>
+                            <label class="form-check-label font-weight-bold" for="includePriceCheck">
+                                Include Prices on Labels
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <button class="btn btn-success btn-lg" onclick="generateLabels()">
+                            <i class="fas fa-magic"></i> Generate Labels
+                        </button>
+                        <button class="btn btn-primary btn-lg" onclick="printLabels()" disabled id="printBtn">
+                            <i class="fas fa-print"></i> Print Labels
+                        </button>
+                        <span class="ml-3" id="selectionCount">0 items selected</span>
+                    </div>
+                </div>
+
+                <!-- Search Filter -->
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" id="searchFilter" placeholder="Search items..." onkeyup="filterItems()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Item Selection List -->
+            <div class="item-list no-print" id="itemList">
+                <h4 class="mb-3">Select Items for Labels:</h4>
+                <div class="row">
+                    {% for item in items %}
+                    <div class="col-md-6 col-lg-4 mb-3 item-entry" data-item-name="{{ item.name|lower }}" data-stock="{{ item.stock }}">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input item-checkbox"
+                                           id="item_{{ item.id }}" value="{{ item.id }}"
+                                           onchange="updateSelectionCount()">
+                                    <label class="form-check-label" for="item_{{ item.id }}">
+                                        <strong>{{ item.name }}</strong><br>
+                                        <small class="text-muted">
+                                            {% if item.brand %}Brand: {{ item.brand }}<br>{% endif %}
+                                            Stock: <span class="{% if item.stock < 10 %}text-danger{% else %}text-success{% endif %}">
+                                                {{ item.stock }}
+                                            </span><br>
+                                            Price: ₦{{ item.price|floatformat:2 }}
+                                        </small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12">
+                        <div class="alert alert-info">No items available for label printing.</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Generated Labels Container -->
+            <div id="labelsContainer" class="mt-4"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function updateSelectionCount() {
+        const checked = document.querySelectorAll('.item-checkbox:checked').length;
+        document.getElementById('selectionCount').textContent = `${checked} item${checked !== 1 ? 's' : ''} selected`;
+    }
+
+    function selectAll() {
+        document.querySelectorAll('.item-checkbox').forEach(cb => {
+            cb.checked = true;
+        });
+        updateSelectionCount();
+    }
+
+    function deselectAll() {
+        document.querySelectorAll('.item-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+        updateSelectionCount();
+    }
+
+    function selectLowStock() {
+        deselectAll();
+        document.querySelectorAll('.item-entry').forEach(entry => {
+            const stock = parseInt(entry.dataset.stock);
+            if (stock < 10) {
+                const checkbox = entry.querySelector('.item-checkbox');
+                checkbox.checked = true;
+            }
+        });
+        updateSelectionCount();
+    }
+
+    function filterItems() {
+        const filter = document.getElementById('searchFilter').value.toLowerCase();
+        document.querySelectorAll('.item-entry').forEach(entry => {
+            const name = entry.dataset.itemName;
+            if (name.includes(filter)) {
+                entry.style.display = '';
+            } else {
+                entry.style.display = 'none';
+            }
+        });
+    }
+
+    async function generateLabels() {
+        const checkedBoxes = document.querySelectorAll('.item-checkbox:checked');
+        if (checkedBoxes.length === 0) {
+            alert('Please select at least one item');
+            return;
+        }
+
+        const itemIds = Array.from(checkedBoxes).map(cb => cb.value);
+        const includePrice = document.getElementById('includePriceCheck').checked;
+
+        // Show loading
+        const container = document.getElementById('labelsContainer');
+        container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-3">Generating labels...</p></div>';
+
+        try {
+            const formData = new FormData();
+            itemIds.forEach(id => formData.append('item_ids[]', id));
+            formData.append('include_price', includePrice);
+
+            const response = await fetch('{% url "store:bulk_generate_labels" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Display generated labels
+                let html = '<div class="print-section"><h3 class="text-center mb-4 no-print">Generated QR Code Labels</h3><div class="label-grid">';
+
+                data.labels.forEach(label => {
+                    html += `
+                        <div class="label-card">
+                            <h6 class="no-print">${label.item_name}</h6>
+                            <img src="${label.label_image}" alt="${label.item_name}" class="label-preview">
+                        </div>
+                    `;
+                });
+
+                html += '</div></div>';
+                container.innerHTML = html;
+
+                // Enable print button
+                document.getElementById('printBtn').disabled = false;
+
+                // Scroll to labels
+                container.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                container.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            container.innerHTML = `<div class="alert alert-danger">Error generating labels: ${error.message}</div>`;
+        }
+    }
+
+    function printLabels() {
+        window.print();
+    }
+</script>
+{% endblock %}

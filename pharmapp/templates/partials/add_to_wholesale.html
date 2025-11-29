@@ -45,6 +45,34 @@
         <input type="text" name="custom_dosage_form" id="custom_dosage_form" placeholder="Enter custom dosage form"
                class="form-control mt-2" style="display: none;">
         <input type="text" name="brand" placeholder="BRAND NAME" class="form-control mt-3">
+
+        <!-- Barcode field with scan button -->
+        <div class="mt-3">
+            <label for="wholesale-barcode" class="form-label">Barcode (Optional)</label>
+            <div class="input-group">
+                <input type="text" name="barcode" id="wholesale-barcode" placeholder="Enter barcode or scan"
+                       class="form-control" maxlength="200">
+                <button type="button" class="btn btn-outline-primary btn-sm"
+                        onclick="openBarcodeScannerForAddWholesaleItem()"
+                        title="Scan Barcode">
+                    <i class="fas fa-barcode"></i>
+                </button>
+            </div>
+            <small class="form-text text-muted">UPC, EAN-13, Code-128, or QR code</small>
+        </div>
+
+        <!-- Barcode Type -->
+        <div class="mt-3">
+            <label for="wholesale-barcode_type" class="form-label">Barcode Type</label>
+            <select name="barcode_type" id="wholesale-barcode_type" class="form-control">
+                <option value="">Select Type</option>
+                <option value="UPC">UPC</option>
+                <option value="EAN13">EAN-13</option>
+                <option value="CODE128">Code-128</option>
+                <option value="QR">QR Code</option>
+            </select>
+        </div>
+
         <!-- Hidden input for unit that will be set by the dropdown or custom input -->
         <input type="hidden" name="unit" id="unit_hidden">
         <!-- Unit Selection Dropdown -->
@@ -156,7 +184,7 @@
             customDosageFormInput.style.display = "block";
             customDosageFormInput.required = true;
             // Set focus on the custom input field for better UX
-            setTimeout(() => customDosageFormInput.focus(), 100);
+            setTimeout(() => customDosageFormInput.focus(), 50);
 
             // Update hidden field when custom input changes
             customDosageFormInput.addEventListener('input', function() {
@@ -178,7 +206,7 @@
             customUnitInput.style.display = "block";
             customUnitInput.required = true;
             // Set focus on the custom input field for better UX
-            setTimeout(() => customUnitInput.focus(), 100);
+            setTimeout(() => customUnitInput.focus(), 50);
 
             // Update hidden field when custom input changes
             customUnitInput.addEventListener('input', function() {
@@ -230,4 +258,40 @@
     // Set initial values for hidden fields
     document.getElementById('dosage_form_hidden').value = dosageFormSelect.value !== 'custom' ? dosageFormSelect.value : '';
     document.getElementById('unit_hidden').value = unitSelect.value !== 'custom' ? unitSelect.value : '';
+
+    // Function to open barcode scanner for add wholesale item
+    function openBarcodeScannerForAddWholesaleItem() {
+        // Set the callback for when barcode is scanned
+        window.onBarcodeItemFound = function(item, barcode) {
+            // Fill the barcode field
+            document.getElementById('wholesale-barcode').value = barcode;
+
+            // Optionally pre-fill other fields if item exists in wholesale
+            if (item) {
+                if (confirm(`Wholesale item found: ${item.name}. Do you want to use this item's details?`)) {
+                    document.querySelector('[name="name"]').value = item.name || '';
+                    document.querySelector('[name="brand"]').value = item.brand || '';
+
+                    // Handle dosage form
+                    const dosageFormSelect = document.getElementById('dosage_form_select');
+                    const dosageFormValue = item.dosage_form || '';
+                    const dosageFormOption = Array.from(dosageFormSelect.options).find(opt => opt.value === dosageFormValue);
+
+                    if (dosageFormOption) {
+                        dosageFormSelect.value = dosageFormValue;
+                    }
+                }
+            }
+
+            // Close modal
+            $('#barcodeScannerModal').modal('hide');
+        };
+
+        // Open the scanner modal with wholesale mode
+        const modal = document.getElementById('barcodeScannerModal');
+        if (modal) {
+            modal.dataset.mode = 'wholesale';
+            $('#barcodeScannerModal').modal('show');
+        }
+    }
 </script>

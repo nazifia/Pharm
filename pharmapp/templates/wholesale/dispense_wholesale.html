@@ -5,6 +5,8 @@
 Dispense Wholesale Items - {{ block.super }}
 {% endblock %}
 
+{% comment %}CACHE BUSTER: v3.0.0 - 2025-11-27 14:36 - WHOLESALE CALLBACK FIX{% endcomment %}
+
 {% block extra_css %}
 <style>
 /* Simplified Wholesale Dispense Page Styles */
@@ -206,6 +208,51 @@ Dispense Wholesale Items - {{ block.super }}
         width: 80px;
     }
 }
+
+/* Barcode scanned item highlight */
+.barcode-scanned-item {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%) !important;
+    border: 3px solid #ffc107 !important;
+    box-shadow: 0 0 20px rgba(255, 193, 7, 0.5) !important;
+    animation: pulse-highlight 2s ease-in-out infinite;
+    transform: translateX(0) !important; /* Override hover transform */
+}
+
+.barcode-scanned-item .item-name {
+    font-weight: 700;
+    color: #856404;
+}
+
+.barcode-scanned-item .add-to-cart-btn {
+    animation: btn-pulse 1s ease-in-out infinite;
+    box-shadow: 0 0 15px rgba(40, 167, 69, 0.6);
+}
+
+@keyframes pulse-highlight {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(255, 193, 7, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(255, 193, 7, 0.8);
+    }
+}
+
+@keyframes btn-pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+/* Mobile responsive for highlight */
+@media (max-width: 768px) {
+    .barcode-scanned-item {
+        margin: 0 -1rem;
+        padding: 1.5rem !important;
+    }
+}
 </style>
 {% endblock %}
 
@@ -251,13 +298,22 @@ Dispense Wholesale Items - {{ block.super }}
                        class="form-control search-input"
                        id="search-input"
                        name="q"
-                       placeholder="Search by item name or brand..."
+                       placeholder="Search by name, brand, or scan barcode..."
                        hx-get="{% url 'wholesale:wholesale_dispense_search_items' %}"
-                       hx-trigger="keyup changed delay:300ms"
+                       hx-trigger="keyup changed delay:150ms"
                        hx-target="#search-results-container"
                        hx-swap="innerHTML"
                        hx-indicator="#search-indicator"
                        autocomplete="off">
+                <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-success"
+                            data-toggle="modal"
+                            data-target="#barcodeScannerModal"
+                            data-mode="wholesale"
+                            title="Scan Barcode">
+                        <i class="fas fa-barcode"></i> Scan
+                    </button>
+                </div>
             </div>
             <div id="search-indicator" class="htmx-indicator mt-2" style="display:none">
                 <div class="d-flex align-items-center">
@@ -283,12 +339,37 @@ Dispense Wholesale Items - {{ block.super }}
         </div>
     </div>
 </div>
+
+<!-- Include Barcode Scanner Modal -->
+{% include 'partials/barcode_scanner_modal.html' %}
+
 {% endblock %}
 
 {% block extra_js %}
+<!-- Set current user ID for offline cart support -->
+<script>
+    window.currentUserId = {{ user.id|default:'null' }};
+
+    // Force refresh of wholesale dispense page scripts for debugging
+    console.log('[Wholesale Dispense] Dispense script loaded at:', new Date().toISOString());
+    console.log('🔧 WHOLESALE DISPENSE PAGE - CALLBACK FIX VERSION 3.0');
+
+    // Add a unique marker to ensure latest code is loaded
+    window.WHOLESALE_DISPENSE_SCRIPT_VERSION = '2025-11-27-FIX-V3';
+    console.log('[Wholesale Dispense] Script version:', window.WHOLESALE_DISPENSE_SCRIPT_VERSION);
+</script>
+
+<!-- Load offline cart support -->
+<script src="{% static 'js/cart-offline.js' %}"></script>
+
+<!-- Load cart clear handler -->
+<script src="{% static 'js/cart-clear-handler.js' %}"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Wholesale dispensing page loaded');
+    console.log('Current user ID:', window.currentUserId);
+    console.log('Offline mode available:', typeof isOfflineModeAvailable !== 'undefined' ? isOfflineModeAvailable() : 'unknown');
 
     // Ensure HTMX is loaded
     if (typeof htmx === 'undefined') {
@@ -316,6 +397,342 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.addEventListener('htmx:responseError', function(event) {
         console.error('HTMX error:', event.detail.xhr.status, event.detail.xhr.responseText);
     });
+
+    // Real-time auto-refresh for wholesale dispense page when data changes
+    let lastCartHash = '{{ cart_count|default:0 }}';  // Will be updated on first check
+    let refreshInterval = null;
+    let isPageVisible = !document.hidden;
+
+    // Function to check for cart updates
+    async function checkForUpdates() {
+        if (!isPageVisible || !navigator.onLine) {
+            return;
+        }
+
+        try {
+            // Fetch current cart data without reloading page
+            // Add timestamp to URL to bust browser cache
+            const timestamp = Date.now();
+            const url = '{% url "wholesale:wholesale_cart" %}' + '?_=' + timestamp;
+
+            const response = await fetch(url, {
+                method: 'GET',
+                cache: 'no-store',  // Force bypass all caches
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            });
+
+            if (response.ok) {
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const cartElement = doc.querySelector('[data-cart-hash]');
+
+                if (cartElement) {
+                    const currentCartHash = cartElement.dataset.cartHash || '';
+                    const currentCartCount = parseInt(cartElement.dataset.cartCount) || 0;
+
+                    // Compare hash to detect ANY cart changes (count, items, status, etc)
+                    if (currentCartHash !== lastCartHash) {
+                        console.log('[Wholesale Dispense] Cart changed detected - updating display dynamically');
+                        console.log('  Previous hash:', lastCartHash);
+                        console.log('  Current hash:', currentCartHash);
+                        console.log('  Cart count:', currentCartCount);
+                        lastCartHash = currentCartHash;
+
+                        // Update cart display without reloading page - items persist
+                        // Cart content is managed via HTMX and will update automatically
+                        // NO RELOAD: window.location.reload(true);
+                    } else {
+                        console.log('[Wholesale Dispense] No cart changes detected');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[Wholesale Dispense] Update check failed:', error);
+        }
+    }
+
+    // Start auto-refresh when page is visible
+    function startAutoRefresh() {
+        if (refreshInterval) return;
+
+        console.log('[Wholesale Dispense] Auto-refresh started (every 30 seconds)');
+        checkForUpdates();
+        refreshInterval = setInterval(checkForUpdates, 30000);
+    }
+
+    // Stop auto-refresh when page is hidden
+    function stopAutoRefresh() {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+            refreshInterval = null;
+            console.log('[Wholesale Dispense] Auto-refresh paused (page hidden)');
+        }
+    }
+
+    // Handle visibility changes
+    document.addEventListener('visibilitychange', function() {
+        isPageVisible = !document.hidden;
+        if (isPageVisible) {
+            console.log('[Wholesale Dispense] Page visible - checking for updates');
+            startAutoRefresh();
+        } else {
+            stopAutoRefresh();
+        }
+    });
+
+    // Force refresh on page show (browser back/forward)
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted || performance.navigation.type === 2) {
+            console.log('[Wholesale Dispense] Page loaded from cache - reloading');
+            window.location.reload(true);
+        }
+    });
+
+    // Start auto-refresh if page is visible
+    if (isPageVisible) {
+        startAutoRefresh();
+    }
+
+    console.log('[Wholesale Dispense] Real-time auto-refresh enabled');
+
+    // Listen for localStorage changes (payment request sent from another tab/window)
+    window.addEventListener('storage', function(event) {
+        if (event.key === 'wholesale_payment_request_sent' && event.newValue) {
+            console.log('[Wholesale Dispense] Payment request detected via storage event - refreshing immediately');
+            window.location.reload(true);
+        }
+    });
+
+    // Also check localStorage on page load (same tab scenario)
+    const paymentRequestFlag = localStorage.getItem('wholesale_payment_request_sent');
+    if (paymentRequestFlag) {
+        const flagTime = parseInt(paymentRequestFlag);
+        const currentTime = Date.now();
+
+        // If flag is less than 5 seconds old, trigger immediate refresh
+        if (currentTime - flagTime < 5000) {
+            console.log('[Wholesale Dispense] Recent payment request detected - refreshing immediately');
+            localStorage.removeItem('wholesale_payment_request_sent');
+            window.location.reload(true);
+        } else {
+            // Flag is stale, remove it
+            localStorage.removeItem('wholesale_payment_request_sent');
+        }
+    }
 });
+
+// Barcode scanner callback for wholesale - Define immediately
+console.log('[Wholesale Dispense] Defining barcode callback');
+
+window.onBarcodeItemFound = function(item, barcode) {
+    console.log('[Wholesale Dispense] Barcode scanned:', barcode, 'Item:', item);
+
+    // Prevent multiple submissions
+    if (window.isProcessingBarcode) {
+        console.log('[Wholesale Dispense] Already processing barcode, ignoring...');
+        return;
+    }
+
+    window.isProcessingBarcode = true;
+
+    setTimeout(function() {
+        window.isProcessingBarcode = false;
+    }, 800); // Reset after 800ms for faster scanning (reduced from 2000ms)
+
+    // Fill the search input with the item name (not barcode number)
+    const searchInput = document.getElementById('search-input');
+    console.log('[Wholesale Dispense] Search input element:', searchInput);
+
+    if (searchInput && item) {
+        console.log('[Wholesale Dispense] Search input found and item is valid');
+        // Use item name for searching
+        searchInput.value = item.name;
+        console.log('[Wholesale Dispense] Search input filled with:', item.name);
+
+        // Store scanned item ID for highlighting after results load
+        window.scannedItemId = item.id;
+
+        // Trigger the HTMX search with a delay to ensure value is set
+        setTimeout(function() {
+            console.log('[Wholesale Dispense] About to trigger HTMX search');
+            // Try triggering HTMX directly
+            if (typeof htmx !== 'undefined') {
+                htmx.trigger(searchInput, 'keyup');
+                console.log('[Wholesale Dispense] HTMX search triggered');
+
+                // Wait for search results to load, then highlight the scanned item
+                setTimeout(function() {
+                    console.log('[Wholesale Dispense] Attempting to highlight item:', item.id);
+                    highlightScannedItem(item.id);
+                }, 800); // Increased wait time for HTMX to load results
+            } else {
+                console.error('[Wholesale Dispense] HTMX is not defined');
+            }
+        }, 150);
+    } else {
+        console.error('[Wholesale Dispense] Search input not found or item is null', {
+            searchInput: searchInput,
+            item: item
+        });
+    }
+
+    // Close the scanner modal
+    console.log('[Wholesale Dispense] Closing scanner modal');
+    if (typeof $ !== 'undefined' && $('#barcodeScannerModal').length) {
+        $('#barcodeScannerModal').modal('hide');
+        console.log('[Wholesale Dispense] Modal closed');
+    } else {
+        console.warn('[Wholesale Dispense] jQuery or modal not found');
+    }
+
+    // Show notification that item was found in results
+    if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+        window.offlineHandler.showInAppNotification(
+            'Item Found',
+            item.name + (item.brand ? ' - ' + item.brand : '') + ' is now in search results. Click "Add to Cart" to add.',
+            'info'
+        );
+        console.log('[Wholesale Dispense] Notification shown');
+    } else {
+        console.warn('[Wholesale Dispense] Offline handler not available');
+    }
+};
+
+// Function to highlight the scanned item in search results
+function highlightScannedItem(itemId) {
+    console.log('[Wholesale Dispense] Highlighting scanned item:', itemId);
+
+    // Debug: Check if results container exists
+    const resultsContainer = document.getElementById('search-results-container');
+    console.log('[Wholesale Dispense] Results container:', resultsContainer);
+
+    if (resultsContainer) {
+        console.log('[Wholesale Dispense] Results container HTML:', resultsContainer.innerHTML.substring(0, 200));
+    }
+
+    // Find the item card with matching data-item-id (wholesale uses add-to-wholesale-cart-form)
+    const selector = '.add-to-wholesale-cart-form[data-item-id="' + itemId + '"]';
+    console.log('[Wholesale Dispense] Looking for selector:', selector);
+
+    const formElement = document.querySelector(selector);
+    console.log('[Wholesale Dispense] Form element found:', formElement);
+
+    const itemCard = formElement ? formElement.closest('.item-card') : null;
+    console.log('[Wholesale Dispense] Item card found:', itemCard);
+
+    if (itemCard) {
+        console.log('[Wholesale Dispense] Found item card to highlight');
+
+        // Add highlight class
+        itemCard.classList.add('barcode-scanned-item');
+        console.log('[Wholesale Dispense] Highlight class added');
+
+        // Scroll into view smoothly
+        try {
+            itemCard.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+            console.log('[Wholesale Dispense] Scrolled into view');
+        } catch (e) {
+            console.error('[Wholesale Dispense] Error scrolling:', e);
+        }
+
+        // Focus the quantity input for immediate interaction
+        const quantityInput = itemCard.querySelector('input[name="quantity"]');
+        console.log('[Wholesale Dispense] Quantity input:', quantityInput);
+
+        if (quantityInput) {
+            try {
+                quantityInput.focus();
+                quantityInput.select(); // Highlight current value for easy replacement
+                console.log('[Wholesale Dispense] Quantity input focused and selected');
+            } catch (e) {
+                console.error('[Wholesale Dispense] Error focusing input:', e);
+            }
+        }
+
+        // Remove highlight after 5 seconds
+        setTimeout(function() {
+            itemCard.classList.remove('barcode-scanned-item');
+            console.log('[Wholesale Dispense] Highlight removed after 5 seconds');
+        }, 5000);
+    } else {
+        console.warn('[Wholesale Dispense] Could not find item card for ID:', itemId);
+        console.log('[Wholesale Dispense] Available forms:', document.querySelectorAll('.add-to-wholesale-cart-form').length);
+
+        // Debug: Log all available data-item-ids
+        const allForms = document.querySelectorAll('.add-to-wholesale-cart-form');
+        allForms.forEach(function(form, index) {
+            console.log('[Wholesale Dispense] Form ' + index + ' data-item-id:', form.getAttribute('data-item-id'));
+        });
+
+        // Item might not be in results (out of stock, deleted, etc.)
+        if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+            window.offlineHandler.showInAppNotification(
+                'Item Not Available',
+                'The scanned item was not found in available inventory.',
+                'warning'
+            );
+        }
+    }
+}
+
+console.log('[Wholesale Dispense] Barcode callback and highlight function ready');
+
+// ==================== HARDWARE BARCODE SCANNER SUPPORT ====================
+// Supports USB/Bluetooth handheld barcode scanners
+// No need to click scan button - just point and scan!
+// ==========================================================================
+
+// Load hardware scanner module
+const hardwareScannerScript = document.createElement('script');
+hardwareScannerScript.src = "{% static 'js/hardware-scanner.js' %}";
+hardwareScannerScript.onload = function() {
+    console.log('[Wholesale Dispense] Hardware scanner module loaded');
+
+    // Initialize hardware scanner for wholesale mode
+    window.wholesaleHardwareScanner = new HardwareScannerHandler({
+        mode: 'wholesale',
+        scannerSpeed: 50,        // Max 50ms between characters
+        minBarcodeLength: 3,     // Min barcode length
+        maxBarcodeLength: 50     // Max barcode length
+    });
+
+    // Start listening for scanner input
+    window.wholesaleHardwareScanner.init();
+    console.log('[Wholesale Dispense] Hardware scanner initialized - Ready to scan!');
+
+    // Disable hardware scanner when camera modal is open (avoid conflicts)
+    $('#barcodeScannerModal').on('shown.bs.modal', function() {
+        if (window.wholesaleHardwareScanner) {
+            window.wholesaleHardwareScanner.disable();
+            console.log('[Wholesale Dispense] Hardware scanner disabled (camera active)');
+        }
+    });
+
+    // Re-enable hardware scanner when camera modal is closed
+    $('#barcodeScannerModal').on('hidden.bs.modal', function() {
+        if (window.wholesaleHardwareScanner) {
+            window.wholesaleHardwareScanner.enable();
+            console.log('[Wholesale Dispense] Hardware scanner enabled');
+        }
+    });
+};
+document.head.appendChild(hardwareScannerScript);
+
+// ==========================================================================
+// USAGE: Just scan with your USB/Bluetooth barcode scanner!
+// - Point scanner at barcode
+// - Press trigger
+// - Item automatically appears in search results
+// ==========================================================================
+
 </script>
 {% endblock %}

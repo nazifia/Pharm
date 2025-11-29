@@ -12,7 +12,7 @@
             <a type="button" class="btn btn-sm btn-outline-danger" href="{% url 'store:reset_wallet' customer.id %}"
                 onclick="return confirm('Are you sure you want to reset {{wallet.customer.name|upper}}\'s wallet?')">Clear
                 Wallet</a>
-            <a class="btn btn-sm btn-outline-dark" href="{{request.META.HTTP_REFERER}}">Back</a>
+            <a class="btn btn-sm btn-outline-dark" href="{% url 'store:dashboard' %}">Back</a>
         </div>
     </div>
 </div>
