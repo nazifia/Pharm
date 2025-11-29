@@ -952,7 +952,8 @@ def add_to_wholesale_cart(request, item_id):
 
         # Add the item to the cart or update its quantity if it already exists
         # Only work with active cart items
-        cart_item, created = WholesaleCart.objects.get_or_create(
+        # Use select_for_update() to prevent race conditions during concurrent additions
+        cart_item, created = WholesaleCart.objects.select_for_update().get_or_create(
             user=request.user,
             item=item,
             unit=unit,

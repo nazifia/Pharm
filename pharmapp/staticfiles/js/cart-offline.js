@@ -11,32 +11,46 @@
  * @returns {Promise<boolean>} Success status
  */
 async function handleAddToCart(form, itemData, isWholesale = false) {
+    const formData = new FormData(form);
+    const quantity = parseFloat(formData.get('quantity') || (isWholesale ? '0.5' : '1'));
+    const unit = formData.get('unit') || 'unit';
+    const itemId = itemData.item_id;
+
+    // Get user ID from Django template context or session
+    const userId = window.currentUserId; // Should be set by Django template
+
+    if (!userId) {
+        showErrorMessage('User not authenticated');
+        return false;
+    }
+
+    const cartData = {
+        user_id: userId,
+        item_id: itemId,
+        quantity: quantity,
+        unit: unit,
+        price: itemData.price || 0,
+        item_name: itemData.name || 'Unknown Item'
+    };
+
+    const actionType = isWholesale ? 'add_to_wholesale_cart' : 'add_to_cart';
+    const cartType = isWholesale ? 'wholesale cart' : 'cart';
+
+    // Prevent concurrent submissions for the same item
+    const submissionKey = `cart-submit-${itemId}-${isWholesale}`;
+
+    if (!window.pendingCartSubmissions) {
+        window.pendingCartSubmissions = new Set();
+    }
+
+    if (window.pendingCartSubmissions.has(submissionKey)) {
+        console.warn('[CartOffline] Submission already in progress for this item');
+        return false;
+    }
+
+    window.pendingCartSubmissions.add(submissionKey);
+
     try {
-        const formData = new FormData(form);
-        const quantity = parseFloat(formData.get('quantity') || (isWholesale ? '0.5' : '1'));
-        const unit = formData.get('unit') || 'unit';
-        const itemId = itemData.item_id;
-
-        // Get user ID from Django template context or session
-        const userId = window.currentUserId; // Should be set by Django template
-
-        if (!userId) {
-            showErrorMessage('User not authenticated');
-            return false;
-        }
-
-        const cartData = {
-            user_id: userId,
-            item_id: itemId,
-            quantity: quantity,
-            unit: unit,
-            price: itemData.price || 0,
-            item_name: itemData.name || 'Unknown Item'
-        };
-
-        const actionType = isWholesale ? 'add_to_wholesale_cart' : 'add_to_cart';
-        const cartType = isWholesale ? 'wholesale cart' : 'cart';
-
         // Check if online
         if (navigator.onLine && window.offlineHandler && window.offlineHandler.isOnline) {
             // Try online submission first
@@ -48,7 +62,8 @@ async function handleAddToCart(form, itemData, isWholesale = false) {
                         'X-CSRFToken': csrfToken,
                         'X-Requested-With': 'XMLHttpRequest'
                     },
-                    body: formData
+                    body: formData,
+                    signal: AbortSignal.timeout(10000)  // 10 second timeout
                 });
 
                 if (response.ok) {
@@ -63,11 +78,21 @@ async function handleAddToCart(form, itemData, isWholesale = false) {
                     return true;
                 }
             } catch (error) {
-                console.log('[CartOffline] Online submission failed, falling back to offline mode:', error);
+                // Distinguish timeout from network errors
+                if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+                    // Ambiguous - might have succeeded server-side
+                    console.warn('[CartOffline] Request timed out - submission status unknown');
+                    showWarningMessage(
+                        `Request timed out. Please check your ${cartType} to verify if the item was added.`
+                    );
+                    return false; // DON'T fallback to offline on timeout
+                }
+                // Only true network errors fall through to offline mode
+                console.log('[CartOffline] Network error, falling back to offline mode:', error);
             }
         }
 
-        // Offline mode or online submission failed
+        // Offline mode or online submission clearly failed
         console.log('[CartOffline] Using offline mode');
 
         // Add to local cart store AND queue for sync
@@ -91,6 +116,9 @@ async function handleAddToCart(form, itemData, isWholesale = false) {
         console.error('[CartOffline] Failed to add to cart:', error);
         showErrorMessage('Failed to add item to cart: ' + error.message);
         return false;
+    } finally {
+        // Always cleanup submission lock
+        window.pendingCartSubmissions.delete(submissionKey);
     }
 }
 

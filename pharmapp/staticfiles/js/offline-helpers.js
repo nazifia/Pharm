@@ -178,6 +178,26 @@ async function addToCartOffline(cartItem, isWholesale = false) {
         const cartStore = isWholesale ? window.dbManager.stores.wholesaleCart : window.dbManager.stores.cart;
         const actionType = isWholesale ? 'add_to_wholesale_cart' : 'add_to_cart';
 
+        // Check for duplicate pending actions before queuing
+        if (window.dbManager.getPendingActions) {
+            const pendingActions = await window.dbManager.getPendingActions();
+            const isDuplicate = pendingActions.some(action => {
+                const data = action.data || {};
+                return (
+                    action.actionType === actionType &&
+                    data.user_id === cartItem.user_id &&
+                    data.item_id === cartItem.item_id &&
+                    data.unit === cartItem.unit &&
+                    Math.abs(parseFloat(data.quantity || 0) - parseFloat(cartItem.quantity || 0)) < 0.01
+                );
+            });
+
+            if (isDuplicate) {
+                console.log('[OfflineHelpers] Duplicate action already queued, skipping');
+                return true; // Return success (idempotent)
+            }
+        }
+
         // Add to IndexedDB cart (retail or wholesale)
         await window.dbManager.put(cartStore, {
             ...cartItem,

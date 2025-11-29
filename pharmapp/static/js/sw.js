@@ -101,7 +101,8 @@ self.addEventListener('fetch', event => {
     }
 
     // HTML pages - always fetch fresh to avoid stale cached templates
-    if (request.mode === 'navigate' || request.headers.get('accept').includes('text/html')) {
+    const acceptHeader = request.headers.get('accept') || '';
+    if (request.mode === 'navigate' || acceptHeader.includes('text/html')) {
         event.respondWith(networkFirstStrategy(request));
         return;
     }

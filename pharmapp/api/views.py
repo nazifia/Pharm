@@ -339,10 +339,21 @@ def cart_sync(request):
                             })
                             continue
 
-                        cart_item, created = Cart.objects.get_or_create(
+                        # Check if this action was recently synced (within 5 minutes)
+                        from django.core.cache import cache
+                        action_hash = f"cart-sync-{user_id}-{item_id}-{unit}-{quantity}"
+
+                        if cache.get(action_hash):
+                            logger.info(f"Skipping duplicate cart action: {action_hash}")
+                            synced_count += 1  # Count as synced (idempotent)
+                            continue
+
+                        # Use select_for_update() for atomic operations
+                        cart_item, created = Cart.objects.select_for_update().get_or_create(
                             user=user,
                             item=item,
                             unit=unit,
+                            status='active',  # Only work with active cart items
                             defaults={'quantity': quantity, 'price': item.price}
                         )
 
@@ -351,6 +362,9 @@ def cart_sync(request):
                             cart_item.price = item.price
 
                         cart_item.save()
+
+                        # Cache this action hash for 5 minutes to prevent duplicates
+                        cache.set(action_hash, True, 300)
                         synced_count += 1
 
                     elif action_type == 'update_cart':
@@ -457,10 +471,22 @@ def wholesale_cart_sync(request):
                             continue
 
                         from store.models import WholesaleCart
-                        cart_item, created = WholesaleCart.objects.get_or_create(
+                        from django.core.cache import cache
+
+                        # Check if this action was recently synced (within 5 minutes)
+                        action_hash = f"wholesale-cart-sync-{user_id}-{item_id}-{unit}-{quantity}"
+
+                        if cache.get(action_hash):
+                            logger.info(f"Skipping duplicate wholesale cart action: {action_hash}")
+                            synced_count += 1  # Count as synced (idempotent)
+                            continue
+
+                        # Use select_for_update() for atomic operations
+                        cart_item, created = WholesaleCart.objects.select_for_update().get_or_create(
                             user=user,
                             item=item,
                             unit=unit,
+                            status='active',  # Only work with active cart items
                             defaults={'quantity': quantity, 'price': item.price}
                         )
 
@@ -469,6 +495,9 @@ def wholesale_cart_sync(request):
                             cart_item.price = item.price
 
                         cart_item.save()
+
+                        # Cache this action hash for 5 minutes to prevent duplicates
+                        cache.set(action_hash, True, 300)
                         synced_count += 1
 
                     elif action_type == 'update_wholesale_cart':
