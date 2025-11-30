@@ -174,8 +174,8 @@ class BarcodeScanner {
             return;
         }
 
-        const maxRetries = 3;
-        const baseDelay = 1000; // 1 second base delay
+        const maxRetries = 10;
+        const fixedDelay = 1000; // 1 second fixed delay
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
@@ -246,15 +246,14 @@ class BarcodeScanner {
                     throw error;
                 }
 
-                // Calculate delay with exponential backoff
-                const delay = Math.min(baseDelay * Math.pow(2, attempt), 8000); // Max 8 seconds
-                console.log(`[Barcode Scanner] Retrying in ${delay}ms... (${attempt + 1}/${maxRetries})`);
+                // Fixed 1 second delay between retries
+                console.log(`[Barcode Scanner] Retrying in ${fixedDelay}ms... (${attempt + 1}/${maxRetries})`);
                 
                 // Show retry status to user
-                this.showStatus(`Camera start failed, retrying... (${attempt + 1}/${maxRetries})`, delay);
+                this.showStatus(`Camera start failed, retrying... (${attempt + 1}/${maxRetries})`, fixedDelay);
                 
                 // Wait before retrying
-                await new Promise(resolve => setTimeout(resolve, delay));
+                await new Promise(resolve => setTimeout(resolve, fixedDelay));
             }
         }
     }
@@ -792,20 +791,10 @@ class BarcodeScanner {
             ? `Item not found for barcode: ${barcode}\n\nWould you like to:\n1. Add this item now (offline)\n2. Queue for when back online\n3. Cancel`
             : `Item not found for barcode: ${barcode}\n\nWould you like to add this item to inventory?`;
 
-        const response = confirm(message + '\n\nClick OK to add item, Cancel to skip.');
-        
-        if (response) {
-            // Navigate to add item page with pre-filled barcode
-            const addUrl = this.mode === 'wholesale' 
-                ? `/wholesale/add_wholesale_item/?barcode=${encodeURIComponent(barcode)}`
-                : `/store/add_item/?barcode=${encodeURIComponent(barcode)}`;
-            
-            if (isOffline) {
-                this.queueOfflineItemCreation(barcode);
-            } else {
-                window.location.href = addUrl;
-            }
-        }
+        // Show a user-friendly dialog instead of navigating directly
+        this.showAddItemDialog(barcode, isOffline);
+
+        // Don't navigate directly - the add_item view requires POST and authentication
     }
 
     /**

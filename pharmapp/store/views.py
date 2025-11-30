@@ -328,6 +328,8 @@ def store(request):
 
 
 @login_required
+@login_required
+@never_cache
 def add_item(request):
     if request.user.is_authenticated:
         from userauth.permissions import can_manage_items

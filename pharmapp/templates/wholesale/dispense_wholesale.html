@@ -388,10 +388,66 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add HTMX event listeners for better UX
     document.body.addEventListener('htmx:beforeRequest', function(event) {
         console.log('HTMX request starting:', event.detail.requestConfig.path);
+        
+        // Prevent double submission on add-to-cart forms
+        const form = event.target;
+        if (form && (form.classList.contains('add-to-cart-form') || 
+                     form.classList.contains('add-to-wholesale-cart-form'))) {
+            
+            // Find the submit button
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn && !form.dataset.submitted) {
+                // Mark form as submitted
+                form.dataset.submitted = 'true';
+                
+                // Disable submit button
+                submitBtn.disabled = true;
+                submitBtn.classList.add('disabled');
+                
+                // Show loading state
+                const btnText = submitBtn.querySelector('.btn-text');
+                if (btnText) {
+                    btnText.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Adding...';
+                }
+                
+                // Re-enable after 3 seconds as a fallback
+                setTimeout(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('disabled');
+                    delete form.dataset.submitted;
+                    if (btnText) {
+                        btnText.innerHTML = '<i class="fas fa-cart-plus mr-1"></i>Add to Cart';
+                    }
+                }, 3000);
+            }
+        }
     });
 
     document.body.addEventListener('htmx:afterRequest', function(event) {
         console.log('HTMX request completed:', event.detail.xhr.status);
+        
+        // Reset form submission flag when request completes
+        const form = event.target;
+        if (form && (form.classList.contains('add-to-cart-form') || 
+                     form.classList.contains('add-to-wholesale-cart-form'))) {
+            
+            // Find the submit button
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('disabled');
+                
+                // Reset button text
+                const btnText = submitBtn.querySelector('.btn-text');
+                if (btnText) {
+                    btnText.innerHTML = '<i class="fas fa-cart-plus mr-1"></i>Add to Cart';
+                }
+                
+                // Clear submitted flag
+                delete form.dataset.submitted;
+            }
+        }
     });
 
     document.body.addEventListener('htmx:responseError', function(event) {

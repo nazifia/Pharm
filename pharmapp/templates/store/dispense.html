@@ -682,6 +682,72 @@ function highlightScannedItem(itemId) {
 
 console.log('[Dispense] Barcode callback and highlight function ready');
 
+// ==================== FORM SUBMISSION PROTECTION ====================
+// Prevent double-clicking on add to cart forms
+// ================================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Prevent double submission on add-to-cart forms
+    document.addEventListener('htmx:beforeRequest', function(event) {
+        const form = event.target;
+        if (form && (form.classList.contains('add-to-cart-form') || 
+                     form.classList.contains('add-to-wholesale-cart-form'))) {
+            
+            // Find the submit button
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn && !form.dataset.submitted) {
+                // Mark form as submitted
+                form.dataset.submitted = 'true';
+                
+                // Disable submit button
+                submitBtn.disabled = true;
+                submitBtn.classList.add('disabled');
+                
+                // Show loading state
+                const btnText = submitBtn.querySelector('.btn-text');
+                if (btnText) {
+                    btnText.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Adding...';
+                }
+                
+                // Re-enable after 3 seconds as a fallback
+                setTimeout(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('disabled');
+                    delete form.dataset.submitted;
+                    if (btnText) {
+                        btnText.innerHTML = '<i class="fas fa-cart-plus mr-1"></i>Add to Cart';
+                    }
+                }, 3000);
+            }
+        }
+    });
+    
+    // Reset form submission flag when request completes
+    document.addEventListener('htmx:afterRequest', function(event) {
+        const form = event.target;
+        if (form && (form.classList.contains('add-to-cart-form') || 
+                     form.classList.contains('add-to-wholesale-cart-form'))) {
+            
+            // Find the submit button
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('disabled');
+                
+                // Reset button text
+                const btnText = submitBtn.querySelector('.btn-text');
+                if (btnText) {
+                    btnText.innerHTML = '<i class="fas fa-cart-plus mr-1"></i>Add to Cart';
+                }
+                
+                // Clear submitted flag
+                delete form.dataset.submitted;
+            }
+        }
+    });
+});
+
 // ==================== HARDWARE BARCODE SCANNER SUPPORT ====================
 // Supports USB/Bluetooth handheld barcode scanners
 // No need to click scan button - just point and scan!

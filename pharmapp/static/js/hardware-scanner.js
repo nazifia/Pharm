@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hardware Barcode Scanner Support
  * Detects input from USB/Bluetooth barcode scanners and triggers lookups
  * Works alongside camera-based scanning
@@ -415,7 +415,7 @@ class HardwareScannerHandler {
             window.onBarcodeItemFound(item, barcode);
         } else {
             console.warn('[Hardware Scanner] No callback defined, showing alert');
-            alert(`Found: ${item.name}\nBarcode: ${barcode}\nPrice: ₦${item.price}`);
+            alert(`Found: ${item.name}\nBarcode: ${barcode}\nPrice: â‚¦${item.price}`);
         }
 
         this.showSuccess(`Scanned: ${item.name}`);
@@ -519,9 +519,7 @@ class HardwareScannerHandler {
             
             if (isOffline) {
                 this.queueOfflineItemCreation(barcode);
-            } else {
-                window.location.href = addUrl;
-            }
+            if (isOffline) {
         }
     }
 
@@ -624,3 +622,5 @@ class HardwareScannerHandler {
 window.HardwareScannerHandler = HardwareScannerHandler;
 
 console.log('[Hardware Scanner] Module loaded successfully');
+
+
