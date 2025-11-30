@@ -163,7 +163,7 @@ class BarcodeScanner {
     }
 
     /**
-     * Start camera scanning
+     * Start camera scanning with retry logic
      */
     async startScanning() {
         console.log('[Barcode Scanner] ===== START SCANNING CALLED =====');
@@ -174,92 +174,195 @@ class BarcodeScanner {
             return;
         }
 
-        try {
-            // Check if Html5Qrcode is available
-            console.log('[Barcode Scanner] Checking if Html5Qrcode is available...');
-            console.log('[Barcode Scanner] Html5Qrcode type:', typeof Html5Qrcode);
+        const maxRetries = 3;
+        const baseDelay = 1000; // 1 second base delay
 
-            if (typeof Html5Qrcode === 'undefined') {
-                console.error('[Barcode Scanner] Html5Qrcode library not loaded!');
-                throw new Error('Html5Qrcode library not loaded');
-            }
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                // Check if Html5Qrcode is available
+                console.log('[Barcode Scanner] Checking if Html5Qrcode is available...');
+                console.log('[Barcode Scanner] Html5Qrcode type:', typeof Html5Qrcode);
 
-            console.log('[Barcode Scanner] Html5Qrcode is available ✓');
-
-            // Initialize scanner if not already initialized
-            if (!this.scanner) {
-                const initialized = await this.init();
-                if (!initialized) {
-                    throw new Error('Scanner initialization failed');
+                if (typeof Html5Qrcode === 'undefined') {
+                    console.error('[Barcode Scanner] Html5Qrcode library not loaded!');
+                    throw new Error('Html5Qrcode library not loaded');
                 }
+
+                console.log('[Barcode Scanner] Html5Qrcode is available ✓');
+
+                // Initialize scanner if not already initialized
+                if (!this.scanner) {
+                    const initialized = await this.init();
+                    if (!initialized) {
+                        throw new Error('Scanner initialization failed');
+                    }
+                }
+
+                // Request camera permission
+                console.log('[Barcode Scanner] ===== STARTING CAMERA =====');
+                console.log('[Barcode Scanner] Scanner object:', this.scanner);
+                console.log('[Barcode Scanner] Fast scan mode:', this.fastScanMode);
+                console.log('[Barcode Scanner] Attempt:', attempt + 1, 'of', maxRetries + 1);
+
+                // Use different configurations for retry attempts
+                const cameraConfig = this.getCameraConfigForAttempt(attempt);
+                const fastConfig = this.getScanConfigForAttempt(attempt);
+
+                console.log('[Barcode Scanner] Camera config:', cameraConfig);
+                console.log('[Barcode Scanner] Scan config:', fastConfig);
+                console.log('[Barcode Scanner] Starting camera with optimized settings...');
+
+                await this.scanner.start(
+                    cameraConfig,
+                    fastConfig,
+                    this.onScanSuccess.bind(this),
+                    this.onScanFailure.bind(this)
+                );
+
+                console.log('[Barcode Scanner] ✅ Camera started successfully');
+
+                this.isScanning = true;
+                console.log('[Barcode Scanner] ===== CAMERA STARTED SUCCESSFULLY =====');
+                return; // Success, exit retry loop
+
+            } catch (error) {
+                console.error('[Barcode Scanner] ===== CAMERA START FAILED =====');
+                console.error('[Barcode Scanner] Error name:', error?.name);
+                console.error('[Barcode Scanner] Error message:', error?.message);
+                console.error('[Barcode Scanner] Full error:', error);
+                console.error('[Barcode Scanner] Attempt:', attempt + 1, 'of', maxRetries + 1);
+
+                // Check if this is a non-retryable error
+                if (this.isNonRetryableError(error)) {
+                    const errorMessage = this.getErrorMessage(error);
+                    this.showError(errorMessage);
+                    throw error;
+                }
+
+                // If this was the last attempt, give up
+                if (attempt === maxRetries) {
+                    const errorMessage = this.getErrorMessage(error) + ' All retry attempts failed.';
+                    this.showError(errorMessage);
+                    throw error;
+                }
+
+                // Calculate delay with exponential backoff
+                const delay = Math.min(baseDelay * Math.pow(2, attempt), 8000); // Max 8 seconds
+                console.log(`[Barcode Scanner] Retrying in ${delay}ms... (${attempt + 1}/${maxRetries})`);
+                
+                // Show retry status to user
+                this.showStatus(`Camera start failed, retrying... (${attempt + 1}/${maxRetries})`, delay);
+                
+                // Wait before retrying
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
-
-            // Request camera permission
-            console.log('[Barcode Scanner] ===== STARTING CAMERA =====');
-            console.log('[Barcode Scanner] Scanner object:', this.scanner);
-            console.log('[Barcode Scanner] Fast scan mode:', this.fastScanMode);
-
-            // Use fast configuration for immediate scanning
-            const fastConfig = this.fastScanMode ? {
-                ...this.config,
-                // Fast mode optimizations
-                disableFlip: true,
-                focusDecoded: true,
-                'try-harder': false,
-                'zoom': 0.8,
-                'showTorch': false,
-                'showScanRegion': false,
-                // Reduce timeouts for faster startup
-                'timeout': 2000  // 2 seconds instead of 10
-            } : this.config;
-
-            // Use basic camera config directly for faster startup
-            // (Advanced config was causing delays and failures)
-            const cameraConfig = { facingMode: "environment" };
-
-            console.log('[Barcode Scanner] Camera config:', cameraConfig);
-            console.log('[Barcode Scanner] Scan config:', fastConfig);
-            console.log('[Barcode Scanner] Starting camera with optimized settings...');
-
-            await this.scanner.start(
-                cameraConfig,
-                fastConfig,
-                this.onScanSuccess.bind(this),
-                this.onScanFailure.bind(this)
-            );
-
-            console.log('[Barcode Scanner] ✅ Camera started successfully');
-
-            this.isScanning = true;
-            console.log('[Barcode Scanner] ===== CAMERA STARTED SUCCESSFULLY =====');
-        } catch (error) {
-            console.error('[Barcode Scanner] ===== CAMERA START FAILED =====');
-            console.error('[Barcode Scanner] Error name:', error?.name);
-            console.error('[Barcode Scanner] Error message:', error?.message);
-            console.error('[Barcode Scanner] Full error:', error);
-
-            // Provide more specific error messages
-            let errorMessage = 'Failed to start camera. ';
-
-            // Defensive checks for error properties to prevent undefined errors
-            const errorName = error?.name || '';
-            const errorMsg = error?.message || '';
-
-            if (errorName === 'NotAllowedError' || errorMsg.includes('Permission')) {
-                errorMessage += 'Camera access was denied. Please allow camera permissions and try again.';
-            } else if (errorName === 'NotFoundError') {
-                errorMessage += 'No camera found on this device.';
-            } else if (errorName === 'NotReadableError') {
-                errorMessage += 'Camera is already in use by another application.';
-            } else if (errorMsg.includes('library not loaded')) {
-                errorMessage += 'Barcode scanner library failed to load. Please refresh the page.';
-            } else {
-                errorMessage += errorMsg || 'Please check your camera permissions and try again.';
-            }
-
-            this.showError(errorMessage);
-            throw error;
         }
+    }
+
+    /**
+     * Get camera configuration for specific retry attempt
+     */
+    getCameraConfigForAttempt(attempt) {
+        switch(attempt) {
+            case 0: // First attempt - standard config
+                return { facingMode: "environment" };
+            case 1: // Second attempt - lower resolution
+                return {
+                    facingMode: "environment",
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                };
+            case 2: // Third attempt - basic constraints only
+                return { facingMode: { ideal: "environment" } };
+            default: // Fallback - most basic
+                return { facingMode: "environment" };
+        }
+    }
+
+    /**
+     * Get scan configuration for specific retry attempt
+     */
+    getScanConfigForAttempt(attempt) {
+        const baseConfig = this.fastScanMode ? {
+            ...this.config,
+            // Fast mode optimizations
+            disableFlip: true,
+            focusDecoded: true,
+            'try-harder': false,
+            'zoom': 0.8,
+            'showTorch': false,
+            'showScanRegion': false,
+            // Reduce timeouts for faster startup
+            'timeout': 2000  // 2 seconds instead of 10
+        } : this.config;
+
+        // Apply additional constraints for retry attempts
+        switch(attempt) {
+            case 1: // Second attempt - more relaxed settings
+                return {
+                    ...baseConfig,
+                    'timeout': 5000, // Increase timeout
+                    'try-harder': true,
+                    'zoom': 0.6
+                };
+            case 2: // Third attempt - maximum compatibility
+                return {
+                    ...baseConfig,
+                    'timeout': 8000, // Even longer timeout
+                    'try-harder': true,
+                    'disableFlip': false, // Allow flipping
+                    'formatsToSupport': [
+                        Html5QrcodeSupportedFormats.QR_CODE,
+                        Html5QrcodeSupportedFormats.EAN_13,
+                        Html5QrcodeSupportedFormats.CODE_128
+                    ] // Fewer formats for better detection
+                };
+            default:
+                return baseConfig;
+        }
+    }
+
+    /**
+     * Check if error is non-retryable
+     */
+    isNonRetryableError(error) {
+        const errorName = error?.name || '';
+        const errorMsg = error?.message || '';
+
+        return (
+            errorName === 'NotAllowedError' || // Permission denied
+            errorMsg.includes('Permission') ||
+            errorName === 'NotFoundError' || // No camera found
+            errorMsg.includes('library not loaded') || // Library issue
+            errorName === 'SecurityError' || // Security restriction
+            errorMsg.includes('not allowed')
+        );
+    }
+
+    /**
+     * Get user-friendly error message
+     */
+    getErrorMessage(error) {
+        const errorName = error?.name || '';
+        const errorMsg = error?.message || '';
+
+        let errorMessage = 'Failed to start camera. ';
+
+        if (errorName === 'NotAllowedError' || errorMsg.includes('Permission')) {
+            errorMessage += 'Camera access was denied. Please allow camera permissions and try again.';
+        } else if (errorName === 'NotFoundError') {
+            errorMessage += 'No camera found on this device.';
+        } else if (errorName === 'NotReadableError') {
+            errorMessage += 'Camera is already in use by another application.';
+        } else if (errorName === 'OverconstrainedError' || errorMsg.includes('Constraints')) {
+            errorMessage += 'Camera does not support required configuration.';
+        } else if (errorMsg.includes('library not loaded')) {
+            errorMessage += 'Barcode scanner library failed to load. Please refresh the page.';
+        } else {
+            errorMessage += errorMsg || 'Please check your camera permissions and try again.';
+        }
+
+        return errorMessage;
     }
 
     /**
@@ -277,6 +380,29 @@ class BarcodeScanner {
         } catch (error) {
             console.error('[Barcode Scanner] Failed to stop camera:', error);
         }
+    }
+
+    /**
+     * Manual retry method for camera initialization
+     */
+    async retryCameraStart() {
+        console.log('[Barcode Scanner] Manual retry requested');
+        
+        // Clear any existing scanner state
+        if (this.scanner) {
+            try {
+                await this.scanner.stop();
+            } catch (error) {
+                console.log('[Barcode Scanner] Error stopping existing scanner:', error);
+            }
+        }
+        
+        // Reset scanner instance for clean retry
+        this.scanner = null;
+        this.isScanning = false;
+        
+        // Try to start scanning again
+        return await this.startScanning();
     }
 
     /**

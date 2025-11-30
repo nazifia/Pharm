@@ -27,6 +27,9 @@
                     <button type="button" id="stop-scan-btn" class="btn btn-danger" style="display: none;">
                         <i class="fas fa-stop"></i> Stop Camera
                     </button>
+                    <button type="button" id="retry-scan-btn" class="btn btn-warning" style="display: none;">
+                        <i class="fas fa-redo"></i> Retry Camera
+                    </button>
 
                     <!-- Auto-start option -->
                     <div class="form-check mt-3">
@@ -146,6 +149,7 @@
     const modal = document.getElementById('barcodeScannerModal');
     const startBtn = document.getElementById('start-scan-btn');
     const stopBtn = document.getElementById('stop-scan-btn');
+    const retryBtn = document.getElementById('retry-scan-btn');
     const manualInput = document.getElementById('manual-barcode-input');
     const manualLookupBtn = document.getElementById('manual-lookup-btn');
     const fileInput = document.getElementById('barcode-file-input');
@@ -157,7 +161,7 @@
         console.error('[Scanner Modal] Modal element not found!');
         return;
     }
-    if (!startBtn || !stopBtn) {
+    if (!startBtn || !stopBtn || !retryBtn) {
         console.error('[Scanner Modal] Button elements not found!');
         return;
     }
@@ -176,16 +180,25 @@
     /**
      * Show status message
      */
-    function showStatus(message, type = 'info') {
-        statusText.textContent = message;
+    function showStatus(message, type = 'info', duration = 3000) {
         statusDiv.className = `alert alert-${type}`;
         statusDiv.style.display = 'block';
 
-        // Auto-hide success messages after 3 seconds
-        if (type === 'success') {
+        // Show retry progress as loading spinner
+        if (message.includes('retrying')) {
+            statusDiv.innerHTML = `<div class="d-flex align-items-center">
+                <span class="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>
+                <span>${message}</span>
+            </div>`;
+        } else {
+            statusDiv.innerHTML = message;
+        }
+
+        // Auto-hide messages based on type and duration
+        if (type === 'success' || type === 'info') {
             setTimeout(() => {
                 statusDiv.style.display = 'none';
-            }, 3000);
+            }, duration);
         }
     }
 
@@ -304,6 +317,7 @@
         // Reset UI
         startBtn.style.display = 'inline-block';
         stopBtn.style.display = 'none';
+        retryBtn.style.display = 'none';
         manualInput.value = '';
         fileInput.value = '';
         hideStatus();
@@ -336,28 +350,58 @@
         console.log('[Scanner Modal] Html5Qrcode library loaded: ✓');
 
         showStatus('Starting camera...', 'info');
+        retryBtn.style.display = 'none'; // Hide retry button when starting fresh
         console.log('[Scanner Modal] 🎥 Calling barcodeScanner.startScanning()...');
 
         try {
             await barcodeScanner.startScanning();
             startBtn.style.display = 'none';
             stopBtn.style.display = 'inline-block';
+            retryBtn.style.display = 'none';
             showStatus('Camera ready - point at barcode', 'success');
             console.log('[Scanner Modal] Camera started successfully');
         } catch (error) {
             console.error('[Scanner Modal] Failed to start camera:', error);
-
-            // Error message is already shown by barcodeScanner.startScanning()
-            // Just log additional info here
-            if (error.name === 'NotAllowedError') {
+            
+            // Show retry button for retryable errors
+            if (error.name === 'NotReadableError' || error.name === 'OverconstrainedError') {
+                startBtn.style.display = 'none';
+                retryBtn.style.display = 'inline-block';
+                showStatus('Camera failed to start. Click "Retry Camera" to try again.', 'warning');
+            } else if (error.name === 'NotAllowedError') {
                 showStatus('Camera permission denied. Please allow camera access in your browser settings.', 'danger');
             } else if (error.name === 'NotFoundError') {
                 showStatus('No camera found on this device.', 'danger');
-            } else if (error.name === 'NotReadableError') {
-                showStatus('Camera is in use by another application.', 'danger');
             } else {
                 showStatus('Failed to start camera: ' + (error.message || 'Unknown error'), 'danger');
             }
+        }
+    });
+
+    /**
+     * Retry scanning button
+     */
+    retryBtn.addEventListener('click', async function() {
+        console.log('[Scanner Modal] ===== RETRY BUTTON CLICKED =====');
+
+        if (!barcodeScanner) {
+            showStatus('Scanner not initialized. Please close and reopen this modal.', 'danger');
+            console.error('[Scanner Modal] ❌ Scanner instance is null');
+            return;
+        }
+
+        showStatus('Retrying camera...', 'info');
+        console.log('[Scanner Modal] 🔄 Calling barcodeScanner.retryCameraStart()...');
+
+        try {
+            await barcodeScanner.retryCameraStart();
+            retryBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+            showStatus('Camera started successfully - point at barcode', 'success');
+            console.log('[Scanner Modal] Camera retry successful');
+        } catch (error) {
+            console.error('[Scanner Modal] Failed to retry camera:', error);
+            showStatus('Retry failed: ' + (error.message || 'Unknown error'), 'danger');
         }
     });
 
@@ -369,6 +413,7 @@
             await barcodeScanner.stopScanning();
             startBtn.style.display = 'inline-block';
             stopBtn.style.display = 'none';
+            retryBtn.style.display = 'none';
             showStatus('Camera stopped', 'info');
         }
     });
