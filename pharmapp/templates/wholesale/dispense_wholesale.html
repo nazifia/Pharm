@@ -527,56 +527,74 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Barcode scanner callback for wholesale - Define immediately
-console.log('[Wholesale Dispense] Defining barcode callback');
+// Barcode scanner callback for wholesale - Using new cart integration system
+console.log('[Wholesale Dispense] Setting up barcode callback with cart integration');
 
-window.onBarcodeItemFound = function(item, barcode) {
-    console.log('[Wholesale Dispense] Barcode scanned:', barcode, 'Item:', item);
-
-    // Prevent multiple submissions
-    if (window.isProcessingBarcode) {
-        console.log('[Wholesale Dispense] Already processing barcode, ignoring...');
+// Wait for cart integration module to load
+function initializeWholesaleBarcodeHandler() {
+    if (typeof BarcodeCartIntegration === 'undefined') {
+        console.log('[Wholesale Dispense] Waiting for BarcodeCartIntegration module...');
+        setTimeout(initializeWholesaleBarcodeHandler, 100);
         return;
     }
 
-    window.isProcessingBarcode = true;
+    // Initialize cart handler for wholesale mode
+    window.barcodeCartHandler = new BarcodeCartIntegration({
+        mode: 'wholesale',
+        autoAdd: false,  // Don't auto-add, show item first for wholesale
+        showNotifications: true
+    });
 
-    setTimeout(function() {
-        window.isProcessingBarcode = false;
-    }, 800); // Reset after 800ms for faster scanning (reduced from 2000ms)
+    console.log('[Wholesale Dispense] BarcodeCartIntegration initialized for wholesale');
 
-    // Fill the search input with the item name (not barcode number)
-    const searchInput = document.getElementById('search-input');
-    console.log('[Wholesale Dispense] Search input element:', searchInput);
+    // Custom callback that combines search and highlighting
+    window.onBarcodeItemFound = function(item, barcode) {
+        console.log('[Wholesale Dispense] Barcode scanned:', barcode, 'Item:', item);
 
-    if (searchInput && item) {
-        console.log('[Wholesale Dispense] Search input found and item is valid');
-        // Use item name for searching
-        searchInput.value = item.name;
-        console.log('[Wholesale Dispense] Search input filled with:', item.name);
+        // Prevent multiple submissions
+        if (window.isProcessingBarcode) {
+            console.log('[Wholesale Dispense] Already processing barcode, ignoring...');
+            return;
+        }
 
-        // Store scanned item ID for highlighting after results load
-        window.scannedItemId = item.id;
+        window.isProcessingBarcode = true;
 
-        // Trigger the HTMX search with a delay to ensure value is set
         setTimeout(function() {
-            console.log('[Wholesale Dispense] About to trigger HTMX search');
-            // Try triggering HTMX directly
-            if (typeof htmx !== 'undefined') {
-                htmx.trigger(searchInput, 'keyup');
-                console.log('[Wholesale Dispense] HTMX search triggered');
+            window.isProcessingBarcode = false;
+        }, 500); // Reduced to 500ms for faster rescanning
 
-                // Wait for search results to load, then highlight the scanned item
-                setTimeout(function() {
-                    console.log('[Wholesale Dispense] Attempting to highlight item:', item.id);
-                    highlightScannedItem(item.id);
-                }, 800); // Increased wait time for HTMX to load results
-            } else {
-                console.error('[Wholesale Dispense] HTMX is not defined');
-            }
-        }, 150);
-    } else {
-        console.error('[Wholesale Dispense] Search input not found or item is null', {
+        // Fill the search input with the item name (not barcode number)
+        const searchInput = document.getElementById('search-input');
+        console.log('[Wholesale Dispense] Search input element:', searchInput);
+
+        if (searchInput && item) {
+            console.log('[Wholesale Dispense] Search input found and item is valid');
+            // Use item name for searching
+            searchInput.value = item.name;
+            console.log('[Wholesale Dispense] Search input filled with:', item.name);
+
+            // Store scanned item ID for highlighting after results load
+            window.scannedItemId = item.id;
+
+            // Trigger the HTMX search with a delay to ensure value is set
+            setTimeout(function() {
+                console.log('[Wholesale Dispense] About to trigger HTMX search');
+                // Try triggering HTMX directly
+                if (typeof htmx !== 'undefined') {
+                    htmx.trigger(searchInput, 'keyup');
+                    console.log('[Wholesale Dispense] HTMX search triggered');
+
+                    // Wait for search results to load, then highlight the scanned item
+                    setTimeout(function() {
+                        console.log('[Wholesale Dispense] Attempting to highlight item:', item.id);
+                        highlightScannedItem(item.id);
+                    }, 600); // Optimized wait time for HTMX to load results
+                } else {
+                    console.error('[Wholesale Dispense] HTMX is not defined');
+                }
+            }, 100);  // Reduced delay for faster response
+        } else {
+            console.error('[Wholesale Dispense] Search input not found or item is null', {
             searchInput: searchInput,
             item: item
         });
@@ -591,18 +609,24 @@ window.onBarcodeItemFound = function(item, barcode) {
         console.warn('[Wholesale Dispense] jQuery or modal not found');
     }
 
-    // Show notification that item was found in results
-    if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
-        window.offlineHandler.showInAppNotification(
-            'Item Found',
-            item.name + (item.brand ? ' - ' + item.brand : '') + ' is now in search results. Click "Add to Cart" to add.',
-            'info'
-        );
-        console.log('[Wholesale Dispense] Notification shown');
-    } else {
-        console.warn('[Wholesale Dispense] Offline handler not available');
-    }
-};
+        // Show notification that item was found in results
+        if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+            window.offlineHandler.showInAppNotification(
+                'Item Found',
+                item.name + (item.brand ? ' - ' + item.brand : '') + ' is now in search results. Click "Add to Cart" to add.',
+                'info'
+            );
+            console.log('[Wholesale Dispense] Notification shown');
+        } else {
+            console.warn('[Wholesale Dispense] Offline handler not available');
+        }
+    };
+
+    console.log('[Wholesale Dispense] Barcode callback initialized');
+}
+
+// Initialize the wholesale barcode handler
+initializeWholesaleBarcodeHandler();
 
 // Function to highlight the scanned item in search results
 function highlightScannedItem(itemId) {
@@ -689,18 +713,21 @@ console.log('[Wholesale Dispense] Barcode callback and highlight function ready'
 // ==================== HARDWARE BARCODE SCANNER SUPPORT ====================
 // Supports USB/Bluetooth handheld barcode scanners
 // No need to click scan button - just point and scan!
+// Module is loaded globally in base.html, just initialize here
 // ==========================================================================
 
-// Load hardware scanner module
-const hardwareScannerScript = document.createElement('script');
-hardwareScannerScript.src = "{% static 'js/hardware-scanner.js' %}";
-hardwareScannerScript.onload = function() {
-    console.log('[Wholesale Dispense] Hardware scanner module loaded');
+// Wait for HardwareScannerHandler to be available (loaded in base.html)
+function initWholesaleHardwareScanner() {
+    if (typeof HardwareScannerHandler === 'undefined') {
+        console.log('[Wholesale Dispense] Waiting for HardwareScannerHandler...');
+        setTimeout(initWholesaleHardwareScanner, 100);
+        return;
+    }
 
     // Initialize hardware scanner for wholesale mode
     window.wholesaleHardwareScanner = new HardwareScannerHandler({
         mode: 'wholesale',
-        scannerSpeed: 100,       // UPDATED: Increased from 50ms to 100ms for Bluetooth scanners
+        scannerSpeed: 50,        // Optimized to 50ms for faster scanning
         minBarcodeLength: 3,     // Min barcode length
         maxBarcodeLength: 50     // Max barcode length
     });
@@ -724,8 +751,10 @@ hardwareScannerScript.onload = function() {
             console.log('[Wholesale Dispense] Hardware scanner enabled');
         }
     });
-};
-document.head.appendChild(hardwareScannerScript);
+}
+
+// Initialize hardware scanner
+initWholesaleHardwareScanner();
 
 // ==========================================================================
 // USAGE: Just scan with your USB/Bluetooth barcode scanner!

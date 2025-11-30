@@ -1,0 +1,261 @@
+<!-- Add Item Modal Content for HTMX -->
+<form id="addItemForm" method="post" novalidate>
+    {% csrf_token %}
+    <div class="modal-body">
+        <!-- Hidden fields -->
+        <input type="hidden" id="itemMode" name="mode" value="retail">
+        <input type="hidden" id="isOfflineMode" name="is_offline" value="false">
+        
+        <!-- Barcode Information -->
+        <div class="card mb-3">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="fas fa-barcode me-2"></i>Barcode Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="itemBarcode" class="form-label">Barcode *</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+                                <input type="text" class="form-control" id="itemBarcode" name="barcode" 
+                                       required maxlength="200" readonly>
+                                <button type="button" class="btn btn-outline-secondary" 
+                                        onclick="clearBarcode()" title="Clear barcode">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-success" 
+                                        onclick="openBarcodeScanner()" title="Scan barcode">
+                                    <i class="fas fa-camera"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Scanned barcode (auto-filled). Click to edit if needed.</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="barcodeType" class="form-label">Barcode Type</label>
+                            <select class="form-select" id="barcodeType" name="barcode_type">
+                                <option value="OTHER">Other/Unknown</option>
+                                <option value="UPC">UPC</option>
+                                <option value="EAN13">EAN-13</option>
+                                <option value="CODE128">Code-128</option>
+                                <option value="QR">QR Code</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Basic Item Information -->
+        <div class="card mb-3">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Basic Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="mb-3">
+                            <label for="itemName" class="form-label">Item Name *</label>
+                            <input type="text" class="form-control" id="itemName" name="name" 
+                                   required maxlength="200" placeholder="Enter item name">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="itemBrand" class="form-label">Brand</label>
+                            <input type="text" class="form-control" id="itemBrand" name="brand" 
+                                   maxlength="200" placeholder="Enter brand name">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="itemDosageForm" class="form-label">Dosage Form</label>
+                            <input type="text" class="form-control" id="itemDosageForm" name="dosage_form" 
+                                   maxlength="200" placeholder="e.g., Tablet, Capsule">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="itemUnit" class="form-label">Unit</label>
+                            <input type="text" class="form-control" id="itemUnit" name="unit" 
+                                   maxlength="200" placeholder="e.g., Pcs, Bottle, Box">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pricing and Stock -->
+        <div class="card mb-3">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="fas fa-dollar-sign me-2"></i>Pricing & Stock</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="itemCost" class="form-label">Cost Price *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">₦</span>
+                                <input type="number" class="form-control" id="itemCost" name="cost" 
+                                       required step="0.01" min="0" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="itemPrice" class="form-label">Selling Price</label>
+                            <div class="input-group">
+                                <span class="input-group-text">₦</span>
+                                <input type="number" class="form-control" id="itemPrice" name="price" 
+                                       step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <div class="form-text">Leave blank to calculate from markup</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="itemMarkup" class="form-label">Markup (%)</label>
+                            <select class="form-select" id="itemMarkup" name="markup">
+                                <option value="0">No markup</option>
+                                <option value="2.5">2.5% markup</option>
+                                <option value="5">5% markup</option>
+                                <option value="10">10% markup</option>
+                                <option value="15">15% markup</option>
+                                <option value="20">20% markup</option>
+                                <option value="25">25% markup</option>
+                                <option value="30">30% markup</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="itemStock" class="form-label">Initial Stock *</label>
+                            <input type="number" class="form-control" id="itemStock" name="stock" 
+                                   required min="0" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Information -->
+        <div class="card mb-3">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="fas fa-calendar me-2"></i>Additional Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="itemExpDate" class="form-label">Expiry Date</label>
+                            <input type="date" class="form-control" id="itemExpDate" name="exp_date">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="itemLowStock" class="form-label">Low Stock Alert</label>
+                            <input type="number" class="form-control" id="itemLowStock" name="low_stock_threshold" 
+                                   min="0" placeholder="Alert when stock reaches this level">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Offline Mode Indicator -->
+        <div id="offlineModeIndicator" class="alert alert-warning" style="display: none;">
+            <i class="fas fa-wifi-slash me-2"></i>
+            <strong>Offline Mode:</strong> Item will be queued for sync when you're back online.
+        </div>
+
+        <!-- Error Messages -->
+        <div id="addItemErrors" class="alert alert-danger" style="display: none;">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <div id="errorMessages"></div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">
+            <i class="fas fa-times me-1"></i> Cancel
+        </button>
+        <button type="submit" class="btn btn-primary" id="submitItemBtn">
+            <i class="fas fa-save me-1"></i>
+            <span id="submitBtnText">Add Item</span>
+        </button>
+    </div>
+</form>
+
+<script>
+// Define global functions immediately when script loads
+window.openBarcodeScanner = function() {
+    const modal = document.getElementById('barcodeScannerModal');
+    if (modal) {
+        // Set mode to retail for store items
+        modal.dataset.mode = 'retail';
+        $('#barcodeScannerModal').modal('show');
+    } else {
+        console.error('[Add Item Modal] Barcode scanner modal not found');
+        alert('Barcode scanner not available. Please enter barcode manually.');
+    }
+};
+
+// Re-attach event listeners after HTMX content is loaded
+document.addEventListener('htmx:afterSwap', function(evt) {
+    // Check if this is the add item form that was loaded
+    if (evt.target.id === 'addItemModal' || evt.target.classList.contains('modal-content')) {
+        console.log('[Add Item Modal] HTMX content loaded, re-attaching event listeners');
+        
+        // Set up barcode scanner callback
+        window.onBarcodeItemFound = function(item, barcode) {
+            // Fill barcode field
+            document.getElementById('itemBarcode').value = barcode;
+            
+            // Close scanner modal
+            $('#barcodeScannerModal').modal('hide');
+            
+            // Focus on item name field
+            document.getElementById('itemName').focus();
+        };
+    }
+});
+
+// Make barcode field editable on click
+document.getElementById('itemBarcode')?.addEventListener('click', function() {
+    this.readOnly = false;
+    this.classList.add('bg-light');
+});
+
+document.getElementById('itemBarcode')?.addEventListener('blur', function() {
+    this.readOnly = true;
+    this.classList.remove('bg-light');
+});
+
+// Auto-calculate price when markup changes
+document.getElementById('itemMarkup')?.addEventListener('change', function() {
+    const cost = parseFloat(document.getElementById('itemCost').value);
+    const markup = parseFloat(this.value);
+    const priceField = document.getElementById('itemPrice');
+    
+    if (cost && markup && !priceField.value) {
+        const calculatedPrice = cost + (cost * markup / 100);
+        priceField.value = calculatedPrice.toFixed(2);
+    }
+});
+
+// Auto-calculate price when cost changes
+document.getElementById('itemCost')?.addEventListener('change', function() {
+    const cost = parseFloat(this.value);
+    const markup = parseFloat(document.getElementById('itemMarkup').value);
+    const priceField = document.getElementById('itemPrice');
+    
+    if (cost && markup) {
+        const calculatedPrice = cost + (cost * markup / 100);
+        priceField.value = calculatedPrice.toFixed(2);
+    }
+});
+</script>

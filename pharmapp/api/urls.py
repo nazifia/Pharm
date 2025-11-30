@@ -19,4 +19,6 @@ urlpatterns = [
     path('barcode/lookup/', views.barcode_lookup, name='barcode_lookup'),
     path('barcode/assign/', views.assign_barcode, name='assign_barcode'),
     path('barcode/batch-lookup/', views.barcode_batch_lookup, name='barcode_batch_lookup'),
+    path('barcode/add-item/', views.barcode_add_item, name='barcode_add_item'),
+    path('barcode/batch-add-items/', views.barcode_batch_add_items, name='barcode_batch_add_items'),
 ]

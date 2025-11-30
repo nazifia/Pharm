@@ -1,298 +1,484 @@
-<div class="modal-header">
-    <h3>ADD NEW ITEM</h3>
-    <button type="button" class="close" data-dismiss="modal" aria-label="Close">x</button>
-</div>
-<div class="modal-body">
-    <form action="{% url 'store:add_item' %}" method="post">
-        {% csrf_token %}
-        <input type="text" name="name" placeholder=" ENTER ITEM GENERIC NAME" class="form-control mt-3" required>
-        <!-- Hidden input for dosage_form that will be set by the dropdown or custom input -->
-        <input type="hidden" name="dosage_form" id="dosage_form_hidden">
-        <!-- Dosage Form Selection Dropdown -->
-        <select name="dosage_form_select" id="dosage_form_select" class="form-control mt-3" onchange="toggleCustomDosageForm()">
-            <option value="">Select Dosage Form</option>
-            <option value="Tablet">Tablet</option>
-            <option value="Capsule">Capsule</option>
-            <option value="Consumable">Consumable</option>
-            <option value="Cream">Cream</option>
-            <option value="Syrup">Syrup</option>
-            <option value="Patch">Patch</option>
-            <option value="Drops">Drops</option>
-            <option value="Solution">Solution</option>
-            <option value="Suspension">Suspension</option>
-            <option value="Eye-drop">Eye-drop</option>
-            <option value="Ear-drop">Ear-drop</option>
-            <option value="Eye-ointment">Eye-ointment</option>
-            <option value="Galenical">Galenical</option>
-            <option value="Detergents">Detergents</option>
-            <option value="Soaps">Soaps</option>
-            <option value="Drinks">Drinks</option>
-            <option value="Biscuit">Biscuit</option>
-            <option value="BiscuitSweets">BiscuitSweets</option>
-            <option value="Paste">Paste</option>
-            <option value="Table-water">Table-water</option>
-            <option value="Food-item">Food-item</option>
-            <option value="Nasal">Nasal</option>
-            <option value="Injection">Injection</option>
-            <option value="Infusion">Infusion</option>
-            <option value="Inhaler">Inhaler</option>
-            <option value="Vaginal">Vaginal</option>
-            <option value="Rectal">Rectal</option>
-            <option value="custom">Other (specify)</option>
-        </select>
-
-        <!-- Custom Dosage Form input (hidden by default) -->
-        <input type="text" name="custom_dosage_form" id="custom_dosage_form" placeholder="Enter custom dosage form"
-               class="form-control mt-2" style="display: none;">
-        <input type="text" name="brand" placeholder="BRAND NAME" class="form-control mt-3" required>
-
-        <!-- Barcode field with scan button -->
-        <div class="mt-3">
-            <label for="barcode" class="form-label">Barcode (Optional)</label>
-            <div class="input-group">
-                <input type="text" name="barcode" id="barcode" placeholder="Enter barcode or scan"
-                       class="form-control" maxlength="200">
-                <button type="button" class="btn btn-outline-primary btn-sm"
-                        onclick="openBarcodeScannerForAddItem()"
-                        title="Scan Barcode">
-                    <i class="fas fa-barcode"></i>
+<!-- Add Item Modal for Barcode Scanner -->
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="addItemModalLabel">
+                    <i class="fas fa-barcode me-2"></i>
+                    <span id="modalTitle">Add New Item</span>
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <small class="form-text text-muted">UPC, EAN-13, Code-128, or QR code</small>
+            <form id="addItemForm" method="post" novalidate>
+                {% csrf_token %}
+                <div class="modal-body">
+                    <!-- Hidden fields -->
+                    <input type="hidden" id="itemMode" name="mode" value="retail">
+                    <input type="hidden" id="isOfflineMode" name="is_offline" value="false">
+                    
+                    <!-- Barcode Information -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-barcode me-2"></i>Barcode Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="itemBarcode" class="form-label">Barcode *</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+                                            <input type="text" class="form-control" id="itemBarcode" name="barcode" 
+                                                   required maxlength="200" readonly>
+                                            <button type="button" class="btn btn-outline-secondary" 
+                                                    onclick="clearBarcode()" title="Clear barcode">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-success" 
+                                                    onclick="openBarcodeScanner()" title="Scan barcode">
+                                                <i class="fas fa-camera"></i>
+                                            </button>
+                                        </div>
+                                        <div class="form-text">Scanned barcode (auto-filled). Click to edit if needed.</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="barcodeType" class="form-label">Barcode Type</label>
+                                        <select class="form-select" id="barcodeType" name="barcode_type">
+                                            <option value="OTHER">Other/Unknown</option>
+                                            <option value="UPC">UPC</option>
+                                            <option value="EAN13">EAN-13</option>
+                                            <option value="CODE128">Code-128</option>
+                                            <option value="QR">QR Code</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Basic Item Information -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Basic Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="mb-3">
+                                        <label for="itemName" class="form-label">Item Name *</label>
+                                        <input type="text" class="form-control" id="itemName" name="name" 
+                                               required maxlength="200" placeholder="Enter item name">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="itemBrand" class="form-label">Brand</label>
+                                        <input type="text" class="form-control" id="itemBrand" name="brand" 
+                                               maxlength="200" placeholder="Enter brand name">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="itemDosageForm" class="form-label">Dosage Form</label>
+                                        <input type="text" class="form-control" id="itemDosageForm" name="dosage_form" 
+                                               maxlength="200" placeholder="e.g., Tablet, Capsule">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="itemUnit" class="form-label">Unit</label>
+                                        <input type="text" class="form-control" id="itemUnit" name="unit" 
+                                               maxlength="200" placeholder="e.g., Pcs, Bottle, Box">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pricing and Stock -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-dollar-sign me-2"></i>Pricing & Stock</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="itemCost" class="form-label">Cost Price *</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">₦</span>
+                                            <input type="number" class="form-control" id="itemCost" name="cost" 
+                                                   required step="0.01" min="0" placeholder="0.00">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="itemPrice" class="form-label">Selling Price</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">₦</span>
+                                            <input type="number" class="form-control" id="itemPrice" name="price" 
+                                                   step="0.01" min="0" placeholder="0.00">
+                                        </div>
+                                        <div class="form-text">Leave blank to calculate from markup</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="itemMarkup" class="form-label">Markup (%)</label>
+                                        <select class="form-select" id="itemMarkup" name="markup">
+                                            <option value="0">No markup</option>
+                                            <option value="2.5">2.5% markup</option>
+                                            <option value="5">5% markup</option>
+                                            <option value="10">10% markup</option>
+                                            <option value="15">15% markup</option>
+                                            <option value="20">20% markup</option>
+                                            <option value="25">25% markup</option>
+                                            <option value="30">30% markup</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="itemStock" class="form-label">Initial Stock *</label>
+                                        <input type="number" class="form-control" id="itemStock" name="stock" 
+                                               required min="0" placeholder="0">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Information -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="fas fa-calendar me-2"></i>Additional Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="itemExpDate" class="form-label">Expiry Date</label>
+                                        <input type="date" class="form-control" id="itemExpDate" name="exp_date">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="itemLowStock" class="form-label">Low Stock Alert</label>
+                                        <input type="number" class="form-control" id="itemLowStock" name="low_stock_threshold" 
+                                               min="0" placeholder="Alert when stock reaches this level">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Offline Mode Indicator -->
+                    <div id="offlineModeIndicator" class="alert alert-warning" style="display: none;">
+                        <i class="fas fa-wifi-slash me-2"></i>
+                        <strong>Offline Mode:</strong> Item will be queued for sync when you're back online.
+                    </div>
+
+                    <!-- Error Messages -->
+                    <div id="addItemErrors" class="alert alert-danger" style="display: none;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <div id="errorMessages"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="submitItemBtn">
+                        <i class="fas fa-save me-1"></i>
+                        <span id="submitBtnText">Add Item</span>
+                    </button>
+                </div>
+            </form>
         </div>
-
-        <!-- Barcode Type -->
-        <div class="mt-3">
-            <label for="barcode_type" class="form-label">Barcode Type</label>
-            <select name="barcode_type" id="barcode_type" class="form-control">
-                <option value="">Select Type</option>
-                <option value="UPC">UPC</option>
-                <option value="EAN13">EAN-13</option>
-                <option value="CODE128">Code-128</option>
-                <option value="QR">QR Code</option>
-            </select>
-        </div>
-
-        <!-- Hidden input for unit that will be set by the dropdown or custom input -->
-        <input type="hidden" name="unit" id="unit_hidden">
-        <!-- Unit Selection Dropdown -->
-        <select name="unit_select" id="unit_select" class="form-control mt-3" onchange="toggleCustomUnit()">
-            <option value="">Select Unit</option>
-            <option value="Pcs">Pieces</option>
-            <option value="Pack">Packets</option>
-            <option value="Plastic">Plastic</option>
-            <option value="Tab">Tablets</option>
-            <option value="Drops">Drops</option>
-            <option value="Tin">Tins</option>
-            <option value="can">Can</option>
-            <option value="Caps">Capsules</option>
-            <option value="Carton">Cartons</option>
-            <option value="Card">Cards</option>
-            <option value="Bottle">Bottles</option>
-            <option value="Roll">Rolls</option>
-            <option value="Vail">Vail</option>
-            <option value="Amp">Ample</option>
-            <option value="custom">Other (specify)</option>
-        </select>
-
-        <!-- Custom Unit input (hidden by default) -->
-        <input type="text" name="custom_unit" id="custom_unit" placeholder="Enter custom unit"
-               class="form-control mt-2" style="display: none;">
-
-        <input type="number" name="cost" id="cost" step="0.01" placeholder="COST PRICE" class="form-control mt-3"
-            oninput="calculatePrice()" required>
-
-        <!-- Markup Percentage Dropdown -->
-        <select name="markup" id="markup" class="form-control mt-3" onchange="calculatePrice()">
-            <option value="0">Select Markup</option>
-            <option value="2.5">2.5% markup</option>
-            <option value="5">5% markup</option>
-            <option value="7.5">7.5% markup</option>
-            <option value="10">10% markup</option>
-            <option value="12.5">12.5% markup</option>
-            <option value="15">15% markup</option>
-            <option value="17.5">17.5% markup</option>
-            <option value="20">20% markup</option>
-            <option value="22.5">22.5% markup</option>
-            <option value="25">25% markup</option>
-            <option value="27.5">27.5% markup</option>
-            <option value="30">30% markup</option>
-            <option value="32.5">32.5% markup</option>
-            <option value="35">35% markup</option>
-            <option value="37.5">37.5% markup</option>
-            <option value="40">40% markup</option>
-            <option value="42.5">42.5% markup</option>
-            <option value="45">45% markup</option>
-            <option value="47.5">47.5% markup</option>
-            <option value="50">50% markup</option>
-            <option value="52.5">52.5% markup</option>
-            <option value="55">55% markup</option>
-            <option value="57.5">57.5% markup</option>
-            <option value="60">60% markup</option>
-            <option value="62.5">62.5% markup</option>
-            <option value="65">65% markup</option>
-            <option value="67.5">67.5% markup</option>
-            <option value="70">70% markup</option>
-            <option value="72.5">72.5% markup</option>
-            <option value="75">75% markup</option>
-            <option value="77.5">77.5% markup</option>
-            <option value="80">80% markup</option>
-            <option value="82.5">82.5% markup</option>
-            <option value="85">85% markup</option>
-            <option value="87.5">87.5% markup</option>
-            <option value="90">90% markup</option>
-            <option value="92.5">92.5% markup</option>
-            <option value="95">95% markup</option>
-            <option value="97.5">97.5% markup</option>
-            <option value="100">100% markup</option>
-        </select>
-
-        <!-- Selling price field -->
-        <input type="number" name="price" step="0.01" id="price" placeholder="ITEM PRICE" class="form-control mt-3">
-
-        <!-- Manual price override checkbox -->
-        <div class="form-check mt-2 mb-3">
-            <input class="form-check-input" type="checkbox" id="manualPriceOverride" name="manual_price_override">
-            <label class="form-check-label" for="manualPriceOverride">
-                Manually override selling price
-            </label>
-        </div>
-        <input type="number" name="stock" placeholder="STOCK QUANTITY" class="form-control mt-3" required>
-        <input type="date" name="exp_date" class="form-control mt-3" required>
-        <input type="submit" class="btn btn-success btn-sm mt-3" value="Save">
-    </form>
+    </div>
 </div>
 
 <script>
-    // Get references to the elements
-    const costInput = document.getElementById("cost");
-    const markupSelect = document.getElementById("markup");
-    const priceInput = document.getElementById("price");
-    const manualOverrideCheckbox = document.getElementById("manualPriceOverride");
-    const dosageFormSelect = document.getElementById("dosage_form_select");
-    const customDosageFormInput = document.getElementById("custom_dosage_form");
-    const unitSelect = document.getElementById("unit_select");
-    const customUnitInput = document.getElementById("custom_unit");
-
-    // Initialize manual override flag
-    let manualPriceOverride = false;
-
-    // Function to toggle custom dosage form input visibility
-    function toggleCustomDosageForm() {
-        const dosageFormHidden = document.getElementById('dosage_form_hidden');
-
-        if (dosageFormSelect.value === "custom") {
-            customDosageFormInput.style.display = "block";
-            customDosageFormInput.required = true;
-            // Set focus on the custom input field for better UX
-            setTimeout(() => customDosageFormInput.focus(), 50);
-
-            // Update hidden field when custom input changes
-            customDosageFormInput.addEventListener('input', function() {
-                dosageFormHidden.value = this.value;
-            });
-        } else {
-            customDosageFormInput.style.display = "none";
-            customDosageFormInput.required = false;
-            // Set the hidden dosage_form value to the selected option
-            dosageFormHidden.value = dosageFormSelect.value;
-        }
+// Global function to show add item modal
+window.showAddItemModal = function(barcode, mode = 'retail', isOffline = false) {
+    console.log('[Add Item Modal] Opening modal with:', { barcode, mode, isOffline });
+    
+    // Set mode and offline status
+    document.getElementById('itemMode').value = mode;
+    document.getElementById('isOfflineMode').value = isOffline;
+    
+    // Update modal title
+    const title = mode === 'wholesale' ? 'Add New Wholesale Item' : 'Add New Retail Item';
+    document.getElementById('modalTitle').textContent = title;
+    
+    // Pre-fill barcode
+    document.getElementById('itemBarcode').value = barcode || '';
+    
+    // Show offline indicator if needed
+    const offlineIndicator = document.getElementById('offlineModeIndicator');
+    if (isOffline) {
+        offlineIndicator.style.display = 'block';
+        document.getElementById('submitBtnText').textContent = 'Queue Item';
+    } else {
+        offlineIndicator.style.display = 'none';
+        document.getElementById('submitBtnText').textContent = 'Add Item';
     }
-
-    // Function to toggle custom unit input visibility
-    function toggleCustomUnit() {
-        const unitHidden = document.getElementById('unit_hidden');
-
-        if (unitSelect.value === "custom") {
-            customUnitInput.style.display = "block";
-            customUnitInput.required = true;
-            // Set focus on the custom input field for better UX
-            setTimeout(() => customUnitInput.focus(), 50);
-
-            // Update hidden field when custom input changes
-            customUnitInput.addEventListener('input', function() {
-                unitHidden.value = this.value;
-            });
-        } else {
-            customUnitInput.style.display = "none";
-            customUnitInput.required = false;
-            // Set the hidden unit value to the selected option
-            unitHidden.value = unitSelect.value;
-        }
-    }
-
-    // Function to calculate price based on cost and markup
-    function calculatePrice() {
-        if (manualPriceOverride) return; // Skip calculation if manual override is enabled
-
-        const cost = parseFloat(costInput.value) || 0;
-        const markupPercentage = parseFloat(markupSelect.value) || 0;
-
-        // Calculate price based on the cost and markup percentage
-        const price = cost + (cost * markupPercentage / 100);
-
-        // Set the calculated price in the price input field
-        priceInput.value = price.toFixed(2);
-    }
-
-    // Add event listener for the manual override checkbox
-    manualOverrideCheckbox.addEventListener('change', function() {
-        manualPriceOverride = this.checked;
-
-        // If manual override is disabled, recalculate the price
-        if (!manualPriceOverride) {
-            calculatePrice();
-        }
-    });
-
-    // Add event listeners for cost and markup changes
-    costInput.addEventListener('input', calculatePrice);
-    markupSelect.addEventListener('change', calculatePrice);
-
-    // Calculate initial price
-    calculatePrice();
-
-    // Initialize the custom field visibility and set initial values
-    toggleCustomDosageForm();
-    toggleCustomUnit();
-
-    // Set initial values for hidden fields
-    document.getElementById('dosage_form_hidden').value = dosageFormSelect.value !== 'custom' ? dosageFormSelect.value : '';
-    document.getElementById('unit_hidden').value = unitSelect.value !== 'custom' ? unitSelect.value : '';
-
-    // Function to open barcode scanner for add item
-    function openBarcodeScannerForAddItem() {
-        // Set the callback for when barcode is scanned
-        window.onBarcodeItemFound = function(item, barcode) {
-            // Fill the barcode field
-            document.getElementById('barcode').value = barcode;
-
-            // Optionally pre-fill other fields if item exists
-            if (item) {
-                if (confirm(`Item found: ${item.name}. Do you want to use this item's details?`)) {
-                    document.querySelector('[name="name"]').value = item.name || '';
-                    document.querySelector('[name="brand"]').value = item.brand || '';
-
-                    // Handle dosage form
-                    const dosageFormSelect = document.getElementById('dosage_form_select');
-                    const dosageFormValue = item.dosage_form || '';
-                    const dosageFormOption = Array.from(dosageFormSelect.options).find(opt => opt.value === dosageFormValue);
-
-                    if (dosageFormOption) {
-                        dosageFormSelect.value = dosageFormValue;
-                    }
-                }
+    
+    // Hide any previous errors
+    document.getElementById('addItemErrors').style.display = 'none';
+    
+    // Reset form (except barcode and mode)
+    const form = document.getElementById('addItemForm');
+    const formData = new FormData(form);
+    for (let [key, value] of formData.entries()) {
+        if (key !== 'barcode' && key !== 'mode' && key !== 'is_offline') {
+            const input = form.elements[key];
+            if (input && input.type !== 'hidden') {
+                input.value = '';
             }
-
-            // Close modal
-            $('#barcodeScannerModal').modal('hide');
-        };
-
-        // Open the scanner modal
-        const modal = document.getElementById('barcodeScannerModal');
-        if (modal) {
-            modal.dataset.mode = 'retail';
-            $('#barcodeScannerModal').modal('show');
         }
     }
+    
+    // Show modal using Bootstrap 4/jQuery
+    $('#addItemModal').modal('show');
+    
+    // Focus on item name field
+    setTimeout(() => {
+        document.getElementById('itemName').focus();
+    }, 500);
+};
+
+// Clear barcode function
+function clearBarcode() {
+    document.getElementById('itemBarcode').value = '';
+    document.getElementById('itemBarcode').focus();
+}
+
+// Handle form submission
+document.getElementById('addItemForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const form = e.target;
+    const submitBtn = document.getElementById('submitItemBtn');
+    const originalBtnText = document.getElementById('submitBtnText').textContent;
+    
+    // Get form data
+    const formData = new FormData(form);
+    const isOffline = formData.get('is_offline') === 'true';
+    const mode = formData.get('mode');
+    
+    // Validate required fields
+    const requiredFields = ['barcode', 'name', 'cost', 'stock'];
+    const missingFields = [];
+    
+    for (const field of requiredFields) {
+        const value = formData.get(field);
+        if (!value || value.trim() === '') {
+            missingFields.push(field);
+        }
+    }
+    
+    if (missingFields.length > 0) {
+        showError(`Missing required fields: ${missingFields.join(', ')}`);
+        return;
+    }
+    
+    // Disable submit button and show loading
+    submitBtn.disabled = true;
+    document.getElementById('submitBtnText').textContent = 'Saving...';
+    
+    try {
+        const itemData = {
+            barcode: formData.get('barcode').trim(),
+            name: formData.get('name').trim(),
+            brand: formData.get('brand').trim(),
+            dosage_form: formData.get('dosage_form').trim(),
+            unit: formData.get('unit').trim(),
+            cost: parseFloat(formData.get('cost')),
+            price: formData.get('price') ? parseFloat(formData.get('price')) : null,
+            markup: formData.get('markup') ? parseFloat(formData.get('markup')) : null,
+            stock: parseInt(formData.get('stock')),
+            exp_date: formData.get('exp_date') || null,
+            barcode_type: formData.get('barcode_type'),
+            mode: mode
+        };
+        
+        if (isOffline) {
+            // Handle offline submission
+            await handleOfflineItemCreation(itemData);
+        } else {
+            // Handle online submission
+            await handleOnlineItemCreation(itemData);
+        }
+        
+        // Close modal on success using Bootstrap 4/jQuery
+        $('#addItemModal').modal('hide');
+        
+    } catch (error) {
+        console.error('[Add Item Modal] Error:', error);
+        showError(error.message || 'Failed to create item. Please try again.');
+    } finally {
+        // Re-enable submit button
+        submitBtn.disabled = false;
+        document.getElementById('submitBtnText').textContent = originalBtnText;
+    }
+});
+
+// Handle online item creation
+async function handleOnlineItemCreation(itemData) {
+    const response = await fetch('/api/barcode/add-item/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(itemData)
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok && result.status === 'success') {
+        showSuccess(`${itemData.name} has been added successfully!`);
+        
+        // Refresh the current page or redirect
+        if (window.location.pathname.includes('dispense')) {
+            // On dispense page, just refresh the item list
+            location.reload();
+        } else {
+            // Navigate to item detail or list page
+            window.location.href = itemData.mode === 'wholesale' 
+                ? '/wholesale/wholesales/' 
+                : '/store/store/';
+        }
+    } else {
+        throw new Error(result.user_message || result.error || 'Failed to create item');
+    }
+}
+
+// Handle offline item creation
+async function handleOfflineItemCreation(itemData) {
+    if (!window.dbManager) {
+        throw new Error('IndexedDB not available for offline storage');
+    }
+    
+    const offlineItem = {
+        id: `offline_${Date.now()}`,
+        action: 'create_item',
+        data: itemData,
+        timestamp: new Date().toISOString(),
+        status: 'pending_sync'
+    };
+    
+    await window.dbManager.add('pendingActions', offlineItem);
+    showSuccess('Item has been queued for creation when you are back online.');
+}
+
+// Show error function
+function showError(message) {
+    const errorDiv = document.getElementById('addItemErrors');
+    const errorMessages = document.getElementById('errorMessages');
+    
+    errorMessages.textContent = message;
+    errorDiv.style.display = 'block';
+    
+    // Scroll to top of modal to show error
+    document.getElementById('addItemModal').scrollTop = 0;
+}
+
+// Show success function
+function showSuccess(message) {
+    // Use existing notification system if available
+    if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+        window.offlineHandler.showInAppNotification('Success', message, 'success');
+    } else {
+        // Fallback to alert
+        alert(message);
+    }
+}
+
+// Auto-calculate price when markup changes
+document.getElementById('itemMarkup').addEventListener('change', function() {
+    const cost = parseFloat(document.getElementById('itemCost').value);
+    const markup = parseFloat(this.value);
+    const priceField = document.getElementById('itemPrice');
+    
+    if (cost && markup && !priceField.value) {
+        const calculatedPrice = cost + (cost * markup / 100);
+        priceField.value = calculatedPrice.toFixed(2);
+    }
+});
+
+// Auto-calculate price when cost changes
+document.getElementById('itemCost').addEventListener('change', function() {
+    const cost = parseFloat(this.value);
+    const markup = parseFloat(document.getElementById('itemMarkup').value);
+    const priceField = document.getElementById('itemPrice');
+    
+    if (cost && markup) {
+        const calculatedPrice = cost + (cost * markup / 100);
+        priceField.value = calculatedPrice.toFixed(2);
+    }
+});
+
+// Make barcode field editable on click
+document.getElementById('itemBarcode')?.addEventListener('click', function() {
+    this.readOnly = false;
+    this.classList.add('bg-light');
+});
+
+document.getElementById('itemBarcode')?.addEventListener('blur', function() {
+    this.readOnly = true;
+    this.classList.remove('bg-light');
+});
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Add Item Modal JavaScript -->
+<script>
+// Define global functions immediately when script loads
+window.openBarcodeScanner = function() {
+    const modal = document.getElementById('barcodeScannerModal');
+    if (modal) {
+        // Set mode to retail for store items
+        modal.dataset.mode = 'retail';
+        $('#barcodeScannerModal').modal('show');
+    } else {
+        console.error('[Add Item Modal] Barcode scanner modal not found');
+        alert('Barcode scanner not available. Please enter barcode manually.');
+    }
+};
+
+// Set up barcode scanner callback
+window.onBarcodeItemFound = function(item, barcode) {
+    // Fill barcode field
+    document.getElementById('itemBarcode').value = barcode;
+    
+    // Close scanner modal
+    $('#barcodeScannerModal').modal('hide');
+    
+    // Focus on item name field
+    document.getElementById('itemName').focus();
+};
+
+// Make barcode field editable on click
+document.getElementById('itemBarcode')?.addEventListener('click', function() {
+    this.readOnly = false;
+    this.classList.add('bg-light');
+});
+
+document.getElementById('itemBarcode')?.addEventListener('blur', function() {
+    this.readOnly = true;
+    this.classList.remove('bg-light');
+});
+</script>
 </script>

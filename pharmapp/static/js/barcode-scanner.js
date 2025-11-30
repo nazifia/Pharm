@@ -18,20 +18,46 @@ class BarcodeScanner {
         // Debouncing to prevent multiple scans of same barcode
         this.lastScannedCode = null;
         this.lastScanTime = 0;
-        this.scanCooldown = 500; // Reduced to 0.5 second for faster scanning
+        this.scanCooldown = 100; // Ultra-fast: 0.1 second cooldown
         this.isProcessing = false; // Flag to prevent processing multiple scans simultaneously
-        
+
         // Performance optimization: cache for recently scanned items
         this.recentlyScanned = new Map(); // barcode -> {item, timestamp}
-        this.recentScanCacheTimeout = 30000; // 30 seconds cache
+        this.recentScanCacheTimeout = 60000; // 60 seconds cache for better offline performance
         
-        // Optimized configuration for fast scanning
+        // Fast scan mode optimization
+        this.fastScanMode = options.fastScanMode || false;  // Initialize fast mode if specified
+        
+        // Ultra-fast configuration - optimized for speed
         this.config = {
-            fps: 60,  // Increased to 60 FPS for faster detection
-            qrbox: this.calculateQrBoxSize(),  // Dynamic sizing based on screen width
-            aspectRatio: 1.777778,  // 16:9 for better camera utilization
-            // Use formatsToSupport only if library is confirmed loaded
-            formatsToSupport: this.getSupportedFormats()
+            fps: 60,  // Maximum frame rate for fastest detection
+            qrbox: 250,  // Fixed size for faster processing (instead of dynamic calculation)
+            aspectRatio: 1.0,  // 1:1 for simpler processing
+            // Only scan most common formats for speed
+            formatsToSupport: [
+                Html5QrcodeSupportedFormats.QR_CODE,
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.UPC_A
+            ],
+            // Minimal experimental features for maximum speed
+            disableFlip: true,  // No horizontal flip - saves processing
+            rememberSelection: true,
+            videoConstraints: {
+                facingMode: "environment",
+                advanced: [{ zoom: 1.0 }]
+            }
+        };
+
+        // Add advanced scanning options for better sensitivity
+        // Using 'ideal' instead of 'min' to make it more forgiving
+        this.advancedScanOptions = {
+            videoConstraints: {
+                facingMode: { ideal: 'environment' },
+                width: { ideal: 1280 },      // Reasonable resolution
+                height: { ideal: 720 },
+                frameRate: { ideal: 30 }     // Standard framerate
+            }
         };
     }
 
@@ -65,6 +91,7 @@ class BarcodeScanner {
             Html5QrcodeSupportedFormats.CODE_39,
         ];
     }
+    
 
     /**
      * Get CSRF token from cookies
@@ -78,6 +105,46 @@ class BarcodeScanner {
             }
         }
         return '';
+    }
+
+    /**
+     * Set scan mode (fast/slow)
+     * @param {boolean} mode - true for fast mode, false for normal mode
+     */
+    setFastScanMode(mode) {
+        this.fastScanMode = mode;
+        console.log('[Barcode Scanner] Fast scan mode:', mode ? 'enabled' : 'disabled');
+    }
+
+    /**
+     * Request camera permission
+     */
+    requestCameraPermission() {
+        return new Promise((resolve, reject) => {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                })
+                .then(stream => {
+                    console.log('[Barcode Scanner] Camera permission granted');
+                    // Stop the stream immediately as Html5Qrcode will request it again
+                    stream.getTracks().forEach(track => track.stop());
+                    resolve(stream);
+                })
+                .catch(error => {
+                    console.error('[Barcode Scanner] Camera permission denied:', error);
+                    reject(error);
+                });
+            } else {
+                const error = new Error('Camera API not available in this browser');
+                console.error('[Barcode Scanner]', error.message);
+                reject(error);
+            }
+        });
     }
 
     /**
@@ -99,6 +166,9 @@ class BarcodeScanner {
      * Start camera scanning
      */
     async startScanning() {
+        console.log('[Barcode Scanner] ===== START SCANNING CALLED =====');
+        console.log('[Barcode Scanner] Current scanning status:', this.isScanning);
+
         if (this.isScanning) {
             console.warn('[Barcode Scanner] Already scanning');
             return;
@@ -106,9 +176,15 @@ class BarcodeScanner {
 
         try {
             // Check if Html5Qrcode is available
+            console.log('[Barcode Scanner] Checking if Html5Qrcode is available...');
+            console.log('[Barcode Scanner] Html5Qrcode type:', typeof Html5Qrcode);
+
             if (typeof Html5Qrcode === 'undefined') {
+                console.error('[Barcode Scanner] Html5Qrcode library not loaded!');
                 throw new Error('Html5Qrcode library not loaded');
             }
+
+            console.log('[Barcode Scanner] Html5Qrcode is available ✓');
 
             // Initialize scanner if not already initialized
             if (!this.scanner) {
@@ -118,21 +194,49 @@ class BarcodeScanner {
                 }
             }
 
-            // Request camera permission explicitly
-            console.log('[Barcode Scanner] Requesting camera permission...');
+            // Request camera permission
+            console.log('[Barcode Scanner] ===== STARTING CAMERA =====');
+            console.log('[Barcode Scanner] Scanner object:', this.scanner);
+            console.log('[Barcode Scanner] Fast scan mode:', this.fastScanMode);
 
-            // Start the scanner with proper configuration
+            // Use fast configuration for immediate scanning
+            const fastConfig = this.fastScanMode ? {
+                ...this.config,
+                // Fast mode optimizations
+                disableFlip: true,
+                focusDecoded: true,
+                'try-harder': false,
+                'zoom': 0.8,
+                'showTorch': false,
+                'showScanRegion': false,
+                // Reduce timeouts for faster startup
+                'timeout': 2000  // 2 seconds instead of 10
+            } : this.config;
+
+            // Use basic camera config directly for faster startup
+            // (Advanced config was causing delays and failures)
+            const cameraConfig = { facingMode: "environment" };
+
+            console.log('[Barcode Scanner] Camera config:', cameraConfig);
+            console.log('[Barcode Scanner] Scan config:', fastConfig);
+            console.log('[Barcode Scanner] Starting camera with optimized settings...');
+
             await this.scanner.start(
-                { facingMode: "environment" }, // Use back camera on mobile
-                this.config,
+                cameraConfig,
+                fastConfig,
                 this.onScanSuccess.bind(this),
                 this.onScanFailure.bind(this)
             );
 
+            console.log('[Barcode Scanner] ✅ Camera started successfully');
+
             this.isScanning = true;
-            console.log('[Barcode Scanner] Camera started successfully');
+            console.log('[Barcode Scanner] ===== CAMERA STARTED SUCCESSFULLY =====');
         } catch (error) {
-            console.error('[Barcode Scanner] Failed to start camera:', error);
+            console.error('[Barcode Scanner] ===== CAMERA START FAILED =====');
+            console.error('[Barcode Scanner] Error name:', error?.name);
+            console.error('[Barcode Scanner] Error message:', error?.message);
+            console.error('[Barcode Scanner] Full error:', error);
 
             // Provide more specific error messages
             let errorMessage = 'Failed to start camera. ';
@@ -209,10 +313,16 @@ class BarcodeScanner {
             console.log('[Barcode Scanner] Found in cache:', cachedScan.item);
             this.playSuccessBeep();
             this.flashSuccessIndicator();
+            
+            // Use cached item directly, skip API request
             this.onSuccess(cachedScan.item, decodedText);
             
             const scanTime = performance.now() - scanStartTime;
             console.log(`[Barcode Scanner] Cache hit processed in ${scanTime.toFixed(2)}ms`);
+            
+            // Performance monitoring - track scan times
+            this.trackScanPerformance(decodedText, scanTime, 'cache_hit');
+            
             return;
         }
 
@@ -223,7 +333,7 @@ class BarcodeScanner {
         }
 
         // Mark as processing
-        this.isProcessing = true;
+            this.isProcessing = true;
         this.lastScannedCode = decodedText;
         this.lastScanTime = currentTime;
 
@@ -246,7 +356,14 @@ class BarcodeScanner {
                     
                     // Clean old cache entries
                     this.cleanExpiredCache();
+                    
+                    // Track performance for successful API request
+                    this.trackScanPerformance(decodedText, performance.now() - scanStartTime, 'api_request');
                 }
+            })
+            .catch(error => {
+                // Track performance for failed API request
+                this.trackScanPerformance(decodedText, performance.now() - scanStartTime, 'scan_error');
             })
             .finally(() => {
                 // Reset processing flag immediately for faster response
@@ -266,12 +383,17 @@ class BarcodeScanner {
     }
 
     /**
-     * Look up barcode in database (online/offline)
+     * Look up barcode in database (online/offline) with enhanced retry logic
      */
-    async lookupBarcode(barcode) {
+    async lookupBarcode(barcode, retryCount = 0) {
+        const maxRetries = 1;
+        const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
+
         try {
             // Try online API first
             if (navigator.onLine) {
+                console.log(`[Barcode Scanner] Online lookup attempt ${retryCount + 1}/${maxRetries + 1}`);
+                
                 const response = await fetch('/api/barcode/lookup/', {
                     method: 'POST',
                     headers: {
@@ -281,7 +403,9 @@ class BarcodeScanner {
                     body: JSON.stringify({
                         barcode: barcode,
                         mode: this.mode
-                    })
+                    }),
+                    // Add timeout to prevent hanging requests
+                    signal: AbortSignal.timeout(3000) // 3 second timeout
                 });
 
                 if (response.ok) {
@@ -291,7 +415,7 @@ class BarcodeScanner {
                     return;
                 }
 
-                // If not found online, try offline
+                // If item not found (404), offer to add new item
                 if (response.status === 404) {
                     console.log('[Barcode Scanner] Item not found online, trying offline...');
                     const offlineItem = await this.lookupBarcodeOffline(barcode);
@@ -299,7 +423,21 @@ class BarcodeScanner {
                         this.onSuccess(offlineItem, barcode);
                         return;
                     }
+                    
+                    // Item not found anywhere - trigger add item flow
+                    console.log('[Barcode Scanner] Item not found anywhere, triggering add item flow');
+                    this.onItemNotFound(barcode);
+                    return;
                 }
+
+                // Network error - retry if possible
+                if (!response.ok && retryCount < maxRetries) {
+                    console.log(`[Barcode Scanner] Network error, retrying in ${retryDelay}ms...`);
+                    this.showStatus(`Network error, retrying... (${retryCount + 1}/${maxRetries})`, 2000);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                    return this.lookupBarcode(barcode, retryCount + 1);
+                }
+
             } else {
                 // Offline mode - search IndexedDB
                 console.log('[Barcode Scanner] Offline mode, searching IndexedDB...');
@@ -308,27 +446,44 @@ class BarcodeScanner {
                     this.onSuccess(offlineItem, barcode);
                     return;
                 }
+                
+                // Item not found offline - queue for when back online or offer to add
+                console.log('[Barcode Scanner] Item not found offline, queuing for later or add new');
+                this.onItemNotFoundOffline(barcode);
+                return;
             }
 
-            // Not found anywhere
-            this.showError(`Item not found for barcode: ${barcode}`);
-            this.onError(new Error('Item not found'), barcode);
+            // If we get here, all attempts failed
+            this.showError(`Unable to find item for barcode: ${barcode}`);
+            this.onError(new Error('Item not found after all attempts'), barcode);
 
         } catch (error) {
             console.error('[Barcode Scanner] Lookup error:', error);
 
-            // Try offline as fallback
-            try {
-                const offlineItem = await this.lookupBarcodeOffline(barcode);
-                if (offlineItem) {
-                    this.onSuccess(offlineItem, barcode);
-                    return;
+            // Handle different error types
+            if (error.name === 'AbortError') {
+                console.log('[Barcode Scanner] Request timed out');
+                if (retryCount < maxRetries) {
+                    console.log(`[Barcode Scanner] Timeout, retrying in ${retryDelay}ms...`);
+                    this.showStatus(`Request timeout, retrying... (${retryCount + 1}/${maxRetries})`, 2000);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                    return this.lookupBarcode(barcode, retryCount + 1);
                 }
-            } catch (offlineError) {
-                console.error('[Barcode Scanner] Offline lookup also failed:', offlineError);
+            } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                console.log('[Barcode Scanner] Network error, trying offline fallback');
+                // Try offline as fallback for network errors
+                try {
+                    const offlineItem = await this.lookupBarcodeOffline(barcode);
+                    if (offlineItem) {
+                        this.onSuccess(offlineItem, barcode);
+                        return;
+                    }
+                } catch (offlineError) {
+                    console.error('[Barcode Scanner] Offline lookup also failed:', offlineError);
+                }
             }
 
-            this.showError('Failed to lookup barcode');
+            this.showError('Failed to lookup barcode: ' + error.message);
             this.onError(error, barcode);
         }
     }
@@ -443,6 +598,161 @@ class BarcodeScanner {
     }
 
     /**
+     * Handle item not found (online mode) - trigger add item flow
+     */
+    onItemNotFound(barcode) {
+        console.log('[Barcode Scanner] Item not found, showing add item modal');
+        
+        // Try to use the global add item modal if available
+        if (typeof window.showAddItemModal === 'function') {
+            window.showAddItemModal(barcode, this.mode);
+        } else {
+            // Fallback to prompt or create modal dynamically
+            this.showAddItemDialog(barcode);
+        }
+    }
+
+    /**
+     * Handle item not found (offline mode) - queue for later or offer to add
+     */
+    onItemNotFoundOffline(barcode) {
+        console.log('[Barcode Scanner] Item not found offline');
+        
+        // Add to pending items queue for when back online
+        if (window.dbManager) {
+            this.queueBarcodeForLater(barcode);
+        }
+        
+        // Also offer to add item offline if supported
+        if (typeof window.showAddItemModal === 'function') {
+            window.showAddItemModal(barcode, this.mode, true); // true = offline mode
+        } else {
+            this.showAddItemDialog(barcode, true);
+        }
+    }
+
+    /**
+     * Queue barcode for later processing when back online
+     */
+    async queueBarcodeForLater(barcode) {
+        try {
+            if (!window.dbManager) {
+                console.warn('[Barcode Scanner] Cannot queue barcode: IndexedDB not available');
+                return;
+            }
+
+            const queuedItem = {
+                id: Date.now(), // Temporary ID
+                barcode: barcode,
+                mode: this.mode,
+                action: 'lookup_when_online',
+                timestamp: new Date().toISOString(),
+                status: 'pending'
+            };
+
+            await window.dbManager.add('pendingActions', queuedItem);
+            console.log('[Barcode Scanner] Barcode queued for later processing:', barcode);
+            this.showStatus('Item queued for when back online', 3000);
+        } catch (error) {
+            console.error('[Barcode Scanner] Failed to queue barcode:', error);
+        }
+    }
+
+    /**
+     * Show add item dialog (fallback when modal not available)
+     */
+    showAddItemDialog(barcode, isOffline = false) {
+        const message = isOffline 
+            ? `Item not found for barcode: ${barcode}\n\nWould you like to:\n1. Add this item now (offline)\n2. Queue for when back online\n3. Cancel`
+            : `Item not found for barcode: ${barcode}\n\nWould you like to add this item to inventory?`;
+
+        const response = confirm(message + '\n\nClick OK to add item, Cancel to skip.');
+        
+        if (response) {
+            // Navigate to add item page with pre-filled barcode
+            const addUrl = this.mode === 'wholesale' 
+                ? `/wholesale/add_wholesale_item/?barcode=${encodeURIComponent(barcode)}`
+                : `/store/add_item/?barcode=${encodeURIComponent(barcode)}`;
+            
+            if (isOffline) {
+                this.queueOfflineItemCreation(barcode);
+            } else {
+                window.location.href = addUrl;
+            }
+        }
+    }
+
+    /**
+     * Handle offline item creation
+     */
+    async queueOfflineItemCreation(barcode) {
+        try {
+            // Create a basic item structure that user can complete later
+            const offlineItem = {
+                id: `offline_${Date.now()}`,
+                barcode: barcode,
+                name: `New Item - ${barcode}`,
+                mode: this.mode,
+                action: 'create_item',
+                timestamp: new Date().toISOString(),
+                status: 'pending_completion',
+                required_fields: ['name', 'cost', 'stock']
+            };
+
+            await window.dbManager.add('pendingActions', offlineItem);
+            this.showSuccess('Item queued for completion when online. Please complete item details.');
+        } catch (error) {
+            console.error('[Barcode Scanner] Failed to queue offline item:', error);
+            this.showError('Failed to queue item for offline creation');
+        }
+    }
+
+    /**
+     * Show status message (enhanced)
+     */
+    showStatus(message, duration = 1000) {
+        console.log('[Barcode Scanner]', message);
+
+        // Try to use offline handler if available
+        if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+            window.offlineHandler.showInAppNotification(
+                'Scanner Status',
+                message,
+                'info'
+            );
+        } else {
+            // Create temporary status indicator
+            const existingStatus = document.getElementById('scanner-status');
+            if (existingStatus) {
+                existingStatus.remove();
+            }
+
+            const statusDiv = document.createElement('div');
+            statusDiv.id = 'scanner-status';
+            statusDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #17a2b8;
+                color: white;
+                padding: 10px 15px;
+                border-radius: 5px;
+                font-size: 14px;
+                z-index: 9999;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            `;
+            statusDiv.textContent = message;
+            document.body.appendChild(statusDiv);
+
+            setTimeout(() => {
+                if (statusDiv.parentNode) {
+                    statusDiv.parentNode.removeChild(statusDiv);
+                }
+            }, duration);
+        }
+    }
+
+    /**
      * Default error handler
      */
     defaultErrorHandler(error, barcode) {
@@ -533,6 +843,74 @@ class BarcodeScanner {
         this.isProcessing = false;
         this.recentlyScanned.clear(); // Clear cache for fresh start
         console.log('[Barcode Scanner] Scan history and cache cleared - ready for immediate re-scan');
+    }
+
+    /**
+     * Track scan performance metrics
+     */
+    trackScanPerformance(barcode, scanTime, source = 'scan') {
+        // Store performance data
+        const performanceData = {
+            barcode: barcode,
+            scanTime: scanTime,
+            source: source,  // 'cache_hit', 'api_request', 'scan_error'
+            timestamp: Date.now()
+        };
+        
+        // Log to console for debugging
+        console.log(`[Barcode Scanner] Performance: ${source} - ${scanTime.toFixed(2)}ms for barcode ${barcode}`);
+        
+        // Store in performance array for analysis
+        if (!this.performanceMetrics) {
+            this.performanceMetrics = [];
+        }
+        
+        this.performanceMetrics.push(performanceData);
+        
+        // Keep only last 50 metrics to prevent memory issues
+        if (this.performanceMetrics.length > 50) {
+            this.performanceMetrics = this.performanceMetrics.slice(-50);
+        }
+        
+        // Check for performance issues
+        this.checkPerformanceThresholds(performanceData);
+    }
+    
+    /**
+     * Check if performance meets acceptable thresholds
+     */
+    checkPerformanceThresholds(performanceData) {
+        const thresholds = {
+            cache_hit: 100,     // ms
+            api_request: 500,  // ms
+            scan_error: 1000     // ms
+        };
+        
+        const threshold = thresholds[performanceData.source] || 1000;
+        
+        if (performanceData.scanTime > threshold) {
+            console.warn(`[Barcode Scanner] SLOW SCAN: ${performanceData.scanTime.toFixed(2)}ms > ${threshold}ms threshold`);
+        }
+    }
+    
+    /**
+     * Get performance statistics
+     */
+    getPerformanceStats() {
+        if (!this.performanceMetrics || this.performanceMetrics.length === 0) {
+            return null;
+        }
+        
+        const recentMetrics = this.performanceMetrics.slice(-10);  // Last 10 scans
+        
+        const avgScanTime = recentMetrics.reduce((sum, metric) => sum + metric.scanTime, 0) / recentMetrics.length;
+        const cacheHits = recentMetrics.filter(m => m.source === 'cache_hit').length;
+        
+        return {
+            averageScanTime: avgScanTime,
+            cacheHitRate: (cacheHits / recentMetrics.length) * 100,
+            totalScans: this.performanceMetrics.length
+        };
     }
 
     /**

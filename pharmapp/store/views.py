@@ -368,7 +368,7 @@ def add_item(request):
         else:
             form = addItemForm()
         if request.headers.get('HX-Request'):
-            return render(request, 'partials/add_item_modal.html', {'form': form})
+            return render(request, 'partials/add_item_modal_content.html', {'form': form})
         else:
             return render(request, 'store/store.html', {'form': form})
     else:

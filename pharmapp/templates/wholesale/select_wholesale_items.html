@@ -278,14 +278,15 @@
 
     // ==================== HARDWARE BARCODE SCANNER SUPPORT ====================
     // Supports USB/Bluetooth handheld barcode scanners for wholesale registered customers
-    // No need to click scan button - just point and scan!
+    // Module loaded globally in base.html, just initialize here
     // ==========================================================================
 
-    // Load hardware scanner module
-    const hardwareScannerScript = document.createElement('script');
-    hardwareScannerScript.src = "{% static 'js/hardware-scanner.js' %}";
-    hardwareScannerScript.onload = function() {
-        console.log('[Wholesale Item Selection] Hardware scanner module loaded');
+    function initWholesaleSelectItemsHardwareScanner() {
+        if (typeof HardwareScannerHandler === 'undefined') {
+            console.log('[Wholesale Item Selection] Waiting for HardwareScannerHandler...');
+            setTimeout(initWholesaleSelectItemsHardwareScanner, 100);
+            return;
+        }
 
         // Initialize hardware scanner for wholesale registered customers
         window.selectWholesaleItemsPageHardwareScanner = new HardwareScannerHandler({
@@ -314,8 +315,9 @@
                 console.log('[Wholesale Item Selection] Hardware scanner enabled');
             }
         });
-    };
-    document.head.appendChild(hardwareScannerScript);
+    }
+
+    initWholesaleSelectItemsHardwareScanner();
 
     // ==========================================================================
     // USAGE: Just scan with your USB/Bluetooth barcode scanner!

@@ -226,16 +226,19 @@
         let attempts = 0;
         const maxAttempts = 30;  // 30 attempts * 100ms = 3 seconds
 
+        console.log('[Scanner Modal] Checking for BarcodeScanner and Html5Qrcode...');
+
         while (!libraryReady && attempts < maxAttempts) {
             if (typeof Html5Qrcode !== 'undefined' && typeof BarcodeScanner !== 'undefined') {
                 libraryReady = true;
+                console.log('[Scanner Modal] ✅ Both libraries found!');
                 break;
             }
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
 
-            if (attempts % 10 === 0) {
-                console.log('[Scanner Modal] Waiting for libraries... (' + (attempts * 100) + 'ms)');
+            if (attempts % 5 === 0) {
+                console.log('[Scanner Modal] Still waiting for libraries... Html5Qrcode:', typeof Html5Qrcode, 'BarcodeScanner:', typeof BarcodeScanner);
             }
         }
 
@@ -248,6 +251,8 @@
         console.log('[Scanner Modal] Libraries ready after ' + (attempts * 100) + 'ms');
 
         try {
+            console.log('[Scanner Modal] Creating BarcodeScanner instance...');
+
             // Initialize scanner with dynamic callback lookup from parent page
             barcodeScanner = new BarcodeScanner({
                 scannerId: 'barcode-scanner',
@@ -260,15 +265,25 @@
                 onError: defaultErrorHandler
             });
 
+            console.log('[Scanner Modal] BarcodeScanner instance created');
+            console.log('[Scanner Modal] Calling init()...');
+
             await barcodeScanner.init();
             hideStatus();
-            console.log('[Scanner Modal] Initialized successfully');
+            console.log('[Scanner Modal] ✅ Scanner initialized successfully');
 
             // Auto-start option (check localStorage setting)
             const autoStart = localStorage.getItem('barcode_auto_start') === 'true';
+            console.log('[Scanner Modal] Auto-start setting:', autoStart);
+
             if (autoStart) {
-                console.log('[Scanner Modal] Auto-starting camera...');
-                setTimeout(() => startBtn.click(), 200);
+                console.log('[Scanner Modal] 🚀 Auto-starting camera...');
+                setTimeout(() => {
+                    console.log('[Scanner Modal] Clicking start button...');
+                    startBtn.click();
+                }, 200);
+            } else {
+                console.log('[Scanner Modal] ℹ️ Auto-start disabled. Click "Start Camera" button to begin.');
             }
 
         } catch (error) {
@@ -301,21 +316,27 @@
      * Start scanning button
      */
     startBtn.addEventListener('click', async function() {
+        console.log('[Scanner Modal] ===== START BUTTON CLICKED =====');
+
         if (!barcodeScanner) {
             showStatus('Scanner not initialized. Please close and reopen this modal.', 'danger');
-            console.error('[Scanner Modal] Scanner instance is null');
+            console.error('[Scanner Modal] ❌ Scanner instance is null');
             return;
         }
+
+        console.log('[Scanner Modal] Scanner instance exists:', !!barcodeScanner);
 
         // Check if Html5Qrcode library is loaded
         if (typeof Html5Qrcode === 'undefined') {
             showStatus('Barcode scanner library not loaded. Please refresh the page.', 'danger');
-            console.error('[Scanner Modal] Html5Qrcode library not found');
+            console.error('[Scanner Modal] ❌ Html5Qrcode library not found');
             return;
         }
 
+        console.log('[Scanner Modal] Html5Qrcode library loaded: ✓');
+
         showStatus('Starting camera...', 'info');
-        console.log('[Scanner Modal] Attempting to start camera...');
+        console.log('[Scanner Modal] 🎥 Calling barcodeScanner.startScanning()...');
 
         try {
             await barcodeScanner.startScanning();

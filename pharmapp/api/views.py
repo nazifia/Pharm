@@ -13,6 +13,17 @@ import json
 import logging
 import os
 
+# Handle date parsing for both Django and standard datetime
+try:
+    from django.utils.dateparse import parse_date
+except ImportError:
+    from datetime import datetime
+    def parse_date(date_string):
+        try:
+            return datetime.strptime(date_string, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return None
+
 logger = logging.getLogger(__name__)
 
 def serve_service_worker(request):
@@ -99,6 +110,47 @@ def inventory_sync(request):
                     elif action_type == 'delete_item':
                         Item.objects.filter(id=item_data.get('id')).delete()
                         synced_count += 1
+                    elif action_type == 'create_item':
+                        # Handle barcode-based item creation from scanner
+                        mode = item_data.pop('mode', 'retail')
+                        ItemModel = Item if mode == 'retail' else WholesaleItem
+                        
+                        # Check if barcode already exists to avoid conflicts
+                        barcode = item_data.get('barcode', '').strip()
+                        if barcode:
+                            existing_item = ItemModel.objects.filter(barcode=barcode).first()
+                            if existing_item:
+                                failed_actions.append({
+                                    'action': action,
+                                    'error': f'Barcode {barcode} already assigned to {existing_item.name}'
+                                })
+                                continue
+                        
+                        ItemModel.objects.create(**item_data)
+                        logger.info(f"Created new {mode} item via sync: {item_data.get('name')}")
+                        synced_count += 1
+                    elif action_type == 'lookup_when_online':
+                        # Handle queued barcode lookups when back online
+                        barcode = item_data.get('barcode', '').strip()
+                        mode = item_data.get('mode', 'retail')
+                        
+                        if barcode:
+                            ItemModel = Item if mode == 'retail' else WholesaleItem
+                            try:
+                                existing_item = ItemModel.objects.get(barcode=barcode)
+                                logger.info(f"Queued barcode found online: {existing_item.name} (ID: {existing_item.id})")
+                                synced_count += 1
+                            except ItemModel.DoesNotExist:
+                                # Still not found, keep in pending or notify user
+                                failed_actions.append({
+                                    'action': action,
+                                    'error': f'Item with barcode {barcode} still not found'
+                                })
+                        else:
+                            failed_actions.append({
+                                'action': action,
+                                'error': 'Missing barcode for lookup action'
+                            })
                     else:
                         failed_actions.append({'action': action, 'error': f'Unknown action type: {action_type}'})
 
@@ -802,3 +854,286 @@ def barcode_batch_lookup(request):
     except Exception as e:
         logger.error(f"Error in barcode_batch_lookup: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def barcode_add_item(request):
+    """
+    Add new item via barcode scanning
+    POST body: {
+        "barcode": "123456789012",
+        "mode": "retail"|"wholesale",
+        "name": "Item Name",
+        "cost": 10.50,
+        "price": 15.00,
+        "stock": 100,
+        "brand": "Brand Name",
+        "dosage_form": "Tablet",
+        "unit": "Pcs",
+        "exp_date": "2024-12-31",
+        "barcode_type": "UPC"|"EAN13"|"CODE128"|"QR"|"OTHER"
+    }
+    """
+    try:
+        data = json.loads(request.body)
+        mode = data.get('mode', 'retail')
+
+        # Validate required fields
+        required_fields = ['barcode', 'name', 'cost', 'stock']
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        
+        if missing_fields:
+            return JsonResponse({
+                'status': 'error',
+                'error': f'Missing required fields: {", ".join(missing_fields)}',
+                'user_message': f'Please provide: {", ".join(missing_fields)}'
+            }, status=400)
+
+        # Select appropriate model based on mode
+        ItemModel = Item if mode == 'retail' else WholesaleItem
+
+        # Check if barcode already exists
+        barcode = data.get('barcode', '').strip()
+        existing_item = ItemModel.objects.filter(barcode=barcode).first()
+        if existing_item:
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Barcode already exists',
+                'user_message': f'Barcode {barcode} is already assigned to {existing_item.name}',
+                'existing_item': {
+                    'id': existing_item.id,
+                    'name': existing_item.name,
+                    'brand': existing_item.brand or '',
+                    'price': str(existing_item.price),
+                    'stock': str(existing_item.stock),
+                }
+            }, status=409)
+
+        # Create new item
+        item_data = {
+            'name': data.get('name'),
+            'barcode': barcode,
+            'barcode_type': data.get('barcode_type', 'OTHER'),
+            'cost': Decimal(str(data.get('cost', 0))),
+            'price': Decimal(str(data.get('price', 0))),
+            'stock': int(data.get('stock', 0)),
+            'brand': data.get('brand', ''),
+            'dosage_form': data.get('dosage_form', ''),
+            'unit': data.get('unit', 'Pcs'),
+        }
+
+        # Add optional fields
+        if data.get('exp_date'):
+            try:
+                item_data['exp_date'] = parse_date(data.get('exp_date'))
+            except (ValueError, TypeError):
+                pass  # Skip invalid date
+
+        if data.get('markup') is not None:
+            item_data['markup'] = Decimal(str(data.get('markup', 0)))
+
+        # Calculate price if not provided
+        if not item_data.get('price') and item_data.get('cost') and item_data.get('markup'):
+            item_data['price'] = item_data['cost'] + (item_data['cost'] * item_data['markup'] / 100)
+
+        # Create the item
+        new_item = ItemModel.objects.create(**item_data)
+
+        logger.info(f"Created new {mode} item via barcode: {new_item.name} (ID: {new_item.id})")
+
+        return JsonResponse({
+            'status': 'success',
+            'message': f'New {mode} item created successfully',
+            'item': {
+                'id': new_item.id,
+                'name': new_item.name,
+                'brand': new_item.brand or '',
+                'dosage_form': new_item.dosage_form or '',
+                'unit': new_item.unit or '',
+                'price': str(new_item.price),
+                'cost': str(new_item.cost),
+                'stock': str(new_item.stock),
+                'barcode': new_item.barcode,
+                'barcode_type': new_item.barcode_type or 'OTHER',
+                'exp_date': new_item.exp_date.isoformat() if new_item.exp_date else None,
+                'markup': str(new_item.markup) if hasattr(new_item, 'markup') else None,
+            }
+        })
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in barcode_add_item: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'error': 'Invalid JSON data',
+            'user_message': 'Request format error. Please try again.'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in barcode_add_item: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'status': 'error',
+            'error': str(e),
+            'user_message': 'Failed to create item. Please check your data and try again.'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def barcode_batch_add_items(request):
+    """
+    Add multiple new items via barcode scanning
+    POST body: {
+        "mode": "retail"|"wholesale",
+        "items": [
+            {
+                "barcode": "123456789012",
+                "name": "Item Name",
+                "cost": 10.50,
+                "stock": 100,
+                ...
+            },
+            ...
+        ]
+    }
+    """
+    try:
+        data = json.loads(request.body)
+        mode = data.get('mode', 'retail')
+        items_data = data.get('items', [])
+
+        if not items_data or not isinstance(items_data, list):
+            return JsonResponse({
+                'status': 'error',
+                'error': 'items array is required',
+                'user_message': 'Please provide an array of items to add'
+            }, status=400)
+
+        if len(items_data) > 50:  # Limit batch size
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Too many items in batch (max 50)',
+                'user_message': 'Please add items in smaller batches (maximum 50 items per request)'
+            }, status=400)
+
+        # Select appropriate model based on mode
+        ItemModel = Item if mode == 'retail' else WholesaleItem
+
+        created_items = []
+        failed_items = []
+        duplicate_barcodes = set()
+
+        # Process each item
+        for index, item_data in enumerate(items_data):
+            try:
+                # Validate required fields for this item
+                required_fields = ['barcode', 'name', 'cost', 'stock']
+                missing_fields = [field for field in required_fields if not item_data.get(field)]
+                
+                if missing_fields:
+                    failed_items.append({
+                        'index': index,
+                        'barcode': item_data.get('barcode', ''),
+                        'error': f'Missing required fields: {", ".join(missing_fields)}'
+                    })
+                    continue
+
+                barcode = item_data.get('barcode', '').strip()
+
+                # Check for duplicates within this batch
+                if barcode in duplicate_barcodes:
+                    failed_items.append({
+                        'index': index,
+                        'barcode': barcode,
+                        'error': 'Duplicate barcode in this batch'
+                    })
+                    continue
+
+                # Check if barcode already exists in database
+                existing_item = ItemModel.objects.filter(barcode=barcode).first()
+                if existing_item:
+                    failed_items.append({
+                        'index': index,
+                        'barcode': barcode,
+                        'error': f'Barcode already assigned to: {existing_item.name}'
+                    })
+                    continue
+
+                duplicate_barcodes.add(barcode)
+
+                # Prepare item data
+                new_item_data = {
+                    'name': item_data.get('name'),
+                    'barcode': barcode,
+                    'barcode_type': item_data.get('barcode_type', 'OTHER'),
+                    'cost': Decimal(str(item_data.get('cost', 0))),
+                    'price': Decimal(str(item_data.get('price', 0))),
+                    'stock': int(item_data.get('stock', 0)),
+                    'brand': item_data.get('brand', ''),
+                    'dosage_form': item_data.get('dosage_form', ''),
+                    'unit': item_data.get('unit', 'Pcs'),
+                }
+
+                # Add optional fields
+                if item_data.get('exp_date'):
+                    try:
+                        new_item_data['exp_date'] = parse_date(item_data.get('exp_date'))
+                    except (ValueError, TypeError):
+                        pass
+
+                if item_data.get('markup') is not None:
+                    new_item_data['markup'] = Decimal(str(item_data.get('markup', 0)))
+
+                # Calculate price if not provided
+                if not new_item_data.get('price') and new_item_data.get('cost') and item_data.get('markup'):
+                    new_item_data['price'] = new_item_data['cost'] + (new_item_data['cost'] * new_item_data['markup'] / 100)
+
+                # Create the item
+                new_item = ItemModel.objects.create(**new_item_data)
+                
+                created_items.append({
+                    'index': index,
+                    'barcode': barcode,
+                    'item': {
+                        'id': new_item.id,
+                        'name': new_item.name,
+                        'brand': new_item.brand or '',
+                        'price': str(new_item.price),
+                        'stock': str(new_item.stock),
+                    }
+                })
+
+            except Exception as item_error:
+                logger.error(f"Error creating item at index {index}: {str(item_error)}")
+                failed_items.append({
+                    'index': index,
+                    'barcode': item_data.get('barcode', ''),
+                    'error': str(item_error)
+                })
+
+        # Log batch results
+        logger.info(f"Batch add {mode} items: {len(created_items)} created, {len(failed_items)} failed")
+
+        return JsonResponse({
+            'status': 'success' if not failed_items else 'partial',
+            'message': f'Processed {len(items_data)} items: {len(created_items)} created, {len(failed_items)} failed',
+            'total_processed': len(items_data),
+            'created_count': len(created_items),
+            'failed_count': len(failed_items),
+            'created_items': created_items,
+            'failed_items': failed_items
+        })
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in barcode_batch_add_items: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'error': 'Invalid JSON data',
+            'user_message': 'Request format error. Please try again.'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in barcode_batch_add_items: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'status': 'error',
+            'error': str(e),
+            'user_message': 'Failed to process batch. Please check your data and try again.'
+        }, status=500)

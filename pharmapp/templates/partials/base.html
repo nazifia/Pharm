@@ -1006,6 +1006,9 @@
         </div>
     </div>
 
+    <!-- Add Item Modal for Barcode Scanner -->
+    {% include 'partials/add_item_modal.html' %}
+
 
     <div class="offline-status-container">
         <div id="connection-status">
@@ -1141,9 +1144,31 @@
 
                     // Now load barcode-scanner.js
                     const scannerScript = document.createElement('script');
-                    scannerScript.src = "{% static 'js/barcode-scanner.js' %}?v=3.0";
+                    scannerScript.src = "{% static 'js/barcode-scanner.js' %}?v=3.1";
                     scannerScript.onload = function() {
                         console.log('[Base] Barcode scanner module loaded');
+
+                        // Load hardware scanner module
+                        const hardwareScript = document.createElement('script');
+                        hardwareScript.src = "{% static 'js/hardware-scanner.js' %}?v=3.1";
+                        hardwareScript.onload = function() {
+                            console.log('[Base] Hardware scanner module loaded');
+
+                            // Load cart integration module
+                            const cartIntegrationScript = document.createElement('script');
+                            cartIntegrationScript.src = "{% static 'js/barcode-cart-integration.js' %}?v=1.0";
+                            cartIntegrationScript.onload = function() {
+                                console.log('[Base] Barcode cart integration module loaded');
+                            };
+                            cartIntegrationScript.onerror = function() {
+                                console.error('[Base] Failed to load barcode-cart-integration.js');
+                            };
+                            document.head.appendChild(cartIntegrationScript);
+                        };
+                        hardwareScript.onerror = function() {
+                            console.error('[Base] Failed to load hardware-scanner.js');
+                        };
+                        document.head.appendChild(hardwareScript);
                     };
                     scannerScript.onerror = function() {
                         console.error('[Base] Failed to load barcode-scanner.js');
@@ -1165,7 +1190,26 @@
 
                     // Load barcode-scanner.js
                     const scannerScript = document.createElement('script');
-                    scannerScript.src = "{% static 'js/barcode-scanner.js' %}?v=3.0";
+                    scannerScript.src = "{% static 'js/barcode-scanner.js' %}?v=3.1";
+                    scannerScript.onload = function() {
+                        console.log('[Base] Barcode scanner module loaded (fallback CDN)');
+
+                        // Load hardware scanner module
+                        const hardwareScript = document.createElement('script');
+                        hardwareScript.src = "{% static 'js/hardware-scanner.js' %}?v=3.1";
+                        hardwareScript.onload = function() {
+                            console.log('[Base] Hardware scanner module loaded (fallback CDN)');
+
+                            // Load cart integration module
+                            const cartIntegrationScript = document.createElement('script');
+                            cartIntegrationScript.src = "{% static 'js/barcode-cart-integration.js' %}?v=1.0";
+                            cartIntegrationScript.onload = function() {
+                                console.log('[Base] Barcode cart integration module loaded (fallback CDN)');
+                            };
+                            document.head.appendChild(cartIntegrationScript);
+                        };
+                        document.head.appendChild(hardwareScript);
+                    };
                     document.head.appendChild(scannerScript);
                 };
                 fallbackScript.onerror = function() {

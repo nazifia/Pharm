@@ -549,70 +549,92 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Barcode scanner callback - Define immediately
-console.log('[Dispense] Defining barcode callback');
+// Barcode scanner callback for retail - Using new cart integration system
+console.log('[Dispense] Setting up barcode callback with cart integration');
 
-window.onBarcodeItemFound = function(item, barcode) {
+// Wait for cart integration module to load
+function initializeRetailBarcodeHandler() {
+    if (typeof BarcodeCartIntegration === 'undefined') {
+        console.log('[Dispense] Waiting for BarcodeCartIntegration module...');
+        setTimeout(initializeRetailBarcodeHandler, 100);
+        return;
+    }
+
+    // Initialize cart handler for retail mode
+    window.barcodeCartHandler = new BarcodeCartIntegration({
+        mode: 'retail',
+        autoAdd: false,  // Don't auto-add, show item first
+        showNotifications: true
+    });
+
+    console.log('[Dispense] BarcodeCartIntegration initialized for retail');
+
+    // Custom callback that combines search and highlighting
+    window.onBarcodeItemFound = function(item, barcode) {
         console.log('*** BARCODE SCANNER CALLBACK TRIGGERED ***');
         console.log('[Dispense] Barcode scanned:', barcode, 'Item:', item);
-        
+
         // Prevent multiple submissions
         if (window.isProcessingBarcode) {
             console.log('[Dispense] Already processing barcode, ignoring...');
             return;
         }
-        
+
         window.isProcessingBarcode = true;
 
         setTimeout(() => {
             window.isProcessingBarcode = false;
-        }, 800); // Reset after 800ms for faster scanning (reduced from 2000ms)
+        }, 500); // Reduced to 500ms for faster rescanning
 
-    // Fill the search input with the item name (not barcode number)
-    const searchInput = document.getElementById('search-input');
-    console.log('[Dispense] *** Search input element:', searchInput);
-    
-    if (searchInput && item) {
-        console.log('[Dispense] *** Search input found and item is valid');
-        // Use item name for searching
-        searchInput.value = item.name;
-        console.log('[Dispense] Search input filled with:', item.name);
-        console.log('[Dispense] Input value after setting:', searchInput.value);
-        console.log('[Dispense] Input length:', searchInput.value.length);
+        // Fill the search input with the item name (not barcode number)
+        const searchInput = document.getElementById('search-input');
+        console.log('[Dispense] *** Search input element:', searchInput);
 
-        // Store scanned item ID for highlighting after results load
-        window.scannedItemId = item.id;
+        if (searchInput && item) {
+            console.log('[Dispense] *** Search input found and item is valid');
+            // Use item name for searching
+            searchInput.value = item.name;
+            console.log('[Dispense] Search input filled with:', item.name);
 
-        // Trigger the HTMX search with a delay to ensure value is set
-        setTimeout(() => {
-            // Force change event before keyup to ensure HTMX detects the value
-            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            // Store scanned item ID for highlighting after results load
+            window.scannedItemId = item.id;
+
+            // Trigger the HTMX search with a delay to ensure value is set
             setTimeout(() => {
-                htmx.trigger(searchInput, 'keyup');
-                console.log('[Dispense] HTMX search triggered after input event');
-            }, 50);
+                // Force change event before keyup to ensure HTMX detects the value
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                setTimeout(() => {
+                    htmx.trigger(searchInput, 'keyup');
+                    console.log('[Dispense] HTMX search triggered after input event');
+                }, 50);
 
-            // Wait for search results to load, then highlight the scanned item
-            setTimeout(() => {
-                highlightScannedItem(item.id);
-            }, 500); // Reduced from 800ms since we're not doing fetch
-        }, 100);
-    } else {
-        console.error('[Dispense] Search input not found or item is null');
-    }
+                // Wait for search results to load, then highlight the scanned item
+                setTimeout(() => {
+                    highlightScannedItem(item.id);
+                }, 400); // Optimized from 500ms
+            }, 80);  // Reduced from 100ms for faster response
+        } else {
+            console.error('[Dispense] Search input not found or item is null');
+        }
 
-    // Close the scanner modal
-    $('#barcodeScannerModal').modal('hide');
+        // Close the scanner modal
+        $('#barcodeScannerModal').modal('hide');
 
-    // Show notification that item was found in results
-    if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
-        window.offlineHandler.showInAppNotification(
-            'Item Found',
-            `${item.name}${item.brand ? ' - ' + item.brand : ''} is now in search results. Click "Add to Cart" to add.`,
-            'info'
-        );
-    }
-};
+        // Show notification that item was found in results
+        if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+            window.offlineHandler.showInAppNotification(
+                'Item Found',
+                `${item.name}${item.brand ? ' - ' + item.brand : ''} is now in search results. Click "Add to Cart" to add.`,
+                'info'
+            );
+        }
+    };
+
+    console.log('[Dispense] Barcode callback initialized');
+}
+
+// Initialize the retail barcode handler
+initializeRetailBarcodeHandler();
 
 // Function to highlight the scanned item in search results
 function highlightScannedItem(itemId) {
@@ -663,13 +685,16 @@ console.log('[Dispense] Barcode callback and highlight function ready');
 // ==================== HARDWARE BARCODE SCANNER SUPPORT ====================
 // Supports USB/Bluetooth handheld barcode scanners
 // No need to click scan button - just point and scan!
+// Module is loaded globally in base.html, just initialize here
 // ==========================================================================
 
-// Load hardware scanner module
-const hardwareScannerScript = document.createElement('script');
-hardwareScannerScript.src = "{% static 'js/hardware-scanner.js' %}";
-hardwareScannerScript.onload = function() {
-    console.log('[Dispense] Hardware scanner module loaded');
+// Wait for HardwareScannerHandler to be available (loaded in base.html)
+function initRetailHardwareScanner() {
+    if (typeof HardwareScannerHandler === 'undefined') {
+        console.log('[Dispense] Waiting for HardwareScannerHandler...');
+        setTimeout(initRetailHardwareScanner, 100);
+        return;
+    }
 
     // Initialize hardware scanner for retail mode
     window.retailHardwareScanner = new HardwareScannerHandler({
@@ -698,8 +723,10 @@ hardwareScannerScript.onload = function() {
             console.log('[Dispense] Hardware scanner enabled');
         }
     });
-};
-document.head.appendChild(hardwareScannerScript);
+}
+
+// Initialize hardware scanner
+initRetailHardwareScanner();
 
 // ==========================================================================
 // USAGE: Just scan with your USB/Bluetooth barcode scanner!
