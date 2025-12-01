@@ -6,7 +6,7 @@
 class IndexedDBManager {
     constructor() {
         this.dbName = 'PharmAppDB';
-        this.version = 5;  // Incremented for barcode support
+        this.version = 6;  // Incremented for custom barcode support
         this.db = null;
         this.stores = {
             items: 'items',
@@ -20,7 +20,8 @@ class IndexedDBManager {
             cart: 'cart',
             wholesaleCart: 'wholesaleCart',
             dispensingLog: 'dispensingLog',
-            syncMetadata: 'syncMetadata'
+            syncMetadata: 'syncMetadata',
+            customBarcodes: 'customBarcodes'  // New store for custom barcodes
         };
     }
 
@@ -153,6 +154,17 @@ class IndexedDBManager {
         // Sync metadata store
         if (!db.objectStoreNames.contains(this.stores.syncMetadata)) {
             db.createObjectStore(this.stores.syncMetadata, { keyPath: 'key' });
+        }
+
+        // Custom barcodes store
+        if (!db.objectStoreNames.contains(this.stores.customBarcodes)) {
+            const customBarcodeStore = db.createObjectStore(this.stores.customBarcodes, { keyPath: 'id', autoIncrement: true });
+            customBarcodeStore.createIndex('barcode', 'barcode', { unique: true });
+            customBarcodeStore.createIndex('mode', 'mode', { unique: false });
+            customBarcodeStore.createIndex('created_date', 'created_date', { unique: false });
+            customBarcodeStore.createIndex('status', 'status', { unique: false });
+            customBarcodeStore.createIndex('barcode_type', 'barcode_type', { unique: false });
+            console.log('[IndexedDB] Created customBarcodes store with indexes');
         }
     }
 
@@ -458,6 +470,120 @@ class IndexedDBManager {
         if (this.db) {
             this.db.close();
             this.db = null;
+        }
+    }
+
+    /**
+     * Custom Barcode CRUD Methods
+     */
+
+    /**
+     * Save a custom barcode
+     */
+    async saveCustomBarcode(barcodeData) {
+        try {
+            const customBarcode = {
+                barcode: barcodeData.barcode,
+                barcode_type: barcodeData.barcode_type || 'OTHER',
+                name: barcodeData.name || 'Custom Item',
+                description: barcodeData.description || '',
+                notes: barcodeData.notes || '',
+                mode: barcodeData.mode || 'retail',
+                status: barcodeData.status || 'active',
+                created_date: barcodeData.created_date || new Date().toISOString()
+            };
+
+            await this.put(this.stores.customBarcodes, customBarcode);
+            console.log('[IndexedDB] Custom barcode saved:', customBarcode);
+            return customBarcode;
+        } catch (error) {
+            console.error('[IndexedDB] Error saving custom barcode:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get all custom barcodes (optional filter by mode)
+     */
+    async getAllCustomBarcodes(mode = null) {
+        try {
+            if (mode) {
+                return await this.getAll(this.stores.customBarcodes, 'mode', IDBKeyRange.only(mode));
+            }
+            return await this.getAll(this.stores.customBarcodes);
+        } catch (error) {
+            console.error('[IndexedDB] Error getting custom barcodes:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Search custom barcodes
+     */
+    async searchCustomBarcodes(searchTerm, mode = null) {
+        try {
+            const allBarcodes = await this.getAllCustomBarcodes(mode);
+            const lowerSearchTerm = searchTerm.toLowerCase();
+            
+            return allBarcodes.filter(barcode => 
+                barcode.barcode.toLowerCase().includes(lowerSearchTerm) ||
+                barcode.name.toLowerCase().includes(lowerSearchTerm) ||
+                (barcode.description && barcode.description.toLowerCase().includes(lowerSearchTerm))
+            );
+        } catch (error) {
+            console.error('[IndexedDB] Error searching custom barcodes:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get custom barcode by barcode value
+     */
+    async getCustomBarcode(barcode) {
+        try {
+            return await this.getByIndex(this.stores.customBarcodes, 'barcode', barcode);
+        } catch (error) {
+            console.error('[IndexedDB] Error getting custom barcode:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Update custom barcode
+     */
+    async updateCustomBarcode(id, data) {
+        try {
+            const existingBarcode = await this.get(this.stores.customBarcodes, id);
+            if (!existingBarcode) {
+                throw new Error('Custom barcode not found');
+            }
+
+            const updatedBarcode = {
+                ...existingBarcode,
+                ...data,
+                id: id  // Ensure ID is preserved
+            };
+
+            await this.put(this.stores.customBarcodes, updatedBarcode);
+            console.log('[IndexedDB] Custom barcode updated:', updatedBarcode);
+            return updatedBarcode;
+        } catch (error) {
+            console.error('[IndexedDB] Error updating custom barcode:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Delete custom barcode
+     */
+    async deleteCustomBarcode(id) {
+        try {
+            await this.delete(this.stores.customBarcodes, id);
+            console.log('[IndexedDB] Custom barcode deleted:', id);
+            return true;
+        } catch (error) {
+            console.error('[IndexedDB] Error deleting custom barcode:', error);
+            throw error;
         }
     }
 }

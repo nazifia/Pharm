@@ -16,11 +16,13 @@ const URLS_TO_CACHE = [
     '/static/vendor/jquery/jquery.min.js',
     '/static/vendor/bootstrap/js/bootstrap.bundle.min.js',
     '/static/vendor/jquery-easing/jquery.easing.min.js',
+    '/static/vendor/html5-qrcode/html5-qrcode.min.js',
     '/static/js/sb-admin-2.min.js',
     '/static/js/indexeddb-manager.js',
     '/static/js/htmx-offline-adapter.js',
     '/static/js/sync-manager.js',
-    '/static/js/offline-handler.js'
+    '/static/js/offline-handler.js',
+    '/templates/partials/custom_barcodes_management.html'
 ];
 
 console.log('[ServiceWorker] Loading...');

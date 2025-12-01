@@ -333,7 +333,8 @@ Dispense Items - {{ block.super }}
                                 data-toggle="modal"
                                 data-target="#barcodeScannerModal"
                                 data-mode="retail"
-                                title="Scan Barcode">
+                                title="Scanner libraries loading..."
+                                disabled>
                             <i class="fas fa-barcode"></i> Scan
                         </button>
                     </div>
@@ -756,11 +757,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Wait for HardwareScannerHandler to be available (loaded in base.html)
 function initRetailHardwareScanner() {
-    if (typeof HardwareScannerHandler === 'undefined') {
-        console.log('[Dispense] Waiting for HardwareScannerHandler...');
-        setTimeout(initRetailHardwareScanner, 100);
-        return;
-    }
 
     // Initialize hardware scanner for retail mode
     window.retailHardwareScanner = new HardwareScannerHandler({
@@ -792,7 +788,14 @@ function initRetailHardwareScanner() {
 }
 
 // Initialize hardware scanner
-initRetailHardwareScanner();
+document.addEventListener('scannerModulesLoaded', function() {
+    const scanButton = document.querySelector('button[data-target="#barcodeScannerModal"]');
+    if (scanButton) {
+        scanButton.disabled = false;
+        scanButton.title = "Scan Barcode";
+    }
+    initRetailHardwareScanner();
+});
 
 // ==========================================================================
 // USAGE: Just scan with your USB/Bluetooth barcode scanner!

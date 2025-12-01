@@ -17,6 +17,7 @@
                     <!-- Hidden fields -->
                     <input type="hidden" id="itemMode" name="mode" value="retail">
                     <input type="hidden" id="isOfflineMode" name="is_offline" value="false">
+                    <input type="hidden" id="customBarcodeId" name="custom_barcode_id" value="">
                     
                     <!-- Barcode Information -->
                     <div class="card mb-3">
@@ -307,11 +308,34 @@ document.getElementById('addItemForm').addEventListener('submit', async function
             stock: parseInt(formData.get('stock')),
             exp_date: formData.get('exp_date') || null,
             barcode_type: formData.get('barcode_type'),
-            mode: mode
+            mode: mode,
+            custom_only: document.getElementById('customOnlyCheckbox')?.checked || false
         };
         
-        if (isOffline) {
-            // Handle offline submission
+        if (document.getElementById('customOnlyCheckbox')?.checked) {
+            // Save as custom barcode only
+            if (window.barcodeScanner && window.dbManager) {
+                try {
+                    const customBarcodeData = {
+                        barcode: itemData.barcode,
+                        barcode_type: itemData.barcode_type || 'OTHER',
+                        name: itemData.name,
+                        description: `Custom item - ${itemData.brand || 'N/A'}`,
+                        notes: `Created via add item form - ${new Date().toLocaleDateString()}`,
+                        mode: mode,
+                        status: 'active'
+                    };
+                    
+                    await window.barcodeScanner.saveCustomBarcode(customBarcodeData);
+                    showSuccess('Custom barcode saved successfully!');
+                    $('#addItemModal').modal('hide');
+                } catch (error) {
+                    console.error('[Add Item] Error saving custom barcode:', error);
+                    showError('Failed to save custom barcode: ' + error.message);
+                }
+            }
+        } else if (isOffline) {
+            // Handle offline regular item creation
             await handleOfflineItemCreation(itemData);
         } else {
             // Handle online submission

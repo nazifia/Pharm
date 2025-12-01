@@ -24,10 +24,10 @@ class BarcodeScanner {
         // Performance optimization: cache for recently scanned items
         this.recentlyScanned = new Map(); // barcode -> {item, timestamp}
         this.recentScanCacheTimeout = 60000; // 60 seconds cache for better offline performance
-        
+
         // Fast scan mode optimization
         this.fastScanMode = options.fastScanMode || false;  // Initialize fast mode if specified
-        
+
         // Ultra-fast configuration - optimized for speed
         this.config = {
             fps: 60,  // Maximum frame rate for fastest detection
@@ -91,7 +91,7 @@ class BarcodeScanner {
             Html5QrcodeSupportedFormats.CODE_39,
         ];
     }
-    
+
 
     /**
      * Get CSRF token from cookies
@@ -129,16 +129,16 @@ class BarcodeScanner {
                         height: { ideal: 720 }
                     }
                 })
-                .then(stream => {
-                    console.log('[Barcode Scanner] Camera permission granted');
-                    // Stop the stream immediately as Html5Qrcode will request it again
-                    stream.getTracks().forEach(track => track.stop());
-                    resolve(stream);
-                })
-                .catch(error => {
-                    console.error('[Barcode Scanner] Camera permission denied:', error);
-                    reject(error);
-                });
+                    .then(stream => {
+                        console.log('[Barcode Scanner] Camera permission granted');
+                        // Stop the stream immediately as Html5Qrcode will request it again
+                        stream.getTracks().forEach(track => track.stop());
+                        resolve(stream);
+                    })
+                    .catch(error => {
+                        console.error('[Barcode Scanner] Camera permission denied:', error);
+                        reject(error);
+                    });
             } else {
                 const error = new Error('Camera API not available in this browser');
                 console.error('[Barcode Scanner]', error.message);
@@ -248,10 +248,10 @@ class BarcodeScanner {
 
                 // Fixed 1 second delay between retries
                 console.log(`[Barcode Scanner] Retrying in ${fixedDelay}ms... (${attempt + 1}/${maxRetries})`);
-                
+
                 // Show retry status to user
                 this.showStatus(`Camera start failed, retrying... (${attempt + 1}/${maxRetries})`, fixedDelay);
-                
+
                 // Wait before retrying
                 await new Promise(resolve => setTimeout(resolve, fixedDelay));
             }
@@ -262,7 +262,7 @@ class BarcodeScanner {
      * Get camera configuration for specific retry attempt
      */
     getCameraConfigForAttempt(attempt) {
-        switch(attempt) {
+        switch (attempt) {
             case 0: // First attempt - standard config
                 return { facingMode: "environment" };
             case 1: // Second attempt - lower resolution
@@ -296,7 +296,7 @@ class BarcodeScanner {
         } : this.config;
 
         // Apply additional constraints for retry attempts
-        switch(attempt) {
+        switch (attempt) {
             case 1: // Second attempt - more relaxed settings
                 return {
                     ...baseConfig,
@@ -386,7 +386,7 @@ class BarcodeScanner {
      */
     async retryCameraStart() {
         console.log('[Barcode Scanner] Manual retry requested');
-        
+
         // Clear any existing scanner state
         if (this.scanner) {
             try {
@@ -395,11 +395,11 @@ class BarcodeScanner {
                 console.log('[Barcode Scanner] Error stopping existing scanner:', error);
             }
         }
-        
+
         // Reset scanner instance for clean retry
         this.scanner = null;
         this.isScanning = false;
-        
+
         // Try to start scanning again
         return await this.startScanning();
     }
@@ -423,12 +423,28 @@ class BarcodeScanner {
     async onScanSuccess(decodedText, decodedResult) {
         // Performance logging
         const scanStartTime = performance.now();
-        
+
         // Debouncing - prevent processing same barcode multiple times rapidly
         const currentTime = Date.now();
 
         if (this.isProcessing) {
             console.log('[Barcode Scanner] Already processing a scan, skipping...');
+            return;
+        }
+
+        // First, check custom barcodes for the scanned code
+        const customItem = await this.lookupCustomBarcode(decodedText);
+        if (customItem) {
+            console.log('[Barcode Scanner] Custom barcode found:', customItem);
+            this.playSuccessBeep();
+            this.flashSuccessIndicator();
+
+            // Use custom item directly
+            this.onSuccess(customItem, decodedText);
+
+            const scanTime = performance.now() - scanStartTime;
+            console.log(`[Barcode Scanner] Custom barcode processed in ${scanTime.toFixed(2)}ms`);
+            this.trackScanPerformance(decodedText, scanTime, 'custom_hit');
             return;
         }
 
@@ -438,16 +454,16 @@ class BarcodeScanner {
             console.log('[Barcode Scanner] Found in cache:', cachedScan.item);
             this.playSuccessBeep();
             this.flashSuccessIndicator();
-            
+
             // Use cached item directly, skip API request
             this.onSuccess(cachedScan.item, decodedText);
-            
+
             const scanTime = performance.now() - scanStartTime;
             console.log(`[Barcode Scanner] Cache hit processed in ${scanTime.toFixed(2)}ms`);
-            
+
             // Performance monitoring - track scan times
             this.trackScanPerformance(decodedText, scanTime, 'cache_hit');
-            
+
             return;
         }
 
@@ -458,7 +474,7 @@ class BarcodeScanner {
         }
 
         // Mark as processing
-            this.isProcessing = true;
+        this.isProcessing = true;
         this.lastScannedCode = decodedText;
         this.lastScanTime = currentTime;
 
@@ -478,10 +494,10 @@ class BarcodeScanner {
                         item: item,
                         timestamp: currentTime
                     });
-                    
+
                     // Clean old cache entries
                     this.cleanExpiredCache();
-                    
+
                     // Track performance for successful API request
                     this.trackScanPerformance(decodedText, performance.now() - scanStartTime, 'api_request');
                 }
@@ -493,7 +509,7 @@ class BarcodeScanner {
             .finally(() => {
                 // Reset processing flag immediately for faster response
                 this.isProcessing = false;
-                
+
                 const scanTime = performance.now() - scanStartTime;
                 console.log(`[Barcode Scanner] Scan processed in ${scanTime.toFixed(2)}ms`);
             });
@@ -508,6 +524,82 @@ class BarcodeScanner {
     }
 
     /**
+     * Look up custom barcode in IndexedDB
+     */
+    async lookupCustomBarcode(barcode) {
+        if (!window.dbManager) {
+            console.error('[Barcode Scanner] IndexedDB not available');
+            return null;
+        }
+
+        try {
+            // Check if this is a PharmApp QR code
+            const isQRCode = barcode.startsWith('PHARM-');
+            let customItem = null;
+
+            if (isQRCode) {
+                // Parse QR code: PHARM-RETAIL-123 or PHARM-WHOLESALE-123
+                const parts = barcode.split('-');
+                if (parts.length === 3) {
+                    const qrMode = parts[1].toLowerCase();
+                    const itemId = parseInt(parts[2]);
+
+                    // Verify mode matches
+                    if (qrMode === this.mode) {
+                        // Try to get custom barcode by ID
+                        const allCustomBarcodes = await window.dbManager.getAllCustomBarcodes(this.mode);
+                        customItem = allCustomBarcodes.find(item => item.id === itemId);
+                        if (customItem) {
+                            console.log('[Barcode Scanner] Custom item found offline by QR code:', customItem);
+                            return customItem;
+                        }
+                    } else {
+                        console.warn(`[Barcode Scanner] QR code mode mismatch: ${qrMode} vs ${this.mode}`);
+                    }
+                }
+            } else {
+                // Try to get custom barcode by barcode value
+                customItem = await window.dbManager.getCustomBarcode(barcode);
+                if (customItem) {
+                    console.log('[Barcode Scanner] Custom barcode found offline:', customItem);
+                    return customItem;
+                }
+            }
+
+            return customItem;
+
+        } catch (error) {
+            console.error('[Barcode Scanner] Custom barcode lookup error:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Save a custom barcode to IndexedDB
+     */
+    async saveCustomBarcode(barcodeData) {
+        if (!window.dbManager) {
+            console.error('[Barcode Scanner] IndexedDB not available');
+            return false;
+        }
+
+        try {
+            const savedBarcode = await window.dbManager.saveCustomBarcode({
+                ...barcodeData,
+                mode: this.mode
+            });
+
+            console.log('[Barcode Scanner] Custom barcode saved:', savedBarcode);
+            this.showStatus('Custom barcode saved successfully', 'success', 2000);
+            return savedBarcode;
+        } catch (error) {
+            console.error('[Barcode Scanner] Error saving custom barcode:', error);
+            this.showError('Failed to save custom barcode: ' + error.message);
+            return false;
+        }
+    }
+
+    /**
      * Look up barcode in database (online/offline) with enhanced retry logic
      */
     async lookupBarcode(barcode, retryCount = 0) {
@@ -515,10 +607,18 @@ class BarcodeScanner {
         const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
 
         try {
+            // First, check custom barcodes
+            const customItem = await this.lookupCustomBarcode(barcode);
+            if (customItem) {
+                console.log('[Barcode Scanner] Item found in custom barcodes');
+                this.onSuccess(customItem, barcode);
+                return customItem;
+            }
+
             // Try online API first
             if (navigator.onLine) {
                 console.log(`[Barcode Scanner] Online lookup attempt ${retryCount + 1}/${maxRetries + 1}`);
-                
+
                 const response = await fetch('/api/barcode/lookup/', {
                     method: 'POST',
                     headers: {
@@ -548,10 +648,10 @@ class BarcodeScanner {
                         this.onSuccess(offlineItem, barcode);
                         return;
                     }
-                    
-                    // Item not found anywhere - trigger add item flow
-                    console.log('[Barcode Scanner] Item not found anywhere, triggering add item flow');
-                    this.onItemNotFound(barcode);
+
+                    // Item not found anywhere - trigger options flow
+                    console.log('[Barcode Scanner] Item not found anywhere, triggering options flow');
+                    this.onItemNotFoundAnywhere(barcode);
                     return;
                 }
 
@@ -571,7 +671,7 @@ class BarcodeScanner {
                     this.onSuccess(offlineItem, barcode);
                     return;
                 }
-                
+
                 // Item not found offline - queue for when back online or offer to add
                 console.log('[Barcode Scanner] Item not found offline, queuing for later or add new');
                 this.onItemNotFoundOffline(barcode);
@@ -619,15 +719,15 @@ class BarcodeScanner {
     cleanExpiredCache() {
         const currentTime = Date.now();
         const expiredKeys = [];
-        
+
         for (const [barcode, scanData] of this.recentlyScanned.entries()) {
             if (currentTime - scanData.timestamp > this.recentScanCacheTimeout) {
                 expiredKeys.push(barcode);
             }
         }
-        
+
         expiredKeys.forEach(key => this.recentlyScanned.delete(key));
-        
+
         if (expiredKeys.length > 0) {
             console.log(`[Barcode Scanner] Cleaned ${expiredKeys.length} expired cache entries`);
         }
@@ -670,7 +770,7 @@ class BarcodeScanner {
                             // Fallback to search if index not available
                             console.log('[Barcode Scanner] Index lookup failed, falling back to search');
                         }
-                        
+
                         // Fallback: search through all items
                         const allItems = await window.dbManager.getAll(storeName);
                         item = allItems.find(item => item.id === itemId);
@@ -693,7 +793,7 @@ class BarcodeScanner {
                     // Fallback to search if index not available
                     console.log('[Barcode Scanner] Index lookup failed, falling back to search');
                 }
-                
+
                 // Fallback: search through all items only if necessary
                 const allItems = await window.dbManager.getAll(storeName);
                 item = allItems.find(item => item.barcode === barcode);
@@ -727,7 +827,7 @@ class BarcodeScanner {
      */
     onItemNotFound(barcode) {
         console.log('[Barcode Scanner] Item not found, showing add item modal');
-        
+
         // Try to use the global add item modal if available
         if (typeof window.showAddItemModal === 'function') {
             window.showAddItemModal(barcode, this.mode);
@@ -742,18 +842,245 @@ class BarcodeScanner {
      */
     onItemNotFoundOffline(barcode) {
         console.log('[Barcode Scanner] Item not found offline');
-        
+
         // Add to pending items queue for when back online
         if (window.dbManager) {
             this.queueBarcodeForLater(barcode);
         }
-        
+
         // Also offer to add item offline if supported
         if (typeof window.showAddItemModal === 'function') {
             window.showAddItemModal(barcode, this.mode, true); // true = offline mode
         } else {
             this.showAddItemDialog(barcode, true);
         }
+    }
+
+    /**
+     * Handle item not found in any system - offer to save as custom barcode
+     */
+    onItemNotFoundAnywhere(barcode) {
+        console.log('[Barcode Scanner] Item not found in any system');
+
+        // Show dialog with options
+        this.showCustomBarcodeOptions(barcode);
+    }
+
+    /**
+     * Show custom barcode options dialog
+     */
+    showCustomBarcodeOptions(barcode) {
+        const modal = document.createElement('div');
+        modal.className = 'modal fade show';
+        modal.style.display = 'block';
+        modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-barcode"></i> Barcode Not Found
+                        </h5>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>Barcode:</strong> ${barcode}</p>
+                        <p>This barcode was not found in inventory or custom barcodes.</p>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="barcodeOption" id="optionSaveCustom" value="saveCustom" checked>
+                            <label class="form-check-label" for="optionSaveCustom">
+                                <i class="fas fa-save"></i> Save as Custom Barcode
+                            </label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="barcodeOption" id="optionAddToInventory" value="addToInventory">
+                            <label class="form-check-label" for="optionAddToInventory">
+                                <i class="fas fa-plus"></i> Add to Inventory
+                            </label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="barcodeOption" id="optionJustScan" value="justScan">
+                            <label class="form-check-label" for="optionJustScan">
+                                <i class="fas fa-search"></i> Just Record Scan
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="window.barcodeScanner.handleBarcodeOption('${barcode}')">
+                            <i class="fas fa-check"></i> Continue
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Auto-focus and handle keyboard
+        const continueBtn = modal.querySelector('.btn-primary');
+        continueBtn.focus();
+
+        modal.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                this.handleBarcodeOption(barcode);
+                modal.remove();
+            } else if (e.key === 'Escape') {
+                modal.remove();
+            }
+        });
+
+        // Click outside to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+
+    /**
+     * Handle user's choice from custom barcode options
+     */
+    async handleBarcodeOption(barcode) {
+        const selectedOption = document.querySelector('input[name="barcodeOption"]:checked')?.value;
+
+        // Remove modal
+        const modal = document.querySelector('.modal.show');
+        if (modal) modal.remove();
+
+        switch (selectedOption) {
+            case 'saveCustom':
+                await this.promptSaveCustomBarcode(barcode);
+                break;
+            case 'addToInventory':
+                // Use existing add item modal
+                if (typeof window.showAddItemModal === 'function') {
+                    window.showAddItemModal(barcode, this.mode, !navigator.onLine);
+                } else {
+                    this.showAddItemDialog(barcode, !navigator.onLine);
+                }
+                break;
+            case 'justScan':
+                // Just show success and continue
+                this.showStatus('Barcode recorded: ' + barcode, 'success', 2000);
+                break;
+            default:
+                console.warn('[Barcode Scanner] Unknown option selected:', selectedOption);
+        }
+    }
+
+    /**
+     * Prompt to save custom barcode with details
+     */
+    async promptSaveCustomBarcode(barcode) {
+        const modal = document.createElement('div');
+        modal.className = 'modal fade show';
+        modal.style.display = 'block';
+        modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-save"></i> Save Custom Barcode
+                        </h5>
+                    </div>
+                    <form id="customBarcodeForm" onsubmit="return false;">
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Barcode</label>
+                                <input type="text" class="form-control" id="customBarcodeValue" value="${barcode}" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Barcode Type</label>
+                                <select class="form-select" id="customBarcodeType">
+                                    <option value="OTHER">Other/Unknown</option>
+                                    <option value="UPC">UPC</option>
+                                    <option value="EAN13">EAN-13</option>
+                                    <option value="CODE128">Code-128</option>
+                                    <option value="QR">QR Code</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Name *</label>
+                                <input type="text" class="form-control" id="customBarcodeName" required 
+                                       placeholder="Enter a name for this barcode">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <textarea class="form-control" id="customBarcodeDescription" rows="2"
+                                          placeholder="Enter description (optional)"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Notes</label>
+                                <textarea class="form-control" id="customBarcodeNotes" rows="2"
+                                          placeholder="Enter notes (optional)"></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                            <button type="button" class="btn btn-success" onclick="window.barcodeScanner.saveCustomBarcodeFromForm('${barcode}')">
+                                <i class="fas fa-save"></i> Save
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Auto-focus name field
+        const nameField = modal.querySelector('#customBarcodeName');
+        nameField.focus();
+        nameField.select();
+
+        // Handle form submission
+        modal.querySelector('#customBarcodeForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+        });
+
+        // Handle escape key
+        modal.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+            }
+        });
+
+        // Click outside to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+
+    /**
+     * Save custom barcode from form data
+     */
+    async saveCustomBarcodeFromForm(barcode) {
+        const modal = document.querySelector('.modal.show');
+        if (!modal) return;
+
+        const name = modal.querySelector('#customBarcodeName').value.trim();
+        if (!name) {
+            this.showError('Name is required');
+            return;
+        }
+
+        const barcodeData = {
+            barcode: barcode,
+            barcode_type: modal.querySelector('#customBarcodeType').value,
+            name: name,
+            description: modal.querySelector('#customBarcodeDescription').value.trim(),
+            notes: modal.querySelector('#customBarcodeNotes').value.trim()
+        };
+
+        await this.saveCustomBarcode(barcodeData);
+        modal.remove();
     }
 
     /**
@@ -787,7 +1114,7 @@ class BarcodeScanner {
      * Show add item dialog (fallback when modal not available)
      */
     showAddItemDialog(barcode, isOffline = false) {
-        const message = isOffline 
+        const message = isOffline
             ? `Item not found for barcode: ${barcode}\n\nWould you like to:\n1. Add this item now (offline)\n2. Queue for when back online\n3. Cancel`
             : `Item not found for barcode: ${barcode}\n\nWould you like to add this item to inventory?`;
 
@@ -971,26 +1298,26 @@ class BarcodeScanner {
             source: source,  // 'cache_hit', 'api_request', 'scan_error'
             timestamp: Date.now()
         };
-        
+
         // Log to console for debugging
         console.log(`[Barcode Scanner] Performance: ${source} - ${scanTime.toFixed(2)}ms for barcode ${barcode}`);
-        
+
         // Store in performance array for analysis
         if (!this.performanceMetrics) {
             this.performanceMetrics = [];
         }
-        
+
         this.performanceMetrics.push(performanceData);
-        
+
         // Keep only last 50 metrics to prevent memory issues
         if (this.performanceMetrics.length > 50) {
             this.performanceMetrics = this.performanceMetrics.slice(-50);
         }
-        
+
         // Check for performance issues
         this.checkPerformanceThresholds(performanceData);
     }
-    
+
     /**
      * Check if performance meets acceptable thresholds
      */
@@ -1000,14 +1327,14 @@ class BarcodeScanner {
             api_request: 500,  // ms
             scan_error: 1000     // ms
         };
-        
+
         const threshold = thresholds[performanceData.source] || 1000;
-        
+
         if (performanceData.scanTime > threshold) {
             console.warn(`[Barcode Scanner] SLOW SCAN: ${performanceData.scanTime.toFixed(2)}ms > ${threshold}ms threshold`);
         }
     }
-    
+
     /**
      * Get performance statistics
      */
@@ -1015,12 +1342,12 @@ class BarcodeScanner {
         if (!this.performanceMetrics || this.performanceMetrics.length === 0) {
             return null;
         }
-        
+
         const recentMetrics = this.performanceMetrics.slice(-10);  // Last 10 scans
-        
+
         const avgScanTime = recentMetrics.reduce((sum, metric) => sum + metric.scanTime, 0) / recentMetrics.length;
         const cacheHits = recentMetrics.filter(m => m.source === 'cache_hit').length;
-        
+
         return {
             averageScanTime: avgScanTime,
             cacheHitRate: (cacheHits / recentMetrics.length) * 100,

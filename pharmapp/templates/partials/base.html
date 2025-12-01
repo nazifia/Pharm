@@ -1121,105 +1121,90 @@
     <script src="{% static 'js/offline-handler.js' %}"></script>
     <script src="{% static 'js/offline-helpers.js' %}"></script>
 
-    <!-- Barcode/QR-code scanning library - load with verification -->
+    <!-- Barcode/QR-code scanning library - load from local static with CDN fallback -->
+    <script src="{% static 'vendor/html5-qrcode/html5-qrcode.min.js' %}"></script>
     <script>
         // Track library loading status
         window.barcodeLibraryStatus = 'loading';
 
-        // Load Html5Qrcode with error handling
+        // Load Html5Qrcode with local-first approach and CDN fallback
         (function() {
-            const script = document.createElement('script');
-            script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-            script.async = false;  // Load synchronously
-            script.onload = function() {
-                console.log('[Base] Html5Qrcode library loaded successfully');
+            // First, try to load from local static (already loaded by script tag above)
+            if (typeof Html5Qrcode !== 'undefined') {
+                console.log('[Base] Html5Qrcode library loaded successfully from local static');
                 window.barcodeLibraryStatus = 'loaded';
+                loadScannerModules();
+                return;
+            }
 
-                // Verify Html5Qrcode is available
-                if (typeof Html5Qrcode === 'undefined') {
-                    console.error('[Base] Html5Qrcode not found after script load!');
-                    window.barcodeLibraryStatus = 'error';
+            // If local load failed, try CDN fallback
+            console.log('[Base] Local Html5Qrcode not available, trying CDN fallback...');
+            window.barcodeLibraryStatus = 'error';
+
+            const fallbackScript = document.createElement('script');
+            fallbackScript.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+            fallbackScript.async = false;
+            fallbackScript.onload = function() {
+                if (typeof Html5Qrcode !== 'undefined') {
+                    console.log('[Base] Html5Qrcode loaded from CDN fallback');
+                    window.barcodeLibraryStatus = 'loaded';
+                    loadScannerModules();
                 } else {
-                    console.log('[Base] Html5Qrcode confirmed available');
-
-                    // Now load barcode-scanner.js
-                    const scannerScript = document.createElement('script');
-                    scannerScript.src = "{% static 'js/barcode-scanner.js' %}?v=3.1";
-                    scannerScript.onload = function() {
-                        console.log('[Base] Barcode scanner module loaded');
-
-                        // Load hardware scanner module
-                        const hardwareScript = document.createElement('script');
-                        hardwareScript.src = "{% static 'js/hardware-scanner.js' %}?v=3.1";
-                        hardwareScript.onload = function() {
-                            console.log('[Base] Hardware scanner module loaded');
-
-                            // Load cart integration module
-                            const cartIntegrationScript = document.createElement('script');
-                            cartIntegrationScript.src = "{% static 'js/barcode-cart-integration.js' %}?v=1.0";
-                            cartIntegrationScript.onload = function() {
-                                console.log('[Base] Barcode cart integration module loaded');
-                            };
-                            cartIntegrationScript.onerror = function() {
-                                console.error('[Base] Failed to load barcode-cart-integration.js');
-                            };
-                            document.head.appendChild(cartIntegrationScript);
-                        };
-                        hardwareScript.onerror = function() {
-                            console.error('[Base] Failed to load hardware-scanner.js');
-                        };
-                        document.head.appendChild(hardwareScript);
-                    };
-                    scannerScript.onerror = function() {
-                        console.error('[Base] Failed to load barcode-scanner.js');
-                    };
-                    document.head.appendChild(scannerScript);
+                    console.error('[Base] Html5Qrcode not available after CDN load');
+                    window.barcodeLibraryStatus = 'failed';
                 }
             };
-            script.onerror = function() {
-                console.error('[Base] Failed to load Html5Qrcode from CDN');
-                window.barcodeLibraryStatus = 'error';
-
-                // Try fallback CDN
-                console.log('[Base] Trying fallback CDN...');
-                const fallbackScript = document.createElement('script');
-                fallbackScript.src = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
-                fallbackScript.onload = function() {
-                    console.log('[Base] Html5Qrcode loaded from fallback CDN');
-                    window.barcodeLibraryStatus = 'loaded';
-
-                    // Load barcode-scanner.js
-                    const scannerScript = document.createElement('script');
-                    scannerScript.src = "{% static 'js/barcode-scanner.js' %}?v=3.1";
-                    scannerScript.onload = function() {
-                        console.log('[Base] Barcode scanner module loaded (fallback CDN)');
-
-                        // Load hardware scanner module
-                        const hardwareScript = document.createElement('script');
-                        hardwareScript.src = "{% static 'js/hardware-scanner.js' %}?v=3.1";
-                        hardwareScript.onload = function() {
-                            console.log('[Base] Hardware scanner module loaded (fallback CDN)');
-
-                            // Load cart integration module
-                            const cartIntegrationScript = document.createElement('script');
-                            cartIntegrationScript.src = "{% static 'js/barcode-cart-integration.js' %}?v=1.0";
-                            cartIntegrationScript.onload = function() {
-                                console.log('[Base] Barcode cart integration module loaded (fallback CDN)');
-                            };
-                            document.head.appendChild(cartIntegrationScript);
-                        };
-                        document.head.appendChild(hardwareScript);
-                    };
-                    document.head.appendChild(scannerScript);
-                };
-                fallbackScript.onerror = function() {
-                    console.error('[Base] Both CDNs failed to load Html5Qrcode');
-                    window.barcodeLibraryStatus = 'failed';
-                };
-                document.head.appendChild(fallbackScript);
+            fallbackScript.onerror = function() {
+                console.error('[Base] Both local and CDN failed to load Html5Qrcode');
+                window.barcodeLibraryStatus = 'failed';
             };
-            document.head.appendChild(script);
+            document.head.appendChild(fallbackScript);
         })();
+
+        // Function to load scanner modules after Html5Qrcode is available
+        function loadScannerModules() {
+            // Verify Html5Qrcode is available
+            if (typeof Html5Qrcode === 'undefined') {
+                console.error('[Base] Html5Qrcode not available for scanner modules');
+                return;
+            }
+
+            console.log('[Base] Html5Qrcode confirmed available, loading scanner modules...');
+
+            // Load barcode-scanner.js
+            const scannerScript = document.createElement('script');
+            scannerScript.src = "{% static 'js/barcode-scanner.js' %}?v=3.1";
+            scannerScript.onload = function() {
+                console.log('[Base] Barcode scanner module loaded');
+
+                // Load hardware scanner module
+                const hardwareScript = document.createElement('script');
+                hardwareScript.src = "{% static 'js/hardware-scanner.js' %}?v=3.1";
+                hardwareScript.onload = function() {
+                    console.log('[Base] Hardware scanner module loaded');
+
+                    // Load cart integration module
+                    const cartIntegrationScript = document.createElement('script');
+                    cartIntegrationScript.src = "{% static 'js/barcode-cart-integration.js' %}?v=1.0";
+                    cartIntegrationScript.onload = function() {
+                        console.log('[Base] Barcode cart integration module loaded');
+                        document.dispatchEvent(new Event('scannerModulesLoaded'));
+                    };
+                    cartIntegrationScript.onerror = function() {
+                        console.error('[Base] Failed to load barcode-cart-integration.js');
+                    };
+                    document.head.appendChild(cartIntegrationScript);
+                };
+                hardwareScript.onerror = function() {
+                    console.error('[Base] Failed to load hardware-scanner.js');
+                };
+                document.head.appendChild(hardwareScript);
+            };
+            scannerScript.onerror = function() {
+                console.error('[Base] Failed to load barcode-scanner.js');
+            };
+            document.head.appendChild(scannerScript);
+        }
     </script>
 
     <!-- Register Service Worker -->
