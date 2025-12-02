@@ -7,7 +7,7 @@ from api.views import serve_service_worker
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('wholesale/', include('wholesale.urls', namespace='wholesale')),
-    path('', include('store.urls')),
+    path('store/', include('store.urls', namespace='store')),
     path('', include('userauth.urls')),
     path('chat/', include('chat.urls')),
     path('notebook/', include('notebook.urls')),

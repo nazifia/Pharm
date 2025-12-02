@@ -1241,7 +1241,7 @@ class BarcodeScanner {
         // Determine the correct endpoint based on mode
         const endpoint = this.mode === 'wholesale'
             ? '/wholesale/add_to_wholesale/'
-            : '/add_item/';
+            : '/store/add_item/';
 
         // Get the modal element
         const modal = document.getElementById('addItemModal');

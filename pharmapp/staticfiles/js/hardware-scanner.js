@@ -496,7 +496,7 @@ class HardwareScannerHandler {
         // Determine the correct endpoint based on mode
         const endpoint = this.mode === 'wholesale'
             ? '/wholesale/add_to_wholesale/'
-            : '/add_item/';
+            : '/store/add_item/';
 
         // Add offline parameter if needed
         const url = isOffline ? `${endpoint}?offline=true` : endpoint;
