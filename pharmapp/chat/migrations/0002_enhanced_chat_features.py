@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('chat', '0001_initial'),
+        ('chat', '0002_chatmessage_edited_at_chatmessage_file_attachment_and_more'),
     ]
 
     operations = [
