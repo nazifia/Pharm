@@ -28,10 +28,10 @@ class BarcodeScanner {
         // Fast scan mode optimization
         this.fastScanMode = options.fastScanMode || false;  // Initialize fast mode if specified
 
-        // Ultra-fast configuration - optimized for speed
+        // Ultra-fast configuration - optimized for speed and sensitivity
         this.config = {
             fps: 60,  // Maximum frame rate for fastest detection
-            qrbox: 250,  // Fixed size for faster processing (instead of dynamic calculation)
+            qrbox: 350,  // Larger size for better sensitivity (increased from 250)
             aspectRatio: 1.0,  // 1:1 for simpler processing
             // Only scan most common formats for speed
             formatsToSupport: [
@@ -63,13 +63,14 @@ class BarcodeScanner {
 
     /**
      * Calculate responsive QR box size based on screen width
+     * Larger sizes improve camera sensitivity for barcode detection
      */
     calculateQrBoxSize() {
         const width = window.innerWidth;
-        if (width < 576) return { width: 200, height: 200 };  // Mobile
-        if (width < 768) return { width: 250, height: 250 };  // Large mobile
-        if (width < 992) return { width: 300, height: 300 };  // Tablet
-        return { width: 350, height: 350 };  // Desktop
+        if (width < 576) return { width: 280, height: 280 };  // Mobile - increased from 200
+        if (width < 768) return { width: 320, height: 320 };  // Large mobile - increased from 250
+        if (width < 992) return { width: 380, height: 380 };  // Tablet - increased from 300
+        return { width: 400, height: 400 };  // Desktop - increased from 350
     }
 
     /**
@@ -857,13 +858,245 @@ class BarcodeScanner {
     }
 
     /**
-     * Handle item not found in any system - offer to save as custom barcode
+     * Handle item not found in any system - permission-based handling
+     * If user can manage items: Open Add New Item modal with barcode pre-filled
+     * If user lacks permission: Show alert and suggest manual search
      */
     onItemNotFoundAnywhere(barcode) {
         console.log('[Barcode Scanner] Item not found in any system');
 
-        // Show dialog with options
-        this.showCustomBarcodeOptions(barcode);
+        // Check user permissions from global window object
+        const canAddItems = window.userPermissions?.canManageItems || false;
+
+        if (canAddItems) {
+            // User has permission - open Add New Item modal directly
+            console.log('[Barcode Scanner] User has permission to add items, opening Add Item modal');
+            this.openAddItemModalWithBarcode(barcode);
+        } else {
+            // User lacks permission - show alert and suggest manual search
+            console.log('[Barcode Scanner] User lacks permission to add items, showing manual search suggestion');
+            this.showManualSearchSuggestion(barcode);
+        }
+    }
+
+    /**
+     * Open Add New Item modal with scanned barcode pre-filled
+     * Uses HTMX to load the actual modal content (same as clicking "Add New Item" button)
+     * Handles both retail and wholesale modes
+     */
+    openAddItemModalWithBarcode(barcode) {
+        // Remove focus from any elements inside the scanner modal to prevent aria-hidden warning
+        const scannerModal = document.getElementById('barcodeScannerModal');
+        if (scannerModal && document.activeElement && scannerModal.contains(document.activeElement)) {
+            document.activeElement.blur();
+        }
+
+        // Close the scanner modal first
+        if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
+            $('#barcodeScannerModal').modal('hide');
+        }
+
+        // Stop scanning
+        this.stopScanning();
+
+        // Determine the correct endpoint based on mode
+        const endpoint = this.mode === 'wholesale'
+            ? '/wholesale/add_to_wholesale/'
+            : '/add_item/';
+
+        // Get the modal element
+        const modal = document.getElementById('addItemModal');
+        const modalContent = modal ? modal.querySelector('.modal-content') : null;
+
+        if (!modal || !modalContent) {
+            console.error('[Barcode Scanner] Add Item modal not found');
+            this.showError('Could not open Add Item modal');
+            return;
+        }
+
+        // Use HTMX to load the modal content (same as button click)
+        if (typeof htmx !== 'undefined') {
+            // Trigger HTMX request to load modal content
+            htmx.ajax('GET', endpoint, {
+                target: '#addItemModal .modal-content',
+                swap: 'innerHTML'
+            }).then(() => {
+                // After HTMX loads content, pre-fill barcode and show modal
+                this.preFillBarcodeAndShowModal(barcode);
+            }).catch((error) => {
+                console.error('[Barcode Scanner] Failed to load modal content:', error);
+                this.showError('Failed to load Add Item modal');
+            });
+        } else {
+            // Fallback if HTMX not available: use fetch
+            fetch(endpoint, {
+                headers: {
+                    'HX-Request': 'true'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                modalContent.innerHTML = html;
+                this.preFillBarcodeAndShowModal(barcode);
+            })
+            .catch(error => {
+                console.error('[Barcode Scanner] Failed to load modal:', error);
+                this.showError('Failed to load Add Item modal');
+            });
+        }
+    }
+
+    /**
+     * Pre-fill barcode field and show the modal after HTMX loads content
+     */
+    preFillBarcodeAndShowModal(barcode) {
+        // Determine barcode field ID based on mode
+        const barcodeFieldIds = this.mode === 'wholesale'
+            ? ['wholesale-barcode', 'id_barcode', 'barcode']
+            : ['id_barcode', 'itemBarcode', 'barcode'];
+
+        // Try to find and fill the barcode field
+        let fieldFilled = false;
+        for (const fieldId of barcodeFieldIds) {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.value = barcode;
+                fieldFilled = true;
+                // Also trigger change event for any listeners
+                field.dispatchEvent(new Event('change', { bubbles: true }));
+                console.log(`[Barcode Scanner] Pre-filled barcode field: ${fieldId}`);
+                break;
+            }
+        }
+
+        if (!fieldFilled) {
+            console.warn('[Barcode Scanner] Could not find barcode field to pre-fill');
+        }
+
+        // Show the modal
+        const modal = document.getElementById('addItemModal');
+        if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
+            $(modal).modal('show');
+        } else {
+            // Fallback for non-jQuery
+            modal.classList.add('show');
+            modal.style.display = 'block';
+            document.body.classList.add('modal-open');
+        }
+
+        // Show status message
+        this.showStatus(`Barcode ${barcode} not found. Please fill in item details.`, 'info', 5000);
+
+        // Focus on the name field after a short delay
+        setTimeout(() => {
+            const nameField = document.getElementById('id_name') ||
+                             document.querySelector('input[name="name"]');
+            if (nameField) {
+                nameField.focus();
+            }
+        }, 300);
+    }
+
+    /**
+     * Show friendly alert for users without add-item permission
+     * Suggests using manual search function
+     */
+    showManualSearchSuggestion(barcode) {
+        const modal = document.createElement('div');
+        modal.className = 'modal fade show';
+        modal.id = 'manualSearchSuggestionModal';
+        modal.style.display = 'block';
+        modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        modal.style.zIndex = '1060';
+        modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title">
+                            <i class="fas fa-exclamation-triangle"></i> Item Not Found
+                        </h5>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>Scanned Barcode:</strong> <code>${barcode}</code></p>
+                        <p>This barcode was not found in the inventory system.</p>
+                        <hr>
+                        <p class="text-muted mb-0">
+                            <i class="fas fa-info-circle"></i>
+                            Please use the <strong>manual search</strong> function to find items by name,
+                            or contact an administrator to add this item to inventory.
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-action="close">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                        <button type="button" class="btn btn-primary" data-action="search">
+                            <i class="fas fa-search"></i> Use Manual Search
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Store reference for cleanup
+        const self = this;
+
+        // Close button handler
+        const closeBtn = modal.querySelector('[data-action="close"]');
+        closeBtn.addEventListener('click', () => {
+            modal.remove();
+        });
+
+        // Manual search button handler
+        const searchBtn = modal.querySelector('[data-action="search"]');
+        searchBtn.addEventListener('click', () => {
+            modal.remove();
+
+            // Close scanner modal and stop scanning
+            if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
+                $('#barcodeScannerModal').modal('hide');
+            }
+            self.stopScanning();
+
+            // Find and focus on the search input, pre-fill with barcode
+            const searchSelectors = [
+                '#item_search',
+                '#wholesale_search',
+                '#search',
+                'input[name="search"]',
+                'input[type="search"]',
+                '.search-input'
+            ];
+
+            for (const selector of searchSelectors) {
+                const searchInput = document.querySelector(selector);
+                if (searchInput) {
+                    searchInput.value = barcode;
+                    searchInput.focus();
+                    // Trigger input event to activate any search handlers
+                    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    break;
+                }
+            }
+        });
+
+        // Click outside to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+
+        // Escape key to close
+        const escapeHandler = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                document.removeEventListener('keydown', escapeHandler);
+            }
+        };
+        document.addEventListener('keydown', escapeHandler);
     }
 
     /**

@@ -343,6 +343,15 @@ Dispense Wholesale Items - {{ block.super }}
 <!-- Include Barcode Scanner Modal -->
 {% include 'partials/barcode_scanner_modal.html' %}
 
+<!-- Add Item Modal (empty shell for HTMX content loading) -->
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <!-- Content loaded via HTMX -->
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}

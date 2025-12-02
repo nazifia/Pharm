@@ -346,6 +346,14 @@ def add_to_wholesale(request):
 
                 item.save()
                 messages.success(request, 'Item added successfully')
+
+                # Handle HTMX requests differently - trigger page reload
+                if request.headers.get('HX-Request'):
+                    from django.http import HttpResponse
+                    response = HttpResponse(status=204)  # No content
+                    response['HX-Redirect'] = '/wholesale/wholesales/'  # Tell HTMX to redirect
+                    return response
+
                 return redirect('wholesale:wholesales')
             else:
                 print("Form errors:", form.errors)  # Debugging output
@@ -645,6 +653,9 @@ def dispense_wholesale(request):
     # TEMPORARILY BYPASS AUTHENTICATION FOR DEBUGGING
     # if request.user.is_authenticated:
     if True:  # Always proceed for debugging
+        # Initialize results to None to avoid UnboundLocalError
+        results = None
+
         if request.method == 'POST':
             form = wholesaleDispenseForm(request.POST)
             if form.is_valid():

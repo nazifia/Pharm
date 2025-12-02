@@ -363,6 +363,14 @@ def add_item(request):
 
                 item.save()
                 messages.success(request, 'Item added successfully')
+
+                # Handle HTMX requests differently - trigger page reload
+                if request.headers.get('HX-Request'):
+                    from django.http import HttpResponse
+                    response = HttpResponse(status=204)  # No content
+                    response['HX-Redirect'] = '/store/'  # Tell HTMX to redirect
+                    return response
+
                 return redirect('store:store')
             else:
                 print("Form errors:", form.errors)  # Debugging output
@@ -476,16 +484,19 @@ def dispense(request):
     print(f"DEBUG: STORE dispense view called by user: {request.user}")
     print(f"DEBUG: Request path: {request.path}")
     if request.user.is_authenticated:
+        # Initialize results to None to avoid UnboundLocalError
+        results = None
+
         if request.method == 'POST':
             form = dispenseForm(request.POST)
             if form.is_valid():
                 q = form.cleaned_data['q']
-                
+
                 try:
                     # Use cached search results for better performance
                     cache_key = get_search_cache_key('item', q, request.user.id)
                     cached_results = get_cached_search_results(cache_key)
-                    
+
                     if cached_results:
                         # Use cached results directly
                         results = cached_results
@@ -494,7 +505,7 @@ def dispense(request):
                         results = Item.objects.filter(
                             Q(name__icontains=q) | Q(brand__icontains=q)
                         ).filter(stock__gt=0).order_by('name')[:50]  # Only show items with stock > 0, limit for performance
-                        
+
                         # Cache the results for 5 minutes
                         cache_search_results(cache_key, results)
                 except Exception as e:
