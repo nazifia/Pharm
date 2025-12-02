@@ -28,6 +28,9 @@ from userauth.permissions import (
 
 logger = logging.getLogger(__name__)
 
+# Import GS1 barcode parser
+from store.gs1_parser import parse_barcode, is_gs1_barcode
+
 # Add this at the top of your views.py if not already present
 def is_superuser(user):
     return user.is_superuser
@@ -344,6 +347,16 @@ def add_to_wholesale(request):
                     # Use the manually entered price
                     item.price = submitted_price
 
+                # Parse GS1 barcode if applicable
+                if item.barcode and is_gs1_barcode(item.barcode):
+                    parsed = parse_barcode(item.barcode)
+                    item.gtin = parsed.get('gtin', '') or item.gtin
+                    item.batch_number = parsed.get('batch_number', '') or item.batch_number
+                    item.serial_number = parsed.get('serial_number', '') or item.serial_number
+                    if not item.barcode_type or item.barcode_type == 'OTHER':
+                        item.barcode_type = 'GS1'
+                    logger.info(f"GS1 barcode parsed for wholesale item: GTIN={item.gtin}, Batch={item.batch_number}, Serial={item.serial_number}")
+
                 item.save()
                 messages.success(request, 'Item added successfully')
 
@@ -399,6 +412,16 @@ def edit_wholesale_item(request, pk):
                 else:
                     # Use the manually entered price
                     item.price = submitted_price
+
+                # Parse GS1 barcode if applicable
+                if item.barcode and is_gs1_barcode(item.barcode):
+                    parsed = parse_barcode(item.barcode)
+                    item.gtin = parsed.get('gtin', '') or item.gtin
+                    item.batch_number = parsed.get('batch_number', '') or item.batch_number
+                    item.serial_number = parsed.get('serial_number', '') or item.serial_number
+                    if not item.barcode_type or item.barcode_type == 'OTHER':
+                        item.barcode_type = 'GS1'
+                    logger.info(f"GS1 barcode parsed for wholesale item {item.name}: GTIN={item.gtin}, Batch={item.batch_number}, Serial={item.serial_number}")
 
                 # Save the form with updated fields
                 form.save()

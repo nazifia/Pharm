@@ -666,6 +666,7 @@ class BarcodeScanner {
                         this.showPartialMatchOptions(data, barcode);
                         return null;
                     }
+                }
 
                 // If item not found (404), offer to add new item
                 if (response.status === 404) {

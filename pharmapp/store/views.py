@@ -40,6 +40,9 @@ logger = logging.getLogger(__name__)
 # Import required models for transfer functionality
 from .models import TransferRequest, WholesaleItem
 
+# Import GS1 barcode parser
+from .gs1_parser import parse_barcode, is_gs1_barcode
+
 # Cache utility functions for search optimization
 def get_search_cache_key(model_name, query, user_id=None):
     """Generate a cache key for search results"""
@@ -361,6 +364,16 @@ def add_item(request):
                     # Use the manually entered price
                     item.price = submitted_price
 
+                # Parse GS1 barcode if applicable
+                if item.barcode and is_gs1_barcode(item.barcode):
+                    parsed = parse_barcode(item.barcode)
+                    item.gtin = parsed.get('gtin', '') or item.gtin
+                    item.batch_number = parsed.get('batch_number', '') or item.batch_number
+                    item.serial_number = parsed.get('serial_number', '') or item.serial_number
+                    if not item.barcode_type or item.barcode_type == 'OTHER':
+                        item.barcode_type = 'GS1'
+                    logger.info(f"GS1 barcode parsed for item: GTIN={item.gtin}, Batch={item.batch_number}, Serial={item.serial_number}")
+
                 item.save()
                 messages.success(request, 'Item added successfully')
 
@@ -458,6 +471,16 @@ def edit_item(request, pk):
                 else:
                     # Use the manually entered price
                     item.price = submitted_price
+
+                # Parse GS1 barcode if applicable
+                if item.barcode and is_gs1_barcode(item.barcode):
+                    parsed = parse_barcode(item.barcode)
+                    item.gtin = parsed.get('gtin', '') or item.gtin
+                    item.batch_number = parsed.get('batch_number', '') or item.batch_number
+                    item.serial_number = parsed.get('serial_number', '') or item.serial_number
+                    if not item.barcode_type or item.barcode_type == 'OTHER':
+                        item.barcode_type = 'GS1'
+                    logger.info(f"GS1 barcode parsed for item {item.name}: GTIN={item.gtin}, Batch={item.batch_number}, Serial={item.serial_number}")
 
                 # Save the form with updated fields
                 form.save()
@@ -7501,4 +7524,21 @@ def bulk_generate_labels(request):
             'success': False,
             'error': str(e)
         }, status=400)
+
+
+
+def test_barcode_scanner(request):
+    """
+    Test page for barcode scanner functionality
+    """
+    return render(request, "store/test_barcode.html")
+
+def sync_offline_actions(request):
+    """
+    Handle syncing of offline actions
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid method"}, status=405)
+    
+    return JsonResponse({"error": "Not implemented"}, status=501)
 

@@ -598,6 +598,7 @@ def wholesale_cart_sync(request):
 
 # Barcode Scanning API Endpoints
 
+@csrf_exempt
 @require_http_methods(["POST"])
 def barcode_lookup(request):
     """

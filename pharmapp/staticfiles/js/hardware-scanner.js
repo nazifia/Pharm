@@ -441,36 +441,160 @@ class HardwareScannerHandler {
     }
 
     /**
-     * Handle item not found (online mode) - trigger add item flow
+     * Handle item not found (online mode) - permission-based handling
+     * If user can manage items: Load Add Item modal via HTMX
+     * If user lacks permission: Show manual search suggestion
      */
     onItemNotFound(barcode) {
-        console.log('[Hardware Scanner] Item not found, showing add item modal');
-        
-        // Try to use global add item modal if available
-        if (typeof window.showAddItemModal === 'function') {
-            window.showAddItemModal(barcode, this.mode);
+        console.log('[Hardware Scanner] Item not found online');
+
+        // Check user permissions from global window object
+        const canAddItems = window.userPermissions?.canManageItems || false;
+
+        if (canAddItems) {
+            // User has permission - trigger HTMX modal load
+            console.log('[Hardware Scanner] User has permission to add items');
+            this.loadAddItemModalWithHtmx(barcode, false);
         } else {
-            // Fallback to prompt or create modal dynamically
-            this.showAddItemDialog(barcode);
+            // User lacks permission - show manual search suggestion
+            console.log('[Hardware Scanner] User lacks permission to add items');
+            this.showManualSearchSuggestion(barcode);
         }
     }
 
     /**
-     * Handle item not found (offline mode) - queue for later or offer to add
+     * Handle item not found (offline mode) - permission-based handling
+     * Queue for later lookup and show appropriate dialog based on permissions
      */
     onItemNotFoundOffline(barcode) {
         console.log('[Hardware Scanner] Item not found offline');
-        
+
         // Add to pending items queue for when back online
         if (window.dbManager) {
             this.queueBarcodeForLater(barcode);
         }
-        
-        // Also offer to add item offline if supported
-        if (typeof window.showAddItemModal === 'function') {
-            window.showAddItemModal(barcode, this.mode, true); // true = offline mode
+
+        // Check user permissions
+        const canAddItems = window.userPermissions?.canManageItems || false;
+
+        if (canAddItems) {
+            // User has permission - offer to add item offline
+            console.log('[Hardware Scanner] User has permission to add items offline');
+            this.loadAddItemModalWithHtmx(barcode, true);
         } else {
-            this.showAddItemDialog(barcode, true);
+            // User lacks permission - show manual search suggestion
+            console.log('[Hardware Scanner] User lacks permission to add items');
+            this.showManualSearchSuggestion(barcode);
+        }
+    }
+
+    /**
+     * Load Add Item modal via HTMX with barcode pre-filled
+     * Uses the same modal as clicking "Add New Item" button
+     */
+    loadAddItemModalWithHtmx(barcode, isOffline = false) {
+        // Determine the correct endpoint based on mode
+        const endpoint = this.mode === 'wholesale'
+            ? '/wholesale/add_to_wholesale/'
+            : '/add_item/';
+
+        // Add offline parameter if needed
+        const url = isOffline ? `${endpoint}?offline=true` : endpoint;
+
+        // Get the modal element
+        const modal = document.getElementById('addItemModal');
+        const modalContent = modal ? modal.querySelector('.modal-content') : null;
+
+        if (!modal || !modalContent) {
+            console.error('[Hardware Scanner] Add Item modal not found');
+            return;
+        }
+
+        // Load modal content via fetch (HTMX style)
+        fetch(url, {
+            headers: {
+                'HX-Request': 'true'
+            }
+        })
+        .then(response => response.text())
+        .then(html => {
+            modalContent.innerHTML = html;
+
+            // Pre-fill barcode field
+            const barcodeFieldIds = this.mode === 'wholesale'
+                ? ['wholesale-barcode', 'id_barcode', 'barcode']
+                : ['id_barcode', 'itemBarcode', 'barcode'];
+
+            let fieldFilled = false;
+            for (const fieldId of barcodeFieldIds) {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.value = barcode;
+                    field.dispatchEvent(new Event('change', { bubbles: true }));
+                    fieldFilled = true;
+                    console.log(`[Hardware Scanner] Pre-filled barcode field: ${fieldId}`);
+                    break;
+                }
+            }
+
+            if (!fieldFilled) {
+                console.warn('[Hardware Scanner] Could not find barcode field to pre-fill');
+            }
+
+            // Show modal
+            if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
+                $(modal).modal('show');
+            } else {
+                modal.classList.add('show');
+                modal.style.display = 'block';
+                document.body.classList.add('modal-open');
+            }
+
+            this.showStatus('Item not found. Please complete the form.', 3000);
+
+            // Focus on name field
+            setTimeout(() => {
+                const nameField = document.getElementById('id_name') ||
+                                 document.querySelector('input[name="name"]');
+                if (nameField) {
+                    nameField.focus();
+                }
+            }, 300);
+        })
+        .catch(error => {
+            console.error('[Hardware Scanner] Failed to load modal:', error);
+        });
+    }
+
+    /**
+     * Show friendly alert for users without add-item permission
+     * Suggests using manual search function
+     */
+    showManualSearchSuggestion(barcode) {
+        const message = `Item not found for barcode: ${barcode}\n\nThis barcode was not found in the inventory system.\n\nPlease use the manual search function to find items by name, or contact an administrator to add this item to inventory.`;
+
+        alert(message);
+
+        this.showStatus('Item not found. Use manual search.', 3000);
+
+        // Try to focus on search input
+        const searchSelectors = [
+            '#item_search',
+            '#wholesale_search',
+            '#search',
+            'input[name="search"]',
+            'input[type="search"]',
+            '.search-input'
+        ];
+
+        for (const selector of searchSelectors) {
+            const searchInput = document.querySelector(selector);
+            if (searchInput) {
+                searchInput.value = barcode;
+                searchInput.focus();
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                break;
+            }
         }
     }
 

@@ -14,7 +14,8 @@
       "Bash(find:*)",
       "Bash(python:*)",
       "Bash(pip install:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(node -c:*)"
     ],
     "deny": [],
     "ask": []
