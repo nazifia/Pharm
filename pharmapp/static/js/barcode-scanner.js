@@ -118,34 +118,15 @@ class BarcodeScanner {
     }
 
     /**
-     * Request camera permission
+     * Request camera permission - REMOVED
+     * Camera permission is now requested automatically by Html5Qrcode when startScanning() is called
+     * This allows the browser to handle the permission request natively
      */
     requestCameraPermission() {
-        return new Promise((resolve, reject) => {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                })
-                    .then(stream => {
-                        console.log('[Barcode Scanner] Camera permission granted');
-                        // Stop the stream immediately as Html5Qrcode will request it again
-                        stream.getTracks().forEach(track => track.stop());
-                        resolve(stream);
-                    })
-                    .catch(error => {
-                        console.error('[Barcode Scanner] Camera permission denied:', error);
-                        reject(error);
-                    });
-            } else {
-                const error = new Error('Camera API not available in this browser');
-                console.error('[Barcode Scanner]', error.message);
-                reject(error);
-            }
-        });
+        // No longer pre-requesting camera permission
+        // Html5Qrcode library will handle permission requests automatically
+        console.log('[Barcode Scanner] Camera permission will be requested by Html5Qrcode library');
+        return Promise.resolve();
     }
 
     /**

@@ -330,18 +330,10 @@ class OfflineHandler {
 
     /**
      * Show notification to user
+     * Only uses in-app notifications (browser notifications disabled)
      */
     showNotification(title, message, type = 'info') {
-        // Try to use browser notifications
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(title, {
-                body: message,
-                icon: '/static/img/icon-192x192.png',
-                badge: '/static/img/icon-192x192.png'
-            });
-        }
-
-        // Also show in-app notification
+        // Use in-app notification only (browser notifications disabled)
         this.showInAppNotification(title, message, type);
     }
 
@@ -398,15 +390,14 @@ class OfflineHandler {
     }
 
     /**
-     * Request notification permission
+     * Request notification permission - REMOVED
+     * Notification permissions are no longer requested automatically
+     * Users can enable notifications manually if needed
      */
     async requestNotificationPermission() {
-        if ('Notification' in window && Notification.permission === 'default') {
-            const permission = await Notification.requestPermission();
-            console.log('[OfflineHandler] Notification permission:', permission);
-            return permission === 'granted';
-        }
-        return Notification.permission === 'granted';
+        // No longer automatically requesting notification permission
+        console.log('[OfflineHandler] Notification permission removed - using in-app notifications only');
+        return false;
     }
 
     /**
@@ -475,8 +466,7 @@ if (typeof window !== 'undefined') {
         await offlineHandler.init();
         window.offlineHandler = offlineHandler;
 
-        // Request notification permission
-        await offlineHandler.requestNotificationPermission();
+        // Notification permissions removed - using in-app notifications only
 
         // Update pending count periodically
         if (window.dbManager) {
