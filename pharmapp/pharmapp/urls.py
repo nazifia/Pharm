@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include
+from django.views.generic import RedirectView
 from . import settings
 from django.conf.urls.static import static
 from api.views import serve_service_worker
@@ -15,6 +16,9 @@ urlpatterns = [
 
     # Serve service worker from root path with full scope control
     path('sw.js', serve_service_worker, name='service-worker'),
+
+    # Favicon redirect to static file
+    path('favicon.ico', RedirectView.as_view(url=settings.STATIC_URL + 'img/favicon.svg', permanent=True)),
 ]
 
 if settings.DEBUG:

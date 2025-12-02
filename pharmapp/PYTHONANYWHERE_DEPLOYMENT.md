@@ -1,5 +1,167 @@
 # PythonAnywhere Deployment Guide with Offline Support
 
+## URGENT: Fixes for 404 Errors on PythonAnywhere
+
+### Issues Fixed in Latest Update
+
+Based on the error logs from your PythonAnywhere deployment, the following critical issues have been resolved:
+
+#### 1. ✅ Root URL 404 Error Fixed
+**Problem:** Accessing `https://nazz.pythonanywhere.com/` returned a 404 error.
+
+**Solution Applied:** Added a root URL handler in `userauth/urls.py` that automatically redirects visitors to the login page.
+
+#### 2. ✅ Favicon 404 Error Fixed
+**Problem:** Browser requests for `/favicon.ico` returned a 404 error.
+
+**Solution Applied:** Added a favicon URL pattern in `pharmapp/urls.py` that redirects to the existing favicon at `/static/img/favicon.svg`.
+
+#### 3. ⚠️ Slow Request Warning (2.73s)
+**Problem:** The homepage was taking 2.73 seconds to load.
+
+**Likely Causes:**
+- DEBUG mode may be enabled in production
+- Static files might not be properly configured
+- ALLOWED_HOSTS might not include your domain
+
+---
+
+### IMMEDIATE ACTION REQUIRED ON PYTHONANYWHERE
+
+Follow these steps **on your PythonAnywhere server** to apply the fixes:
+
+#### Step 1: Pull Latest Code Changes
+
+```bash
+# Open a Bash console on PythonAnywhere, then:
+cd ~/pharmapp
+git pull origin main
+```
+
+#### Step 2: Update Your .env File on PythonAnywhere
+
+```bash
+nano ~/pharmapp/.env
+```
+
+Make sure it contains these critical settings:
+
+```env
+# IMPORTANT: Set to False for production!
+DEBUG=False
+
+# IMPORTANT: Must include your PythonAnywhere domain!
+ALLOWED_HOSTS=nazz.pythonanywhere.com
+
+# Your existing secret key (keep this secure!)
+SECRET_KEY=your-existing-secret-key-do-not-change
+
+# Database settings (if using MySQL)
+# DB_NAME=nazz$pharmapp_db
+# DB_USER=nazz
+# DB_PASSWORD=your_password_here
+# DB_HOST=nazz.mysql.pythonanywhere-services.com
+```
+
+**Press Ctrl+X, then Y, then Enter to save.**
+
+#### Step 3: Collect Static Files
+
+```bash
+cd ~/pharmapp
+python manage.py collectstatic --noinput
+```
+
+This ensures the favicon and all other static files are properly served.
+
+#### Step 4: Verify Static Files Configuration
+
+1. Go to the **Web** tab in your PythonAnywhere dashboard
+2. Scroll to the **Static files** section
+3. Verify these mappings exist:
+
+   | URL          | Directory                              |
+   |--------------|----------------------------------------|
+   | /static/     | /home/nazz/pharmapp/staticfiles        |
+   | /media/      | /home/nazz/pharmapp/media              |
+
+If they don't exist, click "Enter URL" and "Enter path" to add them.
+
+#### Step 5: Reload Your Web App
+
+1. Go to the **Web** tab
+2. Click the big green **"Reload nazz.pythonanywhere.com"** button at the top
+3. Wait for the reload to complete
+
+#### Step 6: Test the Fixes
+
+After reloading, test these URLs:
+
+1. **Root URL:** https://nazz.pythonanywhere.com/
+   - ✅ Should now redirect to login page (no more 404!)
+
+2. **Favicon:** https://nazz.pythonanywhere.com/favicon.ico
+   - ✅ Should redirect to favicon SVG (no more 404!)
+
+3. **Response Time:** The page should load faster with DEBUG=False
+
+---
+
+### Files Changed in This Update
+
+The following files have been modified to fix the 404 errors:
+
+1. **userauth/urls.py** - Added `root_redirect()` function and root URL pattern
+2. **pharmapp/urls.py** - Added favicon URL redirect
+3. **.env** - Updated ALLOWED_HOSTS to include `nazz.pythonanywhere.com`
+
+**No database migrations are required for these changes.**
+
+---
+
+### Common Issues After Update
+
+#### Issue: Still Getting 404 on Root URL
+**Solution:**
+```bash
+# Ensure you pulled the latest code
+cd ~/pharmapp
+git pull origin main
+
+# Check the userauth/urls.py file contains root_redirect
+cat userauth/urls.py | head -15
+
+# Reload the web app
+# (Use the Reload button on Web tab)
+```
+
+#### Issue: "DisallowedHost at /"
+**Solution:**
+Your ALLOWED_HOSTS is not configured correctly.
+```bash
+# Edit .env file
+nano ~/pharmapp/.env
+
+# Ensure this line exists:
+ALLOWED_HOSTS=nazz.pythonanywhere.com
+
+# Save and reload web app
+```
+
+#### Issue: Static Files Still Not Loading
+**Solution:**
+```bash
+cd ~/pharmapp
+python manage.py collectstatic --noinput
+
+# Check static files were collected
+ls -la staticfiles/
+
+# Reload web app
+```
+
+---
+
 ## Overview
 
 This guide covers deploying PharmApp to PythonAnywhere while maintaining full offline-first functionality. The offline features work **client-side** in users' browsers, while PythonAnywhere hosts the Django backend.

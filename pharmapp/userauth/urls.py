@@ -1,9 +1,15 @@
 from django.urls import path
+from django.shortcuts import redirect
 from . import views
 
 app_name = 'userauth'
 
+def root_redirect(request):
+    """Redirect root URL to store login page"""
+    return redirect('store:index')
+
 urlpatterns = [
+    path('', root_redirect, name='root'),
     path('register', views.register_view, name='register'),
     path('profile/', views.edit_user_profile, name='profile'),
     path('activity/', views.activity_dashboard, name='activity_dashboard'),
