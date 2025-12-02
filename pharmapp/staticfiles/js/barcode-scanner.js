@@ -118,39 +118,12 @@ class BarcodeScanner {
     }
 
     /**
-     * Check camera permission (mobile-friendly)
-     * Only called when user clicks scan button, not on page load
+     * No pre-permission check needed
+     * Html5Qrcode library handles camera permissions automatically when scanner.start() is called
+     * First use: Browser will show permission prompt (one time only)
+     * Subsequent uses: Camera starts immediately (permission remembered)
+     * This provides the smoothest user experience on mobile devices
      */
-    async checkCameraPermission() {
-        try {
-            // Check if mediaDevices API is available
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                console.warn('[Barcode Scanner] Camera API not available');
-                return true; // Let Html5Qrcode try anyway
-            }
-
-            // Check permission state if API is available (not all browsers support this)
-            if (navigator.permissions && navigator.permissions.query) {
-                try {
-                    const result = await navigator.permissions.query({ name: 'camera' });
-                    console.log('[Barcode Scanner] Camera permission state:', result.state);
-
-                    if (result.state === 'denied') {
-                        throw new Error('Camera permission denied. Please enable camera access in your browser settings.');
-                    }
-                } catch (permError) {
-                    // permissions.query not supported on all browsers (especially iOS Safari)
-                    // Just continue and let getUserMedia handle it
-                    console.log('[Barcode Scanner] Permission query not supported, continuing...');
-                }
-            }
-
-            return true;
-        } catch (error) {
-            console.error('[Barcode Scanner] Permission check failed:', error);
-            throw error;
-        }
-    }
 
     /**
      * Initialize the scanner
@@ -176,15 +149,6 @@ class BarcodeScanner {
 
         if (this.isScanning) {
             console.warn('[Barcode Scanner] Already scanning');
-            return;
-        }
-
-        // Check camera permission first (only when user actually tries to scan)
-        try {
-            await this.checkCameraPermission();
-        } catch (error) {
-            console.error('[Barcode Scanner] Camera permission check failed:', error);
-            this.showError(error.message || 'Camera access denied. Please enable camera permissions in your browser settings.');
             return;
         }
 
