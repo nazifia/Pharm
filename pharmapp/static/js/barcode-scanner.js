@@ -905,10 +905,10 @@ class BarcodeScanner {
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">
+                        <button type="button" class="btn btn-secondary" data-action="cancel">
                             <i class="fas fa-times"></i> Cancel
                         </button>
-                        <button type="button" class="btn btn-primary" onclick="window.barcodeScanner.handleBarcodeOption('${barcode}')">
+                        <button type="button" class="btn btn-primary" data-action="continue">
                             <i class="fas fa-check"></i> Continue
                         </button>
                     </div>
@@ -918,8 +918,14 @@ class BarcodeScanner {
 
         document.body.appendChild(modal);
 
-        // Auto-focus and handle keyboard
-        const continueBtn = modal.querySelector('.btn-primary');
+        // Attach event listeners
+        const continueBtn = modal.querySelector('button[data-action="continue"]');
+        const cancelBtn = modal.querySelector('button[data-action="cancel"]');
+
+        continueBtn.addEventListener('click', () => this.handleBarcodeOption(barcode));
+        cancelBtn.addEventListener('click', () => modal.remove());
+
+        // Auto-focus
         continueBtn.focus();
 
         modal.addEventListener('keydown', (e) => {
@@ -1019,17 +1025,25 @@ class BarcodeScanner {
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">
+                            <button type="button" class="btn btn-secondary" data-action="cancel">
                                 <i class="fas fa-times"></i> Cancel
                             </button>
-                            <button type="button" class="btn btn-success" onclick="window.barcodeScanner.saveCustomBarcodeFromForm('${barcode}')">
+                            <button type="button" class="btn btn-success" data-action="save">
                                 <i class="fas fa-save"></i> Save
                             </button>
                         </div>
-                    </form>
-                </div>
-            </div>
-        `;
+
+
+        // Attach event listeners
+        const saveBtn = modal.querySelector('button[data-action="save"]');
+        const cancelBtn = modal.querySelector('button[data-action="cancel"]');
+
+        saveBtn.addEventListener('click', () => window.barcodeScanner.saveCustomBarcodeFromForm(barcode));
+        cancelBtn.addEventListener('click', () => modal.remove());
+                    </form >
+                </div >
+            </div >
+            `;
 
         document.body.appendChild(modal);
 
@@ -1115,13 +1129,21 @@ class BarcodeScanner {
      */
     showAddItemDialog(barcode, isOffline = false) {
         const message = isOffline
-            ? `Item not found for barcode: ${barcode}\n\nWould you like to:\n1. Add this item now (offline)\n2. Queue for when back online\n3. Cancel`
+            ? `Item not found for barcode: ${barcode}\n\nWould you like to add this item now (offline)?`
             : `Item not found for barcode: ${barcode}\n\nWould you like to add this item to inventory?`;
 
-        // Show a user-friendly dialog instead of navigating directly
-        this.showAddItemDialog(barcode, isOffline);
-
-        // Don't navigate directly - the add_item view requires POST and authentication
+        if (confirm(message)) {
+            if (typeof window.showAddItemModal === 'function') {
+                window.showAddItemModal(barcode, this.mode, isOffline);
+            } else {
+                // Fallback redirect
+                if (this.mode === 'wholesale') {
+                    window.location.href = `/wholesale/add_to_wholesale/?barcode=${encodeURIComponent(barcode)}`;
+                } else {
+                    window.location.href = `/store/add_item/?barcode=${encodeURIComponent(barcode)}`;
+                }
+            }
+        }
     }
 
     /**
@@ -1131,9 +1153,9 @@ class BarcodeScanner {
         try {
             // Create a basic item structure that user can complete later
             const offlineItem = {
-                id: `offline_${Date.now()}`,
+                id: `offline_${Date.now()} `,
                 barcode: barcode,
-                name: `New Item - ${barcode}`,
+                name: `New Item - ${barcode} `,
                 mode: this.mode,
                 action: 'create_item',
                 timestamp: new Date().toISOString(),
@@ -1172,17 +1194,17 @@ class BarcodeScanner {
             const statusDiv = document.createElement('div');
             statusDiv.id = 'scanner-status';
             statusDiv.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: #17a2b8;
-                color: white;
-                padding: 10px 15px;
-                border-radius: 5px;
-                font-size: 14px;
-                z-index: 9999;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            `;
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #17a2b8;
+        color: white;
+        padding: 10px 15px;
+        border - radius: 5px;
+        font - size: 14px;
+        z - index: 9999;
+        box - shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        `;
             statusDiv.textContent = message;
             document.body.appendChild(statusDiv);
 
@@ -1300,7 +1322,7 @@ class BarcodeScanner {
         };
 
         // Log to console for debugging
-        console.log(`[Barcode Scanner] Performance: ${source} - ${scanTime.toFixed(2)}ms for barcode ${barcode}`);
+        console.log(`[Barcode Scanner]Performance: ${source} - ${scanTime.toFixed(2)}ms for barcode ${barcode}`);
 
         // Store in performance array for analysis
         if (!this.performanceMetrics) {
@@ -1331,7 +1353,7 @@ class BarcodeScanner {
         const threshold = thresholds[performanceData.source] || 1000;
 
         if (performanceData.scanTime > threshold) {
-            console.warn(`[Barcode Scanner] SLOW SCAN: ${performanceData.scanTime.toFixed(2)}ms > ${threshold}ms threshold`);
+            console.warn(`[Barcode Scanner] SLOW SCAN: ${performanceData.scanTime.toFixed(2)} ms > ${threshold}ms threshold`);
         }
     }
 

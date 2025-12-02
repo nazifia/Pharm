@@ -282,6 +282,9 @@
                 onError: defaultErrorHandler
             });
 
+            // Make instance available globally for dynamic modals
+            window.barcodeScanner = barcodeScanner;
+
             console.log('[Scanner Modal] BarcodeScanner instance created');
             console.log('[Scanner Modal] Calling init()...');
 
