@@ -140,6 +140,14 @@ class Item(models.Model):
         ('QR', 'QR Code'),
         ('OTHER', 'Other')
     ], blank=True, null=True)
+    
+    # GS1 barcode components (for pharmaceutical barcodes)
+    gtin = models.CharField(max_length=20, blank=True, null=True, db_index=True, 
+                         help_text="GTIN extracted from GS1 barcode")
+    batch_number = models.CharField(max_length=50, blank=True, null=True, db_index=True,
+                           help_text="Batch/lot number from GS1 barcode")
+    serial_number = models.CharField(max_length=50, blank=True, null=True, db_index=True,
+                              help_text="Serial number from GS1 barcode")
 
     class Meta:
         ordering = ('name',)
@@ -147,6 +155,9 @@ class Item(models.Model):
             models.Index(fields=['name', 'brand']),  # Composite index for name+brand searches
             models.Index(fields=['name', 'dosage_form']),  # Composite index for name+dosage searches
             models.Index(fields=['barcode']),  # Index for barcode searches
+            models.Index(fields=['gtin']),  # Index for GTIN searches
+            models.Index(fields=['batch_number']),  # Index for batch searches
+            models.Index(fields=['serial_number']),  # Index for serial searches
         ]
 
     def __str__(self):
@@ -180,12 +191,24 @@ class WholesaleItem(models.Model):
         ('QR', 'QR Code'),
         ('OTHER', 'Other')
     ], blank=True, null=True)
+    
+    # GS1 barcode components (for pharmaceutical barcodes)
+    gtin = models.CharField(max_length=20, blank=True, null=True, db_index=True, 
+                         help_text="GTIN extracted from GS1 barcode")
+    batch_number = models.CharField(max_length=50, blank=True, null=True, db_index=True,
+                           help_text="Batch/lot number from GS1 barcode")
+    serial_number = models.CharField(max_length=50, blank=True, null=True, db_index=True,
+                              help_text="Serial number from GS1 barcode")
+
     class Meta:
         ordering = ('name',)
         indexes = [
             models.Index(fields=['name', 'brand']),  # Composite index for name+brand searches
             models.Index(fields=['name', 'dosage_form']),  # Composite index for name+dosage searches
             models.Index(fields=['barcode']),  # Index for barcode searches
+            models.Index(fields=['gtin']),  # Index for GTIN searches
+            models.Index(fields=['batch_number']),  # Index for batch searches
+            models.Index(fields=['serial_number']),  # Index for serial searches
         ]
 
     def __str__(self):

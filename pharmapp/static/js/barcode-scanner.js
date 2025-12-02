@@ -636,10 +636,36 @@ class BarcodeScanner {
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('[Barcode Scanner] Item found online:', data.item);
-                    this.onSuccess(data.item, barcode);
-                    return;
-                }
+                    console.log('[Barcode Scanner] API response:', data);
+                    
+                    if (data.status === 'success' || data.status === 'partial') {
+                        // Handle successful lookup (exact or partial match)
+                        if (data.status === 'partial' && data.matches && data.matches.length > 1) {
+                            // Multiple matches - show selection modal
+                            this.handleMultipleMatches(data, barcode);
+                            return null;
+                        } else {
+                            // Single match - proceed normally
+                            const item = data.item;
+                            console.log('[Barcode Scanner] Item found online:', item);
+                            
+                            // Update custom barcode data if GS1 data was added
+                            if (data.lookup_type === 'gs1_barcode' && data.parsed_data) {
+                                this.updateItemWithGS1Data(item, data.parsed_data);
+                            }
+                            
+                            this.onSuccess(item, barcode);
+                            return item;
+                        }
+                    } else if (data.status === 'error' && data.suggestions && data.suggestions.gs1_detected) {
+                        // GS1 detected but item not found - show suggestions
+                        this.handleGS1NotFound(data, barcode);
+                        return null;
+                    } else if (data.status === 'partial' && data.message) {
+                        // Partial match found - show options
+                        this.showPartialMatchOptions(data, barcode);
+                        return null;
+                    }
 
                 // If item not found (404), offer to add new item
                 if (response.status === 404) {
@@ -715,8 +741,320 @@ class BarcodeScanner {
     }
 
     /**
-     * Clean expired entries from the scan cache
+     * Handle multiple matches for GS1 barcodes
      */
+    handleMultipleMatches(data, barcode) {
+        const modal = document.createElement('div');
+        modal.className = 'modal fade show';
+        modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        modal.style.zIndex = '1060';
+        modal.innerHTML = `
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-barcode"></i>
+                            Multiple Items Found for Barcode
+                        </h5>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>Scanned Barcode:</strong> <code>${barcode}</code></p>
+                        <p><strong>Parsed as:</strong> ${data.parsed_data.is_gs1_format ? 'GS1 Pharmaceutical Barcode' : 'Standard Barcode'}</p>
+                        <p class="mb-3">Found ${data.total_matches} items with matching barcode components. Please select the correct item:</p>
+                        
+                        <div class="list-group">
+                            ${data.matches.map((match, index) => `
+                                <div class="list-group-item list-group-item-action" style="cursor: pointer;" onclick="selectMatch(${index})">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">${match.name}</h6>
+                                        <small class="badge bg-${match.confidence === 1.0 ? 'success' : match.confidence > 0.8 ? 'primary' : 'secondary'}">${match.confidence}</small>
+                                    </div>
+                                    <div class="small text-muted">
+                                        ${match.brand ? `Brand: ${match.brand} | ` : ''}
+                                        Match Type: ${match.confidence}
+                                        ${match.gtin ? `| GTIN: ${match.gtin}` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-action="cancel">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Handle selection
+        window.selectMatch = (index) => {
+            const match = data.matches[index];
+            modal.remove();
+            
+            // Create item object that matches expected format
+            const item = {
+                id: match.id,
+                name: match.name,
+                brand: match.brand || '',
+                dosage_form: '',
+                unit: '',
+                price: 0, // Will be set by actual item data
+                cost: 0,
+                stock: 0,
+                barcode: barcode,
+                barcode_type: data.parsed_data.barcode_type || 'OTHER',
+                exp_date: null,
+                gtin: match.gtin || '',
+                batch_number: match.batch_number || '',
+                serial_number: match.serial_number || ''
+            };
+
+            this.onSuccess(item, barcode);
+        };
+
+        // Handle cancel
+        const cancelBtn = modal.querySelector('[data-action="cancel"]');
+        cancelBtn.addEventListener('click', () => {
+            modal.remove();
+        });
+
+        // Close on escape
+        const escapeHandler = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                document.removeEventListener('keydown', escapeHandler);
+            }
+        };
+        document.addEventListener('keydown', escapeHandler);
+
+        // Click outside to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+                document.removeEventListener('keydown', escapeHandler);
+            }
+        });
+    }
+
+    /**
+     * Handle GS1 barcode not found scenario
+     */
+    handleGS1NotFound(data, barcode) {
+        const modal = document.createElement('div');
+        modal.className = 'modal fade show';
+        modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        modal.style.zIndex = '1060';
+        modal.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            GS1 Barcode Not Found
+                        </h5>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>Scanned Barcode:</strong> <code>${barcode}</code></p>
+                        <p class="mb-3">This GS1 barcode was detected but the item is not in the inventory system.</p>
+                        
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-info-circle"></i> Barcode Analysis:</h6>
+                            <ul class="mb-0">
+                                ${data.suggestions.gs1_parsed ? `
+                                    <li><strong>Product Name:</strong> ${data.suggestions.gs1_parsed.product_name || 'Not detected'}</li>
+                                    <li><strong>GTIN:</strong> ${data.suggestions.gs1_parsed.gtin || 'Not detected'}</li>
+                                    <li><strong>Batch Number:</strong> ${data.suggestions.gs1_parsed.batch_number || 'Not detected'}</li>
+                                    <li><strong>Expiry Date:</strong> ${data.suggestions.gs1_parsed.expiry_date || 'Not detected'}</li>
+                                    <li><strong>Serial Number:</strong> ${data.suggestions.gs1_parsed.serial_number || 'Not detected'}</li>
+                                ` : '<li>GS1 parsing failed</li>'}
+                            </ul>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-lightbulb"></i> Options:</h6>
+                            <ol>
+                                <li><strong>Add New Item:</strong> Add this item to inventory with the scanned barcode</li>
+                                <li><strong>Manual Search:</strong> Search by product name or GTIN</li>
+                                <li><strong>Check Barcode:</strong> Verify the barcode is correct and scan again</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-action="add-item">
+                            <i class="fas fa-plus"></i> Add New Item
+                        </button>
+                        <button type="button" class="btn btn-info" data-action="manual-search">
+                            <i class="fas fa-search"></i> Manual Search
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-action="cancel">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Handle actions
+        const addBtn = modal.querySelector('[data-action="add-item"]');
+        const searchBtn = modal.querySelector('[data-action="manual-search"]');
+        const cancelBtn = modal.querySelector('[data-action="cancel"]');
+
+        addBtn.addEventListener('click', () => {
+            modal.remove();
+            this.openAddItemModalWithBarcode(barcode);
+        });
+
+        searchBtn.addEventListener('click', () => {
+            modal.remove();
+            
+            // Focus on search input with barcode
+            const searchSelectors = [
+                '#item_search',
+                '#wholesale_search',
+                '#search',
+                'input[name="search"]',
+                'input[type="search"]',
+                '.search-input'
+            ];
+
+            for (const selector of searchSelectors) {
+                const searchInput = document.querySelector(selector);
+                if (searchInput) {
+                    // Try to use GTIN for search if available
+                    const searchTerm = data.suggestions.gs1_parsed && data.suggestions.gs1_parsed.gtin 
+                        ? data.suggestions.gs1_parsed.gtin 
+                        : barcode;
+                    
+                    searchInput.value = searchTerm;
+                    searchInput.focus();
+                    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    break;
+                }
+            }
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            modal.remove();
+        });
+
+        // Close on escape
+        const escapeHandler = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                document.removeEventListener('keydown', escapeHandler);
+            }
+        };
+        document.addEventListener('keydown', escapeHandler);
+
+        // Click outside to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+                document.removeEventListener('keydown', escapeHandler);
+            }
+        });
+    }
+
+    /**
+     * Update item with GS1 parsed data
+     */
+    async updateItemWithGS1Data(item, parsedData) {
+        try {
+            // Update IndexedDB if available
+            if (window.dbManager) {
+                const storeName = this.mode === 'retail' ? 'items' : 'wholesaleItems';
+                
+                // Get current item from IndexedDB
+                const existingItem = await window.dbManager.get(storeName, item.id);
+                if (existingItem) {
+                    const updatedItem = {
+                        ...existingItem,
+                        gtin: parsedData.gtin || existingItem.gtin,
+                        batch_number: parsedData.batch_number || existingItem.batch_number,
+                        serial_number: parsedData.serial_number || existingItem.serial_number
+                    };
+                    
+                    await window.dbManager.update(storeName, item.id, updatedItem);
+                    console.log('[Barcode Scanner] Updated item in IndexedDB with GS1 data');
+                }
+            }
+        } catch (error) {
+            console.error('[Barcode Scanner] Failed to update item with GS1 data:', error);
+        }
+    }
+
+    /**
+     * Show partial match options
+     */
+    showPartialMatchOptions(data, barcode) {
+        const modal = document.createElement('div');
+        modal.className = 'modal fade show';
+        modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        modal.style.zIndex = '1060';
+        modal.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-search"></i>
+                            ${data.message}
+                        </h5>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>Scanned Barcode:</strong> <code>${barcode}</code></p>
+                        <div class="list-group">
+                            ${data.matches.map((match, index) => `
+                                <div class="list-group-item list-group-item-action" style="cursor: pointer;" onclick="selectMatch(${index})">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">${match.name}</h6>
+                                        <small class="badge bg-info">${match.confidence}</small>
+                                    </div>
+                                    <div class="small text-muted">
+                                        ${match.brand ? `Brand: ${match.brand}` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-action="cancel">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Handle selection and close similar to handleMultipleMatches
+        window.selectMatch = (index) => {
+            const match = data.matches[index];
+            modal.remove();
+            this.onSuccess(match, barcode);
+        };
+
+        // Handle cancel
+        const cancelBtn = modal.querySelector('[data-action="cancel"]');
+        cancelBtn.addEventListener('click', () => {
+            modal.remove();
+        });
+
+        // Close handlers
+        const closeHandler = (e) => {
+            if (e.key === 'Escape' || e.target === modal) {
+                modal.remove();
+                document.removeEventListener('keydown', closeHandler);
+            }
+        };
+        document.addEventListener('keydown', closeHandler);
+        modal.addEventListener('click', closeHandler);
+    }
     cleanExpiredCache() {
         const currentTime = Date.now();
         const expiredKeys = [];
@@ -1053,6 +1391,12 @@ class BarcodeScanner {
         const searchBtn = modal.querySelector('[data-action="search"]');
         searchBtn.addEventListener('click', () => {
             modal.remove();
+
+            // Remove focus from scanner modal elements to prevent aria-hidden warning
+            const scannerModal = document.getElementById('barcodeScannerModal');
+            if (scannerModal && document.activeElement && scannerModal.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
 
             // Close scanner modal and stop scanning
             if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {

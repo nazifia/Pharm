@@ -146,4 +146,7 @@ urlpatterns = [
     path('qr/receipt/<int:receipt_id>/', views.generate_receipt_qr, name='generate_receipt_qr'),
     path('print-labels/', views.print_item_labels, name='print_item_labels'),
     path('qr/bulk-labels/', views.bulk_generate_labels, name='bulk_generate_labels'),
+    
+    # Test barcode scanner
+    path('test_barcode/', views.test_barcode_scanner, name='test_barcode'),
 ]

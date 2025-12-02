@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barcode Scanner Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .test-section {
+            margin: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; }
+        .error { background-color: #f8d7da; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Barcode Scanner Test</h1>
+        
+        <div class="test-section">
+            <h2>GS1 Parser Test</h2>
+            <button id="testGs1Parser" class="btn btn-primary">Test GS1 Parser</button>
+            <div id="parserResult" class="status"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Scanner Test</h2>
+            <div id="scannerRegion" style="width: 350px; height: 350px; border: 2px solid #ccc; margin: 10px 0;"></div>
+            <button id="startScanner" class="btn btn-success">Start Scanner</button>
+            <button id="stopScanner" class="btn btn-danger">Stop Scanner</button>
+            <div id="scanResult" class="status"></div>
+        </div>
+    </div>
+
+    <!-- Load Html5Qrcode -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    
+    <!-- Include CSRF token -->
+    <script>
+        function getCsrfToken() {
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'csrftoken') {
+                    return value;
+                }
+            }
+            return '';
+        }
+    </script>
+    
+    <!-- Load our GS1 parser and scanner -->
+    <script src="{% static 'js/gs1_parser.js' %}"></script>
+    <script src="{% static 'js/barcode-scanner.js' %}"></script>
+    
+    <script>
+        let scanner = null;
+        
+        // Test GS1 parser
+        document.getElementById('testGs1Parser').addEventListener('click', function() {
+            const barcode = 'NAVIDOXINE(01) 18906047654987(10) 250203 (17) 012028(21) NVDXN0225';
+            console.log('Testing GS1 parser with barcode:', barcode);
+            
+            if (typeof parse_barcode === 'undefined') {
+                document.getElementById('parserResult').innerHTML = '<div class="error">GS1 parser not loaded</div>';
+                return;
+            }
+            
+            try {
+                const parsed = parse_barcode(barcode);
+                console.log('Parsed result:', parsed);
+                
+                let html = '<div class="success">';
+                html += '<h5>✅ GS1 Parser Results:</h5>';
+                html += '<p><strong>Product Name:</strong> ' + parsed.product_name + '</p>';
+                html += '<p><strong>GTIN:</strong> ' + parsed.gtin + '</p>';
+                html += '<p><strong>Batch Number:</strong> ' + parsed.batch_number + '</p>';
+                html += '<p><strong>Expiry Date:</strong> ' + parsed.expiry_date + '</p>';
+                html += '<p><strong>Serial Number:</strong> ' + parsed.serial_number + '</p>';
+                html += '<p><strong>Is GS1:</strong> ' + parsed.is_gs1_format + '</p>';
+                html += '<p><strong>Confidence:</strong> ' + parsed.confidence + '</p>';
+                html += '</div>';
+                
+                document.getElementById('parserResult').innerHTML = html;
+            } catch (error) {
+                document.getElementById('parserResult').innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+            }
+        });
+        
+        // Test scanner
+        document.getElementById('startScanner').addEventListener('click', async function() {
+            try {
+                if (typeof Html5Qrcode === 'undefined') {
+                    document.getElementById('scanResult').innerHTML = '<div class="error">Html5Qrcode library not loaded</div>';
+                    return;
+                }
+                
+                console.log('Starting barcode scanner...');
+                
+                // Initialize scanner
+                scanner = new BarcodeScanner({
+                    scannerId: 'scannerRegion',
+                    mode: 'retail',
+                    onSuccess: function(item, barcode) {
+                        console.log('Scan success:', item, barcode);
+                        let html = '<div class="success">';
+                        html += '<h5>✅ Item Found:</h5>';
+                        html += '<p><strong>Name:</strong> ' + item.name + '</p>';
+                        html += '<p><strong>GTIN:</strong> ' + (item.gtin || 'N/A') + '</p>';
+                        html += '<p><strong>Barcode:</strong> ' + barcode + '</p>';
+                        html += '</div>';
+                        document.getElementById('scanResult').innerHTML = html;
+                    },
+                    onError: function(error, barcode) {
+                        console.log('Scan error:', error, barcode);
+                        document.getElementById('scanResult').innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+                    }
+                });
+                
+                const initialized = await scanner.init();
+                if (initialized) {
+                    await scanner.startScanning();
+                    document.getElementById('scanResult').innerHTML = '<div class="success">Scanner started successfully</div>';
+                } else {
+                    document.getElementById('scanResult').innerHTML = '<div class="error">Failed to initialize scanner</div>';
+                }
+                
+            } catch (error) {
+                console.error('Scanner initialization error:', error);
+                document.getElementById('scanResult').innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+            }
+        });
+        
+        document.getElementById('stopScanner').addEventListener('click', async function() {
+            if (scanner) {
+                try {
+                    await scanner.stopScanning();
+                    document.getElementById('scanResult').innerHTML = '<div class="success">Scanner stopped</div>';
+                } catch (error) {
+                    document.getElementById('scanResult').innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+                }
+            }
+        });
+        
+        // Check libraries on load
+        window.addEventListener('load', function() {
+            const html5Status = typeof Html5Qrcode !== 'undefined' ? '✅ Html5Qrcode loaded' : '❌ Html5Qrcode NOT loaded';
+            const scannerStatus = typeof BarcodeScanner !== 'undefined' ? '✅ BarcodeScanner loaded' : '❌ BarcodeScanner NOT loaded';
+            const parserStatus = typeof parse_barcode !== 'undefined' ? '✅ GS1 parser loaded' : '❌ GS1 parser NOT loaded';
+            
+            console.log('Library Status:', html5Status, scannerStatus, parserStatus);
+        });
+    </script>
+</body>
+</html>

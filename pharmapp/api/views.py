@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.conf import settings
 from store.models import Item, Sales, SalesItem, WholesaleItem, Receipt, DispensingLog, Cart
+from store.gs1_parser import parse_barcode, is_gs1_barcode, GS1Parser, extract_gtin
 from customer.models import Customer, WholesaleCustomer
 from supplier.models import Supplier
 from wholesale.models import *
@@ -606,6 +607,8 @@ def barcode_lookup(request):
     Supports:
     - Traditional barcodes (UPC, EAN, etc.)
     - PharmApp QR codes (PHARM-RETAIL-ID or PHARM-WHOLESALE-ID format)
+    - GS1 barcodes with Application Identifiers (AIs) for pharmaceutical products
+    - Complex format: 'NAVIDOXINE(01) 18906047654987(10) 250203 (17) 012028(21) NVDXN0225'
     """
     try:
         data = json.loads(request.body)
@@ -687,38 +690,224 @@ def barcode_lookup(request):
                     'error': 'Item not found',
                     'user_message': 'Item not found for this QR code. It may have been deleted.'
                 }, status=404)
-        else:
-            # Traditional barcode lookup
+        
+        # Handle GS1 barcode parsing for pharmaceutical products
+        is_gs1 = is_gs1_barcode(barcode)
+        
+        if is_gs1:
+            # Parse the GS1 barcode
             try:
-                # Try exact barcode match
-                item = ItemModel.objects.get(barcode=barcode)
+                parsed_data = parse_barcode(barcode)
+                logger.info(f"GS1 barcode parsed: {parsed_data}")
+                
+                # Multi-layered lookup strategy for GS1 barcodes
+                search_results = []
+                search_confidence = {}
+                
+                # 1. Try exact barcode match (primary key)
+                exact_matches = ItemModel.objects.filter(barcode=barcode)
+                for item in exact_matches:
+                    search_results.append({
+                        'item': item,
+                        'match_type': 'exact_barcode',
+                        'confidence': 1.0
+                    })
+                
+                # 2. Try GTIN match (if extracted)
+                gtin = parsed_data.get('gtin')
+                if gtin and len(gtin) >= 8:
+                    gtin_matches = ItemModel.objects.filter(gtin=gtin).exclude(
+                        id__in=[r['item'].id for r in search_results]
+                    )
+                    for item in gtin_matches:
+                        search_results.append({
+                            'item': item,
+                            'match_type': 'gtin',
+                            'confidence': 0.9
+                        })
+                
+                # 3. Try partial GTIN matches (core digits)
+                if gtin and len(gtin) > 8:
+                    core_gtin = gtin[-8:]  # Last 8 digits
+                    partial_gtin_matches = ItemModel.objects.filter(gtin__endswith=core_gtin).exclude(
+                        id__in=[r['item'].id for r in search_results]
+                    )
+                    for item in partial_gtin_matches:
+                        search_results.append({
+                            'item': item,
+                            'match_type': 'partial_gtin',
+                            'confidence': 0.7
+                        })
+                
+                # 4. Try batch + serial combination
+                batch_number = parsed_data.get('batch_number')
+                serial_number = parsed_data.get('serial_number')
+                
+                if batch_number and serial_number:
+                    batch_serial_matches = ItemModel.objects.filter(
+                        batch_number=batch_number,
+                        serial_number=serial_number
+                    ).exclude(id__in=[r['item'].id for r in search_results])
+                    
+                    for item in batch_serial_matches:
+                        search_results.append({
+                            'item': item,
+                            'match_type': 'batch_serial',
+                            'confidence': 0.8
+                        })
+                
+                # 5. Try batch-only or serial-only matches
+                if batch_number:
+                    batch_matches = ItemModel.objects.filter(batch_number=batch_number).exclude(
+                        id__in=[r['item'].id for r in search_results]
+                    )
+                    for item in batch_matches:
+                        search_results.append({
+                            'item': item,
+                            'match_type': 'batch_only',
+                            'confidence': 0.6
+                        })
+                
+                if serial_number:
+                    serial_matches = ItemModel.objects.filter(serial_number=serial_number).exclude(
+                        id__in=[r['item'].id for r in search_results]
+                    )
+                    for item in serial_matches:
+                        search_results.append({
+                            'item': item,
+                            'match_type': 'serial_only',
+                            'confidence': 0.6
+                        })
+                
+                # Sort by confidence and return best match
+                if search_results:
+                    search_results.sort(key=lambda x: x['confidence'], reverse=True)
+                    best_match = search_results[0]
+                    item = best_match['item']
+                    
+                    logger.info(f"GS1 match found: {item.name} via {best_match['match_type']} (confidence: {best_match['confidence']})")
+                    
+                    # Update item with parsed GS1 data if not already set
+                    should_update = False
+                    update_data = {}
+                    
+                    if not item.gtin and gtin:
+                        update_data['gtin'] = gtin
+                        should_update = True
+                    
+                    if not item.batch_number and batch_number:
+                        update_data['batch_number'] = batch_number
+                        should_update = True
+                    
+                    if not item.serial_number and serial_number:
+                        update_data['serial_number'] = serial_number
+                        should_update = True
+                    
+                    if should_update:
+                        ItemModel.objects.filter(id=item.id).update(**update_data)
+                        logger.info(f"Updated item {item.name} with GS1 components")
+                    
+                    return JsonResponse({
+                        'status': 'success',
+                        'lookup_type': 'gs1_barcode',
+                        'match_type': best_match['match_type'],
+                        'confidence': best_match['confidence'],
+                        'parsed_data': parsed_data,
+                        'total_matches': len(search_results),
+                        'item': {
+                            'id': item.id,
+                            'name': item.name,
+                            'brand': item.brand or '',
+                            'dosage_form': item.dosage_form or '',
+                            'unit': item.unit or '',
+                            'price': str(item.price),
+                            'cost': str(item.cost),
+                            'stock': str(item.stock),
+                            'barcode': item.barcode or '',
+                            'barcode_type': item.barcode_type or parsed_data.get('barcode_type', 'OTHER'),
+                            'exp_date': item.exp_date.isoformat() if item.exp_date else None,
+                            'gtin': item.gtin or '',
+                            'batch_number': item.batch_number or '',
+                            'serial_number': item.serial_number or '',
+                        },
+                        'other_matches': [
+                            {
+                                'id': r['item'].id,
+                                'name': r['item'].name,
+                                'match_type': r['match_type'],
+                                'confidence': r['confidence']
+                            }
+                            for r in search_results[1:4]  # Top 4 additional matches
+                        ] if len(search_results) > 1 else None
+                    })
+                
+            except Exception as e:
+                logger.error(f"GS1 barcode parsing error: {e}", exc_info=True)
+                # Fall back to traditional lookup if GS1 parsing fails
+        
+        # Traditional barcode lookup (fallback)
+        try:
+            # Try exact barcode match
+            item = ItemModel.objects.get(barcode=barcode)
 
-                logger.info(f"Barcode found: {item.name} (barcode: {barcode})")
+            logger.info(f"Barcode found: {item.name} (barcode: {barcode})")
 
-                return JsonResponse({
-                    'status': 'success',
-                    'lookup_type': 'barcode',
-                    'item': {
-                        'id': item.id,
-                        'name': item.name,
-                        'brand': item.brand or '',
-                        'dosage_form': item.dosage_form or '',
-                        'unit': item.unit or '',
-                        'price': str(item.price),
-                        'cost': str(item.cost),
-                        'stock': str(item.stock),
-                        'barcode': item.barcode or '',
-                        'barcode_type': item.barcode_type or '',
-                        'exp_date': item.exp_date.isoformat() if item.exp_date else None,
-                    }
-                })
-            except ItemModel.DoesNotExist:
-                logger.warning(f"Barcode not found: {barcode} (mode: {mode})")
-                return JsonResponse({
-                    'status': 'error',
-                    'error': 'Item not found',
-                    'user_message': f'No item found with barcode: {barcode}. Please check if the barcode is assigned.'
-                }, status=404)
+            return JsonResponse({
+                'status': 'success',
+                'lookup_type': 'barcode',
+                'item': {
+                    'id': item.id,
+                    'name': item.name,
+                    'brand': item.brand or '',
+                    'dosage_form': item.dosage_form or '',
+                    'unit': item.unit or '',
+                    'price': str(item.price),
+                    'cost': str(item.cost),
+                    'stock': str(item.stock),
+                    'barcode': item.barcode or '',
+                    'barcode_type': item.barcode_type or '',
+                    'exp_date': item.exp_date.isoformat() if item.exp_date else None,
+                }
+            })
+        except ItemModel.DoesNotExist:
+            logger.warning(f"Barcode not found: {barcode} (mode: {mode})")
+            
+            # For GS1 barcodes not found, try component-based search
+            if is_gs1:
+                try:
+                    parsed_data = parse_barcode(barcode)
+                    gtin = parsed_data.get('gtin')
+                    
+                    if gtin and len(gtin) >= 8:
+                        # Try finding by GTIN component only
+                        gtin_matches = ItemModel.objects.filter(gtin=gtin)[:3]
+                        if gtin_matches.exists():
+                            return JsonResponse({
+                                'status': 'partial',
+                                'message': f"Exact barcode not found, but found {len(gtin_matches)} item(s) with matching GTIN",
+                                'matches': [
+                                    {
+                                        'id': item.id,
+                                        'name': item.name,
+                                        'brand': item.brand or '',
+                                        'confidence': 'gtin_match'
+                                    }
+                                    for item in gtin_matches
+                                ]
+                            }, status=300)  # Multiple choices status
+                except Exception as e:
+                    logger.error(f"GS1 component search error: {e}")
+            
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Item not found',
+                'user_message': f'No item found with barcode: {barcode}. Please check if the barcode is assigned.',
+                'suggestions': {
+                    'gs1_detected': is_gs1,
+                    'gs1_parsed': parsed_data if is_gs1 else None,
+                    'gtin': gtin if is_gs1 else None
+                }
+            }, status=404)
 
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in barcode lookup: {str(e)}")
