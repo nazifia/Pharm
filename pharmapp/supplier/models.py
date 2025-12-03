@@ -200,6 +200,10 @@ class ProcurementItem(models.Model):
             if self.expiry_date and (not store_item.expiry_date or self.expiry_date > store_item.expiry_date):
                 store_item.expiry_date = self.expiry_date
 
+            # Update barcode if procurement has one and store item doesn't
+            if self.barcode and not store_item.barcode:
+                store_item.barcode = self.barcode
+
             store_item.save()
         else:
             # Create a new item
@@ -211,7 +215,8 @@ class ProcurementItem(models.Model):
                 stock=self.quantity,
                 cost_price=self.cost_price,
                 subtotal=subtotal,
-                expiry_date=self.expiry_date
+                expiry_date=self.expiry_date,
+                barcode=self.barcode
             )
 
     def __str__(self):
@@ -301,6 +306,10 @@ class WholesaleProcurementItem(models.Model):
             if self.expiry_date and (not store_item.expiry_date or self.expiry_date > store_item.expiry_date):
                 store_item.expiry_date = self.expiry_date
 
+            # Update barcode if procurement has one and store item doesn't
+            if self.barcode and not store_item.barcode:
+                store_item.barcode = self.barcode
+
             store_item.save()
             print(f"Successfully updated store item: {self.item_name}, new stock: {store_item.stock}")
         else:
@@ -316,6 +325,7 @@ class WholesaleProcurementItem(models.Model):
                     cost_price=self.cost_price,
                     subtotal=subtotal,
                     expiry_date=self.expiry_date,
+                    barcode=self.barcode,
                     supplier=self.procurement.supplier if hasattr(self.procurement, 'supplier') else None
                 )
                 print(f"Successfully created store item: {self.item_name}, stock: {store_item.stock}")

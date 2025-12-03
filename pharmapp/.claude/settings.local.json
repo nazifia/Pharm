@@ -15,7 +15,8 @@
       "Bash(python:*)",
       "Bash(pip install:*)",
       "Bash(echo:*)",
-      "Bash(node -c:*)"
+      "Bash(node -c:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

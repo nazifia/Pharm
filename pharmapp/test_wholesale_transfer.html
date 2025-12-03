@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Wholesale Transfer Page Diagnostic</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Wholesale Transfer Page Diagnostic Test</h1>
+    <div id="test-results"></div>
+
+    <script>
+        // Wait for the page to load completely
+        setTimeout(function() {
+            const results = [];
+
+            // Test 1: Check initialization console log
+            console.log('[Test] Checking if initialization ran...');
+            results.push('<h3>Test Results:</h3>');
+
+            // Test 2: Check if calculation function exists
+            const calcFunctionExists = typeof window.calculateProcurementValuesWholesale === 'function';
+            results.push(`<p>✓ calculateProcurementValuesWholesale exists: <strong>${calcFunctionExists}</strong></p>`);
+
+            if (calcFunctionExists) {
+                results.push('<p style="color: green;">✅ SUCCESS: Calculation function is defined!</p>');
+            } else {
+                results.push('<p style="color: red;">❌ FAILED: Calculation function is NOT defined</p>');
+            }
+
+            // Test 3: Check document ready state
+            results.push(`<p>✓ Document ready state: <strong>${document.readyState}</strong></p>`);
+
+            // Test 4: Check if we can find edit buttons
+            const editButtons = document.querySelectorAll('.edit-stock-btn-wholesale');
+            results.push(`<p>✓ Edit buttons found: <strong>${editButtons.length}</strong></p>`);
+
+            // Test 5: Check if procurement value elements exist
+            const procValueCells = document.querySelectorAll('.procurement-value');
+            results.push(`<p>✓ Procurement value cells: <strong>${procValueCells.length}</strong></p>`);
+
+            // Test 6: Check if summary elements exist
+            const grandTotalEl = document.getElementById('grand-procurement-total-wholesale');
+            const averageEl = document.getElementById('average-item-value-wholesale');
+            results.push(`<p>✓ Grand total element exists: <strong>${!!grandTotalEl}</strong></p>`);
+            results.push(`<p>✓ Average value element exists: <strong>${!!averageEl}</strong></p>`);
+
+            if (grandTotalEl && averageEl) {
+                results.push(`<p>✓ Grand total value: <strong>₦${grandTotalEl.textContent}</strong></p>`);
+                results.push(`<p>✓ Average value: <strong>₦${averageEl.textContent}</strong></p>`);
+            }
+
+            // Display results
+            document.getElementById('test-results').innerHTML = results.join('');
+
+            // Copy to clipboard for easy pasting
+            const resultsText = results.join('\n').replace(/<[^>]*>/g, '');
+            console.log('[Test Results]\n' + resultsText);
+
+        }, 2000); // Wait 2 seconds for page to fully initialize
+    </script>
+</body>
+</html>

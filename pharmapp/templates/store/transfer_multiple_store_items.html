@@ -754,10 +754,33 @@
   // Feature 2: Edit Stock Quantity
   // ==================================================
   {% if user|can_edit_transfer_item_quantity %}
-  (function() {
-    'use strict';
+  // Wrap in DOMContentLoaded or execute immediately if DOM is already loaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initEditStockFeature);
+  } else {
+    initEditStockFeature();
+  }
 
+  function initEditStockFeature() {
     console.log('[Edit Stock] Feature enabled');
+
+    // Cache modal references
+    const $editStockModal = $('#editStockModal');
+    const editNewStockInput = document.getElementById('edit-new-stock');
+
+    if (!$editStockModal || !editNewStockInput) {
+      console.warn('[Edit Stock] Modal elements not found, retrying...');
+      setTimeout(initEditStockFeature, 100);
+      return;
+    }
+
+    // Set up modal focus handler ONCE (outside click handler)
+    $editStockModal.on('shown.bs.modal', function() {
+      if (editNewStockInput) {
+        editNewStockInput.focus();
+        editNewStockInput.select();
+      }
+    });
 
     // Edit button click handler
     document.addEventListener('click', function(e) {
@@ -781,13 +804,8 @@
         document.getElementById('edit-new-stock').value = currentStock;
         document.getElementById('edit-stock-error').style.display = 'none';
 
-        // Focus on input
-        $('#editStockModal').on('shown.bs.modal', function() {
-          document.getElementById('edit-new-stock').select();
-        });
-
         // Show modal
-        $('#editStockModal').modal('show');
+        $editStockModal.modal('show');
       }
     });
 
@@ -862,11 +880,17 @@
             alert(message);
 
             // Close modal
-            $('#editStockModal').modal('hide');
+            $editStockModal.modal('hide');
 
             // Recalculate procurement values
             if (typeof calculateProcurementValues === 'function') {
               setTimeout(calculateProcurementValues, 100);
+            }
+
+            // Trigger price recalculation for the updated row
+            const row = document.getElementById('store-item-' + itemId);
+            if (row && typeof window.calculateSellingPrice === 'function') {
+              setTimeout(() => window.calculateSellingPrice(row), 150);
             }
 
           } else {
@@ -896,7 +920,9 @@
         }
       });
     }
-  })();
+
+    console.log('[Edit Stock] Initialization complete');
+  }
   {% endif %}
 </script>
 {% include "partials/_transfer_price_calc.js.html" %}

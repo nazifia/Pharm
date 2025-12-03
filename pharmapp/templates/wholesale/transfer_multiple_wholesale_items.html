@@ -107,7 +107,7 @@
             </select>
           </td>
           <td>
-            <input type="number" name="unit_conversion_{{ item.id }}" style="width:100px;" class="form-control unit-conversion" min="1" value="1" step="0.01">
+            <input type="number" name="unit_conversion_{{ item.id }}" style="width:100px;" class="form-control unit-conversion" min="0.01" value="1" step="0.01">
             <small class="text-muted conversion-label">1 {{ item.unit }} = <span class="conversion-value">1</span> <span class="target-unit">{{ item.unit }}</span></small>
           </td>
           <td>
@@ -264,7 +264,16 @@
 </div>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
+  // Wrap in DOMContentLoaded or execute immediately if DOM is already loaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWholesaleTransferFeatures);
+  } else {
+    initWholesaleTransferFeatures();
+  }
+
+  function initWholesaleTransferFeatures() {
+    console.log('[Wholesale Transfer] Initializing features');
+
     // Select All checkbox functionality
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
     const itemCheckboxes = document.querySelectorAll('.item-checkbox');
@@ -414,6 +423,18 @@
     // ============================================
     let currentEditItemId = null;
 
+    // Cache modal references
+    const $editStockModalWholesale = $('#editStockModalWholesale');
+    const newStockWholesaleInput = document.getElementById('new-stock-wholesale');
+
+    // Set up modal focus handler ONCE
+    $editStockModalWholesale.on('shown.bs.modal', function() {
+      if (newStockWholesaleInput) {
+        newStockWholesaleInput.focus();
+        newStockWholesaleInput.select();
+      }
+    });
+
     // Handle click on edit stock buttons
     document.addEventListener('click', function(e) {
       if (e.target.closest('.edit-stock-btn-wholesale')) {
@@ -439,7 +460,7 @@
         errorDiv.textContent = '';
 
         // Show modal
-        $('#editStockModalWholesale').modal('show');
+        $editStockModalWholesale.modal('show');
       }
     });
 
@@ -506,8 +527,14 @@
             window.calculateProcurementValuesWholesale();
           }
 
+          // Trigger price recalculation for the updated row
+          const row = document.getElementById('wholesale-item-' + currentEditItemId);
+          if (row && typeof window.calculateSellingPrice === 'function') {
+            setTimeout(() => window.calculateSellingPrice(row), 150);
+          }
+
           // Close modal
-          $('#editStockModalWholesale').modal('hide');
+          $editStockModalWholesale.modal('hide');
 
           // Show success message (optional - could use toasts or alerts)
           console.log('[Wholesale] Stock updated successfully:', data);
@@ -534,7 +561,9 @@
       const errorDiv = document.getElementById('edit-stock-error-wholesale');
       errorDiv.classList.add('d-none');
     });
-  });
+
+    console.log('[Wholesale Transfer] All features initialized successfully');
+  }
 </script>
 {% include "partials/_transfer_price_calc.js.html" %}
 

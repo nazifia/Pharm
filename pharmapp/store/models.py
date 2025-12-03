@@ -729,6 +729,8 @@ class StoreItem(models.Model):
     expiry_date = models.DateField(null=True, blank=True)
     date = models.DateField(default=datetime.now)
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, null=True, blank=True)
+    barcode = models.CharField(max_length=200, blank=True, null=True, db_index=True,
+                               help_text="Barcode transferred from procurement")
 
     def __str__(self):
         return f"{self.name} ({self.brand}) - {self.stock} in stock"

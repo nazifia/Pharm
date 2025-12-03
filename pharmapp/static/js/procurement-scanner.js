@@ -117,7 +117,26 @@ class ProcurementScanner {
         }
         this.lastScanTime = now;
 
+        // Check if already processing another scan
+        if (this.isProcessing) {
+            console.log('[Scanner] Already processing a scan, ignoring');
+            return;
+        }
+
         console.log('[Scanner] Barcode detected:', barcode);
+
+        // Check for duplicate barcode in existing rows BEFORE API call
+        if (this.mode === 'global') {
+            const existingBarcodes = Array.from(
+                document.querySelectorAll('#item-formset input[name$="-barcode"]')
+            ).map(input => input.value.trim()).filter(val => val);
+
+            if (existingBarcodes.includes(barcode)) {
+                this.showError(`⚠️ Duplicate barcode detected!\n\nBarcode ${barcode} already exists in the form.\n\nPlease scan a different item.`);
+                return;
+            }
+        }
+
         this.showResult('Processing barcode: ' + barcode);
 
         try {
@@ -165,21 +184,107 @@ class ProcurementScanner {
     }
 
     addNewRowWithData(data) {
-        // Trigger the "Add Item" button
-        const addBtn = document.getElementById('add-item');
-        if (!addBtn) {
-            this.showError('Add Item button not found');
+        // Prevent duplicate processing
+        if (this.isProcessing) {
+            console.log('[Scanner] Already processing, ignoring duplicate scan');
             return;
         }
+        this.isProcessing = true;
 
-        addBtn.click();
+        try {
+            const tableBody = document.querySelector('#item-formset tbody');
+            const totalForms = document.querySelector('input[name="form-TOTAL_FORMS"]');
 
-        // Wait for new row to be added to DOM
-        setTimeout(() => {
-            const rows = document.querySelectorAll('#item-formset tbody tr');
-            const newRow = rows[rows.length - 1];
+            if (!totalForms || !tableBody) {
+                this.showError('Form structure not found');
+                this.isProcessing = false;
+                return;
+            }
+
+            const formIdx = parseInt(totalForms.value);
+
+            // Check for duplicate barcode in existing rows
+            const existingBarcodes = Array.from(tableBody.querySelectorAll('input[name$="-barcode"]'))
+                .map(input => input.value.trim())
+                .filter(val => val);
+
+            if (existingBarcodes.includes(data.barcode)) {
+                this.showError(`Barcode ${data.barcode} already exists in the form`);
+                this.isProcessing = false;
+                return;
+            }
+
+            // Clone the last row template
+            const lastRow = tableBody.querySelector('tr:last-child');
+            if (!lastRow) {
+                this.showError('No template row found');
+                this.isProcessing = false;
+                return;
+            }
+
+            const newRow = lastRow.cloneNode(true);
+
+            // Update form field names and IDs for new index
+            newRow.querySelectorAll('input, select, textarea').forEach(input => {
+                if (input.name) {
+                    input.name = input.name.replace(/-\d+-/, `-${formIdx}-`);
+                }
+                if (input.id) {
+                    input.id = input.id.replace(/-\d+-/, `-${formIdx}-`);
+                }
+
+                // Clear values for new row
+                if (input.type !== 'hidden') {
+                    if (input.tagName === 'SELECT') {
+                        input.selectedIndex = 0;
+                    } else {
+                        input.value = '';
+                    }
+                } else if (input.name && input.name.includes('markup')) {
+                    input.value = '0';
+                }
+            });
+
+            // Reset subtotal display
+            const subtotalCell = newRow.querySelector('.subtotal');
+            if (subtotalCell) {
+                subtotalCell.textContent = '₦0.00';
+            }
+
+            // Update scan button data-row-index
+            const scanBtn = newRow.querySelector('.scan-row-btn');
+            if (scanBtn) {
+                scanBtn.setAttribute('data-row-index', formIdx);
+            }
+
+            // Add row to DOM FIRST
+            tableBody.appendChild(newRow);
+
+            // Increment form count
+            totalForms.value = formIdx + 1;
+
+            // NOW populate the row (DOM is ready)
             this.populateRow(newRow, data);
-        }, 150);
+
+            // Setup event listeners for the new row
+            if (typeof addCalculationListeners === 'function') {
+                addCalculationListeners(newRow);
+            }
+            if (typeof setupItemSearch === 'function') {
+                setupItemSearch(newRow);
+            }
+
+            console.log('[Scanner] Row added and populated successfully');
+
+        } catch (error) {
+            console.error('[Scanner] Error adding row:', error);
+            this.showError('Failed to add row: ' + error.message);
+        } finally {
+            // Release processing lock after a small delay
+            setTimeout(() => {
+                this.isProcessing = false;
+            }, 500);
+        }
     }
 
     populateRow(row, data) {
@@ -264,11 +369,22 @@ class ProcurementScanner {
             quantityInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
-        // Visual feedback - highlight row
-        row.classList.add('new-row');
-        setTimeout(() => row.classList.remove('new-row'), 2000);
+        // Enhanced visual feedback - highlight row with success color
+        row.classList.add('new-row', 'table-success');
+        row.style.transition = 'background-color 0.3s ease';
 
-        console.log('[Scanner] Row populated successfully');
+        // Pulse animation with fade out
+        setTimeout(() => {
+            row.classList.remove('table-success');
+        }, 2000);
+
+        setTimeout(() => {
+            row.classList.remove('new-row');
+        }, 2500);
+
+        // Show success toast if available
+        const itemName = (results && results.length > 0) ? results[0].name : 'Item';
+        console.log('[Scanner] Row populated successfully:', itemName);
     }
 
     showResult(message) {
@@ -288,9 +404,33 @@ class ProcurementScanner {
         const resultDiv = document.getElementById('scan-result');
         const errorDiv = document.getElementById('scan-error');
 
+        // Make errors more user-friendly
+        let userMessage = message;
+
+        if (message.includes('already exists') || message.includes('Duplicate')) {
+            // Already formatted with emoji in handleScanSuccess
+            userMessage = message;
+        } else if (message.includes('not found') || message.includes('No results')) {
+            userMessage = `ℹ️ Item not found in database.\n\nBarcode will be saved for this new item.`;
+        } else if (message.includes('camera') || message.includes('permissions')) {
+            userMessage = `📷 Camera access required.\n\nPlease allow camera permissions and try again.`;
+        } else if (message.includes('Failed to start')) {
+            userMessage = `📷 Unable to start camera.\n\nPlease check permissions and try again.`;
+        }
+
         if (errorDiv) {
-            errorDiv.querySelector('.error-text').textContent = message;
+            const errorText = errorDiv.querySelector('.error-text');
+            if (errorText) {
+                errorText.textContent = userMessage;
+            }
             errorDiv.style.display = 'block';
+
+            // Auto-hide error after 5 seconds
+            setTimeout(() => {
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                }
+            }, 5000);
         }
         if (resultDiv) {
             resultDiv.style.display = 'none';

@@ -194,6 +194,9 @@
     });
 
     // Additional backup: periodically check and recalculate if needed
+    // Track which rows have been processed to avoid infinite loops
+    const processedRows = new Set();
+
     setInterval(function() {
       // Only run if there are elements that need calculation but don't have calculated prices
       const rowsNeedingCalculation = document.querySelectorAll('tr').length;
@@ -205,8 +208,24 @@
           if (span.textContent === '0.00') {
             const row = span.closest('tr');
             if (row && row.querySelector('input[name^="select_"]')) {
-              console.log('Found uncalculated price, recalculating...');
-              calculateSellingPrice(row);
+              const selectCheckbox = row.querySelector('input[name^="select_"]');
+              const itemId = selectCheckbox ? selectCheckbox.name : null;
+
+              // Only recalculate if not already processed or if markup/cost changed
+              if (itemId && !processedRows.has(itemId)) {
+                const costInput = row.querySelector('input[name^="cost_"]');
+                const cost = parseFloat((costInput && costInput.value) || '0') || 0;
+
+                // Only recalculate if cost is non-zero (avoid infinite loop on legitimately zero-cost items)
+                if (cost > 0) {
+                  console.log('Found uncalculated price with non-zero cost, recalculating...');
+                  calculateSellingPrice(row);
+                  processedRows.add(itemId);
+                } else {
+                  // Mark as processed to avoid repeated checks
+                  processedRows.add(itemId);
+                }
+              }
             }
           }
         });
