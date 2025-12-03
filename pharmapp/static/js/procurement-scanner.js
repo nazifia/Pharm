@@ -127,7 +127,12 @@ class ProcurementScanner {
                 ? `/wholesale/search-wholesale-item-by-barcode/?barcode=${encodeURIComponent(barcode)}`
                 : `/store/search-item-by-barcode/?barcode=${encodeURIComponent(barcode)}`;
 
-            const response = await fetch(url);
+            const response = await fetch(url, {
+                credentials: 'same-origin',  // Include session cookies for authentication
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'  // Identify as AJAX request
+                }
+            });
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);

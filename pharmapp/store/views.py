@@ -4946,11 +4946,11 @@ def search_item_by_barcode(request):
         response_data = {
             'barcode': barcode,
             'parsed': {
-                'product_name': parsed.get('product_name', ''),
-                'gtin': parsed.get('gtin', ''),
-                'batch_number': parsed.get('batch_number', ''),
-                'expiry_date': parsed.get('expiry_date', ''),
-                'serial_number': parsed.get('serial_number', ''),
+                'product_name': parsed.get('product_name') or '',
+                'gtin': parsed.get('gtin') or '',
+                'batch_number': parsed.get('batch_number') or '',
+                'expiry_date': parsed.get('expiry_date') or '',
+                'serial_number': parsed.get('serial_number') or '',
                 'is_gs1_format': parsed.get('is_gs1_format', False),
                 'confidence': parsed.get('confidence', 0)
             },

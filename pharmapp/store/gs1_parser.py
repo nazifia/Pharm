@@ -381,15 +381,15 @@ class GS1Parser:
         search_terms = []
         
         # Original barcode (highest priority for exact matches)
-        original = barcode_data.get('original_barcode', '').strip()
+        original = (barcode_data.get('original_barcode') or '').strip()
         if original:
             search_terms.append(original)
-        
+
         # GTIN (for GS1-compatible searches)
-        gtin = barcode_data.get('gtin', '').strip()
+        gtin = (barcode_data.get('gtin') or '').strip()
         if gtin and len(gtin) >= 8:
             search_terms.append(gtin)
-        
+
         # GTIN with check digit variations
         if gtin:
             if len(gtin) == 13:  # EAN-13
@@ -398,10 +398,10 @@ class GS1Parser:
             elif len(gtin) == 14:  # ITF-14
                 # Try core 13-digit version
                 search_terms.append(gtin[1:])
-        
+
         # Batch + Serial combination
-        batch = barcode_data.get('batch_number', '').strip()
-        serial = barcode_data.get('serial_number', '').strip()
+        batch = (barcode_data.get('batch_number') or '').strip()
+        serial = (barcode_data.get('serial_number') or '').strip()
         if batch and serial:
             search_terms.append(f"{batch}{serial}")
             search_terms.append(f"{batch}-{serial}")
@@ -414,7 +414,7 @@ class GS1Parser:
             search_terms.append(serial)
         
         # Product name portion
-        product_name = barcode_data.get('product_name', '').strip()
+        product_name = (barcode_data.get('product_name') or '').strip()
         if product_name:
             search_terms.extend(product_name.split())
         
