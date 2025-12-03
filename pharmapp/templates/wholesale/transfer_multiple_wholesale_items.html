@@ -1,4 +1,6 @@
 {% extends "partials/base.html" %}
+{% load permission_tags %}
+{% load store_filters %}
 {% block content %}
 <div class="container mt-4" id="transfer-messages">
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -37,6 +39,7 @@
           <th>Brand</th>
           <th>Unit</th>
           <th>Stock Qty</th>
+          <th>Procurement Value</th>
           <th>Qty to Transfer</th>
           <th>Transfer Unit</th>
           <th>Unit Conversion</th>
@@ -57,7 +60,39 @@
           <td>{{ item.dosage_form }}</td>
           <td>{{ item.brand }}</td>
           <td>{{ item.unit }}</td>
-          <td>{{ item.stock }}</td>
+          <td>
+            {% if user|can_edit_transfer_item_quantity %}
+            <div class="d-flex align-items-center">
+              <span class="stock-display font-weight-bold" id="stock-display-wholesale-{{ item.id }}">
+                {{ item.stock }}
+              </span>
+              <button type="button"
+                      class="btn btn-sm btn-link text-primary edit-stock-btn-wholesale ml-2"
+                      data-item-id="{{ item.id }}"
+                      data-current-stock="{{ item.stock }}"
+                      data-item-name="{{ item.name }}"
+                      data-item-brand="{{ item.brand }}"
+                      data-item-unit="{{ item.unit }}"
+                      data-toggle="tooltip"
+                      title="Edit stock quantity">
+                <i class="fas fa-edit"></i>
+              </button>
+            </div>
+            {% else %}
+            <span class="font-weight-bold">{{ item.stock }}</span>
+            {% endif %}
+          </td>
+          <td class="procurement-value text-center"
+              data-cost="{{ item.cost }}"
+              data-stock="{{ item.stock }}">
+            <span class="badge badge-info badge-lg" style="font-size: 0.95rem;">
+              ₦<span class="item-proc-value">{{ item.cost|multiply:item.stock|floatformat:2 }}</span>
+            </span>
+            <br>
+            <small class="text-muted">
+              ₦{{ item.cost|floatformat:2 }} × {{ item.stock }}
+            </small>
+          </td>
           <td>
             <input type="number" name="quantity_{{ item.id }}" style="width:100px;" class="form-control" min="0" value="0" step="0.5">
           </td>
@@ -149,6 +184,83 @@
     </table>
     <button type="submit" class="btn btn-sm btn-primary">Process Transfers</button>
   </form>
+
+  <!-- Procurement Values Summary Card -->
+  <div class="card mt-4 shadow-sm border-info">
+    <div class="card-header bg-info text-white">
+      <h5 class="mb-0">
+        <i class="fas fa-chart-line"></i> Procurement Values Summary
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4 text-center">
+          <div class="mb-2">
+            <small class="text-muted d-block">Total Items</small>
+            <h3 class="mb-0 text-primary" id="total-items-count-wholesale">{{ wholesale_items.count }}</h3>
+          </div>
+        </div>
+        <div class="col-md-4 text-center">
+          <div class="mb-2">
+            <small class="text-muted d-block">Average Item Value</small>
+            <h4 class="mb-0 text-info">₦<span id="average-item-value-wholesale">0.00</span></h4>
+          </div>
+        </div>
+        <div class="col-md-4 text-center">
+          <div class="mb-2">
+            <small class="text-muted d-block">Grand Total Procurement Value</small>
+            <h2 class="mb-0 text-success">₦<span id="grand-procurement-total-wholesale">0.00</span></h2>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Stock Modal for Wholesale Items -->
+<div class="modal fade" id="editStockModalWholesale" tabindex="-1" role="dialog" aria-labelledby="editStockModalLabelWholesale" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title" id="editStockModalLabelWholesale">
+          <i class="fas fa-edit"></i> Edit Stock Quantity
+        </h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle"></i>
+          <strong>Warning:</strong> This will permanently update the stock quantity in the database. This action is logged for audit purposes.
+        </div>
+
+        <div class="form-group">
+          <label><strong>Item:</strong></label>
+          <p id="edit-item-info-wholesale" class="mb-2"></p>
+        </div>
+
+        <div class="form-group">
+          <label for="current-stock-wholesale"><strong>Current Stock:</strong></label>
+          <input type="text" class="form-control" id="current-stock-wholesale" readonly>
+        </div>
+
+        <div class="form-group">
+          <label for="new-stock-wholesale"><strong>New Stock Quantity:</strong></label>
+          <input type="number" class="form-control" id="new-stock-wholesale" min="0" step="0.1" placeholder="Enter new stock quantity">
+          <small class="form-text text-muted">Enter the new stock quantity. Must be 0 or greater.</small>
+        </div>
+
+        <div id="edit-stock-error-wholesale" class="alert alert-danger d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="save-stock-btn-wholesale">
+          <i class="fas fa-save"></i> Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -230,6 +342,198 @@
       targetUnitSpan.textContent = targetUnit;
       conversionLabel.innerHTML = `1 ${sourceUnit} = <span class="conversion-value">${conversionValue}</span> <span class="target-unit">${targetUnit}</span>`;
     }
+
+    // ============================================
+    // Procurement Values Calculation
+    // ============================================
+    function calculateProcurementValuesWholesale() {
+      let grandTotal = 0;
+      let itemCount = 0;
+
+      // Calculate values for all items
+      document.querySelectorAll('.procurement-value').forEach(function(cell) {
+        const cost = parseFloat(cell.getAttribute('data-cost')) || 0;
+        const stock = parseFloat(cell.getAttribute('data-stock')) || 0;
+        const value = cost * stock;
+
+        // Update the individual item's procurement value display
+        const valueSpan = cell.querySelector('.item-proc-value');
+        if (valueSpan) {
+          valueSpan.textContent = value.toFixed(2);
+        }
+
+        grandTotal += value;
+        itemCount++;
+      });
+
+      // Calculate average
+      const average = itemCount > 0 ? grandTotal / itemCount : 0;
+
+      // Update summary displays
+      const grandTotalElement = document.getElementById('grand-procurement-total-wholesale');
+      const averageElement = document.getElementById('average-item-value-wholesale');
+      const itemCountElement = document.getElementById('total-items-count-wholesale');
+
+      if (grandTotalElement) {
+        grandTotalElement.textContent = grandTotal.toLocaleString('en-NG', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      }
+
+      if (averageElement) {
+        averageElement.textContent = average.toLocaleString('en-NG', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      }
+
+      if (itemCountElement) {
+        itemCountElement.textContent = itemCount;
+      }
+
+      console.log('[Wholesale] Procurement values calculated - Grand Total: ₦' + grandTotal.toFixed(2));
+    }
+
+    // Make function globally accessible for recalculation after updates
+    window.calculateProcurementValuesWholesale = calculateProcurementValuesWholesale;
+
+    // Calculate on initial page load
+    calculateProcurementValuesWholesale();
+
+    // Recalculate after HTMX updates the table
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+      if (event.detail.target.id === 'wholesale-items') {
+        console.log('[Wholesale] HTMX swap detected, recalculating procurement values');
+        setTimeout(calculateProcurementValuesWholesale, 100);
+      }
+    });
+
+    // ============================================
+    // Edit Stock Functionality
+    // ============================================
+    let currentEditItemId = null;
+
+    // Handle click on edit stock buttons
+    document.addEventListener('click', function(e) {
+      if (e.target.closest('.edit-stock-btn-wholesale')) {
+        const btn = e.target.closest('.edit-stock-btn-wholesale');
+        const itemId = btn.getAttribute('data-item-id');
+        const currentStock = btn.getAttribute('data-current-stock');
+        const itemName = btn.getAttribute('data-item-name');
+        const itemBrand = btn.getAttribute('data-item-brand');
+        const itemUnit = btn.getAttribute('data-item-unit');
+
+        // Store the item ID for later use
+        currentEditItemId = itemId;
+
+        // Populate modal fields
+        const itemInfo = `${itemName} ${itemBrand ? '(' + itemBrand + ')' : ''} - Unit: ${itemUnit}`;
+        document.getElementById('edit-item-info-wholesale').textContent = itemInfo;
+        document.getElementById('current-stock-wholesale').value = currentStock;
+        document.getElementById('new-stock-wholesale').value = currentStock;
+
+        // Clear any previous errors
+        const errorDiv = document.getElementById('edit-stock-error-wholesale');
+        errorDiv.classList.add('d-none');
+        errorDiv.textContent = '';
+
+        // Show modal
+        $('#editStockModalWholesale').modal('show');
+      }
+    });
+
+    // Handle save button click
+    document.getElementById('save-stock-btn-wholesale').addEventListener('click', function() {
+      const newStock = document.getElementById('new-stock-wholesale').value;
+      const errorDiv = document.getElementById('edit-stock-error-wholesale');
+
+      // Validation
+      if (!newStock || newStock === '') {
+        errorDiv.textContent = 'Please enter a stock quantity.';
+        errorDiv.classList.remove('d-none');
+        return;
+      }
+
+      const stockValue = parseFloat(newStock);
+      if (isNaN(stockValue) || stockValue < 0) {
+        errorDiv.textContent = 'Stock quantity must be 0 or greater.';
+        errorDiv.classList.remove('d-none');
+        return;
+      }
+
+      // Disable save button during request
+      const saveBtn = this;
+      const originalBtnText = saveBtn.innerHTML;
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+      // Make API request to update stock
+      fetch('{% url "wholesale:update_wholesale_item_quantity" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+          item_id: currentEditItemId,
+          quantity: stockValue
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Update the stock display in the table
+          const stockDisplay = document.getElementById('stock-display-wholesale-' + currentEditItemId);
+          if (stockDisplay) {
+            stockDisplay.textContent = data.new_quantity;
+          }
+
+          // Update the data-stock attribute for procurement value calculation
+          const procurementCell = stockDisplay.closest('tr').querySelector('.procurement-value');
+          if (procurementCell) {
+            procurementCell.setAttribute('data-stock', data.new_quantity);
+          }
+
+          // Update the data-current-stock attribute on the edit button
+          const editBtn = stockDisplay.closest('div').querySelector('.edit-stock-btn-wholesale');
+          if (editBtn) {
+            editBtn.setAttribute('data-current-stock', data.new_quantity);
+          }
+
+          // Recalculate procurement values
+          if (window.calculateProcurementValuesWholesale) {
+            window.calculateProcurementValuesWholesale();
+          }
+
+          // Close modal
+          $('#editStockModalWholesale').modal('hide');
+
+          // Show success message (optional - could use toasts or alerts)
+          console.log('[Wholesale] Stock updated successfully:', data);
+        } else {
+          // Show error message
+          errorDiv.textContent = data.error || 'Failed to update stock quantity.';
+          errorDiv.classList.remove('d-none');
+        }
+      })
+      .catch(error => {
+        console.error('[Wholesale] Error updating stock:', error);
+        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.classList.remove('d-none');
+      })
+      .finally(() => {
+        // Re-enable save button
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalBtnText;
+      });
+    });
+
+    // Clear error when user starts typing
+    document.getElementById('new-stock-wholesale').addEventListener('input', function() {
+      const errorDiv = document.getElementById('edit-stock-error-wholesale');
+      errorDiv.classList.add('d-none');
+    });
   });
 </script>
 {% include "partials/_transfer_price_calc.js.html" %}

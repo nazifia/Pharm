@@ -88,6 +88,10 @@ urlpatterns = [
     path("transfer_request_list/", views.transfer_request_list, name="transfer_request_list"),
     path("transfer/multiple/", views.transfer_multiple_store_items, name="transfer_multiple_store_items"),
 
+    # Barcode and Stock Management APIs
+    path('search-item-by-barcode/', views.search_item_by_barcode, name='search_item_by_barcode'),
+    path('update-store-item-quantity/', views.update_store_item_quantity, name='update_store_item_quantity'),
+
     # Expense URLs
     path('expenses/', views.expense_list, name='expense_list'),
     path('expenses/add/form/', views.add_expense_form, name='add_expense_form'),

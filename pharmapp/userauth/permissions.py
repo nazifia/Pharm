@@ -495,9 +495,37 @@ def can_dispense_items(user):
     """Check if user can dispense items and create payment requests (Dispenser role)"""
     return user.is_authenticated and (
         user.is_superuser or
-        (hasattr(user, 'profile') and user.profile and 
+        (hasattr(user, 'profile') and user.profile and
          user.profile.user_type in ['Admin', 'Manager', 'Pharmacist', 'Pharm-Tech', 'Salesperson'])
     )
+
+def can_edit_transfer_item_quantity(user):
+    """
+    Check if user can edit item quantities directly from transfer pages.
+    This is a sensitive permission that allows direct stock manipulation.
+
+    Restricted to:
+    - Superusers (always)
+    - Admins (via role permission)
+    - Managers (via role permission)
+    - Any user explicitly granted this permission
+
+    Args:
+        user: User object
+
+    Returns:
+        bool: True if user has permission
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    # Superusers bypass all checks
+    if user.is_superuser:
+        return True
+
+    # Check via the unified permission system
+    # This checks both role-based and individual permissions
+    return user.has_permission('edit_transfer_item_quantity')
 
 def is_cashier(user):
     """Check if user is a cashier (dedicated payment processing role)"""

@@ -31,6 +31,9 @@ logger = logging.getLogger(__name__)
 # Import GS1 barcode parser
 from store.gs1_parser import parse_barcode, is_gs1_barcode
 
+# Import ActivityLog for audit trail
+from userauth.models import ActivityLog
+
 # Add this at the top of your views.py if not already present
 def is_superuser(user):
     return user.is_superuser
@@ -3333,6 +3336,198 @@ def wholesale_customers(request):
         return render(request, 'wholesale/wholesale_customers.html', {'customers': customers})
     else:
         return redirect('store:index')
+
+
+@login_required
+def search_wholesale_item_by_barcode(request):
+    """
+    Search for wholesale items by barcode during procurement.
+    Uses GS1 parser for complex barcodes and searches existing inventory.
+
+    Returns:
+        JSON with parsed barcode data and matching items
+    """
+    barcode = request.GET.get('barcode', '').strip()
+
+    if not barcode:
+        return JsonResponse({'error': 'No barcode provided'}, status=400)
+
+    try:
+        from store.gs1_parser import parse_barcode, GS1Parser
+
+        # Parse the barcode (handles GS1 format with AIs)
+        parsed = parse_barcode(barcode)
+
+        # Extract search terms (GTIN, batch, serial, product name)
+        search_terms = GS1Parser.extract_search_terms(parsed)
+
+        # Search strategy: WholesaleItem only
+        results = []
+
+        # Search WholesaleItem
+        for term in search_terms:
+            if not term:
+                continue
+
+            items = WholesaleItem.objects.filter(
+                Q(name__icontains=term) |
+                Q(brand__icontains=term)
+            ).distinct()[:5]
+
+            for item in items:
+                results.append({
+                    'id': item.id,
+                    'name': item.name,
+                    'brand': item.brand or 'None',
+                    'dosage_form': item.dosage_form,
+                    'unit': item.unit,
+                    'cost_price': str(item.cost),
+                    'expiry_date': item.exp_date.isoformat() if item.exp_date else '',
+                    'source': 'wholesale_item',
+                    'match_confidence': 'high'
+                })
+
+            if results:
+                break  # Stop on first match
+
+        # Return comprehensive response
+        response_data = {
+            'barcode': barcode,
+            'parsed': {
+                'product_name': parsed.get('product_name', ''),
+                'gtin': parsed.get('gtin', ''),
+                'batch_number': parsed.get('batch_number', ''),
+                'expiry_date': parsed.get('expiry_date', ''),
+                'serial_number': parsed.get('serial_number', ''),
+                'is_gs1_format': parsed.get('is_gs1_format', False),
+                'confidence': parsed.get('confidence', 0)
+            },
+            'results': results,
+            'found': len(results) > 0,
+            'search_terms_used': [t for t in search_terms if t]
+        }
+
+        return JsonResponse(response_data)
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Barcode lookup failed: {str(e)}', exc_info=True)
+
+        return JsonResponse({
+            'error': f'Barcode lookup failed: {str(e)}',
+            'barcode': barcode
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def update_wholesale_item_quantity(request):
+    """
+    Update WholesaleItem quantity directly from transfer page.
+
+    Requires 'edit_transfer_item_quantity' permission.
+    Uses atomic transaction for data integrity.
+    Logs all changes to ActivityLog.
+
+    Request body (JSON):
+        {
+            "item_id": int,
+            "quantity": decimal
+        }
+
+    Returns:
+        JSON: Success status, old/new quantities, item info
+    """
+    from userauth.permissions import can_edit_transfer_item_quantity
+
+    # Permission check
+    if not can_edit_transfer_item_quantity(request.user):
+        return JsonResponse({
+            'success': False,
+            'error': 'Permission denied. You do not have permission to edit item quantities.'
+        }, status=403)
+
+    try:
+        # Parse request body
+        data = json.loads(request.body)
+        item_id = data.get('item_id')
+        new_quantity = data.get('quantity')
+
+        # Validation
+        if not item_id or new_quantity is None:
+            return JsonResponse({
+                'success': False,
+                'error': 'Missing required fields: item_id and quantity'
+            }, status=400)
+
+        # Convert to Decimal for database compatibility
+        new_quantity = Decimal(str(new_quantity))
+
+        if new_quantity < 0:
+            return JsonResponse({
+                'success': False,
+                'error': 'Quantity cannot be negative'
+            }, status=400)
+
+        # Atomic transaction to prevent race conditions
+        with transaction.atomic():
+            # Lock the row for update (prevents concurrent edits)
+            item = WholesaleItem.objects.select_for_update().get(id=item_id)
+            old_quantity = item.stock
+
+            # Update stock
+            item.stock = new_quantity
+            item.save(update_fields=['stock'])
+
+            # Create activity log for audit trail
+            ActivityLog.objects.create(
+                user=request.user,
+                action='edit_transfer_item_quantity',
+                description=f'Edited wholesale stock quantity: {item.name} ({item.brand}) from {old_quantity} to {new_quantity} {item.unit}',
+                ip_address=request.META.get('REMOTE_ADDR', 'unknown'),
+                user_agent=request.META.get('HTTP_USER_AGENT', 'unknown')[:255]
+            )
+
+        # Success response
+        return JsonResponse({
+            'success': True,
+            'item_id': item_id,
+            'old_quantity': str(old_quantity),
+            'new_quantity': str(new_quantity),
+            'item_name': item.name,
+            'item_brand': item.brand or 'None',
+            'item_unit': item.unit
+        })
+
+    except WholesaleItem.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Item not found'
+        }, status=404)
+
+    except ValueError as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Invalid quantity value: {str(e)}'
+        }, status=400)
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON in request body'
+        }, status=400)
+
+    except Exception as e:
+        # Log unexpected errors
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Stock update failed: {str(e)}', exc_info=True)
+
+        return JsonResponse({
+            'success': False,
+            'error': f'An unexpected error occurred: {str(e)}'
+        }, status=500)
 
 
 @login_required

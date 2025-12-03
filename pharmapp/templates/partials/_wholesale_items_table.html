@@ -1,3 +1,5 @@
+{% load permission_tags %}
+{% load store_filters %}
 {% for item in wholesale_items %}
 <tr id="wholesale-item-{{ item.id }}">
   <td>
@@ -27,7 +29,39 @@
   <td>{{ item.dosage_form }}</td>
   <td>{{ item.brand }}</td>
   <td>{{ item.unit }}</td>
-  <td>{{ item.stock }}</td>
+  <td>
+    {% if user|can_edit_transfer_item_quantity %}
+    <div class="d-flex align-items-center">
+      <span class="stock-display font-weight-bold" id="stock-display-wholesale-{{ item.id }}">
+        {{ item.stock }}
+      </span>
+      <button type="button"
+              class="btn btn-sm btn-link text-primary edit-stock-btn-wholesale ml-2"
+              data-item-id="{{ item.id }}"
+              data-current-stock="{{ item.stock }}"
+              data-item-name="{{ item.name }}"
+              data-item-brand="{{ item.brand }}"
+              data-item-unit="{{ item.unit }}"
+              data-toggle="tooltip"
+              title="Edit stock quantity">
+        <i class="fas fa-edit"></i>
+      </button>
+    </div>
+    {% else %}
+    <span class="font-weight-bold">{{ item.stock }}</span>
+    {% endif %}
+  </td>
+  <td class="procurement-value text-center"
+      data-cost="{{ item.cost }}"
+      data-stock="{{ item.stock }}">
+    <span class="badge badge-info badge-lg" style="font-size: 0.95rem;">
+      ₦<span class="item-proc-value">{{ item.cost|multiply:item.stock|floatformat:2 }}</span>
+    </span>
+    <br>
+    <small class="text-muted">
+      ₦{{ item.cost|floatformat:2 }} × {{ item.stock }}
+    </small>
+  </td>
   <td>
     <input type="number" name="quantity_{{ item.id }}" style="width:100px;" class="form-control" min="0" value="0">
   </td>

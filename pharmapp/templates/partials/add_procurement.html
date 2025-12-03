@@ -1,7 +1,5 @@
 
-
-
-
+{% load static %}
 
 {% block content %}
 <style>
@@ -169,6 +167,18 @@
     <h3 style="text-align: center;"><strong>Procurement Form</strong></h3>
     <a href="{% url 'store:dashboard' %}" class="dashboard-btn"><i class="fas fa-tachometer-alt mr-2"></i>Dashboard</a>
 </div>
+
+<!-- Scanner Control Section -->
+<div class="mb-3 d-flex justify-content-between align-items-center">
+    <button type="button" id="global-scan-btn" class="btn btn-primary btn-sm">
+        <i class="fas fa-barcode"></i> Scan & Add New Item
+    </button>
+    <small class="text-muted">
+        <i class="fas fa-info-circle"></i>
+        Scan barcode to automatically add a new row with pre-filled data
+    </small>
+</div>
+
 {% if request.GET.draft_id %}
 <form method="post" action="{% url 'store:add_procurement' %}?draft_id={{ request.GET.draft_id }}">  <!-- Include draft_id in form action -->
 {% else %}
@@ -219,7 +229,20 @@
                 <td>{{ form.item_name }}</td>
                 <td>{{ form.dosage_form }}</td>
                 <td>{{ form.brand }}</td>
-                <td>{{ form.barcode }}</td>
+                <td>
+                    <div class="input-group" style="width: 220px;">
+                        {{ form.barcode }}
+                        <div class="input-group-append">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary scan-row-btn"
+                                    data-row-index="{{ forloop.counter0 }}"
+                                    data-toggle="tooltip"
+                                    title="Scan barcode for this row">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                        </div>
+                    </div>
+                </td>
                 <td>{{ form.unit }}</td>
                 <td>{{ form.quantity }}</td>
                 <td>{{ form.cost_price }}</td>
@@ -515,4 +538,50 @@
     });
     calculateGrandTotal();
 </script>
+
+<!-- Scanner Modal -->
+<div class="modal fade" id="scannerModal" tabindex="-1" role="dialog" aria-labelledby="scannerModalLabel">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="scannerModalLabel">
+                    <i class="fas fa-camera"></i> Barcode Scanner
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Scanner viewport -->
+                <div id="barcode-scanner" style="width: 100%; height: 400px; border: 2px solid #ddd; border-radius: 5px;"></div>
+
+                <!-- Scan feedback -->
+                <div id="scan-result" class="mt-3 alert alert-success" style="display: none;">
+                    <i class="fas fa-check-circle"></i> <span class="result-text"></span>
+                </div>
+                <div id="scan-error" class="mt-3 alert alert-danger" style="display: none;">
+                    <i class="fas fa-exclamation-circle"></i> <span class="error-text"></span>
+                </div>
+
+                <!-- Instructions -->
+                <div class="mt-3">
+                    <h6>Instructions:</h6>
+                    <ul class="small">
+                        <li>Allow camera access when prompted</li>
+                        <li>Point camera at barcode, hold steady</li>
+                        <li>Scanner will auto-detect and process</li>
+                        <li>Modal will close after successful scan</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Load procurement scanner -->
+<script src="{% static 'js/procurement-scanner.js' %}"></script>
+
 {% endblock %}

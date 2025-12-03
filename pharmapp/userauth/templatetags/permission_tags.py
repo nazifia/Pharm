@@ -556,3 +556,25 @@ def can_process_payments(user):
              user.profile and
              user.profile.user_type in ['Admin', 'Manager', 'Cashier']) or
             hasattr(user, 'cashier'))
+
+@register.filter
+def can_edit_transfer_item_quantity(user):
+    """
+    Template filter to check if user can edit item quantities on transfer pages.
+
+    Usage in templates:
+        {% if user|can_edit_transfer_item_quantity %}
+            <!-- Show edit button -->
+        {% endif %}
+
+    Args:
+        user: User object from template context
+
+    Returns:
+        bool: True if user has edit permission
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    from userauth.permissions import can_edit_transfer_item_quantity
+    return can_edit_transfer_item_quantity(user)

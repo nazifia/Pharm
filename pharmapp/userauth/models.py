@@ -31,7 +31,9 @@ USER_PERMISSIONS = {
         'operate_all', 'manage_all_customers', 'manage_all_procurement',
         'manage_all_stock_checks', 'manage_all_expiry',
         # Specific procurement permissions
-        'manage_retail_procurement', 'manage_wholesale_procurement', 'view_procurement_history'
+        'manage_retail_procurement', 'manage_wholesale_procurement', 'view_procurement_history',
+        # Stock editing permission
+        'edit_transfer_item_quantity'
     ],
     'Manager': [
         'view_financial_reports', 'manage_inventory', 'process_sales', 'view_reports',
@@ -43,7 +45,9 @@ USER_PERMISSIONS = {
         'operate_all', 'manage_all_customers', 'manage_all_procurement',
         'manage_all_stock_checks', 'manage_all_expiry',
         # Specific procurement permissions
-        'manage_retail_procurement', 'manage_wholesale_procurement', 'view_procurement_history'
+        'manage_retail_procurement', 'manage_wholesale_procurement', 'view_procurement_history',
+        # Stock editing permission
+        'edit_transfer_item_quantity'
     ],
     'Pharmacist': [
         'manage_inventory', 'dispense_medication', 'process_sales', 'adjust_prices',

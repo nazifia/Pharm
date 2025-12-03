@@ -99,6 +99,10 @@ urlpatterns = [
     # Wholesale Transfer URL
     path('transfer/multiple/', views.transfer_multiple_wholesale_items, name='transfer_multiple_wholesale_items'),
 
+    # Barcode and Stock Management APIs
+    path('search-wholesale-item-by-barcode/', views.search_wholesale_item_by_barcode, name='search_wholesale_item_by_barcode'),
+    path('update-wholesale-item-quantity/', views.update_wholesale_item_quantity, name='update_wholesale_item_quantity'),
+
     # Cashier Payment Totals
     path('cashier_payment_totals/', views.cashier_payment_totals, name='cashier_payment_totals'),
 
