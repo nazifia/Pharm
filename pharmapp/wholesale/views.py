@@ -3483,8 +3483,10 @@ def update_wholesale_item_quantity(request):
             # Create activity log for audit trail
             ActivityLog.objects.create(
                 user=request.user,
-                action='edit_transfer_item_quantity',
-                description=f'Edited wholesale stock quantity: {item.name} ({item.brand}) from {old_quantity} to {new_quantity} {item.unit}',
+                action=f'Edited wholesale stock quantity: {item.name} ({item.brand}) from {old_quantity} to {new_quantity} {item.unit}',
+                action_type='stock_edit',
+                target_model='WholesaleItem',
+                target_id=str(item_id),
                 ip_address=request.META.get('REMOTE_ADDR', 'unknown'),
                 user_agent=request.META.get('HTTP_USER_AGENT', 'unknown')[:255]
             )

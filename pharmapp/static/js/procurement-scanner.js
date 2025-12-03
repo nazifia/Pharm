@@ -121,8 +121,12 @@ class ProcurementScanner {
         this.showResult('Processing barcode: ' + barcode);
 
         try {
-            // Call API to lookup barcode
-            const url = `/store/search-item-by-barcode/?barcode=${encodeURIComponent(barcode)}`;
+            // Detect if we're on wholesale or retail page
+            const isWholesale = window.location.pathname.includes('/wholesale/');
+            const url = isWholesale
+                ? `/wholesale/search-wholesale-item-by-barcode/?barcode=${encodeURIComponent(barcode)}`
+                : `/store/search-item-by-barcode/?barcode=${encodeURIComponent(barcode)}`;
+
             const response = await fetch(url);
 
             if (!response.ok) {
