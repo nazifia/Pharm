@@ -16,7 +16,9 @@
       "Bash(pip install:*)",
       "Bash(echo:*)",
       "Bash(node -c:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

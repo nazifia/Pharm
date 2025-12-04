@@ -1,3 +1,4 @@
+import json
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
@@ -3066,9 +3067,290 @@ def search_wholesale_items_for_procurement(request):
         return JsonResponse({'results': []})
 
 
+# @login_required
+# def transfer_multiple_wholesale_items(request):
+#     """View for transferring multiple wholesale items at once"""
+#     if request.user.is_authenticated:
+#         if request.method == "GET":
+#             search_query = request.GET.get("search", "").strip()
+#             if search_query:
+#                 wholesale_items = WholesaleItem.objects.filter(
+#                     Q(name__icontains=search_query) | 
+#                     Q(brand__icontains=search_query)
+#                 ).distinct().order_by('name')
+#             else:
+#                 wholesale_items = WholesaleItem.objects.all().order_by('name')
+
+#             # Check if there are any items to display
+#             if not wholesale_items.exists():
+#                 messages.info(request, "No items found in wholesale. Please add items to wholesale first.")
+
+#             # Get unit choices from the UNIT constant
+#             unit_choices = UNIT
+
+#             # If this is an HTMX request triggered by search, return only the table body
+#             if request.headers.get("HX-Request") and "search" in request.GET:
+#                 return render(request, "partials/_wholesale_items_table.html", {
+#                     "wholesale_items": wholesale_items,
+#                     "unit_choices": unit_choices
+#                 })
+
+#             return render(request, "wholesale/transfer_multiple_wholesale_items.html", {
+#                 "wholesale_items": wholesale_items,
+#                 "unit_choices": unit_choices
+#             })
+
+#         elif request.method == "POST":
+#             processed_items = []
+#             errors = []
+#             wholesale_items = list(WholesaleItem.objects.all())  # materialize the queryset
+
+#             for item in wholesale_items:
+#                 # Process only items that have been selected.
+#                 if request.POST.get(f'select_{item.id}') == 'on':
+#                     try:
+#                         qty = float(request.POST.get(f'quantity_{item.id}', 0))
+#                         markup = float(request.POST.get(f'markup_{item.id}', 0))
+#                         transfer_unit = request.POST.get(f'transfer_unit_{item.id}', item.unit)
+#                         unit_conversion = float(request.POST.get(f'unit_conversion_{item.id}', 1))
+#                         price_override = request.POST.get(f'price_override_{item.id}') == 'on'
+#                         manual_price = float(request.POST.get(f'manual_price_{item.id}', 0)) if price_override else 0
+
+#                     except (ValueError, TypeError):
+#                         errors.append(f"Invalid input for {item.name}.")
+#                         continue
+
+#                     destination = request.POST.get(f'destination_{item.id}', '')
+
+#                     if qty <= 0:
+#                         errors.append(f"Quantity must be positive for {item.name}.")
+#                         continue
+#                     if item.stock < qty:
+#                         errors.append(f"Not enough stock for {item.name}.")
+#                         continue
+#                     if destination not in ['retail', 'store']:
+#                         errors.append(f"Invalid destination for {item.name}.")
+#                         continue
+#                     if transfer_unit not in [unit[0] for unit in UNIT]:
+#                         errors.append(f"Invalid unit for {item.name}.")
+#                         continue
+#                     if unit_conversion <= 0:
+#                         errors.append(f"Unit conversion must be positive for {item.name}.")
+#                         continue
+
+#                     # Get the original cost
+#                     original_cost = item.cost
+
+#                     # Calculate the destination quantity using the unit conversion
+#                     # Convert both values to Decimal to avoid type errors
+#                     dest_qty_per_source = Decimal(str(unit_conversion))
+
+#                     # Adjust the cost based on the unit conversion
+#                     # If converting from higher to lower unit (e.g., box to tablet), divide cost by conversion factor
+#                     # If converting from lower to higher unit (e.g., tablet to box), multiply cost by conversion factor
+#                     # The cost per unit should remain consistent
+#                     if dest_qty_per_source > 1:  # Converting from higher to lower unit
+#                         # For example: 1 box = 100 tablets, so cost per tablet = box_cost / 100
+#                         adjusted_cost = original_cost / dest_qty_per_source
+#                     else:  # Converting from lower to higher unit or same unit
+#                         # For example: 100 tablets = 1 box, so cost per box = tablet_cost * 100
+#                         adjusted_cost = original_cost * (Decimal('1') / dest_qty_per_source) if dest_qty_per_source > 0 else original_cost
+
+#                     # Use the adjusted cost for price calculations
+#                     cost = adjusted_cost
+#                     if price_override:
+#                         new_price = Decimal(str(manual_price))
+#                     else:
+#                         new_price = cost + (cost * Decimal(markup) / Decimal(100))
+
+#                     # Calculate the final destination quantity (source quantity * conversion factor)
+#                     dest_qty = Decimal(str(qty)) * dest_qty_per_source
+
+#                     # Process transfer for this item using 3-step matching logic.
+#                     if destination == "retail":
+#                         # Step 1: Try exact match (name + brand + unit)
+#                         exact_matches = Item.objects.filter(
+#                             name=item.name,
+#                             brand=item.brand,
+#                             unit=transfer_unit
+#                         )
+
+#                         if exact_matches.exists():
+#                             dest_item = exact_matches.first()
+#                             created = False
+#                         else:
+#                             # Step 2: Try similar match (name + brand, different unit)
+#                             similar_items = Item.objects.filter(
+#                                 name=item.name,
+#                                 brand=item.brand
+#                             )
+
+#                             if similar_items.exists():
+#                                 dest_item = similar_items.first()
+#                                 dest_item.unit = transfer_unit  # Update to new unit
+#                                 created = False
+#                             else:
+#                                 # Step 3: Create new item
+#                                 dest_item = Item.objects.create(
+#                                     name=item.name,
+#                                     brand=item.brand,
+#                                     unit=transfer_unit,
+#                                     dosage_form=item.dosage_form,
+#                                     cost=cost,
+#                                     price=new_price,
+#                                     markup=markup,
+#                                     stock=0,
+#                                     exp_date=item.exp_date
+#                                 )
+#                                 created = True
+
+#                     else:  # destination == "store"
+#                         # Step 1: Try exact match (name + brand + unit)
+#                         exact_matches = StoreItem.objects.filter(
+#                             name=item.name,
+#                             brand=item.brand,
+#                             unit=transfer_unit
+#                         )
+
+#                         if exact_matches.exists():
+#                             dest_item = exact_matches.first()
+#                             created = False
+#                         else:
+#                             # Step 2: Try similar match (name + brand, different unit)
+#                             similar_items = StoreItem.objects.filter(
+#                                 name=item.name,
+#                                 brand=item.brand
+#                             )
+
+#                             if similar_items.exists():
+#                                 dest_item = similar_items.first()
+#                                 dest_item.unit = transfer_unit  # Update to new unit
+#                                 created = False
+#                             else:
+#                                 # Step 3: Create new item
+#                                 dest_item = StoreItem.objects.create(
+#                                     name=item.name,
+#                                     brand=item.brand,
+#                                     unit=transfer_unit,
+#                                     dosage_form=item.dosage_form,
+#                                     cost_price=cost,  # Note: cost_price for StoreItem
+#                                     stock=0,
+#                                     expiry_date=item.exp_date  # Note: expiry_date for StoreItem
+#                                 )
+#                                 created = True
+
+#                     # Update the destination item's stock and key fields.
+#                     dest_item.stock += dest_qty
+#                     if destination == "retail":
+#                         dest_item.cost = cost
+#                         if price_override:
+#                             dest_item.price = new_price
+#                         else:
+#                             dest_item.markup = markup
+#                             dest_item.price = new_price
+
+#                         # Update expiry date if source has later date
+#                         if item.exp_date and (not dest_item.exp_date or item.exp_date > dest_item.exp_date):
+#                             dest_item.exp_date = item.exp_date
+#                     else:  # destination == "store"
+#                         dest_item.cost_price = cost
+#                         dest_item.subtotal = dest_item.cost_price * dest_item.stock
+
+#                         # Update expiry date if source has later date
+#                         if item.exp_date and (not dest_item.expiry_date or item.exp_date > dest_item.expiry_date):
+#                             dest_item.expiry_date = item.exp_date
+#                     dest_item.save()
+
+#                     # Deduct the transferred quantity from the wholesale item.
+#                     # Convert qty to Decimal to avoid type mismatch with item.stock
+#                     item.stock -= Decimal(str(qty))
+
+#                     # Check if stock reached zero and handle deletion
+#                     if item.stock <= Decimal('0'):
+#                         item_name = item.name
+#                         item_unit = item.unit
+#                         item.delete()
+
+#                         # Create detailed message for deleted item
+#                         price_info = f"Price manually set to {new_price:.2f}" if price_override else f"Price calculated as {new_price:.2f} ({markup}% markup)"
+#                         processed_items.append({
+#                             "name": item_name,
+#                             "qty": qty,
+#                             "unit": item_unit,
+#                             "destination": destination,
+#                             "dest_qty": dest_qty,
+#                             "original_cost": original_cost,
+#                             "adjusted_cost": cost,
+#                             "transfer_unit": transfer_unit,
+#                             "created": created,
+#                             "deleted": True,
+#                             "price_info": price_info
+#                         })
+#                     else:
+#                         item.save()
+
+#                         # Create message for updated item
+#                         price_info = f"Price manually set to {new_price:.2f}" if price_override else f"Price calculated as {new_price:.2f} ({markup}% markup)"
+#                         processed_items.append({
+#                             "name": item.name,
+#                             "qty": qty,
+#                             "unit": item.unit,
+#                             "destination": destination,
+#                             "dest_qty": dest_qty,
+#                             "original_cost": original_cost,
+#                             "adjusted_cost": cost,
+#                             "transfer_unit": transfer_unit,
+#                             "created": created,
+#                             "deleted": False,
+#                             "price_info": price_info
+#                         })
+
+#             # Display success or error messages.
+#             if processed_items:
+#                 for item in processed_items:
+#                     if item.get('deleted', False):
+#                         messages.success(
+#                             request,
+#                             f"Transferred {item['qty']} {item['unit']} of {item['name']} to {item['destination']} as {item['dest_qty']} {item['transfer_unit']} "
+#                             f"and removed from wholesale (stock reached zero). "
+#                             f"Item was {'created' if item['created'] else 'updated'} in {item['destination']}. "
+#                             f"Cost adjusted from {item['original_cost']:.2f} to {item['adjusted_cost']:.2f} per {item['transfer_unit']}. {item['price_info']}"
+#                         )
+#                     else:
+#                         messages.success(
+#                             request,
+#                             f"Transferred {item['qty']} {item['unit']} of {item['name']} to {item['destination']} as {item['dest_qty']} {item['transfer_unit']}. "
+#                             f"Item was {'created' if item['created'] else 'updated'} in {item['destination']}. "
+#                             f"Cost adjusted from {item['original_cost']:.2f} to {item['adjusted_cost']:.2f} per {item['transfer_unit']}. {item['price_info']}"
+#                         )
+#             if errors:
+#                 for error in errors:
+#                     messages.error(request, error)
+
+#             # Refresh the wholesale items after processing.
+#             wholesale_items = WholesaleItem.objects.all()
+
+#             # Get unit choices from the UNIT constant
+#             unit_choices = UNIT
+
+#             if request.headers.get('HX-request'):
+#                 return render(request, "partials/_transfer_multiple_wholesale_items.html", {
+#                     "wholesale_items": wholesale_items,
+#                     "unit_choices": unit_choices
+#                 })
+#             else:
+#                 return render(request, "wholesale/transfer_multiple_wholesale_items.html", {
+#                     "wholesale_items": wholesale_items,
+#                     "unit_choices": unit_choices
+#                 })
+
+#         return JsonResponse({"success": False, "message": "Invalid request method."}, status=400)
+#     else:
+#         return redirect('store:index')
+
+
 @login_required
 def transfer_multiple_wholesale_items(request):
-    """View for transferring multiple wholesale items at once"""
     if request.user.is_authenticated:
         if request.method == "GET":
             search_query = request.GET.get("search", "").strip()
@@ -3082,7 +3364,7 @@ def transfer_multiple_wholesale_items(request):
 
             # Check if there are any items to display
             if not wholesale_items.exists():
-                messages.info(request, "No items found in wholesale. Please add items to wholesale first.")
+                messages.info(request, "No items found in the store. Please add items to the store through procurement or direct entry first.")
 
             # Get unit choices from the UNIT constant
             unit_choices = UNIT
@@ -3114,7 +3396,6 @@ def transfer_multiple_wholesale_items(request):
                         unit_conversion = float(request.POST.get(f'unit_conversion_{item.id}', 1))
                         price_override = request.POST.get(f'price_override_{item.id}') == 'on'
                         manual_price = float(request.POST.get(f'manual_price_{item.id}', 0)) if price_override else 0
-
                     except (ValueError, TypeError):
                         errors.append(f"Invalid input for {item.name}.")
                         continue
@@ -3127,7 +3408,7 @@ def transfer_multiple_wholesale_items(request):
                     if item.stock < qty:
                         errors.append(f"Not enough stock for {item.name}.")
                         continue
-                    if destination not in ['retail', 'store']:
+                    if destination not in ['retail', 'wholesale']:
                         errors.append(f"Invalid destination for {item.name}.")
                         continue
                     if transfer_unit not in [unit[0] for unit in UNIT]:
@@ -3138,7 +3419,7 @@ def transfer_multiple_wholesale_items(request):
                         continue
 
                     # Get the original cost
-                    original_cost = item.cost
+                    original_cost = item.cost_price
 
                     # Calculate the destination quantity using the unit conversion
                     # Convert both values to Decimal to avoid type errors
@@ -3158,86 +3439,143 @@ def transfer_multiple_wholesale_items(request):
                     # Use the adjusted cost for price calculations
                     cost = adjusted_cost
                     if price_override:
+                        # Use the manually entered price
                         new_price = Decimal(str(manual_price))
                     else:
+                        # Calculate price based on cost and markup
                         new_price = cost + (cost * Decimal(markup) / Decimal(100))
+
+                    # Process transfer for this item.
+                    if destination == "retail":
+                        # First, try to find an exact match (same name, brand, and unit)
+                        exact_matches = WholesaleItem.objects.filter(
+                            name=item.name,
+                            brand=item.brand,
+                            unit=transfer_unit
+                        )
+
+                        if exact_matches.exists():
+                            # Use the existing item with exact match
+                            dest_item = exact_matches.first()
+                            created = False
+                        else:
+                            # If no exact match, look for items with same name but different unit
+                            similar_items = WholesaleItem.objects.filter(
+                                name=item.name,
+                                brand=item.brand
+                            )
+
+                            if similar_items.exists():
+                                # Use the first similar item but update its unit
+                                dest_item = similar_items.first()
+                                dest_item.unit = transfer_unit
+                                created = False
+                            else:
+                                # Create a new item if no match found
+                                dest_item = WholesaleItem.objects.create(
+                                    name=item.name,
+                                    brand=item.brand,
+                                    unit=transfer_unit,
+                                    dosage_form=item.dosage_form,
+                                    cost=cost,
+                                    price=new_price,
+                                    markup=markup,
+                                    stock=0,
+                                    exp_date=item.expiry_date
+                                )
+                                created = True
+                    else:  # destination == "wholesale"
+                        # First, try to find an exact match (same name, brand, and unit)
+                        exact_matches = WholesaleItem.objects.filter(
+                            name=item.name,
+                            brand=item.brand,
+                            unit=transfer_unit
+                        )
+
+                        if exact_matches.exists():
+                            # Use the existing item with exact match
+                            dest_item = exact_matches.first()
+                            created = False
+                        else:
+                            # If no exact match, look for items with same name but different unit
+                            similar_items = WholesaleItem.objects.filter(
+                                name=item.name,
+                                brand=item.brand
+                            )
+
+                            if similar_items.exists():
+                                # Use the first similar item but update its unit
+                                dest_item = similar_items.first()
+                                dest_item.unit = transfer_unit
+                                created = False
+                            else:
+                                # Create a new item if no match found
+                                dest_item = WholesaleItem.objects.create(
+                                    name=item.name,
+                                    brand=item.brand,
+                                    unit=transfer_unit,
+                                    dosage_form=item.dosage_form,
+                                    cost=cost,
+                                    price=new_price,
+                                    markup=markup,
+                                    stock=0,
+                                    exp_date=item.expiry_date
+                                )
+                                created = True
 
                     # Calculate the final destination quantity (source quantity * conversion factor)
                     dest_qty = Decimal(str(qty)) * dest_qty_per_source
 
-                    # Process transfer for this item.
-                    if destination == "retail":
-                        dest_item, created = Item.objects.get_or_create(
-                            name=item.name,
-                            brand=item.brand,
-                            unit=transfer_unit,  # Use the selected transfer unit
-                            defaults={
-                                "dosage_form": item.dosage_form,
-                                "cost": cost,
-                                "price": new_price,
-                                "markup": markup,
-                                "stock": 0,
-                                "exp_date": item.exp_date,
-                            }
-                        )
-                    else:  # destination == "store"
-                        dest_item, created = StoreItem.objects.get_or_create(
-                            name=item.name,
-                            brand=item.brand,
-                            unit=transfer_unit,  # Use the selected transfer unit
-                            dosage_form=item.dosage_form,
-                            cost_price=cost,
-                            defaults={
-                                "subtotal": cost * dest_qty,
-                                "stock": 0,
-                                "expiry_date": item.exp_date,
-                            }
-                        )
-
                     # Update the destination item's stock and key fields.
                     dest_item.stock += dest_qty
-                    if destination == "retail":
-                        dest_item.cost = cost
-                        if price_override:
-                            dest_item.price = new_price
-                        else:
-                            dest_item.markup = markup
-                            dest_item.price = new_price
-                    else:  # destination == "store"
-                        dest_item.cost_price = cost
-                        dest_item.subtotal = dest_item.cost_price * dest_item.stock
+
+                    # Always update the cost price
+                    dest_item.cost = cost
+
+                    # Update price based on override or markup
+                    if price_override:
+                        # Use the manually entered price
+                        dest_item.price = new_price
+                    elif markup > 0:
+                        # Only update markup and price if explicitly requested or if it's a new item
+                        dest_item.markup = markup
+                        dest_item.price = new_price
+
+                    # Update expiry date if the source item has a later expiry date
+                    if item.expiry_date and (not hasattr(dest_item, 'exp_date') or not dest_item.exp_date or item.expiry_date > dest_item.exp_date):
+                        dest_item.exp_date = item.expiry_date
+
                     dest_item.save()
 
-                    # Deduct the transferred quantity from the wholesale item.
+                    # Deduct the transferred quantity from the store item.
                     # Convert qty to Decimal to avoid type mismatch with item.stock
                     item.stock -= Decimal(str(qty))
                     item.save()
 
-                    processed_items.append({
-                        "name": item.name,
-                        "qty": qty,
-                        "destination": destination,
-                        "dest_qty": dest_qty,
-                        "original_cost": original_cost,
-                        "adjusted_cost": cost,
-                        "transfer_unit": transfer_unit,
-                        "created": created
-                    })
+                    # Remove the store item if its stock is zero or less.
+                    if item.stock <= Decimal('0'):
+                        item.delete()
+                        price_info = f"Price manually set to {new_price:.2f}" if price_override else f"Price calculated as {new_price:.2f} ({markup}% markup)"
+                        processed_items.append(
+                            f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit} and removed {item.name} from the store (stock reached zero). "
+                            f"Item was {'created' if created else 'updated'} in {destination}. "
+                            f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}. {price_info}"
+                        )
+                    else:
+                        price_info = f"Price manually set to {new_price:.2f}" if price_override else f"Price calculated as {new_price:.2f} ({markup}% markup)"
+                        processed_items.append(
+                            f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit}. "
+                            f"Item was {'created' if created else 'updated'} in {destination}. "
+                            f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}. {price_info}"
+                        )
 
-            # Display success or error messages.
-            if processed_items:
-                for item in processed_items:
-                    messages.success(
-                        request,
-                        f"Transferred {item['qty']} of {item['name']} to {item['destination']} as {item['dest_qty']} {item['transfer_unit']}. "
-                        f"Item was {'created' if item['created'] else 'updated'} in {item['destination']}. "
-                        f"Cost adjusted from {item['original_cost']:.2f} to {item['adjusted_cost']:.2f} per {item['transfer_unit']}."
-                    )
-            if errors:
-                for error in errors:
-                    messages.error(request, error)
+            # Use Django's messages framework to show errors/success messages.
+            for error in errors:
+                messages.error(request, error)
+            for msg in processed_items:
+                messages.success(request, msg)
 
-            # Refresh the wholesale items after processing.
+            # Refresh the store items after processing.
             wholesale_items = WholesaleItem.objects.all()
 
             # Get unit choices from the UNIT constant
@@ -3257,6 +3595,10 @@ def transfer_multiple_wholesale_items(request):
         return JsonResponse({"success": False, "message": "Invalid request method."}, status=400)
     else:
         return redirect('store:index')
+
+
+
+
 
 
 
@@ -5653,19 +5995,30 @@ def cashier_payment_totals(request):
 
 
 # QR Code Generation Views for Wholesale
-import sys
-sys.path.insert(0, '../store')
-from store.qr_utils import (
-    generate_qr_code_base64,
-    generate_item_qr_data,
-    generate_receipt_qr_data,
-    generate_item_label_base64
-)
+# QR Code Generation
+# Lazy imports moved to individual functions to prevent blocking module load if qrcode is unavailable
+# import sys
+# sys.path.insert(0, '../store')
+# from store.qr_utils import (
+#     generate_qr_code_base64,
+#     generate_item_qr_data,
+#     generate_receipt_qr_data,
+#     generate_item_label_base64
+# )
 
 @login_required
 @require_http_methods(['GET'])
 def generate_wholesale_item_qr(request, item_id):
     """Generate QR code for a specific wholesale item"""
+    # Lazy import to avoid blocking module load
+    try:
+        from store.qr_utils import generate_qr_code_base64, generate_item_qr_data
+    except ImportError:
+        return JsonResponse({
+            'success': False,
+            'error': 'QR code generation not available. Please install qrcode package.'
+        }, status=500)
+
     try:
         item = get_object_or_404(WholesaleItem, id=item_id)
         qr_data = generate_item_qr_data(item, mode='wholesale')
@@ -5692,10 +6045,19 @@ def generate_wholesale_item_qr(request, item_id):
 @require_http_methods(['GET'])
 def generate_wholesale_item_label(request, item_id):
     """Generate printable QR code label for a wholesale item"""
+    # Lazy import to avoid blocking module load
+    try:
+        from store.qr_utils import generate_item_label_base64
+    except ImportError:
+        return JsonResponse({
+            'success': False,
+            'error': 'QR code generation not available. Please install qrcode package.'
+        }, status=500)
+
     try:
         item = get_object_or_404(WholesaleItem, id=item_id)
         include_price = request.GET.get('include_price', 'true').lower() == 'true'
-        
+
         label_image = generate_item_label_base64(item, mode='wholesale', include_price=include_price)
         
         return JsonResponse({
@@ -5717,6 +6079,15 @@ def generate_wholesale_item_label(request, item_id):
 @require_http_methods(['GET'])
 def generate_wholesale_receipt_qr(request, receipt_id):
     """Generate QR code for a specific wholesale receipt"""
+    # Lazy import to avoid blocking module load
+    try:
+        from store.qr_utils import generate_qr_code_base64, generate_receipt_qr_data
+    except ImportError:
+        return JsonResponse({
+            'success': False,
+            'error': 'QR code generation not available. Please install qrcode package.'
+        }, status=500)
+
     try:
         receipt = get_object_or_404(WholesaleReceipt, id=receipt_id)
         qr_data = generate_receipt_qr_data(receipt, mode='wholesale')
@@ -5755,10 +6126,19 @@ def print_wholesale_item_labels(request):
 @require_http_methods(['POST'])
 def bulk_generate_wholesale_labels(request):
     """Generate multiple wholesale item labels at once"""
+    # Lazy import to avoid blocking module load
+    try:
+        from store.qr_utils import generate_item_label_base64
+    except ImportError:
+        return JsonResponse({
+            'success': False,
+            'error': 'QR code generation not available. Please install qrcode package.'
+        }, status=500)
+
     try:
         item_ids = request.POST.getlist('item_ids[]')
         include_price = request.POST.get('include_price', 'true').lower() == 'true'
-        
+
         labels = []
         for item_id in item_ids:
             try:

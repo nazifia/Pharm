@@ -7626,17 +7626,21 @@ def supplier_stats_api(request, supplier_id):
 
 
 # QR Code Generation Views
-from .qr_utils import (
-    generate_qr_code_base64,
-    generate_item_qr_data,
-    generate_receipt_qr_data,
-    generate_item_label_base64
-)
+# Lazy imports moved to individual functions to prevent blocking module load if qrcode is unavailable
 
 @login_required
 @require_http_methods(['GET'])
 def generate_item_qr(request, item_id):
     """Generate QR code for a specific item"""
+    # Lazy import to avoid blocking module load
+    try:
+        from .qr_utils import generate_qr_code_base64, generate_item_qr_data
+    except ImportError:
+        return JsonResponse({
+            'success': False,
+            'error': 'QR code generation not available. Please install qrcode package.'
+        }, status=500)
+
     try:
         item = get_object_or_404(Item, id=item_id)
         qr_data = generate_item_qr_data(item, mode='retail')
@@ -7663,10 +7667,19 @@ def generate_item_qr(request, item_id):
 @require_http_methods(['GET'])
 def generate_item_label(request, item_id):
     """Generate printable QR code label for an item"""
+    # Lazy import to avoid blocking module load
+    try:
+        from .qr_utils import generate_item_label_base64
+    except ImportError:
+        return JsonResponse({
+            'success': False,
+            'error': 'QR code generation not available. Please install qrcode package.'
+        }, status=500)
+
     try:
         item = get_object_or_404(Item, id=item_id)
         include_price = request.GET.get('include_price', 'true').lower() == 'true'
-        
+
         label_image = generate_item_label_base64(item, mode='retail', include_price=include_price)
         
         return JsonResponse({
@@ -7688,6 +7701,15 @@ def generate_item_label(request, item_id):
 @require_http_methods(['GET'])
 def generate_receipt_qr(request, receipt_id):
     """Generate QR code for a specific receipt"""
+    # Lazy import to avoid blocking module load
+    try:
+        from .qr_utils import generate_qr_code_base64, generate_receipt_qr_data
+    except ImportError:
+        return JsonResponse({
+            'success': False,
+            'error': 'QR code generation not available. Please install qrcode package.'
+        }, status=500)
+
     try:
         receipt = get_object_or_404(Receipt, id=receipt_id)
         qr_data = generate_receipt_qr_data(receipt, mode='retail')
@@ -7725,10 +7747,19 @@ def print_item_labels(request):
 @require_http_methods(['POST'])
 def bulk_generate_labels(request):
     """Generate multiple item labels at once"""
+    # Lazy import to avoid blocking module load
+    try:
+        from .qr_utils import generate_item_label_base64
+    except ImportError:
+        return JsonResponse({
+            'success': False,
+            'error': 'QR code generation not available. Please install qrcode package.'
+        }, status=500)
+
     try:
         item_ids = request.POST.getlist('item_ids[]')
         include_price = request.POST.get('include_price', 'true').lower() == 'true'
-        
+
         labels = []
         for item_id in item_ids:
             try:
