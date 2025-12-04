@@ -559,28 +559,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Barcode scanner callback for retail - Using new cart integration system
-console.log('[Dispense] Setting up barcode callback with cart integration');
+// Barcode scanner callback for retail - Define immediately for camera scanning
+console.log('[Dispense] Setting up barcode callback');
 
-// Wait for cart integration module to load
-function initializeRetailBarcodeHandler() {
-    if (typeof BarcodeCartIntegration === 'undefined') {
-        console.log('[Dispense] Waiting for BarcodeCartIntegration module...');
-        setTimeout(initializeRetailBarcodeHandler, 100);
-        return;
-    }
+// Prevent barcode-cart-integration.js from auto-initializing and overwriting our callback
+window.barcodeCartHandler = true;
 
-    // Initialize cart handler for retail mode
-    window.barcodeCartHandler = new BarcodeCartIntegration({
-        mode: 'retail',
-        autoAdd: false,  // Don't auto-add, show item first
-        showNotifications: true
-    });
-
-    console.log('[Dispense] BarcodeCartIntegration initialized for retail');
-
-    // Custom callback that combines search and highlighting
-    window.onBarcodeItemFound = function(item, barcode) {
+// Define callback immediately so camera scanning works without delay
+window.onBarcodeItemFound = function(item, barcode) {
         console.log('*** BARCODE SCANNER CALLBACK TRIGGERED ***');
         console.log('[Dispense] Barcode scanned:', barcode, 'Item:', item);
 
@@ -638,13 +624,9 @@ function initializeRetailBarcodeHandler() {
                 'info'
             );
         }
-    };
+};
 
-    console.log('[Dispense] Barcode callback initialized');
-}
-
-// Initialize the retail barcode handler
-initializeRetailBarcodeHandler();
+console.log('[Dispense] Barcode callback initialized');
 
 // Function to highlight the scanned item in search results
 function highlightScannedItem(itemId) {
