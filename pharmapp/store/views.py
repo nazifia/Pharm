@@ -285,10 +285,13 @@ def logout_user(request):
 def store(request):
     if request.user.is_authenticated:
         from userauth.permissions import can_operate_retail
+        from django.db.models import Sum, F, DecimalField, ExpressionWrapper
+        from decimal import Decimal
+
         if not can_operate_retail(request.user):
             messages.error(request, 'You do not have permission to access retail operations.')
             return redirect('store:index')
-        items = Item.objects.all().order_by('name')
+
         settings = StoreSettings.get_settings()
 
         if request.method == 'POST' and request.user.is_superuser:
@@ -304,8 +307,13 @@ def store(request):
         # Use the threshold from settings
         low_stock_threshold = settings.low_stock_threshold
 
-        # Identify low-stock items using the threshold from settings
-        low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
+        # PERFORMANCE OPTIMIZATION: Use database queries instead of loading all items
+        items = Item.objects.all().order_by('name')
+
+        # Use database filtering for low stock items (not Python loop)
+        low_stock_items = Item.objects.filter(
+            stock__lte=low_stock_threshold
+        ).order_by('stock', 'name')
 
         context = {
             'items': items,
@@ -316,10 +324,24 @@ def store(request):
 
         # Only include financial data if user has permission
         if request.user.has_permission('view_financial_reports'):
-            from decimal import Decimal
-            # Calculate values using the threshold from settings
-            total_purchase_value = sum(item.cost * Decimal(item.stock) for item in items)
-            total_stock_value = sum(item.price * Decimal(item.stock) for item in items)
+            # PERFORMANCE OPTIMIZATION: Use database aggregation instead of Python loops
+            financial_data = Item.objects.aggregate(
+                total_purchase_value=Sum(
+                    ExpressionWrapper(
+                        F('cost') * F('stock'),
+                        output_field=DecimalField()
+                    )
+                ),
+                total_stock_value=Sum(
+                    ExpressionWrapper(
+                        F('price') * F('stock'),
+                        output_field=DecimalField()
+                    )
+                )
+            )
+
+            total_purchase_value = financial_data['total_purchase_value'] or Decimal('0')
+            total_stock_value = financial_data['total_stock_value'] or Decimal('0')
             total_profit = total_stock_value - total_purchase_value
 
             context.update({
@@ -4502,8 +4524,24 @@ def dispensing_log_stats(request):
 @never_cache
 def receipt_list(request):
     if request.user.is_authenticated:
-        receipts = Receipt.objects.all().order_by('-date')  # Order by date, latest first
-        return render(request, 'partials/receipt_list.html', {'receipts': receipts})
+        from django.core.paginator import Paginator
+
+        # PERFORMANCE OPTIMIZATION: Add select_related for foreign keys to avoid N+1 queries
+        receipts_queryset = Receipt.objects.select_related(
+            'customer', 'cashier', 'dispensed_by'
+        ).prefetch_related(
+            'payment_methods'
+        ).order_by('-date')
+
+        # Add pagination (50 receipts per page)
+        paginator = Paginator(receipts_queryset, 50)
+        page_number = request.GET.get('page', 1)
+        receipts = paginator.get_page(page_number)
+
+        return render(request, 'partials/receipt_list.html', {
+            'receipts': receipts,
+            'is_paginated': paginator.num_pages > 1
+        })
     else:
         return redirect('store:index')
 
@@ -4556,12 +4594,15 @@ def exp_date_alert(request):
 
         expired_items = Item.objects.filter(exp_date__lt=datetime.now())
 
+        # PERFORMANCE OPTIMIZATION: Use bulk_update instead of individual saves
+        items_to_update = []
         for expired_item in expired_items:
-
             if expired_item.stock > 0:
-
                 expired_item.stock = 0
-                expired_item.save()
+                items_to_update.append(expired_item)
+
+        if items_to_update:
+            Item.objects.bulk_update(items_to_update, ['stock'])
 
         return render(request, 'partials/exp_date_alert.html', {
             'expired_items': expired_items,

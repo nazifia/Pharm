@@ -18,7 +18,8 @@
       "Bash(node -c:*)",
       "Bash(cat:*)",
       "Bash(xargs grep:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(del test_transfer.py)"
     ],
     "deny": [],
     "ask": []

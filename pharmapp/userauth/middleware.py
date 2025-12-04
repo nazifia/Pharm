@@ -14,38 +14,65 @@ class ActivityMiddleware(MiddlewareMixin):
     """
     Middleware to automatically log user activities.
     Records detailed information about user actions for auditing and monitoring.
+
+    PERFORMANCE OPTIMIZATION: Only logs significant actions (POST/PUT/PATCH/DELETE),
+    skips routine GET requests to reduce database writes.
     """
+
+    # Paths that should always be logged even for GET requests
+    IMPORTANT_GET_PATHS = [
+        '/admin/',
+        '/export/',
+        '/download/',
+        '/report/',
+    ]
+
+    # Paths that should never be logged
+    SKIP_PATHS = [
+        '/static/',
+        '/media/',
+        '/api/health/',
+        '/favicon.ico',
+        '/manifest.json',
+        '/__debug__/',
+    ]
+
     def process_request(self, request):
         # Only log for authenticated users
         if request.user.is_authenticated:
-            # Skip logging for static and media files
-            if not (request.path.startswith('/static/') or request.path.startswith('/media/')):
-                # Determine action type based on request method
-                if request.method == 'GET':
-                    action_type = 'VIEW'
-                elif request.method == 'POST':
-                    if 'delete' in request.path.lower():
-                        action_type = 'DELETE'
-                    elif 'create' in request.path.lower() or 'add' in request.path.lower():
-                        action_type = 'CREATE'
-                    elif 'edit' in request.path.lower() or 'update' in request.path.lower():
-                        action_type = 'UPDATE'
-                    elif 'login' in request.path.lower():
-                        action_type = 'LOGIN'
-                    elif 'logout' in request.path.lower():
-                        action_type = 'LOGOUT'
-                    elif 'transfer' in request.path.lower():
-                        action_type = 'TRANSFER'
-                    elif 'payment' in request.path.lower() or 'receipt' in request.path.lower():
-                        action_type = 'PAYMENT'
-                    elif 'export' in request.path.lower():
-                        action_type = 'EXPORT'
-                    elif 'import' in request.path.lower():
-                        action_type = 'IMPORT'
-                    else:
-                        action_type = 'OTHER'
+            # Skip logging for certain paths
+            if any(request.path.startswith(path) for path in self.SKIP_PATHS):
+                return None
+
+            # Skip most GET requests (only log important views)
+            if request.method == 'GET':
+                # Only log if path matches important patterns
+                if not any(pattern in request.path for pattern in self.IMPORTANT_GET_PATHS):
+                    return None
+                action_type = 'VIEW'
+            elif request.method == 'POST':
+                if 'delete' in request.path.lower():
+                    action_type = 'DELETE'
+                elif 'create' in request.path.lower() or 'add' in request.path.lower():
+                    action_type = 'CREATE'
+                elif 'edit' in request.path.lower() or 'update' in request.path.lower():
+                    action_type = 'UPDATE'
+                elif 'login' in request.path.lower():
+                    action_type = 'LOGIN'
+                elif 'logout' in request.path.lower():
+                    action_type = 'LOGOUT'
+                elif 'transfer' in request.path.lower():
+                    action_type = 'TRANSFER'
+                elif 'payment' in request.path.lower() or 'receipt' in request.path.lower():
+                    action_type = 'PAYMENT'
+                elif 'export' in request.path.lower():
+                    action_type = 'EXPORT'
+                elif 'import' in request.path.lower():
+                    action_type = 'IMPORT'
                 else:
                     action_type = 'OTHER'
+            else:
+                action_type = 'OTHER'
 
                 # Create a more descriptive action
                 action = f"{request.method} {request.path}"

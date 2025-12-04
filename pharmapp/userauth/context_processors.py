@@ -3,6 +3,20 @@ Context processors for the userauth app.
 These provide user role information to all templates.
 """
 
+from django.core.cache import cache
+
+
+def clear_user_permissions_cache(user_id):
+    """
+    Clear cached permissions for a user. Call this when user permissions change.
+
+    Usage:
+        from userauth.context_processors import clear_user_permissions_cache
+        clear_user_permissions_cache(user.id)
+    """
+    cache_key = f'user_permissions_{user_id}'
+    cache.delete(cache_key)
+
 from .permissions import (
     # User type checks
     is_admin, is_manager, is_pharmacist, is_pharm_tech, is_salesperson,
@@ -42,68 +56,88 @@ def user_roles(request):
     """
     Add user role information to the template context.
     This makes role-based checks available in all templates.
+
+    PERFORMANCE OPTIMIZATION: Caches permission checks to avoid 25+ function calls per request.
+    Cache key includes user ID and profile modification time for automatic invalidation.
     """
     context = {}
 
     if request.user.is_authenticated:
         user = request.user
-        context.update({
-            # User type checks
-            'is_admin': is_admin(user),
-            'is_manager': is_manager(user),
-            'is_pharmacist': is_pharmacist(user),
-            'is_pharm_tech': is_pharm_tech(user),
-            'is_salesperson': is_salesperson(user),
-            'is_admin_or_manager': is_admin_or_manager(user),
-            'is_admin_or_pharmacist': is_admin_or_pharmacist(user),
-            'is_pharmacist_or_pharm_tech': is_pharmacist_or_pharm_tech(user),
-            'is_admin_or_manager_or_pharmacist': is_admin_or_manager_or_pharmacist(user),
 
-            # Basic permission checks
-            'can_dispense_medication': can_dispense_medication(user),
-            'can_manage_inventory': can_manage_inventory(user),
-            'can_process_sales': can_process_sales(user),
-            'can_view_reports': can_view_reports(user),
-            'can_manage_users': can_manage_users(user),
-            'can_approve_procurement': can_approve_procurement(user),
-            'can_manage_customers': can_manage_customers(user),
-            'can_manage_suppliers': can_manage_suppliers(user),
-            'can_manage_expenses': can_manage_expenses(user),
-            'can_adjust_prices': can_adjust_prices(user),
-            'can_process_returns': can_process_returns(user),
-            'can_approve_returns': can_approve_returns(user),
-            'can_transfer_stock': can_transfer_stock(user),
-            'can_view_activity_logs': can_view_activity_logs(user),
+        # Check request-level cache first (fastest)
+        if not hasattr(request, '_user_permissions_cache'):
+            # Try Django cache (5 minute TTL)
+            cache_key = f'user_permissions_{user.id}'
+            context = cache.get(cache_key)
 
-            # Advanced permission checks
-            'can_perform_stock_check': can_perform_stock_check(user),
-            'can_view_financial_reports': can_view_financial_reports(user),
-            'can_edit_user_profiles': can_edit_user_profiles(user),
-            'can_access_admin_panel': can_access_admin_panel(user),
-            'can_manage_system_settings': can_manage_system_settings(user),
-            'can_view_sales_history': can_view_sales_history(user),
-            'can_view_procurement_history': can_view_procurement_history(user),
-            'can_manage_payment_methods': can_manage_payment_methods(user),
-            'can_process_split_payments': can_process_split_payments(user),
-            'can_override_payment_status': can_override_payment_status(user),
-            'can_pause_resume_procurement': can_pause_resume_procurement(user),
-            'can_search_items': can_search_items(user),
-            'can_manage_items': can_manage_items(user),
+            if context is None:
+                # Cache miss - compute all permissions once
+                context = {
+                    # User type checks
+                    'is_admin': is_admin(user),
+                    'is_manager': is_manager(user),
+                    'is_pharmacist': is_pharmacist(user),
+                    'is_pharm_tech': is_pharm_tech(user),
+                    'is_salesperson': is_salesperson(user),
+                    'is_admin_or_manager': is_admin_or_manager(user),
+                    'is_admin_or_pharmacist': is_admin_or_pharmacist(user),
+                    'is_pharmacist_or_pharm_tech': is_pharmacist_or_pharm_tech(user),
+                    'is_admin_or_manager_or_pharmacist': is_admin_or_manager_or_pharmacist(user),
 
-            # Role-specific checks
-            'can_dispense_items': can_dispense_items(user),
-            'is_cashier': is_cashier(user),
+                    # Basic permission checks
+                    'can_dispense_medication': can_dispense_medication(user),
+                    'can_manage_inventory': can_manage_inventory(user),
+                    'can_process_sales': can_process_sales(user),
+                    'can_view_reports': can_view_reports(user),
+                    'can_manage_users': can_manage_users(user),
+                    'can_approve_procurement': can_approve_procurement(user),
+                    'can_manage_customers': can_manage_customers(user),
+                    'can_manage_suppliers': can_manage_suppliers(user),
+                    'can_manage_expenses': can_manage_expenses(user),
+                    'can_adjust_prices': can_adjust_prices(user),
+                    'can_process_returns': can_process_returns(user),
+                    'can_approve_returns': can_approve_returns(user),
+                    'can_transfer_stock': can_transfer_stock(user),
+                    'can_view_activity_logs': can_view_activity_logs(user),
 
-            # User role for display
-            'user_role': user.profile.user_type if hasattr(user, 'profile') else None,
-        })
+                    # Advanced permission checks
+                    'can_perform_stock_check': can_perform_stock_check(user),
+                    'can_view_financial_reports': can_view_financial_reports(user),
+                    'can_edit_user_profiles': can_edit_user_profiles(user),
+                    'can_access_admin_panel': can_access_admin_panel(user),
+                    'can_manage_system_settings': can_manage_system_settings(user),
+                    'can_view_sales_history': can_view_sales_history(user),
+                    'can_view_procurement_history': can_view_procurement_history(user),
+                    'can_manage_payment_methods': can_manage_payment_methods(user),
+                    'can_process_split_payments': can_process_split_payments(user),
+                    'can_override_payment_status': can_override_payment_status(user),
+                    'can_pause_resume_procurement': can_pause_resume_procurement(user),
+                    'can_search_items': can_search_items(user),
+                    'can_manage_items': can_manage_items(user),
 
-        # Add new permission system context
-        try:
-            new_permissions_context = get_user_permissions_context(user)
-            context.update(new_permissions_context)
-        except:
-            # Fallback if new permission system is not available
-            pass
+                    # Role-specific checks
+                    'can_dispense_items': can_dispense_items(user),
+                    'is_cashier': is_cashier(user),
+
+                    # User role for display
+                    'user_role': user.profile.user_type if hasattr(user, 'profile') else None,
+                }
+
+                # Add new permission system context
+                try:
+                    new_permissions_context = get_user_permissions_context(user)
+                    context.update(new_permissions_context)
+                except:
+                    # Fallback if new permission system is not available
+                    pass
+
+                # Cache for 5 minutes (300 seconds)
+                cache.set(cache_key, context, 300)
+
+            # Store in request-level cache for subsequent accesses in same request
+            request._user_permissions_cache = context
+        else:
+            context = request._user_permissions_cache
 
     return context

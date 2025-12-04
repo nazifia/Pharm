@@ -129,8 +129,8 @@ class Item(models.Model):
     cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     markup = models.DecimalField(max_digits=6, decimal_places=2, default=0, choices=MARKUP_CHOICES)
-    stock = models.PositiveIntegerField(default=0, null=True, blank=True)
-    low_stock_threshold = models.PositiveIntegerField(default=0, null=True, blank=True)
+    stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, null=True, blank=True)
+    low_stock_threshold = models.DecimalField(max_digits=10, decimal_places=2, default=0, null=True, blank=True)
     exp_date = models.DateField(null=True, blank=True)
     barcode = models.CharField(max_length=200, blank=True, null=True, db_index=True, help_text="Primary barcode (UPC/EAN-13/Code-128/QR)")
     barcode_type = models.CharField(max_length=20, choices=[

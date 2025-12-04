@@ -142,23 +142,29 @@ def wholesale_dashboard(request):
     """
     if request.user.is_authenticated:
         from userauth.permissions import can_operate_wholesale
+        from django.db.models import ExpressionWrapper, DecimalField
+
         if not can_operate_wholesale(request.user):
             messages.error(request, 'You do not have permission to access wholesale operations.')
             return redirect('store:index')
 
         from customer.models import WholesaleCustomer
 
-        # Get wholesale items and statistics
-        items = WholesaleItem.objects.all()
+        # Get settings
         settings = WholesaleSettings.get_settings()
         low_stock_threshold = settings.low_stock_threshold
 
-        # Calculate statistics
-        total_items = items.count()
-        low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
-        low_stock_count = len(low_stock_items)
-        in_stock_items = items.filter(stock__gt=0).count()
-        out_of_stock = items.filter(stock=0).count()
+        # PERFORMANCE OPTIMIZATION: Use database queries for statistics
+        total_items = WholesaleItem.objects.count()
+
+        # Use database filtering for low stock items (not Python loop)
+        low_stock_items = WholesaleItem.objects.filter(
+            stock__lte=low_stock_threshold
+        ).order_by('stock', 'name')
+        low_stock_count = low_stock_items.count()
+
+        in_stock_items = WholesaleItem.objects.filter(stock__gt=0).count()
+        out_of_stock = WholesaleItem.objects.filter(stock=0).count()
 
         # Get wholesale customers count
         total_customers = WholesaleCustomer.objects.count()
@@ -175,8 +181,24 @@ def wholesale_dashboard(request):
 
         # Only include financial data if user has permission
         if request.user.has_permission('view_financial_reports'):
-            total_purchase_value = sum(item.cost * item.stock for item in items)
-            total_stock_value = sum(item.price * item.stock for item in items)
+            # PERFORMANCE OPTIMIZATION: Use database aggregation instead of Python loops
+            financial_data = WholesaleItem.objects.aggregate(
+                total_purchase_value=Sum(
+                    ExpressionWrapper(
+                        F('cost') * F('stock'),
+                        output_field=DecimalField()
+                    )
+                ),
+                total_stock_value=Sum(
+                    ExpressionWrapper(
+                        F('price') * F('stock'),
+                        output_field=DecimalField()
+                    )
+                )
+            )
+
+            total_purchase_value = financial_data['total_purchase_value'] or Decimal('0')
+            total_stock_value = financial_data['total_stock_value'] or Decimal('0')
             total_profit = total_stock_value - total_purchase_value
 
             context.update({
@@ -3166,7 +3188,7 @@ def transfer_multiple_wholesale_items(request):
 
                     # Process transfer for this item.
                     if destination == "retail":
-                        # First, try to find an exact match (same name, brand, and unit)
+                        # Try to find an exact match (same name, brand, and unit)
                         exact_matches = Item.objects.filter(
                             name=item.name,
                             brand=item.brand,
@@ -3174,79 +3196,66 @@ def transfer_multiple_wholesale_items(request):
                         )
 
                         if exact_matches.exists():
-                            # Use the existing item with exact match
+                            # Update the existing item with exact match
                             dest_item = exact_matches.first()
                             created = False
                         else:
-                            # If no exact match, look for items with same name but different unit
-                            similar_items = Item.objects.filter(
+                            # Create a new item if no exact match found
+                            dest_item = Item.objects.create(
                                 name=item.name,
-                                brand=item.brand
+                                brand=item.brand,
+                                unit=transfer_unit,
+                                dosage_form=item.dosage_form,
+                                cost=cost,
+                                price=new_price,
+                                markup=markup,
+                                stock=0,
+                                exp_date=item.exp_date
                             )
-
-                            if similar_items.exists():
-                                # Use the first similar item but update its unit
-                                dest_item = similar_items.first()
-                                dest_item.unit = transfer_unit
-                                created = False
-                            else:
-                                # Create a new item if no match found
-                                dest_item = Item.objects.create(
-                                    name=item.name,
-                                    brand=item.brand,
-                                    unit=transfer_unit,
-                                    dosage_form=item.dosage_form,
-                                    cost=cost,
-                                    price=new_price,
-                                    markup=markup,
-                                    stock=0,
-                                    exp_date=item.exp_date
-                                )
-                                created = True
+                            created = True
                     else:  # destination == "wholesale"
-                        # First, try to find an exact match (same name, brand, and unit)
+                        # Try to find an exact match (same name, brand, and unit)
+                        # Exclude the source item to prevent transferring to itself
                         exact_matches = WholesaleItem.objects.filter(
                             name=item.name,
                             brand=item.brand,
                             unit=transfer_unit
-                        )
+                        ).exclude(id=item.id)
 
                         if exact_matches.exists():
-                            # Use the existing item with exact match
+                            # Update the existing item with exact match
                             dest_item = exact_matches.first()
                             created = False
                         else:
-                            # If no exact match, look for items with same name but different unit
-                            similar_items = WholesaleItem.objects.filter(
+                            # Create a new item if no exact match found
+                            dest_item = WholesaleItem.objects.create(
                                 name=item.name,
-                                brand=item.brand
+                                brand=item.brand,
+                                unit=transfer_unit,
+                                dosage_form=item.dosage_form,
+                                cost=cost,
+                                price=new_price,
+                                markup=markup,
+                                stock=0,
+                                exp_date=item.exp_date
                             )
-
-                            if similar_items.exists():
-                                # Use the first similar item but update its unit
-                                dest_item = similar_items.first()
-                                dest_item.unit = transfer_unit
-                                created = False
-                            else:
-                                # Create a new item if no match found
-                                dest_item = WholesaleItem.objects.create(
-                                    name=item.name,
-                                    brand=item.brand,
-                                    unit=transfer_unit,
-                                    dosage_form=item.dosage_form,
-                                    cost=cost,
-                                    price=new_price,
-                                    markup=markup,
-                                    stock=0,
-                                    exp_date=item.exp_date
-                                )
-                                created = True
+                            created = True
 
                     # Calculate the final destination quantity (source quantity * conversion factor)
                     dest_qty = Decimal(str(qty)) * dest_qty_per_source
 
+                    # Debug logging
+                    print(f"[TRANSFER DEBUG] Item: {item.name}")
+                    print(f"[TRANSFER DEBUG] qty from form: {qty}")
+                    print(f"[TRANSFER DEBUG] unit_conversion: {unit_conversion}")
+                    print(f"[TRANSFER DEBUG] dest_qty_per_source: {dest_qty_per_source}")
+                    print(f"[TRANSFER DEBUG] calculated dest_qty: {dest_qty}")
+                    print(f"[TRANSFER DEBUG] dest_item.stock BEFORE: {dest_item.stock}")
+
                     # Update the destination item's stock and key fields.
                     dest_item.stock += dest_qty
+
+                    print(f"[TRANSFER DEBUG] dest_item.stock AFTER: {dest_item.stock}")
 
                     # Always update the cost price
                     dest_item.cost = cost

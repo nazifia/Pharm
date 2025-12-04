@@ -158,8 +158,8 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'unique-snowflake',
         'OPTIONS': {
-            'MAX_ENTRIES': 2000,
-            'CULL_FREQUENCY': 3,
+            'MAX_ENTRIES': 5000,  # Increased from 2000 for better caching
+            'CULL_FREQUENCY': 4,  # Changed from 3 to reduce eviction frequency (removes 1/4 when full)
         }
     }
 }
