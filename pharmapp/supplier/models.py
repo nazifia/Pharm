@@ -327,7 +327,7 @@ class WholesaleProcurementItem(models.Model):
 
                 wholesale_item.save()
                 logger.info(f"Successfully updated wholesale item: {self.item_name}, new stock: {wholesale_item.stock}")
-                print(f"✓ Updated wholesale item: {self.item_name}, new stock: {wholesale_item.stock}")
+                print(f"[OK] Updated wholesale item: {self.item_name}, new stock: {wholesale_item.stock}")
             else:
                 # Create a new item
                 # Calculate selling price based on markup
@@ -349,10 +349,10 @@ class WholesaleProcurementItem(models.Model):
                     barcode=self.barcode
                 )
                 logger.info(f"Successfully created wholesale item: {self.item_name}, stock: {wholesale_item.stock}")
-                print(f"✓ Created wholesale item: {self.item_name}, stock: {wholesale_item.stock}")
+                print(f"[OK] Created wholesale item: {self.item_name}, stock: {wholesale_item.stock}")
         except Exception as e:
             logger.error(f"Error in move_to_store for {self.item_name}: {e}", exc_info=True)
-            print(f"✗ Error creating/updating wholesale item {self.item_name}: {e}")
+            print(f"[ERROR] Failed to create/update wholesale item {self.item_name}: {e}")
             raise  # Re-raise the exception so it's not silently swallowed
 
     def __str__(self):

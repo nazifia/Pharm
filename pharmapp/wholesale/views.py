@@ -3138,7 +3138,7 @@ def transfer_multiple_wholesale_items(request):
                         continue
 
                     # Get the original cost
-                    original_cost = item.cost_price
+                    original_cost = item.cost
 
                     # Calculate the destination quantity using the unit conversion
                     # Convert both values to Decimal to avoid type errors
@@ -3200,7 +3200,7 @@ def transfer_multiple_wholesale_items(request):
                                     price=new_price,
                                     markup=markup,
                                     stock=0,
-                                    exp_date=item.expiry_date
+                                    exp_date=item.exp_date
                                 )
                                 created = True
                     else:  # destination == "wholesale"
@@ -3238,7 +3238,7 @@ def transfer_multiple_wholesale_items(request):
                                     price=new_price,
                                     markup=markup,
                                     stock=0,
-                                    exp_date=item.expiry_date
+                                    exp_date=item.exp_date
                                 )
                                 created = True
 
@@ -3261,8 +3261,8 @@ def transfer_multiple_wholesale_items(request):
                         dest_item.price = new_price
 
                     # Update expiry date if the source item has a later expiry date
-                    if item.expiry_date and (not hasattr(dest_item, 'exp_date') or not dest_item.exp_date or item.expiry_date > dest_item.exp_date):
-                        dest_item.exp_date = item.expiry_date
+                    if item.exp_date and (not hasattr(dest_item, 'exp_date') or not dest_item.exp_date or item.exp_date > dest_item.exp_date):
+                        dest_item.exp_date = item.exp_date
 
                     dest_item.save()
 
