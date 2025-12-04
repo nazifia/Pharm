@@ -293,9 +293,9 @@
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Stock Transfers:</h6>
                         <a class="collapse-item" href="{% url 'store:transfer_multiple_store_items' %}">
-                            <i class="fas fa-exchange-alt"></i> Move Retail Items</a>
-                        <a class="collapse-item" href="{% url 'wholesale:transfer_multiple_wholesale_items' %}">
-                            <i class="fas fa-exchange-alt"></i> Move Wholesale Items</a>
+                            <i class="fas fa-exchange-alt"></i> Move Store Items</a>
+                        {% comment %} <a class="collapse-item" href="{% url 'wholesale:transfer_multiple_wholesale_items' %}">
+                            <i class="fas fa-exchange-alt"></i> Move Wholesale Items</a> {% endcomment %}
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Quality Control:</h6>
                         <a class="collapse-item" href="{% url 'store:create_stock_check' %}">
@@ -425,7 +425,7 @@
                         <a class="collapse-item" href="{% url 'store:supplier_list' %}">
                             <i class="fas fa-list"></i> Supplier List</a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Procurement (Retail):</h6>
+                        <h6 class="collapse-header">Procurement :</h6>
                         <a class="collapse-item" href="{% url 'store:add_procurement' %}">
                             <i class="fas fa-plus"></i> New Procurement</a>
                         <a class="collapse-item" href="{% url 'store:procurement_list' %}">
@@ -433,13 +433,13 @@
                         <a class="collapse-item" href="{% url 'store:search_procurement' %}">
                             <i class="fas fa-search"></i> Search Procurement</a>
                         <div class="collapse-divider"></div>
-                        <h6 class="collapse-header">Procurement (Wholesale):</h6>
+                        {% comment %} <h6 class="collapse-header">Procurement (Wholesale):</h6>
                         <a class="collapse-item" href="{% url 'wholesale:add_wholesale_procurement' %}">
                             <i class="fas fa-plus"></i> New Procurement</a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_procurement_list' %}">
                             <i class="fas fa-list"></i> Procurement List</a>
                         <a class="collapse-item" href="{% url 'wholesale:search_wholesale_procurement' %}">
-                            <i class="fas fa-search"></i> Search Procurement</a>
+                            <i class="fas fa-search"></i> Search Procurement</a> {% endcomment %}
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Analytics:</h6>
                         <a class="collapse-item" href="{% url 'store:supplier_monthly_analytics' %}">
