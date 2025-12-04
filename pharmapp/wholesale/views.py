@@ -3188,7 +3188,7 @@ def transfer_multiple_wholesale_items(request):
 
                     # Process transfer for this item.
                     if destination == "retail":
-                        # Try to find an exact match (same name, brand, and unit)
+                        # First, try to find an exact match (same name, brand, and unit)
                         exact_matches = Item.objects.filter(
                             name=item.name,
                             brand=item.brand,
@@ -3196,50 +3196,80 @@ def transfer_multiple_wholesale_items(request):
                         )
 
                         if exact_matches.exists():
-                            # Update the existing item with exact match
+                            # Use the existing item with exact match
                             dest_item = exact_matches.first()
                             created = False
                         else:
-                            # Create a new item if no exact match found
-                            dest_item = Item.objects.create(
+                            # If no exact match, look for items with same name and brand but different unit
+                            similar_items = Item.objects.filter(
                                 name=item.name,
-                                brand=item.brand,
-                                unit=transfer_unit,
-                                dosage_form=item.dosage_form,
-                                cost=cost,
-                                price=new_price,
-                                markup=markup,
-                                stock=0,
-                                exp_date=item.exp_date
+                                brand=item.brand
                             )
-                            created = True
+
+                            if similar_items.exists():
+                                # Use the first similar item but update its unit
+                                dest_item = similar_items.first()
+                                dest_item.unit = transfer_unit
+                                created = False
+                            else:
+                                # Create a new item if no match found
+                                dest_item = Item.objects.create(
+                                    name=item.name,
+                                    brand=item.brand,
+                                    unit=transfer_unit,
+                                    dosage_form=item.dosage_form,
+                                    cost=cost,
+                                    price=new_price,
+                                    markup=markup,
+                                    stock=0,
+                                    exp_date=item.exp_date
+                                )
+                                created = True
                     else:  # destination == "wholesale"
-                        # Try to find an exact match (same name, brand, and unit)
-                        # Exclude the source item to prevent transferring to itself
+                        # First, try to find an exact match (same name, brand, and unit)
+                        # For wholesale-to-wholesale, check if transferring to itself
                         exact_matches = WholesaleItem.objects.filter(
                             name=item.name,
                             brand=item.brand,
                             unit=transfer_unit
-                        ).exclude(id=item.id)
+                        )
 
-                        if exact_matches.exists():
-                            # Update the existing item with exact match
-                            dest_item = exact_matches.first()
+                        # If the exact match is the source item itself AND there are no other matches,
+                        # use the source item (this prevents creating duplicates)
+                        if exact_matches.count() == 1 and exact_matches.first().id == item.id:
+                            # Transferring to itself - just use the same item
+                            dest_item = item
+                            created = False
+                        elif exact_matches.exclude(id=item.id).exists():
+                            # Use the existing item with exact match (not the source)
+                            dest_item = exact_matches.exclude(id=item.id).first()
                             created = False
                         else:
-                            # Create a new item if no exact match found
-                            dest_item = WholesaleItem.objects.create(
+                            # If no exact match, look for items with same name and brand but different unit
+                            similar_items = WholesaleItem.objects.filter(
                                 name=item.name,
-                                brand=item.brand,
-                                unit=transfer_unit,
-                                dosage_form=item.dosage_form,
-                                cost=cost,
-                                price=new_price,
-                                markup=markup,
-                                stock=0,
-                                exp_date=item.exp_date
-                            )
-                            created = True
+                                brand=item.brand
+                            ).exclude(id=item.id)
+
+                            if similar_items.exists():
+                                # Use the first similar item but update its unit
+                                dest_item = similar_items.first()
+                                dest_item.unit = transfer_unit
+                                created = False
+                            else:
+                                # Create a new item if no match found
+                                dest_item = WholesaleItem.objects.create(
+                                    name=item.name,
+                                    brand=item.brand,
+                                    unit=transfer_unit,
+                                    dosage_form=item.dosage_form,
+                                    cost=cost,
+                                    price=new_price,
+                                    markup=markup,
+                                    stock=0,
+                                    exp_date=item.exp_date
+                                )
+                                created = True
 
                     # Calculate the final destination quantity (source quantity * conversion factor)
                     dest_qty = Decimal(str(qty)) * dest_qty_per_source
@@ -3252,50 +3282,88 @@ def transfer_multiple_wholesale_items(request):
                     print(f"[TRANSFER DEBUG] calculated dest_qty: {dest_qty}")
                     print(f"[TRANSFER DEBUG] dest_item.stock BEFORE: {dest_item.stock}")
 
-                    # Update the destination item's stock and key fields.
-                    dest_item.stock += dest_qty
+                    # Check if we're transferring to the same item (wholesale to wholesale, same item)
+                    is_same_item = (dest_item.id == item.id)
 
-                    print(f"[TRANSFER DEBUG] dest_item.stock AFTER: {dest_item.stock}")
+                    if is_same_item:
+                        # When transferring to itself, add the quantity to existing stock
+                        # This effectively increases the total stock
+                        print(f"[TRANSFER DEBUG] Transferring to self - adding quantity to existing stock")
 
-                    # Always update the cost price
-                    dest_item.cost = cost
+                        old_stock = dest_item.stock
+                        dest_item.stock += dest_qty
 
-                    # Update price based on override or markup
-                    if price_override:
-                        # Use the manually entered price
-                        dest_item.price = new_price
-                    elif markup > 0:
-                        # Only update markup and price if explicitly requested or if it's a new item
-                        dest_item.markup = markup
-                        dest_item.price = new_price
+                        print(f"[TRANSFER DEBUG] Stock BEFORE: {old_stock}")
+                        print(f"[TRANSFER DEBUG] Stock AFTER: {dest_item.stock}")
 
-                    # Update expiry date if the source item has a later expiry date
-                    if item.exp_date and (not hasattr(dest_item, 'exp_date') or not dest_item.exp_date or item.exp_date > dest_item.exp_date):
-                        dest_item.exp_date = item.exp_date
+                        # Update cost price
+                        dest_item.cost = cost
 
-                    dest_item.save()
+                        # Update price based on override or markup
+                        if price_override:
+                            dest_item.price = new_price
+                        elif markup > 0:
+                            dest_item.markup = markup
+                            dest_item.price = new_price
 
-                    # Deduct the transferred quantity from the store item.
-                    # Convert qty to Decimal to avoid type mismatch with item.stock
-                    item.stock -= Decimal(str(qty))
-                    item.save()
+                        # Update expiry date if needed
+                        if item.exp_date and (not hasattr(dest_item, 'exp_date') or not dest_item.exp_date or item.exp_date > dest_item.exp_date):
+                            dest_item.exp_date = item.exp_date
 
-                    # Remove the store item if its stock is zero or less.
-                    if item.stock <= Decimal('0'):
-                        item.delete()
+                        dest_item.save()
+
+                        # Add success message for same-item addition
                         price_info = f"Price manually set to {new_price:.2f}" if price_override else f"Price calculated as {new_price:.2f} ({markup}% markup)"
                         processed_items.append(
-                            f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit} and removed {item.name} from the store (stock reached zero). "
-                            f"Item was {'created' if created else 'updated'} in {destination}. "
-                            f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}. {price_info}"
+                            f"Added {dest_qty} {transfer_unit} to {item.name}. Stock increased from {old_stock} to {dest_item.stock} {item.unit}. "
+                            f"Cost adjusted to {cost:.2f} per {transfer_unit}. {price_info}"
                         )
                     else:
-                        price_info = f"Price manually set to {new_price:.2f}" if price_override else f"Price calculated as {new_price:.2f} ({markup}% markup)"
-                        processed_items.append(
-                            f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit}. "
-                            f"Item was {'created' if created else 'updated'} in {destination}. "
-                            f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}. {price_info}"
-                        )
+                        # Transferring to a different item - normal transfer logic
+                        # Update the destination item's stock and key fields.
+                        dest_item.stock += dest_qty
+
+                        print(f"[TRANSFER DEBUG] dest_item.stock AFTER: {dest_item.stock}")
+
+                        # Always update the cost price
+                        dest_item.cost = cost
+
+                        # Update price based on override or markup
+                        if price_override:
+                            # Use the manually entered price
+                            dest_item.price = new_price
+                        elif markup > 0:
+                            # Only update markup and price if explicitly requested or if it's a new item
+                            dest_item.markup = markup
+                            dest_item.price = new_price
+
+                        # Update expiry date if the source item has a later expiry date
+                        if item.exp_date and (not hasattr(dest_item, 'exp_date') or not dest_item.exp_date or item.exp_date > dest_item.exp_date):
+                            dest_item.exp_date = item.exp_date
+
+                        dest_item.save()
+
+                        # Deduct the transferred quantity from the store item.
+                        # Convert qty to Decimal to avoid type mismatch with item.stock
+                        item.stock -= Decimal(str(qty))
+                        item.save()
+
+                        # Remove the store item if its stock is zero or less.
+                        if item.stock <= Decimal('0'):
+                            item.delete()
+                            price_info = f"Price manually set to {new_price:.2f}" if price_override else f"Price calculated as {new_price:.2f} ({markup}% markup)"
+                            processed_items.append(
+                                f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit} and removed {item.name} from the store (stock reached zero). "
+                                f"Item was {'created' if created else 'updated'} in {destination}. "
+                                f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}. {price_info}"
+                            )
+                        else:
+                            price_info = f"Price manually set to {new_price:.2f}" if price_override else f"Price calculated as {new_price:.2f} ({markup}% markup)"
+                            processed_items.append(
+                                f"Transferred {qty} {item.unit} of {item.name} to {destination} as {dest_qty} {transfer_unit}. "
+                                f"Item was {'created' if created else 'updated'} in {destination}. "
+                                f"Cost adjusted from {original_cost:.2f} to {cost:.2f} per {transfer_unit}. {price_info}"
+                            )
 
             # Use Django's messages framework to show errors/success messages.
             for error in errors:
