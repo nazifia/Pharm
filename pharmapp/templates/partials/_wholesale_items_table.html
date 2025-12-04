@@ -44,7 +44,7 @@
         </small>
       </td>
       <td>
-        <input type="number" name="quantity_{{ item.id }}" style="width:100px;" class="form-control" min="0" value="0">
+        <input type="number" name="quantity_{{ item.id }}" style="width:100px;" class="form-control" min="0" value="0" step="0.5">
       </td>
       <td>
         <select name="transfer_unit_{{ item.id }}" style="width:130px;" class="form-control unit-select" data-item-id="{{ item.id }}">
@@ -57,11 +57,11 @@
         </select>
       </td>
       <td>
-        <input type="number" name="unit_conversion_{{ item.id }}" style="width:100px;" class="form-control unit-conversion" min="1" value="1" step="0.01">
+        <input type="number" name="unit_conversion_{{ item.id }}" style="width:100px;" class="form-control unit-conversion" min="0.1" value="1" step="0.1">
         <small class="text-muted conversion-label">1 {{ item.unit }} = <span class="conversion-value">1</span> <span class="target-unit">{{ item.unit }}</span></small>
       </td>
       <td>
-        <select name="markup_{{ item.id }}" style="width:150px;" class="form-control">
+        <select name="markup_{{ item.id }}" style="width:150px;" class="form-control markup-select" data-item-id="{{ item.id }}">
           <option value="0">Select Markup</option>
           <option value="2.5">2.5% markup</option>
           <option value="5">5% markup</option>
@@ -164,6 +164,22 @@
 
       selectAllCheckbox.checked = allChecked;
       selectAllCheckbox.indeterminate = someChecked && !allChecked;
+    }
+
+    // Recalculate procurement values after the partial content loads
+    if (typeof window.calculateProcurementValues === 'function') {
+      setTimeout(function() {
+        window.calculateProcurementValues();
+      }, 100);
+    }
+
+    // Recalculate selling prices for all rows after partial loads
+    if (typeof window.calculateSellingPrice === 'function') {
+      setTimeout(function() {
+        document.querySelectorAll('tr[id^="wholesale-item-"]').forEach(function(row) {
+          window.calculateSellingPrice(row);
+        });
+      }, 150);
     }
   });
 </script>
