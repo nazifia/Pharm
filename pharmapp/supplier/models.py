@@ -262,6 +262,9 @@ class WholesaleProcurementItem(models.Model):
     barcode = models.CharField(max_length=200, blank=True, null=True, help_text="Barcode for this item")
 
     def save(self, *args, **kwargs):
+        import logging
+        logger = logging.getLogger(__name__)
+
         # Set default values for empty fields
         if not self.brand:
             self.brand = 'None'
@@ -276,61 +279,81 @@ class WholesaleProcurementItem(models.Model):
         move_to_store = kwargs.pop('move_to_store', True) if 'move_to_store' in kwargs else True
         commit = kwargs.pop('commit', True) if 'commit' in kwargs else True
 
+        logger.info(f"WholesaleProcurementItem.save() called: item={self.item_name}, move_to_store={move_to_store}, commit={commit}")
+
         if commit:
             super().save(*args, **kwargs)
 
             # Move item to store after procurement is completed if requested
             if move_to_store and self.procurement and self.procurement.status == 'completed':
+                logger.info(f"Calling move_to_store() for {self.item_name}, procurement status: {self.procurement.status}")
                 self.move_to_store()
+            else:
+                logger.warning(f"NOT calling move_to_store() for {self.item_name}: move_to_store={move_to_store}, has_procurement={self.procurement is not None}, status={self.procurement.status if self.procurement else 'N/A'}")
 
     def move_to_store(self):
-        """Move the procured item to the store after procurement."""
-        # Calculate subtotal for the store item
-        subtotal = self.cost_price * self.quantity
+        """Move the procured item to the wholesale store after procurement."""
+        import logging
+        from store.models import WholesaleItem
 
-        # Check if the item already exists in the store
-        existing_items = StoreItem.objects.filter(
-            name=self.item_name,
-            brand=self.brand,
-            dosage_form=self.dosage_form,
-            unit=self.unit,
-            cost_price=self.cost_price
-        )
+        logger = logging.getLogger(__name__)
+        logger.info(f"move_to_store called for {self.item_name}, quantity: {self.quantity}")
 
-        if existing_items.exists():
-            # Use the existing item
-            store_item = existing_items.first()
-            store_item.stock += self.quantity
+        try:
+            # Calculate subtotal for the wholesale item
+            subtotal = self.cost_price * self.quantity
 
-            # Only update expiry date if the new one is later than the existing one
-            if self.expiry_date and (not store_item.expiry_date or self.expiry_date > store_item.expiry_date):
-                store_item.expiry_date = self.expiry_date
+            # Check if the item already exists in the wholesale store
+            existing_items = WholesaleItem.objects.filter(
+                name=self.item_name,
+                brand=self.brand,
+                dosage_form=self.dosage_form,
+                unit=self.unit,
+                cost=self.cost_price
+            )
 
-            # Update barcode if procurement has one and store item doesn't
-            if self.barcode and not store_item.barcode:
-                store_item.barcode = self.barcode
+            if existing_items.exists():
+                # Use the existing item
+                wholesale_item = existing_items.first()
+                wholesale_item.stock += self.quantity
 
-            store_item.save()
-            print(f"Successfully updated store item: {self.item_name}, new stock: {store_item.stock}")
-        else:
-            # Create a new item
-            try:
-                # Create the store item
-                store_item = StoreItem.objects.create(
+                # Only update expiry date if the new one is later than the existing one
+                if self.expiry_date and (not wholesale_item.exp_date or self.expiry_date > wholesale_item.exp_date):
+                    wholesale_item.exp_date = self.expiry_date
+
+                # Update barcode if procurement has one and wholesale item doesn't
+                if self.barcode and not wholesale_item.barcode:
+                    wholesale_item.barcode = self.barcode
+
+                wholesale_item.save()
+                logger.info(f"Successfully updated wholesale item: {self.item_name}, new stock: {wholesale_item.stock}")
+                print(f"✓ Updated wholesale item: {self.item_name}, new stock: {wholesale_item.stock}")
+            else:
+                # Create a new item
+                # Calculate selling price based on markup
+                from decimal import Decimal
+                markup_decimal = Decimal(str(self.markup))
+                selling_price = self.cost_price * (Decimal('1') + markup_decimal / Decimal('100'))
+
+                # Create the wholesale item
+                wholesale_item = WholesaleItem.objects.create(
                     name=self.item_name,
                     brand=self.brand,
                     dosage_form=self.dosage_form,
                     unit=self.unit,
                     stock=self.quantity,
-                    cost_price=self.cost_price,
-                    subtotal=subtotal,
-                    expiry_date=self.expiry_date,
-                    barcode=self.barcode,
-                    supplier=self.procurement.supplier if hasattr(self.procurement, 'supplier') else None
+                    cost=self.cost_price,
+                    price=selling_price,
+                    markup=self.markup,
+                    exp_date=self.expiry_date,
+                    barcode=self.barcode
                 )
-                print(f"Successfully created store item: {self.item_name}, stock: {store_item.stock}")
-            except Exception as e:
-                print(f"Error creating store item: {e}")
+                logger.info(f"Successfully created wholesale item: {self.item_name}, stock: {wholesale_item.stock}")
+                print(f"✓ Created wholesale item: {self.item_name}, stock: {wholesale_item.stock}")
+        except Exception as e:
+            logger.error(f"Error in move_to_store for {self.item_name}: {e}", exc_info=True)
+            print(f"✗ Error creating/updating wholesale item {self.item_name}: {e}")
+            raise  # Re-raise the exception so it's not silently swallowed
 
     def __str__(self):
         return f'{self.item_name} - {self.procurement.id}'

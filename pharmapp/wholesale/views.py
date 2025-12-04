@@ -3167,7 +3167,7 @@ def transfer_multiple_wholesale_items(request):
                     # Process transfer for this item.
                     if destination == "retail":
                         # First, try to find an exact match (same name, brand, and unit)
-                        exact_matches = WholesaleItem.objects.filter(
+                        exact_matches = Item.objects.filter(
                             name=item.name,
                             brand=item.brand,
                             unit=transfer_unit
@@ -3179,7 +3179,7 @@ def transfer_multiple_wholesale_items(request):
                             created = False
                         else:
                             # If no exact match, look for items with same name but different unit
-                            similar_items = WholesaleItem.objects.filter(
+                            similar_items = Item.objects.filter(
                                 name=item.name,
                                 brand=item.brand
                             )
@@ -3191,7 +3191,7 @@ def transfer_multiple_wholesale_items(request):
                                 created = False
                             else:
                                 # Create a new item if no match found
-                                dest_item = WholesaleItem.objects.create(
+                                dest_item = Item.objects.create(
                                     name=item.name,
                                     brand=item.brand,
                                     unit=transfer_unit,
