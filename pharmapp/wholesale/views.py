@@ -67,18 +67,36 @@ def search_wholesale_for_adjustment(request):
 @never_cache
 @login_required
 def search_wholesale_items(request):
-    """API endpoint for searching wholesale items for stock check"""
+    """API endpoint for searching wholesale items for stock check with barcode support"""
     query = request.GET.get('q', '').strip()
     if query and len(query) >= 2:  # Only search for meaningful queries
-        # Optimized search with prefix matching first, then partial matching
-        items = WholesaleItem.objects.filter(
-            Q(name__istartswith=query) |
-            Q(brand__istartswith=query) |
-            Q(dosage_form__istartswith=query) |
-            Q(name__icontains=query) |
-            Q(brand__icontains=query) |
-            Q(dosage_form__icontains=query)
-        ).distinct().order_by('name')[:30]  # Increased limit but still reasonable
+        # Check if query looks like a barcode (numeric, 8-14 digits)
+        is_barcode = query.isdigit() and 8 <= len(query) <= 14
+
+        if is_barcode:
+            # Try barcode lookup first for exact match
+            items = WholesaleItem.objects.filter(barcode=query).distinct().order_by('name')[:30]
+            if not items.exists():
+                # Fallback to name/brand search if barcode not found
+                items = WholesaleItem.objects.filter(
+                    Q(name__istartswith=query) |
+                    Q(brand__istartswith=query) |
+                    Q(dosage_form__istartswith=query) |
+                    Q(name__icontains=query) |
+                    Q(brand__icontains=query) |
+                    Q(dosage_form__icontains=query)
+                ).distinct().order_by('name')[:30]
+        else:
+            # Optimized search with prefix matching first, then partial matching
+            items = WholesaleItem.objects.filter(
+                Q(name__istartswith=query) |
+                Q(brand__istartswith=query) |
+                Q(dosage_form__istartswith=query) |
+                Q(name__icontains=query) |
+                Q(brand__icontains=query) |
+                Q(dosage_form__icontains=query) |
+                Q(barcode__icontains=query)  # Also search barcode field
+            ).distinct().order_by('name')[:30]  # Increased limit but still reasonable
     else:
         items = WholesaleItem.objects.all().order_by('name')[:30]  # Increased limit for better UX
 
@@ -88,7 +106,7 @@ def search_wholesale_items(request):
         print(f"HTMX request received for search_wholesale_items with query: {query}")
         print(f"Found {len(items)} items matching the query")
         # Return the search results template
-        return render(request, 'partials/search_wholesale_items_results.html', {'items': items})
+        return render(request, 'partials/search_wholesale_items_results.html', {'items': items, 'query': query})
     else:
         # Return JSON response for other cases (like stock check)
         items_data = [{

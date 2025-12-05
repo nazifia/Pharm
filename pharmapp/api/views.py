@@ -1327,3 +1327,238 @@ def barcode_batch_add_items(request):
             'error': str(e),
             'user_message': 'Failed to process batch. Please check your data and try again.'
         }, status=500)
+
+# Temporary file for cart add endpoints - will be appended to api/views.py
+
+@require_http_methods(["POST"])
+def cart_add(request):
+    """
+    API endpoint to add item to retail cart
+    Accepts JSON: {item_id, quantity, unit}
+    """
+    try:
+        if not request.user.is_authenticated:
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Authentication required',
+                'user_message': 'Please log in to add items to cart'
+            }, status=401)
+
+        data = json.loads(request.body)
+        item_id = data.get('item_id') or data.get('item')
+        quantity = data.get('quantity', 1)
+        unit = data.get('unit', 'unit')
+
+        # Validate required fields
+        if not item_id:
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Missing item_id',
+                'user_message': 'Item ID is required'
+            }, status=400)
+
+        try:
+            quantity = Decimal(str(quantity))
+            if quantity <= 0:
+                raise ValueError("Quantity must be greater than zero")
+        except (ValueError, InvalidOperation) as e:
+            return JsonResponse({
+                'status': 'error',
+                'error': str(e),
+                'user_message': 'Invalid quantity value'
+            }, status=400)
+
+        # Get the item
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'error': f'Item {item_id} not found',
+                'user_message': 'Item not found in inventory'
+            }, status=404)
+
+        # Validate stock availability
+        existing_cart_items = Cart.objects.filter(
+            user=request.user,
+            item=item,
+            status='active'
+        )
+        current_cart_quantity = sum(cart_item.quantity for cart_item in existing_cart_items)
+        total_needed = current_cart_quantity + quantity
+
+        if total_needed > item.stock:
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Insufficient stock',
+                'user_message': f'Not enough stock for {item.name}. Available: {item.stock}, Already in cart: {current_cart_quantity}',
+                'available_stock': float(item.stock),
+                'cart_quantity': float(current_cart_quantity)
+            }, status=400)
+
+        # Add to cart with transaction
+        with transaction.atomic():
+            cart_item, created = Cart.objects.select_for_update().get_or_create(
+                user=request.user,
+                item=item,
+                unit=unit,
+                status='active',
+                defaults={'quantity': quantity, 'price': item.price}
+            )
+
+            if not created:
+                cart_item.quantity += quantity
+
+            # Always update the price to match current item price
+            cart_item.price = item.price
+            cart_item.save()
+
+        # Get updated cart summary
+        cart_items = Cart.objects.filter(user=request.user, status='active')
+        total_price = sum(cart_item.subtotal for cart_item in cart_items)
+
+        logger.info(f"Item {item.name} added to cart for user {request.user.username}")
+
+        return JsonResponse({
+            'status': 'success',
+            'message': f'{quantity} {unit} of {item.name} added to cart',
+            'cart_item_id': cart_item.id,
+            'item_name': item.name,
+            'quantity': float(cart_item.quantity),
+            'price': float(cart_item.price),
+            'subtotal': float(cart_item.subtotal),
+            'cart_count': cart_items.count(),
+            'cart_total': float(total_price)
+        })
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in cart_add: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'error': 'Invalid JSON data',
+            'user_message': 'Request format error'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in cart_add: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'status': 'error',
+            'error': str(e),
+            'user_message': 'Failed to add item to cart'
+        }, status=500)
+
+
+@require_http_methods(["POST"])
+def wholesale_cart_add(request):
+    """
+    API endpoint to add item to wholesale cart
+    Accepts JSON: {item_id, quantity, unit}
+    """
+    try:
+        if not request.user.is_authenticated:
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Authentication required',
+                'user_message': 'Please log in to add items to cart'
+            }, status=401)
+
+        data = json.loads(request.body)
+        item_id = data.get('item_id') or data.get('item')
+        quantity = data.get('quantity', 1)
+        unit = data.get('unit', 'unit')
+
+        # Validate required fields
+        if not item_id:
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Missing item_id',
+                'user_message': 'Item ID is required'
+            }, status=400)
+
+        try:
+            quantity = Decimal(str(quantity))
+            if quantity <= 0:
+                raise ValueError("Quantity must be greater than zero")
+        except (ValueError, InvalidOperation) as e:
+            return JsonResponse({
+                'status': 'error',
+                'error': str(e),
+                'user_message': 'Invalid quantity value'
+            }, status=400)
+
+        # Get the wholesale item
+        try:
+            item = WholesaleItem.objects.get(id=item_id)
+        except WholesaleItem.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'error': f'Wholesale item {item_id} not found',
+                'user_message': 'Item not found in wholesale inventory'
+            }, status=404)
+
+        # Validate stock availability
+        existing_cart_items = WholesaleCart.objects.filter(
+            user=request.user,
+            item=item,
+            status='active'
+        )
+        current_cart_quantity = sum(cart_item.quantity for cart_item in existing_cart_items)
+        total_needed = current_cart_quantity + quantity
+
+        if total_needed > item.stock:
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Insufficient stock',
+                'user_message': f'Not enough stock for {item.name}. Available: {item.stock}, Already in cart: {current_cart_quantity}',
+                'available_stock': float(item.stock),
+                'cart_quantity': float(current_cart_quantity)
+            }, status=400)
+
+        # Add to wholesale cart with transaction
+        with transaction.atomic():
+            cart_item, created = WholesaleCart.objects.select_for_update().get_or_create(
+                user=request.user,
+                item=item,
+                unit=unit,
+                status='active',
+                defaults={'quantity': quantity, 'price': item.price}
+            )
+
+            if not created:
+                cart_item.quantity += quantity
+
+            # Always update the price to match current item price
+            cart_item.price = item.price
+            cart_item.save()
+
+        # Get updated cart summary
+        cart_items = WholesaleCart.objects.filter(user=request.user, status='active')
+        total_price = sum(cart_item.subtotal for cart_item in cart_items)
+
+        logger.info(f"Wholesale item {item.name} added to cart for user {request.user.username}")
+
+        return JsonResponse({
+            'status': 'success',
+            'message': f'{quantity} {unit} of {item.name} added to wholesale cart',
+            'cart_item_id': cart_item.id,
+            'item_name': item.name,
+            'quantity': float(cart_item.quantity),
+            'price': float(cart_item.price),
+            'subtotal': float(cart_item.subtotal),
+            'cart_count': cart_items.count(),
+            'cart_total': float(total_price)
+        })
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in wholesale_cart_add: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'error': 'Invalid JSON data',
+            'user_message': 'Request format error'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in wholesale_cart_add: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'status': 'error',
+            'error': str(e),
+            'user_message': 'Failed to add item to wholesale cart'
+        }, status=500)

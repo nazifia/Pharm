@@ -21,7 +21,9 @@
       "Bash(grep:*)",
       "Bash(del test_transfer.py)",
       "Bash(del:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

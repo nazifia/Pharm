@@ -1,5 +1,39 @@
 {% extends "partials/base.html" %}
 
+{% block extra_css %}
+<style>
+/* Barcode scanned item highlight */
+.barcode-scanned-item {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%) !important;
+    border: 3px solid #ffc107 !important;
+    box-shadow: 0 0 20px rgba(255, 193, 7, 0.5) !important;
+    animation: pulse-highlight 2s ease-in-out infinite;
+}
+
+.barcode-scanned-item td {
+    font-weight: 700;
+    color: #856404;
+}
+
+@keyframes pulse-highlight {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(255, 193, 7, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(255, 193, 7, 0.8);
+    }
+}
+
+/* Mobile responsive for highlight */
+@media (max-width: 768px) {
+    .barcode-scanned-item {
+        margin: 0 -1rem;
+        padding: 1.5rem !important;
+    }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 
 <h3 style="color: red;">Select for: {{ customer.name }}</h3>
@@ -224,35 +258,64 @@
     window.onBarcodeItemFound = function(item, barcode) {
         console.log('[Wholesale Item Selection] Barcode scanned:', barcode, 'Item:', item);
 
+        // Prevent multiple submissions
+        if (window.isProcessingBarcode) {
+            console.log('[Wholesale Item Selection] Already processing barcode, ignoring...');
+            return;
+        }
+
+        window.isProcessingBarcode = true;
+        setTimeout(() => {
+            window.isProcessingBarcode = false;
+        }, 500);
+
         // Fill the search input with the item name
         const searchInput = document.getElementById('wholesale-item-search');
         if (searchInput && item) {
             searchInput.value = item.name;
             console.log('[Wholesale Item Selection] Search input filled with:', item.name);
 
-            // Trigger HTMX search
-            setTimeout(() => {
-                htmx.trigger(searchInput, 'keyup');
-                console.log('[Wholesale Item Selection] HTMX search triggered');
+            // Store scanned item ID for highlighting after results load
+            window.scannedItemId = item.id;
 
-                // Wait for search results to load, then auto-select the item
+            // Trigger HTMX search with delay to ensure value is set
+            setTimeout(() => {
+                // Force change event before keyup to ensure HTMX detects the value
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                setTimeout(() => {
+                    htmx.trigger(searchInput, 'keyup');
+                    console.log('[Wholesale Item Selection] HTMX search triggered');
+                }, 50);
+
+                // Wait for search results to load, then highlight and auto-select
                 setTimeout(() => {
                     // Find the checkbox for this wholesale item
                     const checkbox = document.querySelector(`input[type="checkbox"][data-item-id="${item.id}"]`);
-                    if (checkbox && !checkbox.checked) {
-                        checkbox.checked = true;
-                        console.log('[Wholesale Item Selection] Item checkbox auto-selected');
+                    if (checkbox) {
+                        // Auto-select the checkbox if not already selected
+                        if (!checkbox.checked) {
+                            checkbox.checked = true;
+                            console.log('[Wholesale Item Selection] Item checkbox auto-selected');
 
-                        // Find and set quantity to 1 if not already set
-                        const quantityInput = document.querySelector(`input[name="quantities"][data-item-id="${item.id}"]`);
-                        if (quantityInput && (!quantityInput.value || quantityInput.value === '0')) {
-                            quantityInput.value = '1';
-                            quantityInput.disabled = false;
-                            console.log('[Wholesale Item Selection] Quantity set to 1');
+                            // Find and enable quantity input
+                            const quantityInput = document.querySelector(`input[name="quantities"][data-item-id="${item.id}"]`);
+                            if (quantityInput) {
+                                quantityInput.value = '1';
+                                quantityInput.disabled = false;
+                                console.log('[Wholesale Item Selection] Quantity set to 1 and enabled');
+
+                                // Save selection to persistent store
+                                const itemId = checkbox.value;
+                                saveItemSelection(itemId, true, '1');
+                                addHiddenInputsForSelectedItems();
+                            }
                         }
+
+                        // Highlight the scanned item
+                        highlightScannedItem(item.id);
                     }
-                }, 800); // Wait for HTMX to load results
-            }, 100);
+                }, 400);
+            }, 80);
         } else {
             console.error('[Wholesale Item Selection] Search input not found or item is null');
         }
@@ -267,12 +330,70 @@
         // Show success notification
         if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
             window.offlineHandler.showInAppNotification(
-                'Wholesale Item Scanned',
-                `${item.name} added to selection`,
-                'success'
+                'Item Found',
+                `${item.name}${item.brand ? ' - ' + item.brand : ''} selected. Adjust quantity if needed, then click "Proceed with Action".`,
+                'info'
             );
         }
     };
+
+    // Function to highlight the scanned item in search results
+    function highlightScannedItem(itemId) {
+        console.log('[Wholesale Item Selection] Highlighting scanned item:', itemId);
+
+        // Find the row with matching data-item-id
+        const checkbox = document.querySelector(`input[type="checkbox"][data-item-id="${itemId}"]`);
+        const itemRow = checkbox ? checkbox.closest('tr') : null;
+
+        if (itemRow) {
+            console.log('[Wholesale Item Selection] Found item row to highlight');
+
+            // Add highlight class
+            itemRow.classList.add('barcode-scanned-item');
+
+            // Accessibility: Set aria-live for screen readers
+            itemRow.setAttribute('aria-live', 'polite');
+            itemRow.setAttribute('aria-label', 'Scanned wholesale item');
+
+            // Scroll into view with offset for fixed headers
+            try {
+                itemRow.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                    inline: 'nearest'
+                });
+
+                console.log('[Wholesale Item Selection] Item scrolled into view');
+            } catch (e) {
+                console.error('[Wholesale Item Selection] Error scrolling item into view:', e);
+                itemRow.scrollIntoView(true);
+            }
+
+            // Focus the quantity input for immediate interaction
+            const quantityInput = itemRow.querySelector('input[name="quantities"]');
+            if (quantityInput && !quantityInput.disabled) {
+                setTimeout(() => {
+                    quantityInput.focus();
+                    quantityInput.select();
+                    console.log('[Wholesale Item Selection] Quantity input focused');
+                }, 700);
+            }
+
+            // Remove highlight after 5 seconds
+            setTimeout(() => {
+                itemRow.classList.remove('barcode-scanned-item');
+            }, 5000);
+        } else {
+            console.warn('[Wholesale Item Selection] Could not find item row for ID:', itemId);
+            if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+                window.offlineHandler.showInAppNotification(
+                    'Item Not Available',
+                    'The scanned wholesale item was not found in available inventory.',
+                    'warning'
+                );
+            }
+        }
+    }
 
     console.log('[Wholesale Item Selection] Barcode callback ready');
 
