@@ -4528,9 +4528,9 @@ def receipt_list(request):
 
         # PERFORMANCE OPTIMIZATION: Add select_related for foreign keys to avoid N+1 queries
         receipts_queryset = Receipt.objects.select_related(
-            'customer', 'cashier', 'dispensed_by'
+            'customer', 'cashier', 'sales', 'return_processed_by'
         ).prefetch_related(
-            'payment_methods'
+            'receipt_payments'  # Related name from ReceiptPayment model
         ).order_by('-date')
 
         # Add pagination (50 receipts per page)
