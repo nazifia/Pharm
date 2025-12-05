@@ -188,11 +188,39 @@ class BarcodeCartIntegration {
         const itemCard = document.querySelector(`[data-item-id="${itemId}"]`);
 
         if (itemCard) {
-            // Add highlight class
-            itemCard.classList.add('barcode-scanned-item');
+            // Add highlight and loading state classes
+            itemCard.classList.add('barcode-scanned-item', 'scrolling-to-view');
 
-            // Scroll into view
-            itemCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Accessibility: Set aria-live for screen readers
+            itemCard.setAttribute('aria-live', 'polite');
+            itemCard.setAttribute('aria-label', 'Item added to cart');
+
+            // Scroll into view with offset for fixed headers
+            try {
+                // Scroll to start position with smooth animation
+                itemCard.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                    inline: 'nearest'
+                });
+
+                // Apply offset after scroll completes (100px for fixed navbar)
+                setTimeout(() => {
+                    window.scrollBy({ top: -100, behavior: 'smooth' });
+                    console.log('[Barcode Cart] Item card scrolled into view with offset');
+                }, 300);
+
+                // Remove loading state after scroll animation
+                setTimeout(() => {
+                    itemCard.classList.remove('scrolling-to-view');
+                }, 650);
+
+            } catch (e) {
+                console.error('[Barcode Cart] Error scrolling item into view:', e);
+                // Fallback: scroll without smooth behavior
+                itemCard.scrollIntoView(true);
+                itemCard.classList.remove('scrolling-to-view');
+            }
 
             // Remove highlight after 3 seconds
             setTimeout(() => {

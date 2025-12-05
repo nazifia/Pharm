@@ -65,8 +65,14 @@
     <h3 class="col-md-6 offset-md-3">EDIT ITEM</h3>
     <button type="button" class="close" data-dismiss="modal" aria-label="Close">x</button>
 </div>
-<div class="modal-body">
-    <form action="{% url 'store:edit_item' item.id %}" method="post">
+<div class="modal-body" id="editItemModalBody">
+    <!-- Error Messages Display -->
+    <div id="editItemErrors" class="alert alert-danger" style="display: none;">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <div id="editErrorMessages"></div>
+    </div>
+
+    <form action="{% url 'store:edit_item' item.id %}" method="post" id="editItemForm">
         {% csrf_token %}
         <div class="form-group">
             <label for="name">Item Name:</label>
@@ -293,4 +299,102 @@
             $('#barcodeScannerModal').modal('show');
         }
     }
+
+    // Enhanced form validation with smooth scroll on error
+    document.getElementById('editItemForm')?.addEventListener('submit', function(e) {
+        const errors = [];
+
+        // Validate required fields
+        const name = this.querySelector('input[name="name"]').value.trim();
+        const cost = parseFloat(this.querySelector('input[name="cost"]').value);
+        const stock = this.querySelector('input[name="stock"]').value;
+
+        if (!name) errors.push('Item name is required');
+        if (isNaN(cost) || cost < 0) errors.push('Valid cost price is required');
+        if (!stock || stock < 0) errors.push('Valid stock quantity is required');
+
+        if (errors.length > 0) {
+            e.preventDefault();
+            showEditError(errors.join('<br>'));
+            return false;
+        }
+    });
+
+    // Show error function for edit modal with enhanced features
+    function showEditError(message) {
+        const errorDiv = document.getElementById('editItemErrors');
+        const errorMessages = document.getElementById('editErrorMessages');
+
+        if (!errorDiv || !errorMessages) return;
+
+        errorMessages.innerHTML = message;
+        errorDiv.style.display = 'block';
+
+        // Accessibility: Set aria-live for screen readers
+        errorDiv.setAttribute('aria-live', 'assertive');
+        errorDiv.setAttribute('role', 'alert');
+
+        // Add loading state during scroll
+        errorDiv.classList.add('scrolling-to-view');
+
+        // Smooth scroll to top of modal body with offset
+        const modalBody = document.getElementById('editItemModalBody');
+        if (modalBody) {
+            // Scroll to start
+            modalBody.scrollTo({ top: 0, behavior: 'smooth' });
+
+            // Apply offset after scroll
+            setTimeout(() => {
+                modalBody.scrollBy({ top: -20, behavior: 'smooth' }); // 20px offset
+            }, 300);
+        }
+
+        // Visual emphasis with shake animation
+        setTimeout(() => {
+            errorDiv.classList.add('shake-animation');
+            errorDiv.classList.remove('scrolling-to-view'); // Remove loading state
+
+            // Focus for accessibility
+            errorDiv.setAttribute('tabindex', '-1');
+            errorDiv.focus();
+
+            setTimeout(() => {
+                errorDiv.classList.remove('shake-animation');
+            }, 500);
+        }, 350);
+    }
 </script>
+
+<!-- Enhanced CSS for edit modal animations and accessibility -->
+<style>
+    /* Shake animation for error emphasis */
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+        20%, 40%, 60%, 80% { transform: translateX(5px); }
+    }
+    .shake-animation {
+        animation: shake 0.5s ease-in-out;
+    }
+
+    /* Loading state during scroll */
+    @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 0 rgba(220, 53, 69, 0); }
+        50% { box-shadow: 0 0 15px rgba(220, 53, 69, 0.4); }
+    }
+    .scrolling-to-view {
+        animation: pulse-glow 0.6s ease-in-out;
+        transition: all 0.3s ease;
+    }
+
+    /* Accessibility: Focus outline for screen readers */
+    #editItemErrors:focus {
+        outline: 3px solid #dc3545;
+        outline-offset: 2px;
+    }
+
+    #editItemErrors {
+        margin-bottom: 15px;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+</style>

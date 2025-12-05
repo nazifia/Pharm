@@ -700,30 +700,55 @@ function highlightScannedItem(itemId) {
     if (itemCard) {
         console.log('[Wholesale Dispense] Found item card to highlight');
 
-        // Add highlight class
-        itemCard.classList.add('barcode-scanned-item');
-        console.log('[Wholesale Dispense] Highlight class added');
+        // Add highlight and loading state classes
+        itemCard.classList.add('barcode-scanned-item', 'scrolling-to-view');
+        console.log('[Wholesale Dispense] Highlight and loading classes added');
 
-        // Scroll into view smoothly
+        // Accessibility: Set aria-live for screen readers
+        itemCard.setAttribute('aria-live', 'polite');
+        itemCard.setAttribute('aria-label', 'Scanned wholesale item');
+
+        // Scroll into view with offset for fixed headers
         try {
+            // Scroll to start position with smooth animation
             itemCard.scrollIntoView({
                 behavior: 'smooth',
-                block: 'center'
+                block: 'start',
+                inline: 'nearest'
             });
-            console.log('[Wholesale Dispense] Scrolled into view');
+
+            // Apply offset after scroll completes (100px for fixed navbar)
+            setTimeout(() => {
+                window.scrollBy({ top: -100, behavior: 'smooth' });
+                console.log('[Wholesale Dispense] Item scrolled into view with offset');
+            }, 300);
+
+            // Remove loading state after scroll animation
+            setTimeout(() => {
+                itemCard.classList.remove('scrolling-to-view');
+                console.log('[Wholesale Dispense] Loading state removed');
+            }, 650);
+
         } catch (e) {
-            console.error('[Wholesale Dispense] Error scrolling:', e);
+            console.error('[Wholesale Dispense] Error scrolling item into view:', e);
+            // Fallback: scroll without smooth behavior
+            itemCard.scrollIntoView(true);
+            itemCard.classList.remove('scrolling-to-view');
         }
 
-        // Focus the quantity input for immediate interaction
+        // Focus the quantity input for immediate interaction (accessibility)
         const quantityInput = itemCard.querySelector('input[name="quantity"]');
         console.log('[Wholesale Dispense] Quantity input:', quantityInput);
 
         if (quantityInput) {
             try {
-                quantityInput.focus();
-                quantityInput.select(); // Highlight current value for easy replacement
-                console.log('[Wholesale Dispense] Quantity input focused and selected');
+                // Set focus after scroll completes
+                setTimeout(() => {
+                    quantityInput.focus();
+                    quantityInput.select(); // Highlight current value for easy replacement
+                    quantityInput.setAttribute('aria-label', 'Enter quantity for scanned wholesale item');
+                    console.log('[Wholesale Dispense] Quantity input focused and selected');
+                }, 700);
             } catch (e) {
                 console.error('[Wholesale Dispense] Error focusing input:', e);
             }

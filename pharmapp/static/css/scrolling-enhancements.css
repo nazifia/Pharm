@@ -1,0 +1,285 @@
+/**
+ * Scrolling Enhancements CSS
+ * Enhanced scrolling animations, loading states, and accessibility features
+ * for modal errors and item card highlighting
+ */
+
+/* ============================================
+   LOADING STATE ANIMATIONS
+   ============================================ */
+
+/**
+ * Pulse glow animation for elements being scrolled into view
+ * Creates a subtle glowing effect to indicate loading/transition state
+ */
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 0 rgba(78, 115, 223, 0);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(78, 115, 223, 0.3);
+        transform: scale(1.01);
+    }
+}
+
+/**
+ * Applied to elements during scroll animation
+ * Provides visual feedback that the element is being positioned
+ */
+.scrolling-to-view {
+    animation: pulse-glow 0.6s ease-in-out;
+    transition: all 0.3s ease;
+    position: relative;
+    z-index: 10;
+}
+
+/* ============================================
+   ITEM CARD HIGHLIGHTING
+   ============================================ */
+
+/**
+ * Barcode scanned item highlight effect
+ * Applied when an item is scanned and scrolled into view
+ */
+.barcode-scanned-item {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%) !important;
+    border: 2px solid #4e73df !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 15px rgba(78, 115, 223, 0.3) !important;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+/**
+ * Add a scanning indicator badge
+ */
+.barcode-scanned-item::before {
+    content: "✓ Scanned";
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #4e73df;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 20;
+    box-shadow: 0 2px 8px rgba(78, 115, 223, 0.4);
+    animation: badge-appear 0.3s ease-out;
+}
+
+@keyframes badge-appear {
+    0% {
+        opacity: 0;
+        transform: scale(0.5) translateY(-10px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/**
+ * Combined state: scrolling and highlighted
+ */
+.barcode-scanned-item.scrolling-to-view {
+    box-shadow: 0 0 30px rgba(78, 115, 223, 0.5) !important;
+}
+
+/* ============================================
+   SHAKE ANIMATION FOR ERRORS
+   ============================================ */
+
+/**
+ * Shake animation for error messages
+ * Draws attention to validation errors
+ */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+    20%, 40%, 60%, 80% { transform: translateX(8px); }
+}
+
+.shake-animation {
+    animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* ============================================
+   ACCESSIBILITY ENHANCEMENTS
+   ============================================ */
+
+/**
+ * Focus styles for error messages and alerts
+ * Ensures keyboard navigation and screen reader compatibility
+ */
+[role="alert"]:focus,
+.alert:focus {
+    outline: 3px solid #dc3545;
+    outline-offset: 3px;
+    box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.2);
+}
+
+/**
+ * Focus styles for highlighted items
+ */
+.barcode-scanned-item:focus-within {
+    outline: 3px solid #4e73df;
+    outline-offset: 3px;
+}
+
+/**
+ * Ensure aria-live regions are visible
+ */
+[aria-live] {
+    position: relative;
+}
+
+/* ============================================
+   SMOOTH TRANSITIONS
+   ============================================ */
+
+/**
+ * Global smooth transitions for all scrolling elements
+ */
+.item-card,
+.alert,
+.modal-body {
+    scroll-behavior: smooth;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* ============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+/**
+ * Reduce animations on mobile for better performance
+ */
+@media (max-width: 768px) {
+    .scrolling-to-view {
+        animation-duration: 0.4s;
+    }
+
+    .barcode-scanned-item {
+        box-shadow: 0 2px 10px rgba(78, 115, 223, 0.3) !important;
+    }
+
+    .barcode-scanned-item::before {
+        font-size: 11px;
+        padding: 3px 10px;
+    }
+}
+
+/**
+ * Respect user's motion preferences
+ */
+@media (prefers-reduced-motion: reduce) {
+    .scrolling-to-view,
+    .shake-animation,
+    .barcode-scanned-item {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    .barcode-scanned-item::before {
+        animation: none;
+    }
+}
+
+/* ============================================
+   HIGH CONTRAST MODE
+   ============================================ */
+
+/**
+ * Enhanced visibility in high contrast mode
+ */
+@media (prefers-contrast: high) {
+    .barcode-scanned-item {
+        border-width: 3px !important;
+        outline: 2px solid currentColor;
+        outline-offset: 2px;
+    }
+
+    [role="alert"]:focus {
+        outline-width: 4px;
+    }
+}
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+
+/**
+ * Hide animations and highlights in print
+ */
+@media print {
+    .scrolling-to-view,
+    .barcode-scanned-item,
+    .shake-animation {
+        animation: none !important;
+        box-shadow: none !important;
+        border: 1px solid #000 !important;
+        background: white !important;
+    }
+
+    .barcode-scanned-item::before {
+        display: none;
+    }
+}
+
+/* ============================================
+   DARK MODE SUPPORT
+   ============================================ */
+
+/**
+ * Dark mode adjustments (if implemented)
+ */
+@media (prefers-color-scheme: dark) {
+    .barcode-scanned-item {
+        background: linear-gradient(135deg, #1a237e 0%, #283593 100%) !important;
+        border-color: #5c6bc0 !important;
+    }
+
+    .barcode-scanned-item::before {
+        background: #5c6bc0;
+    }
+
+    .scrolling-to-view {
+        box-shadow: 0 0 20px rgba(92, 107, 192, 0.4);
+    }
+}
+
+/* ============================================
+   ADDITIONAL UTILITY CLASSES
+   ============================================ */
+
+/**
+ * Smooth scroll for entire page
+ */
+html {
+    scroll-behavior: smooth;
+}
+
+/**
+ * Utility class to disable scroll offset (if needed)
+ */
+.no-scroll-offset {
+    scroll-margin-top: 0 !important;
+}
+
+/**
+ * Utility class for custom scroll offset
+ */
+.scroll-offset-small {
+    scroll-margin-top: 50px;
+}
+
+.scroll-offset-medium {
+    scroll-margin-top: 100px;
+}
+
+.scroll-offset-large {
+    scroll-margin-top: 150px;
+}
