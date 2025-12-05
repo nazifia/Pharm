@@ -13,7 +13,7 @@ class ProcurementScanner {
         this.currentRow = null;
         this.mode = 'global';  // 'global' or 'row'
         this.lastScanTime = 0;
-        this.scanCooldown = 1000;  // 1 second cooldown
+        this.scanCooldown = 500;  // 0.5 second cooldown (reduced from 1000ms for faster consecutive scans)
 
         this.init();
     }
@@ -67,15 +67,25 @@ class ProcurementScanner {
 
         // Configure scanner for optimal performance
         const config = {
-            fps: 60,  // High frame rate for responsive scanning
-            qrbox: { width: 350, height: 350 },
+            fps: 120,  // Maximum frame rate for responsive scanning (increased from 60)
+            qrbox: { width: 450, height: 450 },  // Larger scan area for better detection (increased from 350)
             aspectRatio: 1.0,
+            disableFlip: false,  // Allow horizontal flip for better detection
             formatsToSupport: [
                 Html5QrcodeSupportedFormats.QR_CODE,
                 Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
                 Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.UPC_A
-            ]
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.UPC_E
+            ],
+            videoConstraints: {
+                facingMode: "environment",
+                width: { ideal: 1920 },      // Higher resolution for better detection
+                height: { ideal: 1080 },
+                frameRate: { ideal: 60 }     // Higher framerate
+            }
         };
 
         this.scanner = new Html5Qrcode('barcode-scanner');

@@ -18,7 +18,7 @@ class BarcodeScanner {
         // Debouncing to prevent multiple scans of same barcode
         this.lastScannedCode = null;
         this.lastScanTime = 0;
-        this.scanCooldown = 100; // Ultra-fast: 0.1 second cooldown
+        this.scanCooldown = 50; // Ultra-fast: 0.05 second cooldown (increased sensitivity)
         this.isProcessing = false; // Flag to prevent processing multiple scans simultaneously
 
         // Performance optimization: cache for recently scanned items
@@ -30,22 +30,25 @@ class BarcodeScanner {
 
         // Ultra-fast configuration - optimized for speed and sensitivity
         this.config = {
-            fps: 60,  // Maximum frame rate for fastest detection
-            qrbox: 350,  // Larger size for better sensitivity (increased from 250)
+            fps: 120,  // Maximum frame rate for fastest detection (increased from 60)
+            qrbox: 450,  // Larger size for better sensitivity (increased from 350)
             aspectRatio: 1.0,  // 1:1 for simpler processing
             // Only scan most common formats for speed
             formatsToSupport: [
                 Html5QrcodeSupportedFormats.QR_CODE,
                 Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
                 Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.UPC_A
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.UPC_E
             ],
             // Minimal experimental features for maximum speed
-            disableFlip: true,  // No horizontal flip - saves processing
+            disableFlip: false,  // Allow horizontal flip for better detection
             rememberSelection: true,
             videoConstraints: {
                 facingMode: "environment",
-                advanced: [{ zoom: 1.0 }]
+                advanced: [{ zoom: 1.2 }]  // Slight zoom for better barcode detection
             }
         };
 
@@ -54,9 +57,9 @@ class BarcodeScanner {
         this.advancedScanOptions = {
             videoConstraints: {
                 facingMode: { ideal: 'environment' },
-                width: { ideal: 1280 },      // Reasonable resolution
-                height: { ideal: 720 },
-                frameRate: { ideal: 30 }     // Standard framerate
+                width: { ideal: 1920 },      // Higher resolution for better detection (increased from 1280)
+                height: { ideal: 1080 },     // Higher resolution (increased from 720)
+                frameRate: { ideal: 60 }     // Higher framerate for faster detection (increased from 30)
             }
         };
     }
@@ -67,10 +70,10 @@ class BarcodeScanner {
      */
     calculateQrBoxSize() {
         const width = window.innerWidth;
-        if (width < 576) return { width: 280, height: 280 };  // Mobile - increased from 200
-        if (width < 768) return { width: 320, height: 320 };  // Large mobile - increased from 250
-        if (width < 992) return { width: 380, height: 380 };  // Tablet - increased from 300
-        return { width: 400, height: 400 };  // Desktop - increased from 350
+        if (width < 576) return { width: 320, height: 320 };  // Mobile - increased from 280
+        if (width < 768) return { width: 380, height: 380 };  // Large mobile - increased from 320
+        if (width < 992) return { width: 450, height: 450 };  // Tablet - increased from 380
+        return { width: 500, height: 500 };  // Desktop - increased from 400
     }
 
     /**
@@ -176,7 +179,7 @@ class BarcodeScanner {
                     }
                 }
 
-                // Request camera permission
+                // Start camera
                 console.log('[Barcode Scanner] ===== STARTING CAMERA =====');
                 console.log('[Barcode Scanner] Scanner object:', this.scanner);
                 console.log('[Barcode Scanner] Fast scan mode:', this.fastScanMode);

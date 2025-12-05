@@ -11,14 +11,14 @@ class HardwareScannerHandler {
         this.mode = options.mode || 'retail'; // 'retail' or 'wholesale'
         this.inputBuffer = '';
         this.lastInputTime = 0;
-        this.scannerSpeed = 50; // Optimized to 50ms for faster USB scanners (Bluetooth may need adjustment)
-        this.minBarcodeLength = 3; // Minimum barcode length
-        this.maxBarcodeLength = 50; // Maximum barcode length
+        this.scannerSpeed = 30; // Optimized to 30ms for faster USB scanners (increased sensitivity from 50ms)
+        this.minBarcodeLength = 2; // Minimum barcode length (reduced from 3 for better detection)
+        this.maxBarcodeLength = 60; // Maximum barcode length (increased from 50)
         this.enabled = true;
         this.inputTimeout = null;
-        this.bufferProcessTimeout = 100; // Reduced to 100ms for faster processing
+        this.bufferProcessTimeout = 80; // Reduced to 80ms for faster processing (from 100ms)
         this.statusIndicator = null;
-        this.maxRetries = 3; // Increased retry attempts for better reliability
+        this.maxRetries = 5; // Increased retry attempts for better reliability (from 3)
 
         // Performance optimization: cache for recently scanned items
         this.recentlyScanned = new Map(); // barcode -> {item, timestamp}
@@ -27,7 +27,7 @@ class HardwareScannerHandler {
         // Debouncing to prevent duplicate scans
         this.lastScannedBarcode = null;
         this.lastScanTimestamp = 0;
-        this.duplicateScanThreshold = 300; // 0.3 seconds to prevent duplicate scans
+        this.duplicateScanThreshold = 200; // 0.2 seconds to prevent duplicate scans (reduced from 300ms for faster rescans)
 
         console.log(`[Hardware Scanner] Initialized for ${this.mode} mode`);
     }
@@ -129,7 +129,7 @@ class HardwareScannerHandler {
             console.log(`[Hardware Scanner] Buffer: ${this.inputBuffer} (${timeDiff}ms since last char)`);
 
             // Visual feedback when buffering
-            if (this.inputBuffer.length > 5) {
+            if (this.inputBuffer.length > 3) {  // Show feedback earlier (reduced from 5)
                 this.showStatus(`Scanning... (${this.inputBuffer.length} chars)`, 500);
             }
         } else {
@@ -236,7 +236,7 @@ class HardwareScannerHandler {
                         mode: this.mode
                     }),
                     // Add timeout to prevent hanging requests
-                    signal: AbortSignal.timeout(10000) // 10 second timeout
+                    signal: AbortSignal.timeout(5000) // 5 second timeout (reduced from 10s for faster feedback)
                 });
 
                 if (response.ok) {
