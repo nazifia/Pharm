@@ -150,7 +150,7 @@ def activity_dashboard(request):
             logs = logs.filter(
                 models.Q(action__icontains=search_query) |
                 models.Q(user__username__icontains=search_query) |
-                models.Q(user__full_name__icontains=search_query)
+                models.Q(user__profile__full_name__icontains=search_query)
             )
 
         # Filter by date - prioritize single date over date range
