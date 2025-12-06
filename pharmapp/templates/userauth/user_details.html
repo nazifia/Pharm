@@ -80,7 +80,7 @@
                                     <td>
                                         <div class="btn-group btn-group-sm" role="group">
                                             {% if cashier_info %}
-                                                <a href="{% url 'userauth:toggle_cashier' user.id %}" 
+                                                <a href="{% url 'userauth:toggle_cashier_status' user.id %}"
                                                    class="btn {% if cashier_info.is_active %}btn-warning{% else %}btn-success{% endif %}">
                                                     {% if cashier_info.is_active %}
                                                         <i class="fas fa-pause"></i> Deactivate
@@ -89,18 +89,18 @@
                                                     {% endif %}
                                                 </a>
                                             {% endif %}
-                                            <a href="{% url 'store:cashier_dashboard' %}" 
+                                            <a href="{% url 'store:cashier_dashboard' %}"
                                                class="btn btn-info" target="_blank">
                                                 <i class="fas fa-eye"></i> View Dashboard
                                             </a>
                                         </div>
                                     </td>
                                 </tr>
-                                {% elif %}
+                                {% else %}
                                 <tr>
                                     <th>Assign Cashier:</th>
                                     <td>
-                                        <a href="{% url 'userauth:assign_cashier' user.id %}" 
+                                        <a href="{% url 'userauth:assign_cashier_role' user.id %}"
                                            class="btn btn-primary btn-sm">
                                             <i class="fas fa-user-tag"></i> Assign Cashier Role
                                         </a>
