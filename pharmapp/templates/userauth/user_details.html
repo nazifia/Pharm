@@ -226,6 +226,15 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
+                        {% if user != request.user %}
+                            <!-- Password Change Button (for Admins and Managers) -->
+                            {% if request.user.is_superuser or request.user.profile.user_type in 'Admin Manager' %}
+                                <button class="btn btn-warning btn-sm" onclick="openPasswordChangeModal({{ user.id }}, '{{ user.username }}')">
+                                    <i class="fas fa-key"></i> Change Password
+                                </button>
+                            {% endif %}
+                        {% endif %}
+
                         <a href="{% url 'userauth:edit_user' user.id %}" class="btn btn-primary btn-sm">
                             <i class="fas fa-edit"></i> Edit User
                         </a>
@@ -257,6 +266,13 @@
                         <a href="{% url 'userauth:activity_dashboard' %}?user={{ user.id }}" class="btn btn-info btn-sm">
                             <i class="fas fa-list"></i> View Activity Log
                         </a>
+
+                        <!-- Password History Button (for Admins and Managers) -->
+                        {% if request.user.is_superuser or request.user.profile.user_type in 'Admin Manager' %}
+                            <a href="{% url 'userauth:password_change_history' user.id %}" class="btn btn-secondary btn-sm">
+                                <i class="fas fa-history"></i> Password History
+                            </a>
+                        {% endif %}
 
                         <a href="{% url 'userauth:privilege_management_view' %}" class="btn btn-secondary btn-sm">
                             <i class="fas fa-lock"></i> Manage Privileges
@@ -330,4 +346,88 @@
     gap: 0.5rem;
 }
 </style>
+
+<!-- Password Change Modal -->
+<div class="modal fade" id="passwordChangeModal" tabindex="-1" role="dialog" aria-labelledby="passwordChangeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="passwordChangeModalLabel">
+                    <i class="fas fa-key"></i> Change Password
+                </h5>
+                <button type="button" class="close modal-close" data-bs-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="passwordChangeFormContainer">
+                <!-- Password form will be loaded here via HTMX -->
+                <div class="text-center py-4">
+                    <div class="spinner-border text-warning" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading password change form...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function openPasswordChangeModal(userId, username) {
+    // Update modal title
+    document.getElementById('passwordChangeModalLabel').innerHTML = '<i class="fas fa-key"></i> Change Password - ' + username;
+    
+    // Show modal using Bootstrap 5 API
+    var modalEl = document.getElementById('passwordChangeModal');
+    var modal = new bootstrap.Modal(modalEl);
+    modal.show();
+    
+    // Load the form via HTMX
+    htmx.ajax('GET', '/users/change-password/' + userId + '/', {
+        target: '#passwordChangeFormContainer',
+        swap: 'innerHTML',
+        afterSwap: function() {
+            // Ensure form has correct action after being loaded
+            var form = document.querySelector('#passwordChangeFormContainer form');
+            if (form) {
+                form.setAttribute('action', '/users/change-password/' + userId + '/');
+                // Add submit handler to ensure correct submission
+                form.addEventListener('submit', function(e) {
+                    // Force the form to submit to the correct action
+                    this.action = '/users/change-password/' + userId + '/';
+                });
+            }
+        }
+    });
+}
+
+// Listen for the passwordChanged custom event
+document.addEventListener('passwordChanged', function(evt) {
+    var modalEl = document.getElementById('passwordChangeModal');
+    var modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) {
+        modal.hide();
+    }
+});
+
+// Close modal when form submission is successful
+document.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.successful && evt.detail.pathInfo && evt.detail.pathInfo.requestPath.includes('change-password')) {
+        var modalEl = document.getElementById('passwordChangeModal');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) {
+            modal.hide();
+        }
+        // Redirect will be handled by HX-Redirect header
+    } else if (evt.detail.successful && evt.detail.target && evt.detail.target.id === 'passwordChangeFormContainer') {
+        // Also check if the target is our password form
+        var modalEl = document.getElementById('passwordChangeModal');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) {
+            modal.hide();
+        }
+        // Redirect will be handled by HX-Redirect header
+    }
+});
+</script>
 {% endblock %}

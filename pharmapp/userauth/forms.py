@@ -1,5 +1,6 @@
 from django import forms
-from . models import User, Profile, ActivityLog
+from django.contrib.auth.hashers import check_password
+from . models import User, Profile, ActivityLog, PasswordChangeHistory
 from django.contrib.auth.forms import UserCreationForm
 from store.models import Cashier
 
@@ -321,3 +322,93 @@ class CashierSearchForm(forms.Form):
         required=False,
         widget=forms.Select(attrs={'class': 'form-control'})
     )
+
+
+class PasswordChangeForm(forms.Form):
+    """Form for changing user passwords by authorized personnel"""
+    new_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter new password',
+            'autocomplete': 'new-password'
+        }),
+        required=True,
+        min_length=8,
+        help_text="Password must be at least 8 characters long"
+    )
+    confirm_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Confirm new password',
+            'autocomplete': 'new-password'
+        }),
+        required=True
+    )
+    change_reason = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'placeholder': 'Please provide a reason for this password change',
+            'rows': 3
+        }),
+        required=True,
+        help_text="This reason will be logged for audit purposes"
+    )
+    
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+    
+    def clean_new_password(self):
+        """Validate new password strength"""
+        password = self.cleaned_data.get('new_password')
+        
+        # Check minimum length (already enforced by min_length)
+        if len(password) < 8:
+            raise forms.ValidationError("Password must be at least 8 characters long.")
+        
+        # Check for complexity (at least one letter and one number)
+        has_letter = any(c.isalpha() for c in password)
+        has_number = any(c.isdigit() for c in password)
+        
+        if not has_letter or not has_number:
+            raise forms.ValidationError("Password must contain at least one letter and one number.")
+        
+        # Check if password is too common (basic check)
+        common_passwords = ['password', '123456', 'qwerty', 'admin', 'letmein', 'welcome']
+        if password.lower() in common_passwords:
+            raise forms.ValidationError("This password is too common. Please choose a more secure password.")
+        
+        # Check if password contains username or mobile
+        if self.user and self.user.username:
+            if self.user.username.lower() in password.lower():
+                raise forms.ValidationError("Password cannot contain your username.")
+        
+        if self.user and self.user.mobile:
+            if self.user.mobile in password:
+                raise forms.ValidationError("Password cannot contain your mobile number.")
+        
+        return password
+    
+    def clean_confirm_password(self):
+        """Validate password confirmation"""
+        password = self.cleaned_data.get('new_password')
+        confirm_password = self.cleaned_data.get('confirm_password')
+        
+        if password and confirm_password and password != confirm_password:
+            raise forms.ValidationError("Passwords do not match.")
+        
+        return confirm_password
+    
+    def clean(self):
+        """Overall form validation"""
+        cleaned_data = super().clean()
+        
+        # Ensure user is provided
+        if not self.user:
+            raise forms.ValidationError("User must be specified for password change.")
+        
+        # Check if new password is same as current password
+        if self.user and check_password(cleaned_data.get('new_password'), self.user.password):
+            raise forms.ValidationError("New password cannot be the same as the current password.")
+        
+        return cleaned_data

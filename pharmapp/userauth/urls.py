@@ -41,4 +41,8 @@ urlpatterns = [
     path('api/cashiers/', views.cashier_management_api, name='cashier_management_api'),
     path('api/available-users/', views.available_users_api, name='available_users_api'),
     path('api/cashier/<int:cashier_id>/', views.update_cashier_api, name='update_cashier_api'),
+
+    # Password management URLs
+    path('users/change-password/<int:user_id>/', views.change_user_password, name='change_user_password'),
+    path('users/password-history/<int:user_id>/', views.password_change_history, name='password_change_history'),
 ]

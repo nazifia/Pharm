@@ -67,6 +67,9 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'pharmapp.csrf_debug_middleware.CSRFDebugMiddleware',  # Debug CSRF issues
+    'pharmapp.request_debug_middleware.RequestDebugMiddleware',  # Debug unexpected requests
+    'pharmapp.cache_middleware.SmartCacheMiddleware',  # Smart caching for API responses
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',

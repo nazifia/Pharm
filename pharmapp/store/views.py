@@ -6948,10 +6948,18 @@ def notification_list(request):
 
 @login_required
 def notification_count_api(request):
-    """API endpoint to get unread notification count"""
+    """API endpoint to get unread notification count - optimized with caching"""
     if request.user.is_authenticated:
         from .notifications import NotificationService
-        count = NotificationService.get_unread_count(request.user)
+        from django.core.cache import cache
+        cache_key = f'notification_count_{request.user.id}'
+        count = cache.get(cache_key)
+        
+        if count is None:
+            count = NotificationService.get_unread_count(request.user)
+            # Cache for 30 seconds to reduce database load
+            cache.set(cache_key, count, 30)
+            
         return JsonResponse({'count': count})
     return JsonResponse({'count': 0})
 

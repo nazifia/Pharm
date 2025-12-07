@@ -558,16 +558,13 @@ def toggle_user_status(request, user_id):
 
 @login_required
 @role_required(['Admin'])
-@require_http_methods(["GET"])
 def user_details(request, user_id):
     """View for displaying detailed user information"""
     try:
         user = User.objects.select_related('profile').get(id=user_id)
 
-        # Get user's activity logs - optimized with select_related for better performance
-        recent_activities = ActivityLog.objects.filter(
-            user=user
-        ).select_related('user').order_by('-timestamp')[:10]
+        # Get user's activity logs
+        recent_activities = ActivityLog.objects.filter(user=user).order_by('-timestamp')[:10]
 
         # Check if user has cashier record and get cashier info
         cashier_info = None
@@ -1508,22 +1505,10 @@ def change_user_password(request, user_id):
                     )
                     
                     messages.success(request, f'Password for {user_to_change.username} has been changed successfully.')
-                    print(f"DEBUG: Password changed successfully for user: {user_to_change.id}")
+                    print(f"DEBUG: About to redirect to user details for user: {user_to_change.id}")
                     print(f"DEBUG: User {user_to_change.username} password before: {old_password_hash}")
                     print(f"DEBUG: User {user_to_change.username} password after: {updated_user.check_password('newsecurepass456')}")
-                    
-                    # For HTMX requests, return a response that will close the modal
-                    if request.headers.get('HX-Request'):
-                        from django.http import HttpResponse
-                        response = HttpResponse()
-                        response['HX-Trigger'] = 'passwordChanged'
-                        response['HX-Redirect'] = f'/users/{user_id}/'
-                        return response
-                    
                     return redirect('userauth:user_details', user_id=user_id)
-                except Exception as e:
-                    messages.error(request, f'Error updating password: {str(e)}')
-                    # Fall through to form rendering
         else:
             form = PasswordChangeForm(user=user_to_change)
         
@@ -1541,9 +1526,6 @@ def change_user_password(request, user_id):
         
     except User.DoesNotExist:
         messages.error(request, 'User not found.')
-        return redirect('userauth:user_list')
-    except Exception as e:
-        messages.error(request, f'An error occurred: {str(e)}')
         return redirect('userauth:user_list')
 
 

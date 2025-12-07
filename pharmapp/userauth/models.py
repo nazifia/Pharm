@@ -33,7 +33,9 @@ USER_PERMISSIONS = {
         # Specific procurement permissions
         'manage_retail_procurement', 'manage_wholesale_procurement', 'view_procurement_history',
         # Stock editing permission
-        'edit_transfer_item_quantity'
+        'edit_transfer_item_quantity',
+        # Password management permission
+        'manage_user_passwords'
     ],
     'Manager': [
         'view_financial_reports', 'manage_inventory', 'process_sales', 'view_reports',
@@ -47,7 +49,9 @@ USER_PERMISSIONS = {
         # Specific procurement permissions
         'manage_retail_procurement', 'manage_wholesale_procurement', 'view_procurement_history',
         # Stock editing permission
-        'edit_transfer_item_quantity'
+        'edit_transfer_item_quantity',
+        # Password management permission
+        'manage_user_passwords'
     ],
     'Pharmacist': [
         'manage_inventory', 'dispense_medication', 'process_sales', 'adjust_prices',
@@ -311,6 +315,47 @@ class ActivityLog(models.Model):
             action_type=action_type,
             target_model=target_model,
             target_id=target_id,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+
+
+class PasswordChangeHistory(models.Model):
+    """
+    Model to track password changes for audit purposes.
+    Maintains a complete history of all password changes made by authorized users.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_changes')
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='password_changes_made')
+    old_password_hash = models.CharField(max_length=255, help_text="Encrypted hash of the old password")
+    change_reason = models.TextField(help_text="Reason for the password change")
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    user_agent = models.TextField(blank=True, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Password Change History'
+        verbose_name_plural = 'Password Change Histories'
+        indexes = [
+            models.Index(fields=['user']),
+            models.Index(fields=['changed_by']),
+            models.Index(fields=['timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"Password change for {self.user.username} by {self.changed_by.username if self.changed_by else 'Unknown'} on {self.timestamp}"
+    
+    @classmethod
+    def log_password_change(cls, user, changed_by, old_password_hash, change_reason, ip_address=None, user_agent=None):
+        """
+        Helper method to log password changes.
+        """
+        return cls.objects.create(
+            user=user,
+            changed_by=changed_by,
+            old_password_hash=old_password_hash,
+            change_reason=change_reason,
             ip_address=ip_address,
             user_agent=user_agent
         )

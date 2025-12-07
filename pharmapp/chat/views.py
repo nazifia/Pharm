@@ -211,14 +211,21 @@ def send_message_view(request):
 
 @login_required
 def unread_messages_count(request):
-    """Get unread messages count for the current user"""
+    """Get unread messages count for the current user - optimized with caching"""
     if request.user.is_authenticated:
-        # Count unread messages in all rooms the user participates in
+        from django.core.cache import cache
+        cache_key = f'unread_messages_count_{request.user.id}'
+        cached_count = cache.get(cache_key)
+        
+        if cached_count is not None:
+            return JsonResponse({'unread_count': cached_count})
+        
+        # Count unread messages in all rooms the user participates in - optimized with prefetch_related
         unread_count = ChatMessage.objects.filter(
             room__participants=request.user
         ).exclude(sender=request.user).exclude(
             read_statuses__user=request.user
-        ).count()
+        ).prefetch_related('room__participants', 'read_statuses').count()
 
         # Also count legacy unread messages for backward compatibility
         legacy_unread = ChatMessage.objects.filter(
@@ -227,6 +234,9 @@ def unread_messages_count(request):
         ).count()
 
         total_unread = max(unread_count, legacy_unread)
+        
+        # Cache for 15 seconds to reduce database load while maintaining near-real-time updates
+        cache.set(cache_key, total_unread, 15)
 
         return JsonResponse({'unread_count': total_unread})
     return JsonResponse({'unread_count': 0})
