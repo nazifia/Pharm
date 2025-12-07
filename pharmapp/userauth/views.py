@@ -1559,6 +1559,9 @@ def password_change_history(request, user_id):
             user=user
         ).select_related('changed_by').order_by('-timestamp')
         
+        # Ensure we have a list to avoid QuerySet issues
+        password_changes = list(password_changes)
+        
         context = {
             'user': user,
             'password_changes': password_changes,
