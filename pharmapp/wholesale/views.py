@@ -5020,6 +5020,17 @@ def send_to_wholesale_cashier(request):
                 except WholesaleCustomer.DoesNotExist:
                     pass
             
+            # Get walk-in customer details from request
+            buyer_name = request.POST.get('buyer_name', '').strip()
+            buyer_address = request.POST.get('buyer_address', '').strip()
+            
+            # Debug logging for walk-in customer information
+            print(f"\n==== WHOLESALE SEND TO CASHIER ====")
+            print(f"Buyer Name: '{buyer_name}'")
+            print(f"Buyer Address: '{buyer_address}'")
+            print(f"Wholesale Customer: {wholesale_customer}")
+            print(f"===================================\n")
+            
             # Calculate total amount
             total_amount = sum(item.subtotal for item in cart_items)
 
@@ -5032,6 +5043,8 @@ def send_to_wholesale_cashier(request):
                 payment_type='wholesale',
                 total_amount=total_amount,
                 notes=request.POST.get('notes', ''),
+                buyer_name=buyer_name,
+                buyer_address=buyer_address,
                 status='pending'
             )
             
@@ -5637,12 +5650,20 @@ def complete_wholesale_payment_request(request, request_id):
                 )
 
                 # Create wholesale receipt
+                # Use walk-in customer details from PaymentRequest if available, otherwise use wholesale customer details
+                final_buyer_name = payment_request.buyer_name if payment_request.buyer_name else (
+                    payment_request.wholesale_customer.name if payment_request.wholesale_customer else 'WALK-IN CUSTOMER'
+                )
+                final_buyer_address = payment_request.buyer_address if payment_request.buyer_address else (
+                    payment_request.wholesale_customer.address if payment_request.wholesale_customer else ''
+                )
+                
                 receipt = WholesaleReceipt.objects.create(
                     wholesale_customer=payment_request.wholesale_customer,
                     sales=sales,
                     cashier=cashier,
-                    buyer_name=payment_request.wholesale_customer.name if payment_request.wholesale_customer else 'WALK-IN CUSTOMER',
-                    buyer_address=payment_request.wholesale_customer.address if payment_request.wholesale_customer else '',
+                    buyer_name=final_buyer_name,
+                    buyer_address=final_buyer_address,
                     total_amount=payment_request.total_amount,
                     payment_method=payment_method if payment_type != 'split' else 'Split',
                     status=payment_status
