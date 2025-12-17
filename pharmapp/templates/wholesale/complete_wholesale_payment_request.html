@@ -85,7 +85,20 @@
 
                         <form method="POST">
                             {% csrf_token %}
-                            
+
+                            {% if not payment_request.wholesale_customer %}
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-user mr-2"></i>Walk-in Customer Information</h6>
+                                <p class="mb-0">
+                                    <strong>Customer Name:</strong> {{ payment_request.buyer_name|default:"WALK-IN CUSTOMER" }}<br>
+                                    {% if payment_request.buyer_address %}
+                                    <strong>Customer Address:</strong> {{ payment_request.buyer_address }}
+                                    {% endif %}
+                                </p>
+                                <small class="text-muted">This information was provided by the dispenser.</small>
+                            </div>
+                            {% endif %}
+
                             <!-- Payment Type Selection -->
                             <div class="form-group">
                                 <label for="payment_type"><strong>Payment Type *</strong></label>

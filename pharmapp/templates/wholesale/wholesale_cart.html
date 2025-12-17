@@ -402,15 +402,7 @@
 
                 // Submit with a small delay to ensure all DOM updates are complete
                 setTimeout(() => {
-                    // Check if this is a send to cashier request
-                var paymentType = document.getElementById('payment_type').value;
-                if (paymentType === 'send_to_cashier') {
-                    e.preventDefault();
-                    sendToCashierWithNotes();
-                    return false;
-                }
-                
-                paymentForm.submit();
+                    paymentForm.submit();
                 }, 100);
             });
         }
@@ -560,10 +552,16 @@
                             placeholder="Address">
                     </div>
                     <div class="text-center mt-4">
-                        <button type="submit" class="btn btn-primary" id="submitButton">
-                            <i class="fas fa-check-circle mr-2"></i>
-                            <span id="submitButtonText">Generate Receipt</span>
-                        </button>
+                        <div id="direct_payment_button">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-check-circle mr-2"></i>Generate Receipt
+                            </button>
+                        </div>
+                        <div id="cashier_payment_button" style="display: none;">
+                            <button type="button" class="btn btn-warning" onclick="sendToCashier()">
+                                <i class="fas fa-paper-plane mr-2"></i>Send to Cashier
+                            </button>
+                        </div>
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                     </div>
                 </form>
@@ -577,23 +575,22 @@
                     document.getElementById('single_payment_status').style.display = 'none';
                     document.getElementById('split_payment_options').style.display = 'none';
                     document.getElementById('send_to_cashier_options').style.display = 'none';
-                    
+
                     if (paymentType === 'single') {
                         document.getElementById('single_payment_options').style.display = 'block';
                         document.getElementById('single_payment_status').style.display = 'block';
-                        // Reset submit button text
-                        document.getElementById('submitButtonText').textContent = 'Generate Receipt';
+                        document.getElementById('direct_payment_button').style.display = 'block';
+                        document.getElementById('cashier_payment_button').style.display = 'none';
                     } else if (paymentType === 'split') {
                         document.getElementById('split_payment_options').style.display = 'block';
-                        // Initialize the remaining amount
                         var totalPrice = parseFloat('{{ total_price }}');
                         document.getElementById('remaining_amount').textContent = totalPrice.toFixed(2);
-                        // Reset submit button text
-                        document.getElementById('submitButtonText').textContent = 'Generate Receipt';
+                        document.getElementById('direct_payment_button').style.display = 'block';
+                        document.getElementById('cashier_payment_button').style.display = 'none';
                     } else if (paymentType === 'send_to_cashier') {
                         document.getElementById('send_to_cashier_options').style.display = 'block';
-                        // Update submit button text
-                        document.getElementById('submitButtonText').textContent = 'Send to Cashier';
+                        document.getElementById('direct_payment_button').style.display = 'none';
+                        document.getElementById('cashier_payment_button').style.display = 'block';
                     }
                 }
 
@@ -649,52 +646,69 @@
                 }
 
                 function sendToCashier() {
-                    if (confirm('Send this wholesale cart to cashier for payment processing?')) {
-                        // Create a form and submit it
-                        const form = document.createElement('form');
-                        form.method = 'POST';
-                        form.action = '{% url "wholesale:send_to_wholesale_cashier" %}';
-                        
-                        // Add CSRF token
-                        const csrfToken = document.createElement('input');
-                        csrfToken.type = 'hidden';
-                        csrfToken.name = 'csrfmiddlewaretoken';
-                        csrfToken.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
-                        form.appendChild(csrfToken);
-                        
-                        document.body.appendChild(form);
-                        form.submit();
-                    }
-                }
+                    console.log('[Wholesale] sendToCashier() called');
 
-                function sendToCashierWithNotes() {
-                    // Send to cashier with optional notes
-                    if (confirm('Send this wholesale cart to cashier for payment processing?')) {
-                        // Create a form and submit it
-                        const form = document.createElement('form');
-                        form.method = 'POST';
-                        form.action = '{% url "wholesale:send_to_wholesale_cashier" %}';
-                        
-                        // Add CSRF token
-                        const csrfToken = document.createElement('input');
-                        csrfToken.type = 'hidden';
-                        csrfToken.name = 'csrfmiddlewaretoken';
-                        csrfToken.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
-                        form.appendChild(csrfToken);
-                        
-                        // Add cashier notes if provided
-                        const cashiersNotes = document.getElementById('cashier_notes');
-                        if (cashiersNotes && cashiersNotes.value.trim()) {
-                            const notesInput = document.createElement('input');
-                            notesInput.type = 'hidden';
-                            notesInput.name = 'notes';
-                            notesInput.value = cashiersNotes.value.trim();
-                            form.appendChild(notesInput);
-                        }
-                        
-                        document.body.appendChild(form);
-                        form.submit();
+                    // Simple implementation matching retail
+                    var form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '{% url "wholesale:send_to_wholesale_cashier" %}';
+
+                    // Add CSRF token
+                    var csrfInput = document.createElement('input');
+                    csrfInput.type = 'hidden';
+                    csrfInput.name = 'csrfmiddlewaretoken';
+                    csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                    form.appendChild(csrfInput);
+                    console.log('[Wholesale] CSRF token added');
+
+                    // Add buyer name and address for walk-in customers
+                    var buyerName = document.getElementById('buyer_name');
+                    console.log('[Wholesale] buyer_name element:', buyerName);
+                    console.log('[Wholesale] buyer_name value:', buyerName ? buyerName.value : 'ELEMENT NOT FOUND');
+
+                    if (buyerName) {
+                        var buyerNameInput = document.createElement('input');
+                        buyerNameInput.type = 'hidden';
+                        buyerNameInput.name = 'buyer_name';
+                        buyerNameInput.value = buyerName.value || '';
+                        form.appendChild(buyerNameInput);
+                        console.log('[Wholesale] Added buyer_name to form:', buyerNameInput.value);
+                    } else {
+                        console.error('[Wholesale] buyer_name element NOT FOUND!');
                     }
+
+                    var buyerAddress = document.getElementById('buyer_address');
+                    console.log('[Wholesale] buyer_address element:', buyerAddress);
+                    if (buyerAddress) {
+                        var buyerAddressInput = document.createElement('input');
+                        buyerAddressInput.type = 'hidden';
+                        buyerAddressInput.name = 'buyer_address';
+                        buyerAddressInput.value = buyerAddress.value || '';
+                        form.appendChild(buyerAddressInput);
+                        console.log('[Wholesale] Added buyer_address to form:', buyerAddressInput.value);
+                    }
+
+                    // Add cashier notes
+                    var cashierNotes = document.getElementById('cashier_notes');
+                    if (cashierNotes && cashierNotes.value) {
+                        var notesInput = document.createElement('input');
+                        notesInput.type = 'hidden';
+                        notesInput.name = 'notes';
+                        notesInput.value = cashierNotes.value;
+                        form.appendChild(notesInput);
+                        console.log('[Wholesale] Added notes to form');
+                    }
+
+                    // Log all form fields before submission
+                    console.log('[Wholesale] Form fields before submission:');
+                    var formData = new FormData(form);
+                    for (var pair of formData.entries()) {
+                        console.log('[Wholesale]   ' + pair[0] + ': ' + pair[1]);
+                    }
+
+                    document.body.appendChild(form);
+                    console.log('[Wholesale] Form appended, submitting...');
+                    form.submit();
                 }
             </script>
         </div>

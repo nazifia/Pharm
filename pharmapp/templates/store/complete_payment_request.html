@@ -15,7 +15,7 @@
                     <div class="alert alert-info">
                         <h6>Request Summary</h6>
                         <p><strong><i class="fas fa-pills text-primary"></i> From (Dispenser):</strong> {{ payment_request.dispenser.username }}</p>
-                        <p><strong>Customer:</strong> 
+                        <p><strong>Customer:</strong>
                             {% if payment_request.customer %}
                                 {{ payment_request.customer.name }}
                             {% else %}
@@ -25,10 +25,23 @@
                         <p><strong>Total Amount:</strong> ₦{{ payment_request.total_amount|floatformat:2 }}</p>
                         <p><strong>Date:</strong> {{ payment_request.created_at|date:"M d, Y H:i" }}</p>
                     </div>
-                    
+
                     <form method="POST">
                         {% csrf_token %}
-                        
+
+                        {% if not payment_request.customer %}
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-user mr-2"></i>Walk-in Customer Information</h6>
+                            <p class="mb-0">
+                                <strong>Customer Name:</strong> {{ payment_request.buyer_name|default:"WALK-IN CUSTOMER" }}<br>
+                                {% if payment_request.buyer_address %}
+                                <strong>Customer Address:</strong> {{ payment_request.buyer_address }}
+                                {% endif %}
+                            </p>
+                            <small class="text-muted">This information was provided by the dispenser.</small>
+                        </div>
+                        {% endif %}
+
                         <div class="form-group">
                             <label for="payment_method"><strong>Payment Method:</strong></label>
                             <select name="payment_method" id="payment_method" class="form-control" required>
@@ -38,7 +51,7 @@
                                 <option value="Transfer">Bank Transfer</option>
                             </select>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="payment_status"><strong>Payment Status:</strong></label>
                             <select name="payment_status" id="payment_status" class="form-control">

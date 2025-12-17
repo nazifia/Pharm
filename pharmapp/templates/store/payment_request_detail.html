@@ -34,13 +34,18 @@
                     {% endif %}
                 </div>
                 <div class="col-md-6">
-                    <p><strong>Customer:</strong> 
+                    <p><strong>Customer:</strong>
                         {% if payment_request.customer %}
                             {{ payment_request.customer.name }}
+                        {% elif payment_request.buyer_name %}
+                            {{ payment_request.buyer_name }}
                         {% else %}
                             Walk-in Customer
                         {% endif %}
                     </p>
+                    {% if not payment_request.customer and payment_request.buyer_address %}
+                    <p><strong>Address:</strong> {{ payment_request.buyer_address }}</p>
+                    {% endif %}
                     <p><strong>Total Amount:</strong> ₦{{ payment_request.total_amount|floatformat:2 }}</p>
                     {% if payment_request.cashier %}
                         <p><strong><i class="fas fa-cash-register text-success"></i> Processed by (Cashier):</strong> {{ payment_request.cashier.name }}</p>

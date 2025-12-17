@@ -614,14 +614,33 @@
                     var form = document.createElement('form');
                     form.method = 'POST';
                     form.action = "{% url 'store:send_to_cashier' %}";
-                    
+
                     // Add CSRF token
                     var csrfInput = document.createElement('input');
                     csrfInput.type = 'hidden';
                     csrfInput.name = 'csrfmiddlewaretoken';
                     csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
                     form.appendChild(csrfInput);
-                    
+
+                    // Add buyer name and address for walk-in customers
+                    var buyerName = document.getElementById('buyer_name');
+                    if (buyerName) {
+                        var buyerNameInput = document.createElement('input');
+                        buyerNameInput.type = 'hidden';
+                        buyerNameInput.name = 'buyer_name';
+                        buyerNameInput.value = buyerName.value || '';
+                        form.appendChild(buyerNameInput);
+                    }
+
+                    var buyerAddress = document.getElementById('buyer_address');
+                    if (buyerAddress) {
+                        var buyerAddressInput = document.createElement('input');
+                        buyerAddressInput.type = 'hidden';
+                        buyerAddressInput.name = 'buyer_address';
+                        buyerAddressInput.value = buyerAddress.value || '';
+                        form.appendChild(buyerAddressInput);
+                    }
+
                     // Add notes
                     var notes = document.getElementById('notes').value;
                     if (notes) {
@@ -631,7 +650,7 @@
                         notesInput.value = notes;
                         form.appendChild(notesInput);
                     }
-                    
+
                     document.body.appendChild(form);
                     form.submit();
                 }

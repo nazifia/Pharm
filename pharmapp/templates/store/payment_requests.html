@@ -133,6 +133,8 @@
                             <td>
                                 {% if request.customer %}
                                     {{ request.customer.name }}
+                                {% elif request.buyer_name %}
+                                    {{ request.buyer_name }}
                                 {% else %}
                                     Walk-in Customer
                                 {% endif %}

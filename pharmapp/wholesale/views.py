@@ -1800,6 +1800,18 @@ def validate_wholesale_cart_stock(request):
 def send_to_wholesale_cashier(request):
     """Send wholesale payment request to cashier/billing-point/pay-point
     Creates ONE SEPARATE payment request per cart item for independent processing"""
+    # Debug: Write to file
+    import os
+    debug_file = os.path.join(os.path.dirname(__file__), 'debug_wholesale_post.txt')
+    with open(debug_file, 'a') as f:
+        import datetime
+        f.write(f"\n{'='*50}\n")
+        f.write(f"Time: {datetime.datetime.now()}\n")
+        f.write(f"POST data: {dict(request.POST)}\n")
+        f.write(f"buyer_name in POST: {'buyer_name' in request.POST}\n")
+        f.write(f"buyer_name value: {repr(request.POST.get('buyer_name', 'NOT FOUND'))}\n")
+        f.write(f"{'='*50}\n")
+
     if request.user.is_authenticated:
         from userauth.permissions import can_dispense_items
 
@@ -1824,8 +1836,18 @@ def send_to_wholesale_cashier(request):
                 except WholesaleCustomer.DoesNotExist:
                     pass
 
-            # Get general notes from request
+            # Get general notes and walk-in customer details from request
             general_notes = request.POST.get('notes', '')
+            buyer_name = request.POST.get('buyer_name', '').strip()
+            buyer_address = request.POST.get('buyer_address', '').strip()
+
+            print(f"\n==== SEND TO WHOLESALE CASHIER DEBUG ====")
+            print(f"ALL POST DATA: {dict(request.POST)}")
+            print(f"Customer: {wholesale_customer}")
+            print(f"Buyer Name from dispenser: '{buyer_name}'")
+            print(f"Buyer Address from dispenser: '{buyer_address}'")
+            print(f"Notes: '{general_notes}'")
+            print(f"=========================================\n")
 
             # Create SEPARATE payment request for EACH cart item
             created_requests = []
@@ -1840,6 +1862,8 @@ def send_to_wholesale_cashier(request):
                     payment_type='wholesale',
                     total_amount=item_amount,
                     notes=f"{general_notes} - Item: {cart_item.item.name}" if general_notes else f"Item: {cart_item.item.name}",
+                    buyer_name=buyer_name,
+                    buyer_address=buyer_address,
                     status='pending'
                 )
 
@@ -2013,6 +2037,13 @@ def complete_wholesale_payment_request(request, request_id):
                     messages.error(request, 'Payment method is required.')
                     return redirect('store:cashier_dashboard')
 
+                # Debug logging
+                print(f"\n==== COMPLETE WHOLESALE PAYMENT REQUEST DEBUG ====")
+                print(f"Payment Request Customer: {payment_request.wholesale_customer}")
+                print(f"Buyer Name from PaymentRequest: '{payment_request.buyer_name}'")
+                print(f"Buyer Address from PaymentRequest: '{payment_request.buyer_address}'")
+                print(f"======================================================\n")
+
                 # Get cashier object if user is a cashier
                 cashier = None
                 if hasattr(request.user, 'cashier'):
@@ -2038,16 +2069,34 @@ def complete_wholesale_payment_request(request, request_id):
                     total_amount=payment_request.total_amount
                 )
 
+                # Determine buyer name and address
+                if payment_request.wholesale_customer:
+                    # Use registered customer details
+                    final_buyer_name = payment_request.wholesale_customer.name
+                    final_buyer_address = payment_request.wholesale_customer.address
+                else:
+                    # Use walk-in customer details from PaymentRequest (entered by dispenser), or default
+                    final_buyer_name = payment_request.buyer_name if payment_request.buyer_name else 'WALK-IN CUSTOMER'
+                    final_buyer_address = payment_request.buyer_address if payment_request.buyer_address else ''
+
                 receipt = WholesaleReceipt.objects.create(
                     wholesale_customer=payment_request.wholesale_customer,
                     sales=sales,
                     cashier=cashier,
-                    buyer_name=payment_request.wholesale_customer.name if payment_request.wholesale_customer else 'WALK-IN CUSTOMER',
-                    buyer_address=payment_request.wholesale_customer.address if payment_request.wholesale_customer else '',
+                    buyer_name=final_buyer_name,
+                    buyer_address=final_buyer_address,
                     total_amount=payment_request.total_amount,
                     payment_method=payment_method,
                     status=payment_status
                 )
+
+                # Debug: Verify what was saved
+                print(f"\n==== WHOLESALE RECEIPT CREATED ====")
+                print(f"Receipt ID: {receipt.receipt_id}")
+                print(f"Receipt buyer_name: '{receipt.buyer_name}'")
+                print(f"Receipt buyer_address: '{receipt.buyer_address}'")
+                print(f"Receipt customer: {receipt.wholesale_customer}")
+                print(f"==========================\n")
 
                 # Create sales items from payment request items
                 for payment_item in payment_request.items.all():
@@ -2159,8 +2208,11 @@ def wholesale_receipt(request):
             print(f"  {key}: {value}")
         print(f"\nDirect access - Payment Method: {payment_method}, Status: {status}\n")
 
-        buyer_name = request.POST.get('buyer_name', '')
-        buyer_address = request.POST.get('buyer_address', '')
+        buyer_name = request.POST.get('buyer_name', '').strip()
+        buyer_address = request.POST.get('buyer_address', '').strip()
+
+        print(f"Buyer name from POST: '{buyer_name}'")
+        print(f"Buyer address from POST: '{buyer_address}'")
 
         # Check if this is a split payment
         payment_type = request.POST.get('payment_type', 'single')
@@ -2289,20 +2341,44 @@ def wholesale_receipt(request):
                 import uuid
                 receipt_id = str(uuid.uuid4())[:5]  # Use first 5 characters of a UUID
 
+                # Determine buyer name and address
+                if sales.wholesale_customer:
+                    # Use registered customer details
+                    final_buyer_name = sales.wholesale_customer.name
+                    final_buyer_address = sales.wholesale_customer.address
+                else:
+                    # Use walk-in customer details from form, or default
+                    final_buyer_name = buyer_name if buyer_name else 'WALK-IN CUSTOMER'
+                    final_buyer_address = buyer_address
+
+                print(f"\n==== WHOLESALE BUYER INFO FOR RECEIPT =====")
+                print(f"Final buyer_name: '{final_buyer_name}'")
+                print(f"Final buyer_address: '{final_buyer_address}'")
+                print(f"Customer: {sales.wholesale_customer}")
+                print(f"===========================================\n")
+
                 # Create the receipt
                 receipt = WholesaleReceipt.objects.create(
                     sales=sales,
                     receipt_id=receipt_id,
                     total_amount=final_total,
                     wholesale_customer=sales.wholesale_customer,
-                    buyer_name=buyer_name if not sales.wholesale_customer else sales.wholesale_customer.name,
-                    buyer_address=buyer_address if not sales.wholesale_customer else sales.wholesale_customer.address,
+                    buyer_name=final_buyer_name,
+                    buyer_address=final_buyer_address,
                     date=datetime.now()
                 )
 
                 # Now explicitly set the payment method and status
                 receipt.payment_method = payment_method
                 receipt.status = status
+
+                # Debug: Verify what was saved to database
+                print(f"\n==== WHOLESALE RECEIPT SAVED TO DATABASE =====")
+                print(f"Receipt ID: {receipt.receipt_id}")
+                print(f"Receipt.buyer_name: '{receipt.buyer_name}'")
+                print(f"Receipt.buyer_address: '{receipt.buyer_address}'")
+                print(f"Receipt.wholesale_customer: {receipt.wholesale_customer}")
+                print(f"===============================================\n")
 
                 # Check if wallet went negative (from session for single payments)
                 if request.session.get('wallet_went_negative', False):

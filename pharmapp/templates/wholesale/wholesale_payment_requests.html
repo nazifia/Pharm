@@ -188,6 +188,8 @@
                                 <td>
                                     {% if request.wholesale_customer %}
                                         <i class="fas fa-user-tag"></i> {{ request.wholesale_customer.name }}
+                                    {% elif request.buyer_name %}
+                                        <i class="fas fa-user"></i> {{ request.buyer_name }}
                                     {% else %}
                                         <span class="text-muted">Walk-in Customer</span>
                                     {% endif %}

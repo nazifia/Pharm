@@ -53,10 +53,15 @@
                                 <p><strong>Customer:</strong>
                                     {% if payment_request.wholesale_customer %}
                                         {{ payment_request.wholesale_customer.name }}
+                                    {% elif payment_request.buyer_name %}
+                                        {{ payment_request.buyer_name }}
                                     {% else %}
                                         Walk-in Customer
                                     {% endif %}
                                 </p>
+                                {% if not payment_request.wholesale_customer and payment_request.buyer_address %}
+                                <p><strong>Address:</strong> {{ payment_request.buyer_address }}</p>
+                                {% endif %}
                                 <p><strong>Payment Type:</strong> {{ payment_request.get_payment_type_display }}</p>
                                 {% if payment_request.cashier %}
                                     <p><strong><i class="fas fa-cash-register text-success"></i> Assigned Cashier:</strong> {{ payment_request.cashier.name }}</p>
