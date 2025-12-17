@@ -309,6 +309,8 @@
                                                     <strong>Customer:</strong>
                                                     {% if request.wholesale_customer %}
                                                         {{ request.wholesale_customer.name }}
+                                                    {% elif request.buyer_name %}
+                                                        {{ request.buyer_name }}
                                                     {% else %}
                                                         Walk-in Customer
                                                     {% endif %}
@@ -372,6 +374,8 @@
                                                     <strong>Customer:</strong>
                                                     {% if request.wholesale_customer %}
                                                         {{ request.wholesale_customer.name }}
+                                                    {% elif request.buyer_name %}
+                                                        {{ request.buyer_name }}
                                                     {% else %}
                                                         Walk-in Customer
                                                     {% endif %}
@@ -428,6 +432,8 @@
                                                     <strong>Customer:</strong>
                                                     {% if request.wholesale_customer %}
                                                         {{ request.wholesale_customer.name }}
+                                                    {% elif request.buyer_name %}
+                                                        {{ request.buyer_name }}
                                                     {% else %}
                                                         Walk-in Customer
                                                     {% endif %}
