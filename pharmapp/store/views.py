@@ -3853,9 +3853,20 @@ def customer_list(request):
         if not can_manage_retail_customers(request.user):
             messages.error(request, 'You do not have permission to manage retail customers.')
             return redirect('store:index')
-            
-        # Optimized query with pagination for better performance
+        
+        # Get search query from request
+        search_query = request.GET.get('search', '')
+        
+        # Optimized query with pagination and search for better performance
         customers = Customer.objects.select_related('wallet').order_by('name')
+        
+        # Apply search filter if query is provided
+        if search_query:
+            customers = customers.filter(
+                Q(name__icontains=search_query) | 
+                Q(phone__icontains=search_query) | 
+                Q(address__icontains=search_query)
+            )
         
         # Add pagination - 50 customers per page
         paginator = Paginator(customers, 50)
@@ -3864,9 +3875,9 @@ def customer_list(request):
         
         # Check if this is an HTMX request for partial updates
         if request.headers.get('HX-Request'):
-            return render(request, 'partials/customer_list_partial.html', {'page_obj': page_obj})
+            return render(request, 'partials/customer_list_partial.html', {'page_obj': page_obj, 'search_query': search_query})
         else:
-            return render(request, 'partials/customer_list.html', {'page_obj': page_obj})
+            return render(request, 'partials/customer_list.html', {'page_obj': page_obj, 'search_query': search_query})
     else:
         return redirect('store:index')
 

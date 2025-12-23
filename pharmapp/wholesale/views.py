@@ -7,6 +7,7 @@ from django.utils.timezone import now, timezone
 from datetime import timedelta, datetime
 from decimal import Decimal
 from django.db.models import Sum, Q, F
+from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST, require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -3567,20 +3568,55 @@ def wholesale_customers(request):
             messages.error(request, 'You do not have permission to manage wholesale customers.')
             return redirect('store:index')
 
+        # Get search query from request
+        search_query = request.GET.get('search', '')
+
         # Check if this is a return action request
         action = request.GET.get('action')
+        
+        # Get page number for pagination
+        page_number = request.GET.get('page', 1)
+        
+        # Start with base queryset
+        customers = WholesaleCustomer.objects.all().order_by('name')
+        
+        # Apply search filter if query is provided
+        if search_query:
+            customers = customers.filter(
+                Q(name__icontains=search_query) | 
+                Q(phone__icontains=search_query) | 
+                Q(address__icontains=search_query)
+            )
+        
+        # Add pagination - 50 customers per page
+        paginator = Paginator(customers, 50)
+        page_obj = paginator.get_page(page_number)
+        
         if action == 'return':
-            # For return actions, redirect to a return-specific interface
-            # For now, we'll show the customer list with a return indicator
-            customers = WholesaleCustomer.objects.all().order_by('name')
-            return render(request, 'wholesale/wholesale_customers.html', {
-                'customers': customers,
+            # For return actions, show the customer list with a return indicator
+            context = {
+                'page_obj': page_obj,
                 'action': 'return',
-                'page_title': 'Select Customer for Returns'
-            })
-
-        customers = WholesaleCustomer.objects.all().order_by('name')  # Order by customer name in ascending order
-        return render(request, 'wholesale/wholesale_customers.html', {'customers': customers})
+                'page_title': 'Select Customer for Returns',
+                'search_query': search_query
+            }
+            
+            # Check if this is an HTMX request for partial updates
+            if request.headers.get('HX-Request'):
+                return render(request, 'wholesale/wholesale_customers_partial.html', context)
+            else:
+                return render(request, 'wholesale/wholesale_customers.html', context)
+        
+        context = {
+            'page_obj': page_obj,
+            'search_query': search_query
+        }
+        
+        # Check if this is an HTMX request for partial updates
+        if request.headers.get('HX-Request'):
+            return render(request, 'wholesale/wholesale_customers_partial.html', context)
+        else:
+            return render(request, 'wholesale/wholesale_customers.html', context)
     else:
         return redirect('store:index')
 

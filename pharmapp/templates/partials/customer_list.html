@@ -86,12 +86,23 @@
         {{ message }}
     </div>
     {% endfor %}
+    
+    <!-- Search Form -->
+    <div class="mb-3">
+        <input type="text" id="searchInput" class="form-control" placeholder="Search customers..."
+               hx-get="{% url 'store:customer_list' %}"
+               hx-trigger="keyup changed delay:500ms"
+               hx-target="#customerTableContainer"
+               name="search"
+               style="width: 300px; margin: 0 auto; display: block;">
+    </div>
+    
     <!-- Display wallet details here -->
-        <div id="wallet-info"></div>
-        <!-- Display item selection form here -->
-        <div id="item-selection"></div>
+    <div id="wallet-info"></div>
+    <!-- Display item selection form here -->
+    <div id="item-selection"></div>
         
-    <div class="table-responsive">
+    <div class="table-responsive" id="customerTableContainer">
         <table
             class="table table-hover"
             style="box-shadow: 0 0 10px rgba(0, 0, 0, 0.3)"
