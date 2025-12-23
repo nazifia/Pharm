@@ -2070,6 +2070,31 @@ def receipt(request):
 
                 receipt.save()
 
+                # DEDUCT STOCK AT RECEIPT CREATION (as requested by user)
+                # Process each cart item and deduct stock
+                for cart_item in cart_items:
+                    item = cart_item.item
+                    quantity = cart_item.quantity
+                    
+                    # Check if we have enough stock (should always be true since we checked earlier)
+                    if item.stock >= quantity:
+                        item.stock -= quantity
+                        item.save()
+                        
+                        # Create or update SalesItem record
+                        SalesItem.objects.update_or_create(
+                            sales=sales,
+                            item=item,
+                            defaults={
+                                'quantity': quantity,
+                                'price': item.price,
+                                'discount_amount': cart_item.discount_amount or Decimal('0.00')
+                            }
+                        )
+                    else:
+                        # This should not happen, but handle it gracefully
+                        messages.error(request, f'Insufficient stock for {item.name} during receipt creation')
+
                 # If this is a split payment, create the payment records
                 if payment_type == 'split':
                     # Handle wallet payments for registered customers
@@ -4001,13 +4026,11 @@ def select_items(request, pk):
                     unit = units[i] if i < len(units) else item.unit
 
                     if action == 'purchase':
-                        # Check stock and update inventory
+                        # Check stock availability (but don't deduct yet)
+                        # Stock will be deducted when receipt is created (payment completion)
                         if quantity > item.stock:
                             messages.warning(request, f'Not enough stock for {item.name}.')
                             return redirect('wholesale:select_wholesale_items', pk=pk)
-
-                        item.stock -= quantity
-                        item.save()
 
                         # Update or create a WholesaleCartItem
                         cart_item, created = Cart.objects.get_or_create(

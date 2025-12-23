@@ -129,6 +129,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'store.context_processors.marquee_context',
                 'userauth.context_processors.user_roles',
+                'store.context_processors.contact_info_context',
                 'store.context_processors_performance.performance_metrics',
             ],
             # Performance optimizations
@@ -348,3 +349,9 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # from django.core.signals import static_files_copied
 # static_files_copied.connect(copy_index_html)
+
+# Pharmacy Contact Information Settings
+# These values can be overridden in .env or environment variables
+PHARMACY_PHONE = config('PHARMACY_PHONE', default='+234-803-123-4567')
+PHARMACY_ADDRESS = config('PHARMACY_ADDRESS', default='No. 123 FTH Jibia Bypass, Katsina')
+PHARMACY_EMAIL = config('PHARMACY_EMAIL', default='info@nazzpharmacy.com')

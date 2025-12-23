@@ -9,6 +9,7 @@ from decimal import Decimal
 from django.db.models import Sum, Q, F
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST, require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.cache import never_cache
 import uuid
 from store.models import *
@@ -711,32 +712,30 @@ def wholesale_exp_alert(request):
 
 
 @never_cache
+@login_required
 def dispense_wholesale(request):
-    print(f"DEBUG: dispense_wholesale view called by user: {request.user}")
-    print(f"DEBUG: User authenticated: {request.user.is_authenticated}")
-    print(f"DEBUG: Request path: {request.path}")
-    print(f"DEBUG: Request method: {request.method}")
+    logger.debug(f"dispense_wholesale view called by user: {request.user}")
+    logger.debug(f"User authenticated: {request.user.is_authenticated}")
+    logger.debug(f"Request path: {request.path}")
+    logger.debug(f"Request method: {request.method}")
 
-    # TEMPORARILY BYPASS AUTHENTICATION FOR DEBUGGING
-    # if request.user.is_authenticated:
-    if True:  # Always proceed for debugging
-        # Initialize results to None to avoid UnboundLocalError
+    # Initialize results to None to avoid UnboundLocalError
+    results = None
+
+    if request.method == 'POST':
+        form = wholesaleDispenseForm(request.POST)
+        if form.is_valid():
+            q = form.cleaned_data['q']
+            results = WholesaleItem.objects.filter(
+                Q(name__icontains=q) | Q(brand__icontains=q)
+            ).filter(stock__gt=0)  # Only show items with stock > 0
+    else:
+        form = wholesaleDispenseForm()
         results = None
 
-        if request.method == 'POST':
-            form = wholesaleDispenseForm(request.POST)
-            if form.is_valid():
-                q = form.cleaned_data['q']
-                results = WholesaleItem.objects.filter(
-                    Q(name__icontains=q) | Q(brand__icontains=q)
-                ).filter(stock__gt=0)  # Only show items with stock > 0
-        else:
-            form = wholesaleDispenseForm()
-            results = None
-
-        # Check if this is an HTMX request (for modal)
+    # Check if this is an HTMX request (for modal)
         if request.headers.get('HX-Request'):
-            print(f"DEBUG: HTMX request detected")
+            logger.debug("HTMX request detected")
             response = render(request, 'partials/wholesale_dispense_modal.html', {'form': form, 'results': results})
             # Add explicit cache-control headers for HTMX requests
             response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
@@ -744,32 +743,30 @@ def dispense_wholesale(request):
             response['Expires'] = '0'
             return response
         else:
-            print(f"DEBUG: Regular page request")
-            # Regular page request - get cart summary for the new dynamic interface
-            cart_count = 0
-            cart_total = 0
+            logger.debug("Regular page request")
+        # Regular page request - get cart summary for the new dynamic interface
+        cart_count = 0
+        cart_total = 0
 
-            # Only get cart data if user is authenticated
-            if request.user.is_authenticated:
-                cart_items = WholesaleCart.objects.filter(user=request.user)
-                cart_count = cart_items.count()
-                cart_total = sum(cart_item.subtotal for cart_item in cart_items)
+        # Only get cart data if user is authenticated
+        if request.user.is_authenticated:
+            cart_items = WholesaleCart.objects.filter(user=request.user)
+            cart_count = cart_items.count()
+            cart_total = sum(cart_item.subtotal for cart_item in cart_items)
 
-            context = {
-                'form': form,
-                'results': results,
-                'cart_count': cart_count,
-                'cart_total': cart_total
-            }
-            print(f"DEBUG: Rendering wholesale/dispense_wholesale.html with context: {context}")
-            response = render(request, 'wholesale/dispense_wholesale.html', context)
-            # Add explicit cache-control headers for regular requests
-            response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
-            response['Pragma'] = 'no-cache'
-            response['Expires'] = '0'
-            return response
-    else:
-        return redirect('store:index')
+        context = {
+            'form': form,
+            'results': results,
+            'cart_count': cart_count,
+            'cart_total': cart_total
+        }
+        logger.debug(f"Rendering wholesale/dispense_wholesale.html with context: {context}")
+        response = render(request, 'wholesale/dispense_wholesale.html', context)
+        # Add explicit cache-control headers for regular requests
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        return response
 
 
 @never_cache
@@ -801,9 +798,9 @@ def minimal_test(request):
 
 def test_template_view(request):
     """Test view to check if template rendering works"""
-    print(f"DEBUG: test_template_view called")
-    print(f"DEBUG: User: {request.user}")
-    print(f"DEBUG: Authenticated: {request.user.is_authenticated}")
+    logger.debug("test_template_view called")
+    logger.debug(f"User: {request.user}")
+    logger.debug(f"Authenticated: {request.user.is_authenticated}")
 
     context = {
         'cart_count': 0,
@@ -814,19 +811,19 @@ def test_template_view(request):
     }
 
     try:
-        print(f"DEBUG: Attempting to render template...")
+        logger.debug("Attempting to render template...")
         return render(request, 'wholesale/dispense_wholesale.html', context)
     except Exception as e:
-        print(f"DEBUG: Template error: {e}")
+        logger.debug(f"Template error: {e}")
         from django.http import HttpResponse
         return HttpResponse(f"Template Error: {e}")
 
 
 def super_simple_dispense(request):
     """Wholesale dispensing view with proper template and functionality"""
-    print(f"DEBUG: super_simple_dispense view called by user: {request.user}")
-    print(f"DEBUG: User authenticated: {request.user.is_authenticated}")
-    print(f"DEBUG: Request path: {request.path}")
+    logger.debug(f"super_simple_dispense view called by user: {request.user}")
+    logger.debug(f"User authenticated: {request.user.is_authenticated}")
+    logger.debug(f"Request path: {request.path}")
 
     # Get cart data if user is authenticated
     cart_count = 0
@@ -838,9 +835,9 @@ def super_simple_dispense(request):
             cart_items = WholesaleCart.objects.filter(user=request.user)
             cart_count = cart_items.count()
             cart_total = sum(cart_item.subtotal for cart_item in cart_items)
-            print(f"DEBUG: Cart count: {cart_count}, total: {cart_total}")
+            logger.debug(f"Cart count: {cart_count}, total: {cart_total}")
         except Exception as e:
-            print(f"DEBUG: Error getting cart data: {e}")
+            logger.debug(f"Error getting cart data: {e}")
 
     # Prepare context for template
     context = {
@@ -851,16 +848,16 @@ def super_simple_dispense(request):
         'results': [],  # Empty results initially
     }
 
-    print(f"DEBUG: Rendering dispense_wholesale.html with context: {context}")
+    logger.debug(f"Rendering dispense_wholesale.html with context: {context}")
     return render(request, 'wholesale/dispense_wholesale.html', context)
 
 
 def simple_wholesale_test(request):
     """Simple test view with no authentication required"""
-    print(f"DEBUG: simple_wholesale_test view called")
-    print(f"DEBUG: User: {request.user}")
-    print(f"DEBUG: Authenticated: {request.user.is_authenticated}")
-    print(f"DEBUG: Request path: {request.path}")
+    logger.debug("simple_wholesale_test view called")
+    logger.debug(f"User: {request.user}")
+    logger.debug(f"Authenticated: {request.user.is_authenticated}")
+    logger.debug(f"Request path: {request.path}")
 
     # Get cart data if user is authenticated
     cart_count = 0
@@ -871,9 +868,9 @@ def simple_wholesale_test(request):
             cart_items = WholesaleCart.objects.filter(user=request.user)
             cart_count = cart_items.count()
             cart_total = sum(item.total_price for item in cart_items)
-            print(f"DEBUG: Cart count: {cart_count}, total: {cart_total}")
+            logger.debug(f"Cart count: {cart_count}, total: {cart_total}")
         except Exception as e:
-            print(f"DEBUG: Error getting cart data: {e}")
+            logger.debug(f"Error getting cart data: {e}")
 
     context = {
         'cart_count': cart_count,
@@ -881,7 +878,7 @@ def simple_wholesale_test(request):
         'user': request.user
     }
 
-    print(f"DEBUG: Rendering simple_test.html with context: {context}")
+    logger.debug(f"Rendering simple_test.html with context: {context}")
     return render(request, 'wholesale/simple_test.html', context)
 
 
@@ -957,8 +954,8 @@ def dispense_wholesale_simple(request):
 @never_cache
 def wholesale_dispense_search_items(request):
     """HTMX endpoint for dynamic item search in wholesale dispensing"""
-    print(f"DEBUG: wholesale_dispense_search_items called")
-    print(f"DEBUG: Query: {request.GET.get('q', '')}")
+    logger.debug("wholesale_dispense_search_items called")
+    logger.debug(f"Query: {request.GET.get('q', '')}")
 
     query = request.GET.get('q', '').strip()
     results = []
@@ -973,21 +970,21 @@ def wholesale_dispense_search_items(request):
                 barcode_results = WholesaleItem.objects.filter(barcode=query).filter(stock__gt=0).order_by('name')[:50]
                 if barcode_results.exists():
                     results = barcode_results
-                    print(f"DEBUG: Found {len(results)} results by barcode")
+                    logger.debug(f"Found {len(results)} results by barcode")
                 else:
                     # Fallback to name/brand search if barcode not found
                     results = WholesaleItem.objects.filter(
                         Q(name__icontains=query) | Q(brand__icontains=query)
                     ).filter(stock__gt=0).order_by('name')[:50]
-                    print(f"DEBUG: Barcode not found, found {len(results)} results by name/brand")
+                    logger.debug(f"Barcode not found, found {len(results)} results by name/brand")
             else:
                 # Regular name/brand search
                 results = WholesaleItem.objects.filter(
                     Q(name__icontains=query) | Q(brand__icontains=query)
                 ).filter(stock__gt=0).order_by('name')[:50]
-                print(f"DEBUG: Found {len(results)} results")
+                logger.debug(f"Found {len(results)} results")
         except Exception as e:
-            print(f"DEBUG: Error searching items: {e}")
+            logger.debug(f"Error searching items: {e}")
             # Fallback to basic query including barcode
             results = WholesaleItem.objects.filter(
                 Q(name__icontains=query) | Q(brand__icontains=query) | Q(barcode=query)
@@ -997,6 +994,7 @@ def wholesale_dispense_search_items(request):
 
 
 from django.views.decorators.http import require_POST, require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 @login_required
 @require_POST
 @transaction.atomic
@@ -1127,6 +1125,7 @@ def wholesale_customer_history(request, customer_id):
 
 @transaction.atomic
 @login_required
+@csrf_exempt
 def select_wholesale_items(request, pk):
     if request.user.is_authenticated:
         customer = get_object_or_404(WholesaleCustomer, id=pk)
@@ -1219,13 +1218,11 @@ def select_wholesale_items(request, pk):
                     unit = units[i] if i < len(units) else item.unit
 
                     if action == 'purchase':
-                        # Check stock and update inventory
+                        # Check stock availability (but don't deduct yet)
+                        # Stock will be deducted when receipt is created (payment completion)
                         if quantity > item.stock:
                             messages.warning(request, f'Not enough stock for {item.name}.')
                             return redirect('wholesale:select_wholesale_items', pk=pk)
-
-                        item.stock -= quantity
-                        item.save()
 
                         # Update or create a WholesaleCartItem
                         cart_item, created = WholesaleCart.objects.get_or_create(
@@ -1841,13 +1838,10 @@ def send_to_wholesale_cashier(request):
             buyer_name = request.POST.get('buyer_name', '').strip()
             buyer_address = request.POST.get('buyer_address', '').strip()
 
-            print(f"\n==== SEND TO WHOLESALE CASHIER DEBUG ====")
-            print(f"ALL POST DATA: {dict(request.POST)}")
-            print(f"Customer: {wholesale_customer}")
-            print(f"Buyer Name from dispenser: '{buyer_name}'")
-            print(f"Buyer Address from dispenser: '{buyer_address}'")
-            print(f"Notes: '{general_notes}'")
-            print(f"=========================================\n")
+            logger.debug("SEND TO WHOLESALE CASHIER: Processing payment requests")
+            logger.debug(f"Customer: {wholesale_customer}")
+            logger.debug(f"Buyer Name: '{buyer_name}', Address: '{buyer_address}'")
+            logger.debug(f"Notes: '{general_notes}'")
 
             # Create SEPARATE payment request for EACH cart item
             created_requests = []
@@ -2038,11 +2032,9 @@ def complete_wholesale_payment_request(request, request_id):
                     return redirect('store:cashier_dashboard')
 
                 # Debug logging
-                print(f"\n==== COMPLETE WHOLESALE PAYMENT REQUEST DEBUG ====")
-                print(f"Payment Request Customer: {payment_request.wholesale_customer}")
-                print(f"Buyer Name from PaymentRequest: '{payment_request.buyer_name}'")
-                print(f"Buyer Address from PaymentRequest: '{payment_request.buyer_address}'")
-                print(f"======================================================\n")
+                logger.debug("COMPLETE WHOLESALE PAYMENT REQUEST: Processing payment")
+                logger.debug(f"Payment Request Customer: {payment_request.wholesale_customer}")
+                logger.debug(f"Buyer Name: '{payment_request.buyer_name}', Address: '{payment_request.buyer_address}'")
 
                 # Get cashier object if user is a cashier
                 cashier = None
@@ -2388,6 +2380,31 @@ def wholesale_receipt(request):
 
                 receipt.save()
 
+                # DEDUCT STOCK AT RECEIPT CREATION (as requested by user)
+                # Process each cart item and deduct stock
+                for cart_item in cart_items:
+                    item = cart_item.item
+                    quantity = cart_item.quantity
+                    
+                    # Check if we have enough stock (should always be true since we checked earlier)
+                    if item.stock >= quantity:
+                        item.stock -= quantity
+                        item.save()
+                        
+                        # Create or update WholesaleSalesItem record
+                        WholesaleSalesItem.objects.update_or_create(
+                            sales=sales,
+                            item=item,
+                            defaults={
+                                'quantity': quantity,
+                                'price': item.price,
+                                'discount_amount': cart_item.discount_amount or Decimal('0.00')
+                            }
+                        )
+                    else:
+                        # This should not happen, but handle it gracefully
+                        messages.error(request, f'Insufficient stock for {item.name} during receipt creation')
+
                 # If this is a split payment, create the payment records
                 if payment_type == 'split':
                     # Handle wallet payments for registered customers
@@ -2676,23 +2693,21 @@ def wholesale_receipt(request):
         wholesale_receipt_payments = receipt.wholesale_receipt_payments.all() if receipt.payment_method == 'Split' else None
 
         # Debug: Check the final state before rendering
-        print(f"\n=== FINAL DEBUG BEFORE TEMPLATE RENDERING ===")
-        print(f"Final receipt.wholesale_customer: {receipt.wholesale_customer}")
-        print(f"Final sales.wholesale_customer: {sales.wholesale_customer}")
+        logger.debug("FINAL DEBUG BEFORE TEMPLATE RENDERING")
+        logger.debug(f"Final receipt.wholesale_customer: {receipt.wholesale_customer}")
+        logger.debug(f"Final sales.wholesale_customer: {sales.wholesale_customer}")
         
         # Force refresh to make sure we have latest data
         receipt.refresh_from_db()
         sales.refresh_from_db()
         
-        print(f"After refresh - receipt.wholesale_customer: {receipt.wholesale_customer}")
-        print(f"After refresh - sales.wholesale_customer: {sales.wholesale_customer}")
+        logger.debug(f"After refresh - receipt.wholesale_customer: {receipt.wholesale_customer}")
+        logger.debug(f"After refresh - sales.wholesale_customer: {sales.wholesale_customer}")
         
         if receipt.wholesale_customer:
-            print(f"Customer name should display: {receipt.wholesale_customer.name}")
+            logger.debug(f"Customer name should display: {receipt.wholesale_customer.name}")
         else:
-            print("WARNING: receipt.wholesale_customer is None - will show 'Walk-in Customer'")
-        
-        print("="*50)
+            logger.debug("WARNING: receipt.wholesale_customer is None - will show 'Walk-in Customer'")
 
         # Render to the wholesale_receipt template
         response = render(request, 'wholesale/wholesale_receipt.html', {
@@ -3032,14 +3047,14 @@ def wholesale_receipt_detail(request, receipt_id):
         wholesale_receipt_payments = receipt.wholesale_receipt_payments.all() if receipt.payment_method == 'Split' else None
 
         # Debug information
-        print(f"\n==== WHOLESALE RECEIPT DETAIL DEBUG =====")
-        print(f"Receipt ID: {receipt.receipt_id}")
-        print(f"Payment Method: {receipt.payment_method}")
-        print(f"Has wholesale_receipt_payments: {wholesale_receipt_payments is not None}")
+        logger.debug("WHOLESALE RECEIPT DETAIL DEBUG")
+        logger.debug(f"Receipt ID: {receipt.receipt_id}")
+        logger.debug(f"Payment Method: {receipt.payment_method}")
+        logger.debug(f"Has wholesale_receipt_payments: {wholesale_receipt_payments is not None}")
         if wholesale_receipt_payments:
-            print(f"Number of wholesale_receipt_payments: {wholesale_receipt_payments.count()}")
+            logger.debug(f"Number of wholesale_receipt_payments: {wholesale_receipt_payments.count()}")
             for i, payment in enumerate(wholesale_receipt_payments):
-                print(f"Payment {i+1}: {payment.payment_method} - {payment.amount}")
+                logger.debug(f"Payment {i+1}: {payment.payment_method} - {payment.amount}")
 
         # Create split payment details if receipt payments exist
         split_payment_details = None
@@ -3369,12 +3384,12 @@ def transfer_multiple_wholesale_items(request):
                     dest_qty = Decimal(str(qty)) * dest_qty_per_source
 
                     # Debug logging
-                    print(f"[TRANSFER DEBUG] Item: {item.name}")
-                    print(f"[TRANSFER DEBUG] qty from form: {qty}")
-                    print(f"[TRANSFER DEBUG] unit_conversion: {unit_conversion}")
-                    print(f"[TRANSFER DEBUG] dest_qty_per_source: {dest_qty_per_source}")
-                    print(f"[TRANSFER DEBUG] calculated dest_qty: {dest_qty}")
-                    print(f"[TRANSFER DEBUG] dest_item.stock BEFORE: {dest_item.stock}")
+                    logger.debug(f"[TRANSFER DEBUG] Item: {item.name}")
+                    logger.debug(f"[TRANSFER DEBUG] qty from form: {qty}")
+                    logger.debug(f"[TRANSFER DEBUG] unit_conversion: {unit_conversion}")
+                    logger.debug(f"[TRANSFER DEBUG] dest_qty_per_source: {dest_qty_per_source}")
+                    logger.debug(f"[TRANSFER DEBUG] calculated dest_qty: {dest_qty}")
+                    logger.debug(f"[TRANSFER DEBUG] dest_item.stock BEFORE: {dest_item.stock}")
 
                     # Check if we're transferring to the same item (wholesale to wholesale, same item)
                     is_same_item = (dest_item.id == item.id)
@@ -3382,13 +3397,13 @@ def transfer_multiple_wholesale_items(request):
                     if is_same_item:
                         # When transferring to itself, add the quantity to existing stock
                         # This effectively increases the total stock
-                        print(f"[TRANSFER DEBUG] Transferring to self - adding quantity to existing stock")
+                        logger.debug(f"[TRANSFER DEBUG] Transferring to self - adding quantity to existing stock")
 
                         old_stock = dest_item.stock
                         dest_item.stock += dest_qty
 
-                        print(f"[TRANSFER DEBUG] Stock BEFORE: {old_stock}")
-                        print(f"[TRANSFER DEBUG] Stock AFTER: {dest_item.stock}")
+                        logger.debug(f"[TRANSFER DEBUG] Stock BEFORE: {old_stock}")
+                        logger.debug(f"[TRANSFER DEBUG] Stock AFTER: {dest_item.stock}")
 
                         # Update cost price
                         dest_item.cost = cost
@@ -3417,7 +3432,7 @@ def transfer_multiple_wholesale_items(request):
                         # Update the destination item's stock and key fields.
                         dest_item.stock += dest_qty
 
-                        print(f"[TRANSFER DEBUG] dest_item.stock AFTER: {dest_item.stock}")
+                        logger.debug(f"[TRANSFER DEBUG] dest_item.stock AFTER: {dest_item.stock}")
 
                         # Always update the cost price
                         dest_item.cost = cost

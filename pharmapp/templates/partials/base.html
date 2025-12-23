@@ -8,6 +8,7 @@
 
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="">
     <meta name="author" content="">
@@ -1029,14 +1030,48 @@
 
 {% comment %} Provide csrf token to transfer-request {% endcomment %}
     <script>
-        // Configure HTMX CSRF token
+        // Configure HTMX CSRF token using multiple approaches for robustness
         document.body.addEventListener("htmx:configRequest", (event) => {
             try {
                 if (event && event.detail && event.detail.headers) {
+                    // Method 1: Direct template variable (most reliable)
                     event.detail.headers["X-CSRFToken"] = "{{ csrf_token }}";
+                    
+                    // Method 2: Read from meta tag (fallback)
+                    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                    if (csrfMeta) {
+                        const csrfToken = csrfMeta.getAttribute('content');
+                        if (csrfToken && csrfToken !== '') {
+                            event.detail.headers["X-CSRFToken"] = csrfToken;
+                        }
+                    }
+                    
+                    console.log('HTMX CSRF token set:', event.detail.headers["X-CSRFToken"]);
                 }
             } catch (error) {
                 console.error('Error setting CSRF token in HTMX:', error);
+            }
+        });
+        
+        // Debug: Log CSRF token availability
+        console.log('CSRF token available in template:', '{{ csrf_token }}' !== '');
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        console.log('CSRF meta tag available:', csrfMeta !== null);
+        if (csrfMeta) {
+            console.log('CSRF meta tag content:', csrfMeta.getAttribute('content'));
+        }
+    </script>
+    <script>
+        // Method 3: Configure HTMX to automatically handle CSRF tokens
+        // This sets up HTMX to read CSRF token from the meta tag automatically
+        document.addEventListener('DOMContentLoaded', function() {
+            // HTMX should automatically read from meta[name="csrf-token"]
+            // This is a fallback configuration if the automatic detection doesn't work
+            if (typeof htmx !== 'undefined') {
+                htmx.config.globalHeaders = {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                };
+                console.log('HTMX global headers configured with CSRF token');
             }
         });
     </script>

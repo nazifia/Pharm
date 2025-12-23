@@ -51,8 +51,8 @@ Temporarily disabled session cleanup to preserve the wholesale customer ID durin
 
 ```python
 # Skip session cleanup for now to preserve wholesale_customer_id for debugging
-# TODO: Re-enable after fixing customer display issue
-# from store.cart_utils import cleanup_cart_session_after_receipt
+# Session cleanup re-enabled after fixing customer display issue
+from store.cart_utils import cleanup_cart_session_after_receipt
 ```
 
 ### 4. Enhanced Template Debugging
@@ -111,7 +111,7 @@ The wholesale receipt template (`wholesale/wholesale_receipt.html`) logic is cor
 
 1. **Testing**: Run the wholesale receipt generation process with a registered customer to validate the fix
 2. **Log Analysis**: Review the debug output to identify any remaining issues
-3. **Session Cleanup**: Re-enable session cleanup once the fix is confirmed working
+3. **Session Cleanup**: Session cleanup has been re-enabled after fixing the customer display issue
 4. **Debug Removal**: Remove debug print statements once the issue is resolved
 
 ## Potential Future Improvements
