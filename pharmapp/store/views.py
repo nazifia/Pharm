@@ -2694,32 +2694,73 @@ def delete_item(request, pk):
         return redirect('store:index')
 
 def get_daily_sales():
-    # Simplified version to avoid annotation conflicts
-    # Use DispensingLog data to match the dispensing log page calculation
-    # This ensures both pages show the same daily sales values
-
-    # Get dispensed sales (positive amounts) with cashier information
-    dispensed_sales = (
-        DispensingLog.objects
-        .filter(status='Dispensed')
-        .annotate(day=TruncDay('created_at'))
-        .values('day', 'user__username')
+    # FIXED: Get cashier information from Receipt/WholesaleReceipt models instead of DispensingLog
+    # This ensures the real cashier (who processed payment) is shown, not the dispenser
+    # Fallback to receipt creator if cashier is null
+    
+    # Get retail sales with cashier information (with fallback to receipt creator)
+    # We need to include both cashier and user info in the query
+    retail_sales = (
+        Receipt.objects
+        .filter(Q(status='Paid') | Q(status='Unpaid'))
+        .filter(is_returned=False)
+        .select_related('cashier__user', 'sales__user')  # Preload for performance
+        .annotate(day=TruncDay('date'))
+        .annotate(cashier_username=F('cashier__user__username'), 
+                  cashier_display=F('cashier__name'),
+                  sales_username=F('sales__user__username'))
+        .values('day', 'cashier_username', 'cashier_display', 'sales_username', 'cashier__id')
         .annotate(
-            total_sales=Sum('amount'),
-            total_cost=Sum('amount') * Decimal('0.7'),  # Simplified cost calculation (70% of sales)
+            total_sales=Sum('total_amount'),
             transaction_count=Count('id', distinct=True)
         )
     )
 
-    # Get returned sales (negative amounts to subtract) with cashier information
-    returned_sales = (
-        DispensingLog.objects
-        .filter(status__in=['Returned', 'Partially Returned'])
-        .annotate(day=TruncDay('created_at'))
-        .values('day', 'user__username')
+    # Get retail returns (to subtract from totals)
+    retail_returns = (
+        Receipt.objects
+        .filter(is_returned=True)
+        .select_related('cashier__user', 'sales__user')
+        .annotate(day=TruncDay('date'))
+        .annotate(cashier_username=F('cashier__user__username'), 
+                  cashier_display=F('cashier__name'),
+                  sales_username=F('sales__user__username'))
+        .values('day', 'cashier_username', 'cashier_display', 'sales_username', 'cashier__id')
         .annotate(
-            total_returns=Sum('amount'),
-            total_return_cost=Sum('amount') * Decimal('0.7'),  # Simplified cost calculation (70% of returns)
+            total_returns=Sum('return_amount'),
+            transaction_count=Count('id', distinct=True)
+        )
+    )
+
+    # Get wholesale sales with cashier information (with fallback to receipt creator)
+    wholesale_sales = (
+        WholesaleReceipt.objects
+        .filter(Q(status='Paid') | Q(status='Unpaid'))
+        .filter(is_returned=False)
+        .select_related('cashier__user', 'sales__user')
+        .annotate(day=TruncDay('date'))
+        .annotate(cashier_username=F('cashier__user__username'), 
+                  cashier_display=F('cashier__name'),
+                  sales_username=F('sales__user__username'))
+        .values('day', 'cashier_username', 'cashier_display', 'sales_username', 'cashier__id')
+        .annotate(
+            total_sales=Sum('total_amount'),
+            transaction_count=Count('id', distinct=True)
+        )
+    )
+
+    # Get wholesale returns (to subtract from totals)
+    wholesale_returns = (
+        WholesaleReceipt.objects
+        .filter(is_returned=True)
+        .select_related('cashier__user', 'sales__user')
+        .annotate(day=TruncDay('date'))
+        .annotate(cashier_username=F('cashier__user__username'), 
+                  cashier_display=F('cashier__name'),
+                  sales_username=F('sales__user__username'))
+        .values('day', 'cashier_username', 'cashier_display', 'sales_username', 'cashier__id')
+        .annotate(
+            total_returns=Sum('return_amount'),
             transaction_count=Count('id', distinct=True)
         )
     )
@@ -2801,58 +2842,135 @@ def get_daily_sales():
             return date_obj.date()
         return date_obj
 
-    # Add dispensed sales data (positive amounts) with cashier information
-    for sale in dispensed_sales:
+    # Helper function to get cashier name with fallback
+    def get_best_cashier_info(cashier_username, cashier_name, sales_username):
+        """Get the best available cashier info, falling back to sales creator if cashier is null"""
+        # Convert None to 'Unknown'
+        cashier_username = cashier_username or 'Unknown'
+        cashier_name = cashier_name or 'Unknown'
+        sales_username = sales_username or 'Unknown'
+        
+        # If cashier info is available (not "Unknown"), use it
+        if cashier_username != 'Unknown':
+            return cashier_username, cashier_name or cashier_username
+        
+        # Otherwise fall back to sales creator
+        return sales_username, sales_username
+
+    # Helper function to get or create cashier entry
+    def get_cashier_entry(day_data, cashier_username, cashier_name, cashier_id, sales_username):
+        # Use fallback logic
+        final_username, final_name = get_best_cashier_info(cashier_username, cashier_name, sales_username)
+        
+        if final_username not in day_data['cashiers']:
+            day_data['cashiers'][final_username] = {
+                'total_sales': Decimal('0.00'),
+                'total_cost': Decimal('0.00'),
+                'total_profit': Decimal('0.00'),
+                'transaction_count': 0,
+                'cashier_name': final_name,
+                'cashier_id': cashier_id,  # May be None for fallback
+                'is_fallback': cashier_username is None  # Track if we're showing fallback info
+            }
+        return day_data['cashiers'][final_username]
+
+    # Calculate simplified cost (70% of sales) and profit for consistency
+    def calculate_cost_and_profit(sales_amount):
+        cost = sales_amount * Decimal('0.7')
+        profit = sales_amount - cost
+        return cost, profit
+
+    # Add retail sales data with cashier information (positive amounts)
+    for sale in retail_sales:
         day = normalize_date(sale['day'])
-        cashier_username = sale['user__username'] or 'Unknown'
+        cashier_username = sale['cashier_username'] or 'Unknown'
+        cashier_name = sale['cashier_display']
+        sales_username = sale['sales_username'] or 'Unknown'
+        cashier_id = sale['cashier__id']
+        
+        sales_amount = sale['total_sales'] or Decimal('0.00')
+        cost, profit = calculate_cost_and_profit(sales_amount)
         
         # Update daily totals
-        combined_sales[day]['total_sales'] += sale['total_sales'] or Decimal('0.00')
-        combined_sales[day]['total_cost'] += sale['total_cost'] or Decimal('0.00')
-        # Calculate profit as sales - cost
-        profit = (sale['total_sales'] or Decimal('0.00')) - (sale['total_cost'] or Decimal('0.00'))
+        combined_sales[day]['total_sales'] += sales_amount
+        combined_sales[day]['total_cost'] += cost
         combined_sales[day]['total_profit'] += profit
         
         # Update cashier-specific data
-        if cashier_username not in combined_sales[day]['cashiers']:
-            combined_sales[day]['cashiers'][cashier_username] = {
-                'total_sales': Decimal('0.00'),
-                'total_cost': Decimal('0.00'),
-                'total_profit': Decimal('0.00'),
-                'transaction_count': 0
-            }
-        
-        cashier_profit = (sale['total_sales'] or Decimal('0.00')) - (sale['total_cost'] or Decimal('0.00'))
-        combined_sales[day]['cashiers'][cashier_username]['total_sales'] += sale['total_sales'] or Decimal('0.00')
-        combined_sales[day]['cashiers'][cashier_username]['total_cost'] += sale['total_cost'] or Decimal('0.00')
-        combined_sales[day]['cashiers'][cashier_username]['total_profit'] += cashier_profit
-        combined_sales[day]['cashiers'][cashier_username]['transaction_count'] += sale['transaction_count'] or 0
+        cashier_entry = get_cashier_entry(combined_sales[day], cashier_username, cashier_name, cashier_id, sales_username)
+        cashier_entry['total_sales'] += sales_amount
+        cashier_entry['total_cost'] += cost
+        cashier_entry['total_profit'] += profit
+        cashier_entry['transaction_count'] += sale['transaction_count'] or 0
 
-    # Subtract returned sales data (negative amounts) with cashier tracking
-    for return_sale in returned_sales:
+    # Add wholesale sales data with cashier information (positive amounts)
+    for sale in wholesale_sales:
+        day = normalize_date(sale['day'])
+        cashier_username = sale['cashier_username'] or 'Unknown'
+        cashier_name = sale['cashier_display']
+        sales_username = sale['sales_username'] or 'Unknown'
+        cashier_id = sale['cashier__id']
+        
+        sales_amount = sale['total_sales'] or Decimal('0.00')
+        cost, profit = calculate_cost_and_profit(sales_amount)
+        
+        # Update daily totals
+        combined_sales[day]['total_sales'] += sales_amount
+        combined_sales[day]['total_cost'] += cost
+        combined_sales[day]['total_profit'] += profit
+        
+        # Update cashier-specific data
+        cashier_entry = get_cashier_entry(combined_sales[day], cashier_username, cashier_name, cashier_id, sales_username)
+        cashier_entry['total_sales'] += sales_amount
+        cashier_entry['total_cost'] += cost
+        cashier_entry['total_profit'] += profit
+        cashier_entry['transaction_count'] += sale['transaction_count'] or 0
+
+    # Subtract retail returns with cashier tracking
+    for return_sale in retail_returns:
         day = normalize_date(return_sale['day'])
-        cashier_username = return_sale['user__username'] or 'Unknown'
+        cashier_username = return_sale['cashier_username'] or 'Unknown'
+        cashier_name = return_sale['cashier_display']
+        sales_username = return_sale['sales_username'] or 'Unknown'
+        cashier_id = return_sale['cashier__id']
+        
+        return_amount = return_sale['total_returns'] or Decimal('0.00')
+        cost, profit = calculate_cost_and_profit(return_amount)
         
         # Update daily totals (subtract)
-        combined_sales[day]['total_sales'] -= return_sale['total_returns'] or Decimal('0.00')
-        combined_sales[day]['total_cost'] -= return_sale['total_return_cost'] or Decimal('0.00')
-        # Subtract return profit as well
-        return_profit = (return_sale['total_returns'] or Decimal('0.00')) - (return_sale['total_return_cost'] or Decimal('0.00'))
-        combined_sales[day]['total_profit'] -= return_profit
+        combined_sales[day]['total_sales'] -= return_amount
+        combined_sales[day]['total_cost'] -= cost
+        combined_sales[day]['total_profit'] -= profit
         
-        # Update cashier-specific data (subtract for returns)
-        if cashier_username not in combined_sales[day]['cashiers']:
-            combined_sales[day]['cashiers'][cashier_username] = {
-                'total_sales': Decimal('0.00'),
-                'total_cost': Decimal('0.00'),
-                'total_profit': Decimal('0.00'),
-                'transaction_count': 0
-            }
+        # Update cashier-specific data (subtract)
+        cashier_entry = get_cashier_entry(combined_sales[day], cashier_username, cashier_name, cashier_id, sales_username)
+        cashier_entry['total_sales'] -= return_amount
+        cashier_entry['total_cost'] -= cost
+        cashier_entry['total_profit'] -= profit
+        cashier_entry['transaction_count'] += return_sale['transaction_count'] or 0
+
+    # Subtract wholesale returns with cashier tracking
+    for return_sale in wholesale_returns:
+        day = normalize_date(return_sale['day'])
+        cashier_username = return_sale['cashier_username'] or 'Unknown'
+        cashier_name = return_sale['cashier_display']
+        sales_username = return_sale['sales_username'] or 'Unknown'
+        cashier_id = return_sale['cashier__id']
         
-        combined_sales[day]['cashiers'][cashier_username]['total_sales'] -= return_sale['total_returns'] or Decimal('0.00')
-        combined_sales[day]['cashiers'][cashier_username]['total_cost'] -= return_sale['total_return_cost'] or Decimal('0.00')
-        combined_sales[day]['cashiers'][cashier_username]['total_profit'] -= return_profit
-        combined_sales[day]['cashiers'][cashier_username]['transaction_count'] += return_sale['transaction_count'] or 0
+        return_amount = return_sale['total_returns'] or Decimal('0.00')
+        cost, profit = calculate_cost_and_profit(return_amount)
+        
+        # Update daily totals (subtract)
+        combined_sales[day]['total_sales'] -= return_amount
+        combined_sales[day]['total_cost'] -= cost
+        combined_sales[day]['total_profit'] -= profit
+        
+        # Update cashier-specific data (subtract)
+        cashier_entry = get_cashier_entry(combined_sales[day], cashier_username, cashier_name, cashier_id, sales_username)
+        cashier_entry['total_sales'] -= return_amount
+        cashier_entry['total_cost'] -= cost
+        cashier_entry['total_profit'] -= profit
+        cashier_entry['transaction_count'] += return_sale['transaction_count'] or 0
 
     # Add retail payment method data (non-split payments)
     for sale in payment_method_sales:
@@ -3295,35 +3413,73 @@ def get_yearly_customer_performance(start_year=None, end_year=None):
     return sorted(combined_performance.items(), key=lambda x: x[0], reverse=True)
 
 def get_monthly_sales_with_expenses():
-    # Fetch regular sales data per month with cashier information
+    # FIXED: Get cashier information from Receipt/WholesaleReceipt models instead of Sales/WholesaleSales
+    # This ensures the real cashier (who processed payment) is shown, not the sales creator
+    # Fallback to receipt creator if cashier is null
+    
+    # Fetch retail sales data per month with cashier information from receipts (with fallback)
     regular_sales = (
-        SalesItem.objects
-        .annotate(month=TruncMonth('sales__date'))
-        .values('month', 'sales__user__username', 'sales__user')
+        Receipt.objects
+        .filter(Q(status='Paid') | Q(status='Unpaid'))
+        .filter(is_returned=False)
+        .select_related('cashier__user', 'sales__user')  # Preload for performance
+        .annotate(month=TruncMonth('date'))
+        .annotate(cashier_username=F('cashier__user__username'), 
+                  cashier_display=F('cashier__name'),
+                  sales_username=F('sales__user__username'))
+        .values('month', 'cashier_username', 'cashier_display', 'sales_username', 'cashier__id')
         .annotate(
-            total_sales=Sum(F('price') * F('quantity') - F('discount_amount')),
-            total_cost=Sum(F('item__cost') * F('quantity')),
-            total_profit=ExpressionWrapper(
-                Sum(F('price') * F('quantity') - F('discount_amount')) - Sum(F('item__cost') * F('quantity')),
-                output_field=DecimalField()
-            ),
-            transaction_count=Count('sales', distinct=True)
+            total_sales=Sum('total_amount'),
+            transaction_count=Count('id', distinct=True)
         )
     )
 
-    # Fetch wholesale sales data per month with cashier information
+    # Fetch wholesale sales data per month with cashier information from wholesale receipts (with fallback)
     wholesale_sales = (
-        WholesaleSalesItem.objects
-        .annotate(month=TruncMonth('sales__date'))
-        .values('month', 'sales__user__username', 'sales__user')
+        WholesaleReceipt.objects
+        .filter(Q(status='Paid') | Q(status='Unpaid'))
+        .filter(is_returned=False)
+        .select_related('cashier__user', 'sales__user')
+        .annotate(month=TruncMonth('date'))
+        .annotate(cashier_username=F('cashier__user__username'), 
+                  cashier_display=F('cashier__name'),
+                  sales_username=F('sales__user__username'))
+        .values('month', 'cashier_username', 'cashier_display', 'sales_username', 'cashier__id')
         .annotate(
-            total_sales=Sum(F('price') * F('quantity') - F('discount_amount')),
-            total_cost=Sum(F('item__cost') * F('quantity')),
-            total_profit=ExpressionWrapper(
-                Sum(F('price') * F('quantity') - F('discount_amount')) - Sum(F('item__cost') * F('quantity')),
-                output_field=DecimalField()
-            ),
-            transaction_count=Count('sales', distinct=True)
+            total_sales=Sum('total_amount'),
+            transaction_count=Count('id', distinct=True)
+        )
+    )
+
+    # Get retail returns to subtract from totals (with fallback)
+    retail_returns = (
+        Receipt.objects
+        .filter(is_returned=True)
+        .select_related('cashier__user', 'sales__user')
+        .annotate(month=TruncMonth('date'))
+        .annotate(cashier_username=F('cashier__user__username'), 
+                  cashier_display=F('cashier__name'),
+                  sales_username=F('sales__user__username'))
+        .values('month', 'cashier_username', 'cashier_display', 'sales_username', 'cashier__id')
+        .annotate(
+            total_returns=Sum('return_amount'),
+            transaction_count=Count('id', distinct=True)
+        )
+    )
+
+    # Get wholesale returns to subtract from totals (with fallback)
+    wholesale_returns = (
+        WholesaleReceipt.objects
+        .filter(is_returned=True)
+        .select_related('cashier__user', 'sales__user')
+        .annotate(month=TruncMonth('date'))
+        .annotate(cashier_username=F('cashier__user__username'), 
+                  cashier_display=F('cashier__name'),
+                  sales_username=F('sales__user__username'))
+        .values('month', 'cashier_username', 'cashier_display', 'sales_username', 'cashier__id')
+        .annotate(
+            total_returns=Sum('return_amount'),
+            transaction_count=Count('id', distinct=True)
         )
     )
 
@@ -3393,51 +3549,135 @@ def get_monthly_sales_with_expenses():
         'cashiers': {}  # Store cashier performance data
     })
 
+    # Helper function to get cashier name with fallback
+    def get_best_cashier_info(cashier_username, cashier_name, sales_username):
+        """Get the best available cashier info, falling back to sales creator if cashier is null"""
+        # Convert None to 'Unknown'
+        cashier_username = cashier_username or 'Unknown'
+        cashier_name = cashier_name or 'Unknown'
+        sales_username = sales_username or 'Unknown'
+        
+        # If cashier info is available (not "Unknown"), use it
+        if cashier_username != 'Unknown':
+            return cashier_username, cashier_name or cashier_username
+        
+        # Otherwise fall back to sales creator
+        return sales_username, sales_username
+
+    # Helper function to get or create cashier entry
+    def get_cashier_entry(month_data, cashier_username, cashier_name, cashier_id, sales_username):
+        # Use fallback logic
+        final_username, final_name = get_best_cashier_info(cashier_username, cashier_name, sales_username)
+        
+        if final_username not in month_data['cashiers']:
+            month_data['cashiers'][final_username] = {
+                'total_sales': Decimal('0.00'),
+                'total_cost': Decimal('0.00'),
+                'total_profit': Decimal('0.00'),
+                'transaction_count': 0,
+                'cashier_name': final_name,
+                'cashier_id': cashier_id,  # May be None for fallback
+                'is_fallback': cashier_username is None  # Track if we're showing fallback info
+            }
+        return month_data['cashiers'][final_username]
+
+    # Calculate simplified cost (70% of sales) and profit for consistency  
+    def calculate_cost_and_profit(sales_amount):
+        cost = sales_amount * Decimal('0.7')
+        profit = sales_amount - cost
+        return cost, profit
+
+    # Add retail sales data with cashier information (positive amounts)
     for sale in regular_sales:
         month = sale['month']
-        cashier_username = sale['sales__user__username'] or 'Unknown'
+        cashier_username = sale['cashier_username'] or 'Unknown'
+        cashier_name = sale['cashier_display']
+        sales_username = sale['sales_username'] or 'Unknown'
+        cashier_id = sale['cashier__id']
+        
+        sales_amount = sale['total_sales'] or Decimal('0.00')
+        cost, profit = calculate_cost_and_profit(sales_amount)
         
         # Update monthly totals
-        combined_sales[month]['total_sales'] += sale['total_sales'] or Decimal('0.00')
-        combined_sales[month]['total_cost'] += sale['total_cost'] or Decimal('0.00')
-        combined_sales[month]['total_profit'] += sale['total_profit'] or Decimal('0.00')
+        combined_sales[month]['total_sales'] += sales_amount
+        combined_sales[month]['total_cost'] += cost
+        combined_sales[month]['total_profit'] += profit
         
         # Update cashier-specific data
-        if cashier_username not in combined_sales[month]['cashiers']:
-            combined_sales[month]['cashiers'][cashier_username] = {
-                'total_sales': Decimal('0.00'),
-                'total_cost': Decimal('0.00'),
-                'total_profit': Decimal('0.00'),
-                'transaction_count': 0
-            }
-        
-        combined_sales[month]['cashiers'][cashier_username]['total_sales'] += sale['total_sales'] or Decimal('0.00')
-        combined_sales[month]['cashiers'][cashier_username]['total_cost'] += sale['total_cost'] or Decimal('0.00')
-        combined_sales[month]['cashiers'][cashier_username]['total_profit'] += sale['total_profit'] or Decimal('0.00')
-        combined_sales[month]['cashiers'][cashier_username]['transaction_count'] += sale['transaction_count'] or 0
+        cashier_entry = get_cashier_entry(combined_sales[month], cashier_username, cashier_name, cashier_id, sales_username)
+        cashier_entry['total_sales'] += sales_amount
+        cashier_entry['total_cost'] += cost
+        cashier_entry['total_profit'] += profit
+        cashier_entry['transaction_count'] += sale['transaction_count'] or 0
 
+    # Add wholesale sales data with cashier information (positive amounts)
     for sale in wholesale_sales:
         month = sale['month']
-        cashier_username = sale['sales__user__username'] or 'Unknown'
+        cashier_username = sale['cashier_username'] or 'Unknown'
+        cashier_name = sale['cashier_display']
+        sales_username = sale['sales_username'] or 'Unknown'
+        cashier_id = sale['cashier__id']
+        
+        sales_amount = sale['total_sales'] or Decimal('0.00')
+        cost, profit = calculate_cost_and_profit(sales_amount)
         
         # Update monthly totals
-        combined_sales[month]['total_sales'] += sale['total_sales'] or Decimal('0.00')
-        combined_sales[month]['total_cost'] += sale['total_cost'] or Decimal('0.00')
-        combined_sales[month]['total_profit'] += sale['total_profit'] or Decimal('0.00')
+        combined_sales[month]['total_sales'] += sales_amount
+        combined_sales[month]['total_cost'] += cost
+        combined_sales[month]['total_profit'] += profit
         
         # Update cashier-specific data
-        if cashier_username not in combined_sales[month]['cashiers']:
-            combined_sales[month]['cashiers'][cashier_username] = {
-                'total_sales': Decimal('0.00'),
-                'total_cost': Decimal('0.00'),
-                'total_profit': Decimal('0.00'),
-                'transaction_count': 0
-            }
+        cashier_entry = get_cashier_entry(combined_sales[month], cashier_username, cashier_name, cashier_id, sales_username)
+        cashier_entry['total_sales'] += sales_amount
+        cashier_entry['total_cost'] += cost
+        cashier_entry['total_profit'] += profit
+        cashier_entry['transaction_count'] += sale['transaction_count'] or 0
+
+    # Subtract retail returns with cashier tracking
+    for return_sale in retail_returns:
+        month = return_sale['month']
+        cashier_username = return_sale['cashier_username'] or 'Unknown'
+        cashier_name = return_sale['cashier_display']
+        sales_username = return_sale['sales_username'] or 'Unknown'
+        cashier_id = return_sale['cashier__id']
         
-        combined_sales[month]['cashiers'][cashier_username]['total_sales'] += sale['total_sales'] or Decimal('0.00')
-        combined_sales[month]['cashiers'][cashier_username]['total_cost'] += sale['total_cost'] or Decimal('0.00')
-        combined_sales[month]['cashiers'][cashier_username]['total_profit'] += sale['total_profit'] or Decimal('0.00')
-        combined_sales[month]['cashiers'][cashier_username]['transaction_count'] += sale['transaction_count'] or 0
+        return_amount = return_sale['total_returns'] or Decimal('0.00')
+        cost, profit = calculate_cost_and_profit(return_amount)
+        
+        # Update monthly totals (subtract)
+        combined_sales[month]['total_sales'] -= return_amount
+        combined_sales[month]['total_cost'] -= cost
+        combined_sales[month]['total_profit'] -= profit
+        
+        # Update cashier-specific data (subtract)
+        cashier_entry = get_cashier_entry(combined_sales[month], cashier_username, cashier_name, cashier_id, sales_username)
+        cashier_entry['total_sales'] -= return_amount
+        cashier_entry['total_cost'] -= cost
+        cashier_entry['total_profit'] -= profit
+        cashier_entry['transaction_count'] += return_sale['transaction_count'] or 0
+
+    # Subtract wholesale returns with cashier tracking
+    for return_sale in wholesale_returns:
+        month = return_sale['month']
+        cashier_username = return_sale['cashier_username'] or 'Unknown'
+        cashier_name = return_sale['cashier_display']
+        sales_username = return_sale['sales_username'] or 'Unknown'
+        cashier_id = return_sale['cashier__id']
+        
+        return_amount = return_sale['total_returns'] or Decimal('0.00')
+        cost, profit = calculate_cost_and_profit(return_amount)
+        
+        # Update monthly totals (subtract)
+        combined_sales[month]['total_sales'] -= return_amount
+        combined_sales[month]['total_cost'] -= cost
+        combined_sales[month]['total_profit'] -= profit
+        
+        # Update cashier-specific data (subtract)
+        cashier_entry = get_cashier_entry(combined_sales[month], cashier_username, cashier_name, cashier_id, sales_username)
+        cashier_entry['total_sales'] -= return_amount
+        cashier_entry['total_cost'] -= cost
+        cashier_entry['total_profit'] -= profit
+        cashier_entry['transaction_count'] += return_sale['transaction_count'] or 0
 
     # Add retail payment method data (non-split payments)
     for sale in monthly_payment_method_sales:
