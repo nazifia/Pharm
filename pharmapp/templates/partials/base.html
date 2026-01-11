@@ -67,7 +67,7 @@
     <!-- Custom fonts for this template with async loading -->
     <link href="{% static 'vendor/fontawesome-free/css/all.min.css' %}" rel="stylesheet" type="text/css" media="print" onload="this.media='all'">
     <noscript><link href="{% static 'vendor/fontawesome-free/css/all.min.css' %}" rel="stylesheet" type="text/css"></noscript>
-    
+
     <link
         href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i&display=swap"
         rel="stylesheet" media="print" onload="this.media='all'">
@@ -147,7 +147,7 @@
                 <div class="sidebar-brand-icon rotate-n-15">
                     <i class="fas fa-prescription"></i>
                 </div>
-                <div class="sidebar-brand-text mx-3">NAZZ PHARMACY</div>
+                <div class="sidebar-brand-text mx-3">ANEEQ PHARMACY</div>
             </a>
 
             <!-- Divider -->
@@ -535,8 +535,8 @@
                         <a class="collapse-item" href="{% url 'userauth:activity_dashboard' %}">
                             <i class="fas fa-chart-line"></i> Activity Logs</a>
                         {% endif %}
-                        <a class="collapse-item" href="{% url 'admin:index' %}">
-                            <i class="fas fa-cog"></i> Django Admin</a>
+                        <!--<a class="collapse-item" href="{% url 'admin:index' %}">-->
+                        <!--    <i class="fas fa-cog"></i> Django Admin</a>-->
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Communication Admin:</h6>
                         <a class="collapse-item" href="{% url 'chat:chat_view_default' %}">
@@ -545,6 +545,7 @@
                         <a class="collapse-item" href="{% url 'chat:bulk_message' %}">
                             <i class="fas fa-bullhorn"></i> Bulk Message</a>
                         {% endif %}
+
                     </div>
                 </div>
             </li>
@@ -581,7 +582,7 @@
                             <div class="marquee-container">
                                 <div id="marquee-wrapper" class="d-flex align-items-center">
                                     <marquee id="dynamic-marquee" behavior="" direction="">
-                                        <h4 class="marquee-text">{% if marquee_text %}{{ marquee_text }}{% else %}WELCOME TO NAZZ PHARMACY{% endif %}</h4>
+                                        <h4 class="marquee-text">{% if marquee_text %}{{ marquee_text }}{% else %}WELCOME TO ANEEQ PHARMACY{% endif %}</h4>
                                     </marquee>
 
                                 </div>
@@ -589,7 +590,7 @@
                                     {% comment %} <input type="text"
                                            id="marquee-input"
                                            class="form-control form-control-sm me-2"
-                                           value="{% if marquee_text %}{{ marquee_text }}{% else %}WELCOME TO NAZZ PHARMACY{% endif %}">
+                                           value="{% if marquee_text %}{{ marquee_text }}{% else %}WELCOME TO ANEEQ PHARMACY{% endif %}">
                                            {% if user.is_superuser %}
                                            <button class="btn btn-sm btn-primary ms-2 mx-5"
                                                    onclick="toggleMarqueeEdit()"
@@ -1036,7 +1037,7 @@
                 if (event && event.detail && event.detail.headers) {
                     // Method 1: Direct template variable (most reliable)
                     event.detail.headers["X-CSRFToken"] = "{{ csrf_token }}";
-                    
+
                     // Method 2: Read from meta tag (fallback)
                     const csrfMeta = document.querySelector('meta[name="csrf-token"]');
                     if (csrfMeta) {
@@ -1045,14 +1046,14 @@
                             event.detail.headers["X-CSRFToken"] = csrfToken;
                         }
                     }
-                    
+
                     console.log('HTMX CSRF token set:', event.detail.headers["X-CSRFToken"]);
                 }
             } catch (error) {
                 console.error('Error setting CSRF token in HTMX:', error);
             }
         });
-        
+
         // Debug: Log CSRF token availability
         console.log('CSRF token available in template:', '{{ csrf_token }}' !== '');
         const csrfMeta = document.querySelector('meta[name="csrf-token"]');
@@ -1081,7 +1082,7 @@
 
     <script>
         // Warn users 10 minutes before session expiration
-        const timeoutWarning = 10 * 60 * 1000; // 10 minute
+        const timeoutWarning = 20 * 60 * 1000; // 10 minute
         const logoutUrl = "{% url 'store:index' %}";
 
         let timeoutTimer;
@@ -1089,8 +1090,8 @@
         function startTimer() {
             timeoutTimer = setTimeout(() => {
                 window.location.href = logoutUrl;
-            }, ({{ SESSION_COOKIE_AGE|default:1200 }} * 1000) - timeoutWarning);
-            // Fallback to 1200 (20 minutes) if SESSION_COOKIE_AGE is not in context
+            }, ({{ SESSION_COOKIE_AGE|default:5200 }} * 1000) - timeoutWarning);
+            // Fallback to 5200 (20 minutes) if SESSION_COOKIE_AGE is not in context
 
             // Reset timer on any activity
             document.addEventListener('mousemove', resetTimer);
@@ -1137,7 +1138,7 @@
 
     <!-- Bootstrap core JavaScript-->
     <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
-    
+
     <!-- Configure jQuery AJAX to include CSRF token for all requests -->
     <script>
         // Set up CSRF token for all jQuery AJAX requests
@@ -1149,7 +1150,7 @@
             }
         });
     </script>
-    
+
     <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
 
     <!-- Core plugin JavaScript-->
@@ -1474,7 +1475,7 @@
                 '{% static "vendor/jquery/jquery.min.js" %}',
                 '{% static "vendor/bootstrap/js/bootstrap.bundle.min.js" %}'
             ];
-            
+
             criticalUrls.forEach(url => {
                 const link = document.createElement('link');
                 link.rel = 'preload';
@@ -1483,7 +1484,7 @@
                 document.head.appendChild(link);
             });
         }
-        
+
         // Initialize preloading
         preloadCriticalResources();
     </script>

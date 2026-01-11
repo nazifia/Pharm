@@ -7,7 +7,7 @@ def marquee_context(request):
     Uses global cache for marquee text as it's intended to be shared across all users.
     """
     return {
-        'marquee_text': cache.get('global_marquee_text', 'WELCOME TO NAZZ PHARMACY')
+        'marquee_text': cache.get('global_marquee_text', 'WELCOME TO ANEEQ PHARMACY')
     }
 
 def contact_info_context(request):
@@ -16,7 +16,8 @@ def contact_info_context(request):
     Provides phone number and other contact details for templates.
     """
     return {
-        'pharmacy_phone': getattr(settings, 'PHARMACY_PHONE', '+234-803-123-4567'),
-        'pharmacy_address': getattr(settings, 'PHARMACY_ADDRESS', 'No. 123 FTH Jibia Bypass, Katsina'),
+        'pharmacy_phone': getattr(settings, 'PHARMACY_PHONE', '+234-8164707897'),
+        'pharmacy_address': getattr(settings, 'PHARMACY_ADDRESS', 'No.4 Ali gizanda plaza, beside gidan Sarki, along katsina General Hospital Road, Katsina'),
         'pharmacy_email': getattr(settings, 'PHARMACY_EMAIL', 'info@nazzpharmacy.com'),
+#         'marquee_text': cache.get('global_marquee_text', 'WELCOME TO ANEEQ PHARMACY')
     }

@@ -34,6 +34,7 @@ if not DEBUG:
     X_FRAME_OPTIONS = 'DENY'
 
 
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -155,13 +156,30 @@ WSGI_APPLICATION = 'pharmapp.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+
 # Database settings are now optimized in the performance section below
+
+
+
+
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     },
+#     'offline': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'offline.sqlite3',
+#     }
+# }
 
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'unique-snowflake',
         'OPTIONS': {
+
             'MAX_ENTRIES': 5000,  # Increased from 2000 for better caching
             'CULL_FREQUENCY': 4,  # Changed from 3 to reduce eviction frequency (removes 1/4 when full)
         }
@@ -310,7 +328,7 @@ MESSAGE_TAGS = {
 
 
 # Session Security Settings
-SESSION_COOKIE_AGE = 1200  # 20 minutes in seconds
+SESSION_COOKIE_AGE = 5200  # 40 minutes in seconds
 SESSION_SAVE_EVERY_REQUEST = True  # Reset the session expiration time on each request
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
 SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookies
@@ -319,7 +337,7 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database sessions 
 # Note: SESSION_COOKIE_SECURE is set above based on DEBUG flag (True in production, False in development)
 
 # Auto logout settings
-AUTO_LOGOUT_DELAY = 20  # Auto logout after 20 minutes of inactivity
+AUTO_LOGOUT_DELAY = 40  # Auto logout after 40 minutes of inactivity
 
 # Note: Security settings (XSS filter, content type nosniff, X-Frame-Options) are configured
 # in the production security block above (lines 24-33) based on DEBUG flag

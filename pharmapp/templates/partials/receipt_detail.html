@@ -18,9 +18,11 @@
     <div class="receipt-container" id="receipt">
         <header>
             <div class="receipt-head">
-                <h3>Nazz Pharmacy</h3>
-                <p>No. 123 FTH Jibia Bypass, Katsina</p>
-                <p>Tel: {{ pharmacy_phone }}</p>
+
+                <h3>ANEEQ PHARMACY</h3>
+                <p>No.4 Ali gizanda plaza, beside gidan Sarki, along katsina General Hospital Road, Katsina</p>
+                <p>Tel: +234-8164707897</p>
+
             </div>
         </header>
 
@@ -32,7 +34,7 @@
                 <p style="margin: 5px 0;"><strong>Date:</strong> {{ receipt.date|date:"F j, Y. H:i" }}</p>
                 <p style="margin: 5px 0;"><i class="fas fa-pills text-primary"></i> <strong>Dispenser:</strong> {% if sales and sales.user %}{{ sales.user.username|title }}{% else %}Unknown{% endif %}</p>
             </div>
-            
+
             <!-- Middle Column -->
             <div style="flex: 1; min-width: 200px; padding-right: 15px;">
                 <p style="margin: 5px 0;"><strong>Customer Name:</strong>
@@ -56,14 +58,14 @@
                 {% else %}
                 <p style="margin: 5px 0;"><i class="fas fa-user text-muted"></i> <strong>Cashier:</strong> Not assigned</p>
                 {% endif %}
-                
+
                 <p style="margin: 5px 0;"><strong>Payment Status:</strong>
                     <span style="color: {% if receipt.calculated_status == 'Paid' %}#28a745{% elif receipt.calculated_status == 'Partially Paid' %}#ffc107{% else %}#dc3545{% endif %}; font-weight: bold;">
                         {{ receipt.calculated_status|default:'Unpaid' }}
                     </span>
                 </p>
             </div>
-            
+
             <!-- Right Column -->
             <div style="flex: 1; min-width: 200px;">
                 {% if receipt.payment_method == 'Split' %}
