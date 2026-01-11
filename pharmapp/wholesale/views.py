@@ -5672,21 +5672,43 @@ def complete_wholesale_payment_request(request, request_id):
             
             
             if request.method == 'POST':
-                payment_method = request.POST.get('payment_method')
-                payment_status = request.POST.get('payment_status', 'Paid')
                 payment_type = request.POST.get('payment_type', 'single')
+                payment_status = request.POST.get('payment_status', 'Paid')
                 
-                if not payment_method:
-                    messages.error(request, 'Payment method is required.')
-                    return redirect('wholesale:wholesale_cashier_dashboard')
-                
-                # Validate payment method for split payments
+                # Handle split payment fields
                 if payment_type == 'split':
+                    payment_method = 'Split'  # Set main method to Split for split payments
                     payment_method_1 = request.POST.get('payment_method_1')
                     payment_method_2 = request.POST.get('payment_method_2')
+                    
                     if not payment_method_1 or not payment_method_2:
                         messages.error(request, 'Both payment methods are required for split payments.')
                         return redirect('wholesale:wholesale_cashier_dashboard')
+                    
+                    # Also validate the amounts
+                    try:
+                        payment_amount_1 = Decimal(request.POST.get('payment_amount_1', '0'))
+                        payment_amount_2 = Decimal(request.POST.get('payment_amount_2', '0'))
+                    except Exception as e:
+                        messages.error(request, f'Invalid payment amounts: {e}')
+                        return redirect('wholesale:wholesale_cashier_dashboard')
+                    
+                    if payment_amount_1 <= 0 or payment_amount_2 <= 0:
+                        messages.error(request, 'Both payment amounts must be greater than zero.')
+                        return redirect('wholesale:wholesale_cashier_dashboard')
+                    
+                    if abs((payment_amount_1 + payment_amount_2) - payment_request.total_amount) > Decimal('0.01'):
+                        messages.error(request, f'Split payments must total exactly ₦{payment_request.total_amount:.2f}')
+                        return redirect('wholesale:wholesale_cashier_dashboard')
+                    
+                else:
+                    # Single payment
+                    payment_method = request.POST.get('payment_method')
+                    if not payment_method:
+                        messages.error(request, 'Payment method is required.')
+                        return redirect('wholesale:wholesale_cashier_dashboard')
+                    payment_method_1 = payment_method_2 = None
+                    payment_amount_1 = payment_amount_2 = Decimal('0')
                 
                 # Get cashier object if user is a cashier
                 cashier = None
@@ -5834,14 +5856,12 @@ def complete_wholesale_payment_request(request, request_id):
                 
                 # Create split payment records if this is a split payment
                 if payment_type == 'split':
-                    payment_amount_1 = Decimal(request.POST.get('payment_amount_1', '0'))
-                    payment_amount_2 = Decimal(request.POST.get('payment_amount_2', '0'))
-                    
+                    # Payment amounts already validated and set above
                     WholesaleReceiptPayment.objects.create(
                         receipt=receipt,
                         amount=payment_amount_1,
                         payment_method=payment_method_1,
-                        status='Paid',
+                        status=payment_status,
                         date=receipt.date
                     )
                     
@@ -5849,7 +5869,7 @@ def complete_wholesale_payment_request(request, request_id):
                         receipt=receipt,
                         amount=payment_amount_2,
                         payment_method=payment_method_2,
-                        status='Paid',
+                        status=payment_status,
                         date=receipt.date
                     )
                 else:
@@ -5858,7 +5878,7 @@ def complete_wholesale_payment_request(request, request_id):
                         receipt=receipt,
                         amount=receipt.total_amount,
                         payment_method=payment_method,
-                        status='Paid',
+                        status=payment_status,
                         date=receipt.date
                     )
                 

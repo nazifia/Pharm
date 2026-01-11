@@ -1714,18 +1714,58 @@ def complete_payment_request(request, request_id):
                 return redirect('store:cashier_dashboard')
             
             if request.method == 'POST':
-                payment_method = request.POST.get('payment_method')
-                payment_status = request.POST.get('payment_status', 'Paid')
+                # Check if this is a split payment
+                payment_type = request.POST.get('payment_type', 'single')
+                
+                if payment_type == 'split':
+                    # This is a split payment
+                    payment_method = 'Split'
+                    payment_method_1 = request.POST.get('payment_method_1')
+                    payment_method_2 = request.POST.get('payment_method_2')
+                    
+                    try:
+                        payment_amount_1 = Decimal(request.POST.get('payment_amount_1', '0'))
+                        payment_amount_2 = Decimal(request.POST.get('payment_amount_2', '0'))
+                    except Exception as e:
+                        messages.error(request, f"Error converting payment amounts: {e}")
+                        return redirect('store:cashier_dashboard')
+                    
+                    payment_status = request.POST.get('split_status', 'Paid')
+                    
+                    # Validate split payment
+                    if not payment_method_1 or not payment_method_2:
+                        messages.error(request, "Please select both payment methods for split payment.")
+                        return redirect('store:cashier_dashboard')
+                    
+                    if payment_amount_1 <= 0 or payment_amount_2 <= 0:
+                        messages.error(request, "Both split payment amounts must be greater than zero.")
+                        return redirect('store:cashier_dashboard')
+                    
+                    if abs((payment_amount_1 + payment_amount_2) - payment_request.total_amount) > Decimal('0.01'):
+                        messages.error(request, f"Split payments must total exactly ₦{payment_request.total_amount}")
+                        return redirect('store:cashier_dashboard')
+                else:
+                    # This is a single payment
+                    payment_method = request.POST.get('payment_method')
+                    payment_status = request.POST.get('payment_status', 'Paid')
+                    payment_method_1 = payment_method_2 = None
+                    payment_amount_1 = payment_amount_2 = Decimal('0')
 
-                if not payment_method:
+                if payment_type == 'single' and not payment_method:
                     messages.error(request, 'Payment method is required.')
                     return redirect('store:cashier_dashboard')
 
                 # Debug logging
                 print(f"\n==== COMPLETE PAYMENT REQUEST DEBUG ====")
+                print(f"Payment Type: {payment_type}")
                 print(f"Payment Request Customer: {payment_request.customer}")
                 print(f"Buyer Name from PaymentRequest: '{payment_request.buyer_name}'")
                 print(f"Buyer Address from PaymentRequest: '{payment_request.buyer_address}'")
+                if payment_type == 'split':
+                    print(f"Split Payment - Method 1: {payment_method_1}, Amount 1: {payment_amount_1}")
+                    print(f"Split Payment - Method 2: {payment_method_2}, Amount 2: {payment_amount_2}")
+                else:
+                    print(f"Single Payment Method: {payment_method}")
                 print(f"====================================\n")
 
                 # Get cashier object if user is a cashier
@@ -1823,6 +1863,144 @@ def complete_payment_request(request, request_id):
                             discount_amount=payment_item.discount_amount,
                             status='Dispensed'
                         )
+                
+                # Handle wallet deduction for single payment
+                if payment_type == 'single' and payment_method == 'Wallet' and payment_request.customer:
+                    try:
+                        wallet = Wallet.objects.get(customer=payment_request.customer)
+                        wallet_balance_before = wallet.balance
+                        wallet.balance -= payment_request.total_amount
+                        wallet.save()
+
+                        # Check if wallet went negative and set flag
+                        if wallet_balance_before >= 0 and wallet.balance < 0:
+                            receipt.wallet_went_negative = True
+                            receipt.save()
+
+                        # Create transaction history
+                        TransactionHistory.objects.create(
+                            customer=payment_request.customer,
+                            user=request.user,
+                            transaction_type='purchase',
+                            amount=payment_request.total_amount,
+                            description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                        )
+
+                        print(f"Deducted {payment_request.total_amount} from customer {payment_request.customer.name}'s wallet")
+                        if wallet.balance < 0:
+                            messages.info(request, f"Customer {payment_request.customer.name} now has a negative wallet balance of {wallet.balance}")
+                    except Wallet.DoesNotExist:
+                        print(f"Error: Wallet not found for customer {payment_request.customer.name}")
+                        messages.error(request, f"Error: Wallet not found for customer {payment_request.customer.name}")
+
+                # Handle split payment records if applicable
+                if payment_type == 'split':
+                    # Handle wallet payments for registered customers
+                    if payment_request.customer:
+                        # Only deduct the amount specified for wallet payment method
+                        wallet_amount = Decimal('0.00')
+                        if payment_method_1 == 'Wallet':
+                            wallet_amount = Decimal(str(payment_amount_1))
+                            # Deduct from customer's wallet
+                            try:
+                                wallet = Wallet.objects.get(customer=payment_request.customer)
+                                # Check if wallet will go negative
+                                wallet_balance_before = wallet.balance
+                                # Allow negative balance
+                                wallet.balance -= wallet_amount
+                                wallet.save()
+
+                                # Check if wallet went negative and set flag
+                                if wallet_balance_before >= 0 and wallet.balance < 0:
+                                    receipt.wallet_went_negative = True
+                                    receipt.save()
+
+                                print(f"Deducted {wallet_amount} from customer {payment_request.customer.name}'s wallet for first payment")
+                                # Inform if balance is negative
+                                if wallet.balance < 0:
+                                    print(f"Info: Customer {payment_request.customer.name} now has a negative wallet balance of {wallet.balance}")
+                                    messages.info(request, f"Customer {payment_request.customer.name} now has a negative wallet balance of {wallet.balance}")
+                            except Wallet.DoesNotExist:
+                                print(f"Error: Wallet not found for customer {payment_request.customer.name}")
+                                messages.error(request, f"Error: Wallet not found for customer {payment_request.customer.name}")
+
+                        if payment_method_2 == 'Wallet':
+                            wallet_amount = Decimal(str(payment_amount_2))
+                            # Deduct from customer's wallet
+                            try:
+                                wallet = Wallet.objects.get(customer=payment_request.customer)
+                                # Check if wallet will go negative
+                                wallet_balance_before = wallet.balance
+                                # Allow negative balance
+                                wallet.balance -= wallet_amount
+                                wallet.save()
+
+                                # Check if wallet went negative and set flag
+                                if wallet_balance_before >= 0 and wallet.balance < 0:
+                                    receipt.wallet_went_negative = True
+                                    receipt.save()
+
+                                print(f"Deducted {wallet_amount} from customer {payment_request.customer.name}'s wallet for second payment")
+                                # Inform if balance is negative
+                                if wallet.balance < 0:
+                                    print(f"Info: Customer {payment_request.customer.name} now has a negative wallet balance of {wallet.balance}")
+                                    messages.info(request, f"Customer {payment_request.customer.name} now has a negative wallet balance of {wallet.balance}")
+                            except Wallet.DoesNotExist:
+                                print(f"Error: Wallet not found for customer {payment_request.customer.name}")
+                                messages.error(request, f"Error: Wallet not found for customer {payment_request.customer.name}")
+
+                    # Create the payment records
+                    try:
+                        print(f"\n==== CREATING SPLIT PAYMENT RECORDS =====")
+                        print(f"Receipt ID: {receipt.receipt_id}")
+                        print(f"Payment method 1: {payment_method_1}, Amount 1: {payment_amount_1}")
+                        print(f"Payment method 2: {payment_method_2}, Amount 2: {payment_amount_2}")
+
+                        payment1 = ReceiptPayment.objects.create(
+                            receipt=receipt,
+                            amount=payment_amount_1,
+                            payment_method=payment_method_1,
+                            status=payment_status,
+                            date=timezone.now()
+                        )
+                        print(f"Created first payment record: {payment1.id}")
+
+                        payment2 = ReceiptPayment.objects.create(
+                            receipt=receipt,
+                            amount=payment_amount_2,
+                            payment_method=payment_method_2,
+                            status=payment_status,
+                            date=timezone.now()
+                        )
+                        print(f"Created second payment record: {payment2.id}")
+
+                        # Create transaction history for wallet payments
+                        if payment_request.customer:
+                            if payment_method_1 == 'Wallet':
+                                TransactionHistory.objects.create(
+                                    customer=payment_request.customer,
+                                    user=request.user,
+                                    transaction_type='purchase',
+                                    amount=payment_amount_1,
+                                    description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id}, Payment 1)'
+                                )
+                            if payment_method_2 == 'Wallet':
+                                TransactionHistory.objects.create(
+                                    customer=payment_request.customer,
+                                    user=request.user,
+                                    transaction_type='purchase',
+                                    amount=payment_amount_2,
+                                    description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id}, Payment 2)'
+                                )
+
+                        print(f"\n==== CREATED SPLIT PAYMENTS =====")
+                        print(f"Payment 1: {payment_method_1} - {payment_amount_1}")
+                        print(f"Payment 2: {payment_method_2} - {payment_amount_2}")
+
+                    except Exception as e:
+                        print(f"Error creating payment records: {e}")
+                        messages.error(request, f"Error creating split payment records: {e}")
+                        return redirect('store:cashier_dashboard')
                 
                 # Update payment request
                 payment_request.status = 'completed'

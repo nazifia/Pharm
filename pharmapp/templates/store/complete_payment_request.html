@@ -26,7 +26,7 @@
                         <p><strong>Date:</strong> {{ payment_request.created_at|date:"M d, Y H:i" }}</p>
                     </div>
 
-                    <form method="POST">
+                    <form method="POST" id="payment-form">
                         {% csrf_token %}
 
                         {% if not payment_request.customer %}
@@ -42,22 +42,102 @@
                         </div>
                         {% endif %}
 
+                        <!-- Payment Type Selection -->
                         <div class="form-group">
-                            <label for="payment_method"><strong>Payment Method:</strong></label>
-                            <select name="payment_method" id="payment_method" class="form-control" required>
-                                <option value="">Select Payment Method</option>
-                                <option value="Cash">Cash</option>
-                                <option value="Wallet">Customer Wallet</option>
-                                <option value="Transfer">Bank Transfer</option>
-                            </select>
+                            <label><strong>Payment Type:</strong></label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="payment_type" id="payment_type_single" value="single" checked>
+                                <label class="form-check-label" for="payment_type_single">Single Payment</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="payment_type" id="payment_type_split" value="split">
+                                <label class="form-check-label" for="payment_type_split">Split Payment</label>
+                            </div>
                         </div>
 
-                        <div class="form-group">
-                            <label for="payment_status"><strong>Payment Status:</strong></label>
-                            <select name="payment_status" id="payment_status" class="form-control">
-                                <option value="Paid" selected>Paid</option>
-                                <option value="Unpaid">Unpaid</option>
-                            </select>
+                        <!-- Single Payment Section -->
+                        <div id="single-payment-section">
+                            <div class="form-group">
+                                <label for="payment_method"><strong>Payment Method:</strong></label>
+                                <select name="payment_method" id="payment_method" class="form-control">
+                                    <option value="">Select Payment Method</option>
+                                    <option value="Cash">Cash</option>
+                                    <option value="Wallet">Customer Wallet</option>
+                                    <option value="Transfer">Bank Transfer</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Split Payment Section (Initially Hidden) -->
+                        <div id="split-payment-section" style="display: none;">
+                            <div class="alert alert-warning">
+                                <strong>Split Payment Mode</strong><br>
+                                Total Amount: ₦{{ payment_request.total_amount|floatformat:2 }}
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="payment_method_1"><strong>Payment Method 1:</strong></label>
+                                        <select name="payment_method_1" id="payment_method_1" class="form-control">
+                                            <option value="">Select Method</option>
+                                            <option value="Cash">Cash</option>
+                                            <option value="Wallet">Customer Wallet</option>
+                                            <option value="Transfer">Bank Transfer</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="payment_amount_1"><strong>Amount 1:</strong></label>
+                                        <input type="number" step="0.01" name="payment_amount_1" id="payment_amount_1" class="form-control" placeholder="0.00">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="payment_method_2"><strong>Payment Method 2:</strong></label>
+                                        <select name="payment_method_2" id="payment_method_2" class="form-control">
+                                            <option value="">Select Method</option>
+                                            <option value="Cash">Cash</option>
+                                            <option value="Wallet">Customer Wallet</option>
+                                            <option value="Transfer">Bank Transfer</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="payment_amount_2"><strong>Amount 2:</strong></label>
+                                        <input type="number" step="0.01" name="payment_amount_2" id="payment_amount_2" class="form-control" placeholder="0.00">
+                                        <small class="text-muted">Amount 2 will be automatically calculated: Total - Amount 1</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Split Payment Status -->
+                            <div class="form-group">
+                                <label for="split_status"><strong>Payment Status:</strong></label>
+                                <select name="split_status" id="split_status" class="form-control">
+                                    <option value="Paid" selected>Paid</option>
+                                    <option value="Unpaid">Unpaid</option>
+                                </select>
+                            </div>
+
+                            <!-- Validation Display -->
+                            <div id="split-validation" class="alert alert-info" style="display: none;"></div>
+                        </div>
+
+                        <!-- Single Payment Status (for single payment mode) -->
+                        <div id="single-status-section">
+                            <div class="form-group">
+                                <label for="payment_status"><strong>Payment Status:</strong></label>
+                                <select name="payment_status" id="payment_status" class="form-control">
+                                    <option value="Paid" selected>Paid</option>
+                                    <option value="Unpaid">Unpaid</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <div class="table-responsive mt-3">
@@ -99,7 +179,7 @@
                         </div>
                         
                         <div class="text-center mt-4">
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" id="submit-btn" class="btn btn-primary">
                                 <i class="fas fa-check"></i> Complete Payment & Generate Receipt
                             </button>
                             <a href="{% url 'store:cashier_dashboard' %}" class="btn btn-secondary ml-2">
@@ -112,4 +192,135 @@
         </div>
     </div>
 </div>
+
+<!-- JavaScript for Split Payment Logic -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const paymentTypeRadios = document.querySelectorAll('input[name="payment_type"]');
+    const singlePaymentSection = document.getElementById('single-payment-section');
+    const splitPaymentSection = document.getElementById('split-payment-section');
+    const singleStatusSection = document.getElementById('single-status-section');
+    
+    const paymentMethod1 = document.getElementById('payment_method_1');
+    const paymentMethod2 = document.getElementById('payment_method_2');
+    const amount1 = document.getElementById('payment_amount_1');
+    const amount2 = document.getElementById('payment_amount_2');
+    const splitValidation = document.getElementById('split-validation');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    const totalAmount = parseFloat('{{ payment_request.total_amount|floatformat:2 }}');
+    
+    // Handle payment type selection
+    paymentTypeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'single') {
+                singlePaymentSection.style.display = 'block';
+                splitPaymentSection.style.display = 'none';
+                singleStatusSection.style.display = 'block';
+                
+                // Clear split payment fields
+                paymentMethod1.value = '';
+                paymentMethod2.value = '';
+                amount1.value = '';
+                amount2.value = '';
+                splitValidation.style.display = 'none';
+            } else {
+                singlePaymentSection.style.display = 'none';
+                splitPaymentSection.style.display = 'block';
+                singleStatusSection.style.display = 'none';
+            }
+        });
+    });
+    
+    // Auto-calculate amount 2 when amount 1 changes
+    amount1.addEventListener('input', function() {
+        const val1 = parseFloat(this.value) || 0;
+        
+        if (val1 > totalAmount) {
+            amount2.value = '0.00';
+            showValidation('Amount 1 cannot exceed total amount ₦' + totalAmount.toFixed(2), 'danger');
+            submitBtn.disabled = true;
+            return;
+        }
+        
+        if (val1 > 0 && val1 <= totalAmount) {
+            const val2 = totalAmount - val1;
+            amount2.value = val2.toFixed(2);
+            submitBtn.disabled = false;
+            
+            if (val2 > 0) {
+                showValidation('Split Payment Valid: ₦' + val1.toFixed(2) + ' + ₦' + val2.toFixed(2) + ' = ₦' + totalAmount.toFixed(2), 'success');
+            } else {
+                showValidation('Amount 1 equals total. This becomes a single payment.');
+            }
+        } else {
+            amount2.value = '';
+            hideValidation();
+            submitBtn.disabled = val1 === 0;
+        }
+    });
+    
+    // Validate split payment form submission
+    document.getElementById('payment-form').addEventListener('submit', function(e) {
+        const isSplit = document.querySelector('input[name="payment_type"]:checked').value === 'split';
+        
+        if (isSplit) {
+            const m1 = paymentMethod1.value;
+            const m2 = paymentMethod2.value;
+            const a1 = parseFloat(amount1.value) || 0;
+            const a2 = parseFloat(amount2.value) || 0;
+            
+            if (!m1 || !m2) {
+                e.preventDefault();
+                showValidation('Please select both payment methods', 'danger');
+                return;
+            }
+            
+            if (m1 === m2) {
+                e.preventDefault();
+                showValidation('Payment methods must be different. Use single payment if same method.', 'danger');
+                return;
+            }
+            
+            if (a1 <= 0 || a2 <= 0) {
+                e.preventDefault();
+                showValidation('Both split payment amounts must be greater than zero', 'danger');
+                return;
+            }
+            
+            if (Math.abs((a1 + a2) - totalAmount) > 0.01) {
+                e.preventDefault();
+                showValidation('Split payments must total exactly ₦' + totalAmount.toFixed(2), 'danger');
+                return;
+            }
+            
+            // Ask for confirmation
+            if (!confirm(`Confirm split payment?\n\nPayment 1: ${m1} - ₦${a1.toFixed(2)}\nPayment 2: ${m2} - ₦${a2.toFixed(2)}\n\nTotal: ₦${totalAmount.toFixed(2)}`)) {
+                e.preventDefault();
+                return;
+            }
+            
+            // All good, form will submit
+        } else {
+            // Single payment validation
+            const method = document.getElementById('payment_method').value;
+            if (!method) {
+                e.preventDefault();
+                alert('Please select a payment method');
+                return;
+            }
+        }
+    });
+    
+    function showValidation(message, type = 'info') {
+        splitValidation.className = `alert alert-${type}`;
+        splitValidation.textContent = message;
+        splitValidation.style.display = 'block';
+    }
+    
+    function hideValidation() {
+        splitValidation.style.display = 'none';
+    }
+});
+</script>
 {% endblock %}
