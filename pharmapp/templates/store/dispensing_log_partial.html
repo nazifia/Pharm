@@ -1,0 +1,127 @@
+<table class="table table-hover" style="box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);">
+    <thead class="table-primary">
+        <tr>
+            <th scope="col">User</th>
+            <th scope="col">Item Name</th>
+            <th scope="col">Brand</th>
+            <th scope="col">Unit</th>
+            <th scope="col">Qty</th>
+            <th scope="col">Rate</th>
+            <th scope="col">Status</th>
+            <th scope="col">Timestamp</th>
+        </tr>
+    </thead>
+    <tbody id="logsTable">
+        {% for log in logs %}
+        <tr>
+            <td>{{ log.user.get_full_name|default:log.user.username }}</td>
+            <td><strong>{{ log.name }}</strong></td>
+            <td>{{ log.brand|default:"N/A" }}</td>
+            <td>{{ log.unit|default:"N/A" }}</td>
+            <td>{{ log.quantity|floatformat:2 }}</td>
+            <td>
+                {% if log.discount_amount > 0 %}
+                    <span class="text-success">₦{{ log.rate_per_unit|floatformat:2 }}</span>
+                    <small class="text-muted d-block">
+                        <s>₦{{ log.original_rate_per_unit|floatformat:2 }}</s>
+                        <span class="text-danger">(-₦{{ log.discount_amount|floatformat:2 }})</span>
+                    </small>
+                {% else %}
+                    ₦{{ log.rate_per_unit|floatformat:2 }}
+                {% endif %}
+            </td>
+            <td>
+                <span class="badge {% if log.status == 'Dispensed' %}badge-success{% elif log.status == 'Returned' %}badge-danger{% else %}badge-warning{% endif %}">
+                    {{ log.get_status_display }}
+                </span>
+            </td>
+            <td>{{ log.created_at|date:"M d, Y H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td style="text-align: center;" colspan="8">
+                <div class="text-muted py-3">
+                    <i class="fas fa-search fa-2x mb-2"></i>
+                    <br>
+                    No dispensed items found matching your search criteria.
+                    <br>
+                    <small>Try adjusting your search terms or date range.</small>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Pagination Controls for HTMX refresh only -->
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<div class="row mt-3" id="pagination-controls">
+    <div class="col-md-12">
+        <nav aria-label="Dispensing log navigation">
+            <ul class="pagination justify-content-center">
+                <!-- Previous Page -->
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" 
+                           href="?page={{ page_obj.previous_page_number }}{% if search_params %}&{{ search_params }}{% endif %}"
+                           hx-get="?page={{ page_obj.previous_page_number }}{% if search_params %}&{{ search_params }}{% endif %}"
+                           hx-target="#logDataContainer"
+                           hx-trigger="click"
+                           hx-indicator=".htmx-indicator">
+                            Previous
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Previous</span>
+                    </li>
+                {% endif %}
+
+                <!-- Page Numbers -->
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% else %}
+                        <li class="page-item">
+                            <a class="page-link" 
+                               href="?page={{ num }}{% if search_params %}&{{ search_params }}{% endif %}"
+                               hx-get="?page={{ num }}{% if search_params %}&{{ search_params }}{% endif %}"
+                               hx-target="#logDataContainer"
+                               hx-trigger="click"
+                               hx-indicator=".htmx-indicator">
+                                {{ num }}
+                            </a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                <!-- Next Page -->
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" 
+                           href="?page={{ page_obj.next_page_number }}{% if search_params %}&{{ search_params }}{% endif %}"
+                           hx-get="?page={{ page_obj.next_page_number }}{% if search_params %}&{{ search_params }}{% endif %}"
+                           hx-target="#logDataContainer"
+                           hx-trigger="click"
+                           hx-indicator=".htmx-indicator">
+                            Next
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Next</span>
+                    </li>
+                {% endif %}
+            </ul>
+            <div class="text-center text-muted mt-2">
+                <small>
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    ({{ page_obj.paginator.count }} total records)
+                </small>
+            </div>
+        </nav>
+    </div>
+</div>
+{% endif %}

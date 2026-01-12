@@ -223,7 +223,7 @@
                 <div class="card-body">
                     <form method="GET"
                           hx-get="{% url 'store:dispensing_log' %}"
-                          hx-target="#logsTable"
+                          hx-target="#logDataContainer"
                           hx-trigger="input delay:100ms from:input[name='item_name'], input delay:100ms from:input[name='brand'], change from:input[name='date_from'], change from:input[name='date_to'], change from:select[name='status'], change from:select[name='user']"
                           hx-indicator=".htmx-indicator">
                         <div class="row">
@@ -273,7 +273,7 @@
                             <div class="col-md-1 d-flex align-items-end">
                                 <button type="button" class="btn btn-secondary btn-sm w-100"
                                     hx-get="{% url 'store:dispensing_log' %}"
-                                    hx-target="#logsTable"
+                                    hx-target="#logDataContainer"
                                     hx-trigger="click"
                                     hx-indicator=".htmx-indicator"
                                     onclick="document.querySelector('form').reset();">
@@ -362,23 +362,99 @@
         </div>
     </div>
 
-    <table class="table table-hover" style="box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);">
-        <thead class="table-primary">
-            <tr>
-                <th scope="col">User</th>
-                <th scope="col">Item Name</th>
-                <th scope="col">Brand</th>
-                <th scope="col">Unit</th>
-                <th scope="col">Qty</th>
-                <th scope="col">Rate</th>
-                <th scope="col">Status</th>
-                <th scope="col">Timestamp</th>
-            </tr>
-        </thead>
-        <tbody id="logsTable">
-            {% include 'partials/partials_dispensing_log.html' with logs=logs %}
-        </tbody>
-    </table>
+    <!-- Container that will be replaced by HTMX responses -->
+    <div id="logDataContainer">
+        <table class="table table-hover" style="box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);">
+            <thead class="table-primary">
+                <tr>
+                    <th scope="col">User</th>
+                    <th scope="col">Item Name</th>
+                    <th scope="col">Brand</th>
+                    <th scope="col">Unit</th>
+                    <th scope="col">Qty</th>
+                    <th scope="col">Rate</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Timestamp</th>
+                </tr>
+            </thead>
+            <tbody id="logsTable">
+                {% include 'partials/partials_dispensing_log.html' with logs=logs %}
+            </tbody>
+        </table>
+        
+        <!-- Pagination Controls -->
+        {% if page_obj and page_obj.paginator.num_pages > 1 %}
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <nav aria-label="Dispensing log navigation">
+                    <ul class="pagination justify-content-center">
+                        <!-- Previous Page -->
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" 
+                                   href="?page={{ page_obj.previous_page_number }}{% if search_params %}&{{ search_params }}{% endif %}"
+                                   hx-get="?page={{ page_obj.previous_page_number }}{% if search_params %}&{{ search_params }}{% endif %}"
+                                   hx-target="#logDataContainer"
+                                   hx-trigger="click"
+                                   hx-indicator=".htmx-indicator">
+                                    Previous
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">Previous</span>
+                            </li>
+                        {% endif %}
+
+                        <!-- Page Numbers - Simple clickable list with ellipsis -->
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" 
+                                       href="?page={{ num }}{% if search_params %}&{{ search_params }}{% endif %}"
+                                       hx-get="?page={{ num }}{% if search_params %}&{{ search_params }}{% endif %}"
+                                       hx-target="#logDataContainer"
+                                       hx-trigger="click"
+                                       hx-indicator=".htmx-indicator">
+                                        {{ num }}
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        <!-- Next Page -->
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" 
+                                   href="?page={{ page_obj.next_page_number }}{% if search_params %}&{{ search_params }}{% endif %}"
+                                   hx-get="?page={{ page_obj.next_page_number }}{% if search_params %}&{{ search_params }}{% endif %}"
+                                   hx-target="#logDataContainer"
+                                   hx-trigger="click"
+                                   hx-indicator=".htmx-indicator">
+                                    Next
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">Next</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                    <div class="text-center text-muted mt-2">
+                        <small>
+                            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                            ({{ page_obj.paginator.count }} total records)
+                        </small>
+                    </div>
+                </nav>
+            </div>
+        </div>
+        {% endif %}
+    </div>
 </div>
 
 <script>

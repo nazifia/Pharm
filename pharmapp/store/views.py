@@ -4721,16 +4721,40 @@ def dispensing_log(request):
                     logs = logs.filter(user=user_filter)
                 # For regular users, this filter is ignored as they can see all data but can't filter by specific users
 
-        # Check if this is an HTMX request
+        # Apply pagination
+        page = request.GET.get('page', 1)
+        per_page = 50  # Set items per page
+        
+        # Create the paginator
+        paginator = Paginator(logs, per_page)
+        
+        try:
+            page_obj = paginator.page(int(page))
+        except (ValueError, KeyError, TypeError):
+            page_obj = paginator.page(1)
+
+        # Create search params without the page parameter to avoid circular links
+        from urllib.parse import urlencode
+        search_params_dict = {k: v for k, v in request.GET.items() if k != 'page'}
+        search_params = urlencode(search_params_dict) if search_params_dict else ''
+        
         if request.headers.get('HX-Request'):
-            # Return only the partial template with filtered logs
-            return render(request, 'partials/partials_dispensing_log.html', {'logs': logs})
+            # HTMX request - check for pagination or full refresh
+            # Return partial template that includes table body and pagination controls
+            # This will be used to replace the entire table and pagination section
+            return render(request, 'store/dispensing_log_partial.html', {
+                'logs': page_obj.object_list,
+                'page_obj': page_obj,
+                'search_params': search_params
+            })
         else:
-            # Render the full template for non-HTMX requests
+            # Full page render
             return render(request, 'store/dispensing_log.html', {
-                'logs': logs,
+                'logs': page_obj.object_list,
+                'page_obj': page_obj,
                 'search_form': search_form,
-                'can_view_all_users': can_view_all_users
+                'can_view_all_users': can_view_all_users,
+                'search_params': search_params
             })
     else:
         return redirect('store:index')
