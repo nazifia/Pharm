@@ -406,23 +406,25 @@
                             </li>
                         {% endif %}
 
-                        <!-- Page Numbers - Simple clickable list with ellipsis -->
+                        <!-- Page Numbers - Show max 5 pages with navigation -->
                         {% for num in page_obj.paginator.page_range %}
-                            {% if page_obj.number == num %}
-                                <li class="page-item active">
-                                    <span class="page-link">{{ num }}</span>
-                                </li>
-                            {% else %}
-                                <li class="page-item">
-                                    <a class="page-link" 
-                                       href="?page={{ num }}{% if search_params %}&{{ search_params }}{% endif %}"
-                                       hx-get="?page={{ num }}{% if search_params %}&{{ search_params }}{% endif %}"
-                                       hx-target="#logDataContainer"
-                                       hx-trigger="click"
-                                       hx-indicator=".htmx-indicator">
-                                        {{ num }}
-                                    </a>
-                                </li>
+                            {% if num <= 5 %}
+                                {% if page_obj.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" 
+                                           href="?page={{ num }}{% if search_params %}&{{ search_params }}{% endif %}"
+                                           hx-get="?page={{ num }}{% if search_params %}&{{ search_params }}{% endif %}"
+                                           hx-target="#logDataContainer"
+                                           hx-trigger="click"
+                                           hx-indicator=".htmx-indicator">
+                                            {{ num }}
+                                        </a>
+                                    </li>
+                                {% endif %}
                             {% endif %}
                         {% endfor %}
 
