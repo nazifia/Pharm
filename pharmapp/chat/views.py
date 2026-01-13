@@ -616,7 +616,10 @@ def upload_file_api(request):
 @login_required
 def bulk_message_view(request):
     """View for sending bulk messages to all users (superusers/managers only)"""
+    import logging
     from userauth.permissions import can_manage_users
+
+    logger = logging.getLogger(__name__)
 
     if not can_manage_users(request.user):
         messages.error(request, 'You do not have permission to send bulk messages.')
@@ -627,9 +630,17 @@ def bulk_message_view(request):
         if message_text:
             # Get all active users except the sender
             all_users = User.objects.filter(is_active=True).exclude(id=request.user.id)
+            user_count = all_users.count()
+
+            if user_count == 0:
+                messages.warning(request, 'No active users found to send the message to.')
+                return redirect('chat:bulk_message')
 
             # Create individual direct rooms and send messages to each user
             sent_count = 0
+            failed_users = []
+            errors = []
+
             for user in all_users:
                 try:
                     # Get or create direct room with each user
@@ -650,9 +661,28 @@ def bulk_message_view(request):
 
                     sent_count += 1
                 except Exception as e:
-                    print(f"Error sending message to {user.username}: {e}")
+                    error_msg = f"Error sending message to {user.username}: {e}"
+                    logger.error(error_msg, exc_info=True)
+                    failed_users.append(user.username)
+                    errors.append(error_msg)
 
-            messages.success(request, f'Bulk message sent to {sent_count} users successfully.')
+            # Provide meaningful feedback based on results
+            if sent_count == user_count:
+                messages.success(request, f'Bulk message sent to all {sent_count} users successfully.')
+            elif sent_count > 0:
+                failed_count = user_count - sent_count
+                messages.warning(
+                    request,
+                    f'Bulk message sent to {sent_count} users but failed for {failed_count} users: {", ".join(failed_users[:5])}{"..." if len(failed_users) > 5 else ""}'
+                )
+                logger.warning(f'Bulk message partially successful. Sent to {sent_count}/{user_count} users. Failed for: {failed_users}')
+            else:
+                messages.error(
+                    request,
+                    f'Failed to send bulk message to any of the {user_count} users. Please check the server logs for details.'
+                )
+                logger.error(f'Bulk message completely failed. Errors: {errors}')
+
             return redirect('chat:bulk_message')
 
     # Get all active users for display

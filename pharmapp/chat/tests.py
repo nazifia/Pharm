@@ -240,6 +240,124 @@ class ChatFormTests(TestCase):
         form = QuickMessageForm(data=form_data)
         self.assertFalse(form.is_valid())
 
+class BulkMessageTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        from userauth.models import Profile
+
+        # Create admin user with permission (must be superuser)
+        self.admin = User.objects.create_superuser(
+            username='admin',
+            mobile='1111111111',
+            password='admin123'
+        )
+        Profile.objects.get_or_create(
+            user=self.admin,
+            defaults={'user_type': 'Admin'}
+        )
+
+        # Create regular users
+        self.user1 = User.objects.create_user(
+            username='user1',
+            mobile='2222222222',
+            password='test123'
+        )
+        Profile.objects.get_or_create(
+            user=self.user1,
+            defaults={'user_type': 'Salesperson'}
+        )
+
+        self.user2 = User.objects.create_user(
+            username='user2',
+            mobile='3333333333',
+            password='test123'
+        )
+        Profile.objects.get_or_create(
+            user=self.user2,
+            defaults={'user_type': 'Pharmacist'}
+        )
+
+        # Create inactive user
+        self.inactive_user = User.objects.create_user(
+            username='inactive',
+            mobile='4444444444',
+            password='test123'
+        )
+        self.inactive_user.is_active = False
+        self.inactive_user.save()
+        Profile.objects.get_or_create(
+            user=self.inactive_user,
+            defaults={'user_type': 'Salesperson'}
+        )
+
+    def test_bulk_message_requires_permission(self):
+        """Test that bulk message view requires manage_users permission"""
+        self.client.login(mobile='2222222222', password='test123')
+        response = self.client.get(reverse('chat:bulk_message'))
+        self.assertEqual(response.status_code, 302)  # Redirect
+
+        messages = list(response.wsgi_request._messages)
+        self.assertTrue(any('permission' in str(m).lower() for m in messages))
+
+    def test_bulk_message_sends_to_active_users(self):
+        """Test that bulk message sends to all active users except sender"""
+        self.client.login(mobile='1111111111', password='admin123')
+
+        initial_message_count = ChatMessage.objects.count()
+
+        response = self.client.post(
+            reverse('chat:bulk_message'),
+            data={'message': 'Test bulk message'},
+            follow=True  # Follow redirects
+        )
+
+        self.assertEqual(response.status_code, 200)  # Final status after redirect
+
+        # Verify messages were sent to active users (user1 and user2)
+        new_messages = ChatMessage.objects.count() - initial_message_count
+        self.assertEqual(new_messages, 2)  # Should send to user1 and user2
+
+        # Verify message content
+        messages = ChatMessage.objects.filter(sender=self.admin)
+        self.assertEqual(messages.count(), 2)
+        for msg in messages:
+            self.assertIn('BROADCAST MESSAGE', msg.message)
+            self.assertIn('Test bulk message', msg.message)
+
+    def test_bulk_message_excludes_inactive_users(self):
+        """Test that bulk message excludes inactive users"""
+        self.client.login(mobile='1111111111', password='admin123')
+
+        initial_message_count = ChatMessage.objects.count()
+
+        response = self.client.post(
+            reverse('chat:bulk_message'),
+            data={'message': 'Another test'},
+            follow=True
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Only 2 active users (user1 and user2), not including inactive_user
+        new_messages = ChatMessage.objects.count() - initial_message_count
+        self.assertEqual(new_messages, 2)
+
+    def test_bulk_message_empty_message(self):
+        """Test that empty messages are not sent"""
+        self.client.login(mobile='1111111111', password='admin123')
+
+        initial_message_count = ChatMessage.objects.count()
+
+        response = self.client.post(
+            reverse('chat:bulk_message'),
+            data={'message': '   '}  # Whitespace only
+        )
+
+        # Empty message should stay on page (no redirect)
+        self.assertEqual(response.status_code, 200)
+        new_messages = ChatMessage.objects.count() - initial_message_count
+        self.assertEqual(new_messages, 0)  # No messages sent
+
 class ChatIntegrationTests(TestCase):
     def setUp(self):
         self.client = Client()
