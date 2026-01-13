@@ -8,7 +8,14 @@ class OfflineRouter:
         """
         from threading import local
         thread_local = local()
-        return getattr(thread_local, 'current_database', 'default')
+
+        # First check if thread_local has current_database set
+        thread_db = getattr(thread_local, 'current_database', None)
+        if thread_db:
+            return thread_db
+
+        # Default to 'default' database
+        return 'default'
 
     def db_for_write(self, model, **hints):
         """
@@ -16,7 +23,14 @@ class OfflineRouter:
         """
         from threading import local
         thread_local = local()
-        return getattr(thread_local, 'current_database', 'default')
+
+        # First check if thread_local has current_database set
+        thread_db = getattr(thread_local, 'current_database', None)
+        if thread_db:
+            return thread_db
+
+        # Default to 'default' database
+        return 'default'
 
     def allow_relation(self, obj1, obj2, **hints):
         """

@@ -617,6 +617,7 @@ def upload_file_api(request):
 def bulk_message_view(request):
     """View for sending bulk messages to all users (superusers/managers only)"""
     import logging
+    import traceback
     from userauth.permissions import can_manage_users
 
     logger = logging.getLogger(__name__)
@@ -628,60 +629,78 @@ def bulk_message_view(request):
     if request.method == 'POST':
         message_text = request.POST.get('message', '').strip()
         if message_text:
-            # Get all active users except the sender
-            all_users = User.objects.filter(is_active=True).exclude(id=request.user.id)
-            user_count = all_users.count()
+            try:
+                # Log request info for debugging
+                logger.info(f"Bulk message request from user: {request.user.username} (id={request.user.id})")
+                logger.info(f"User is authenticated: {request.user.is_authenticated}")
+                logger.info(f"User is superuser: {request.user.is_superuser}")
 
-            if user_count == 0:
-                messages.warning(request, 'No active users found to send the message to.')
-                return redirect('chat:bulk_message')
+                # Get all active users except the sender
+                all_users = list(User.objects.filter(is_active=True).exclude(id=request.user.id))
+                user_count = len(all_users)
 
-            # Create individual direct rooms and send messages to each user
-            sent_count = 0
-            failed_users = []
-            errors = []
+                logger.info(f"Found {user_count} active users to send message to")
+                logger.info(f"Users: {[u.username for u in all_users]}")
 
-            for user in all_users:
-                try:
-                    # Get or create direct room with each user
-                    room, created = ChatRoom.get_or_create_direct_room(request.user, user)
+                if user_count == 0:
+                    messages.warning(request, 'No active users found to send the message to.')
+                    return redirect('chat:bulk_message')
 
-                    # Create message in the room
-                    ChatMessage.objects.create(
-                        room=room,
-                        sender=request.user,
-                        message=f"📢 BROADCAST MESSAGE:\n\n{message_text}",
-                        message_type='text',
-                        receiver=user  # Legacy field
+                # Create individual direct rooms and send messages to each user
+                sent_count = 0
+                failed_users = []
+                errors = []
+
+                for user in all_users:
+                    try:
+                        # Get or create direct room with each user
+                        room, created = ChatRoom.get_or_create_direct_room(request.user, user)
+                        logger.debug(f"Room for {user.username}: {'Created' if created else 'Exists'}")
+
+                        # Create message in the room
+                        ChatMessage.objects.create(
+                            room=room,
+                            sender=request.user,
+                            message=f"📢 BROADCAST MESSAGE:\n\n{message_text}",
+                            message_type='text',
+                            receiver=user  # Legacy field
+                        )
+
+                        # Update room timestamp
+                        room.updated_at = timezone.now()
+                        room.save()
+
+                        sent_count += 1
+                        logger.debug(f"Message sent to {user.username}, count: {sent_count}")
+                    except Exception as e:
+                        error_msg = f"Error sending to {user.username}: {str(e)}"
+                        logger.error(f"{error_msg}\n{traceback.format_exc()}")
+                        failed_users.append(user.username)
+                        errors.append(error_msg)
+
+                logger.info(f"Bulk message complete: {sent_count}/{user_count} sent, {len(failed_users)} failed")
+
+                # Provide meaningful feedback based on results
+                if sent_count == user_count:
+                    messages.success(request, f'Bulk message sent to all {sent_count} users successfully.')
+                elif sent_count > 0:
+                    failed_count = user_count - sent_count
+                    messages.warning(
+                        request,
+                        f'Bulk message sent to {sent_count} users but failed for {failed_count} users: {", ".join(failed_users[:5])}{"..." if len(failed_users) > 5 else ""}'
                     )
+                    logger.warning(f'Bulk message partially successful. Sent to {sent_count}/{user_count} users. Failed for: {failed_users}')
+                else:
+                    error_details = "; ".join(errors[:3]) if errors else "Unknown error - check server logs"
+                    messages.error(
+                        request,
+                        f'Failed to send bulk message to any of the {user_count} users. Errors: {error_details}'
+                    )
+                    logger.error(f'Bulk message completely failed. All {user_count} failed. Errors: {errors}')
 
-                    # Update room timestamp
-                    room.updated_at = timezone.now()
-                    room.save()
-
-                    sent_count += 1
-                except Exception as e:
-                    error_msg = f"Error sending message to {user.username}: {e}"
-                    logger.error(error_msg, exc_info=True)
-                    failed_users.append(user.username)
-                    errors.append(error_msg)
-
-            # Provide meaningful feedback based on results
-            if sent_count == user_count:
-                messages.success(request, f'Bulk message sent to all {sent_count} users successfully.')
-            elif sent_count > 0:
-                failed_count = user_count - sent_count
-                messages.warning(
-                    request,
-                    f'Bulk message sent to {sent_count} users but failed for {failed_count} users: {", ".join(failed_users[:5])}{"..." if len(failed_users) > 5 else ""}'
-                )
-                logger.warning(f'Bulk message partially successful. Sent to {sent_count}/{user_count} users. Failed for: {failed_users}')
-            else:
-                messages.error(
-                    request,
-                    f'Failed to send bulk message to any of the {user_count} users. Please check the server logs for details.'
-                )
-                logger.error(f'Bulk message completely failed. Errors: {errors}')
+            except Exception as e:
+                logger.error(f"Bulk message outer loop failed: {e}\n{traceback.format_exc()}")
+                messages.error(request, f'Error processing bulk message: {str(e)}')
 
             return redirect('chat:bulk_message')
 
