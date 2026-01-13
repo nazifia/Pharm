@@ -1069,8 +1069,8 @@ def barcode_add_item(request):
         data = json.loads(request.body)
         mode = data.get('mode', 'retail')
 
-        # Validate required fields
-        required_fields = ['barcode', 'name', 'cost', 'stock']
+        # Validate required fields (barcode is now optional)
+        required_fields = ['name', 'cost', 'stock']
         missing_fields = [field for field in required_fields if not data.get(field)]
         
         if missing_fields:
@@ -1083,22 +1083,23 @@ def barcode_add_item(request):
         # Select appropriate model based on mode
         ItemModel = Item if mode == 'retail' else WholesaleItem
 
-        # Check if barcode already exists
+        # Check if barcode already exists (only if barcode provided)
         barcode = data.get('barcode', '').strip()
-        existing_item = ItemModel.objects.filter(barcode=barcode).first()
-        if existing_item:
-            return JsonResponse({
-                'status': 'error',
-                'error': 'Barcode already exists',
-                'user_message': f'Barcode {barcode} is already assigned to {existing_item.name}',
-                'existing_item': {
-                    'id': existing_item.id,
-                    'name': existing_item.name,
-                    'brand': existing_item.brand or '',
-                    'price': str(existing_item.price),
-                    'stock': str(existing_item.stock),
-                }
-            }, status=409)
+        if barcode:
+            existing_item = ItemModel.objects.filter(barcode=barcode).first()
+            if existing_item:
+                return JsonResponse({
+                    'status': 'error',
+                    'error': 'Barcode already exists',
+                    'user_message': f'Barcode {barcode} is already assigned to {existing_item.name}',
+                    'existing_item': {
+                        'id': existing_item.id,
+                        'name': existing_item.name,
+                        'brand': existing_item.brand or '',
+                        'price': str(existing_item.price),
+                        'stock': str(existing_item.stock),
+                    }
+                }, status=409)
 
         # Create new item
         item_data = {
@@ -1215,8 +1216,8 @@ def barcode_batch_add_items(request):
         # Process each item
         for index, item_data in enumerate(items_data):
             try:
-                # Validate required fields for this item
-                required_fields = ['barcode', 'name', 'cost', 'stock']
+                # Validate required fields for this item (barcode is now optional)
+                required_fields = ['name', 'cost', 'stock']
                 missing_fields = [field for field in required_fields if not item_data.get(field)]
                 
                 if missing_fields:
@@ -1229,26 +1230,27 @@ def barcode_batch_add_items(request):
 
                 barcode = item_data.get('barcode', '').strip()
 
-                # Check for duplicates within this batch
-                if barcode in duplicate_barcodes:
-                    failed_items.append({
-                        'index': index,
-                        'barcode': barcode,
-                        'error': 'Duplicate barcode in this batch'
-                    })
-                    continue
+                # Check for duplicates within this batch (only if barcode provided)
+                if barcode:
+                    if barcode in duplicate_barcodes:
+                        failed_items.append({
+                            'index': index,
+                            'barcode': barcode,
+                            'error': 'Duplicate barcode in this batch'
+                        })
+                        continue
 
-                # Check if barcode already exists in database
-                existing_item = ItemModel.objects.filter(barcode=barcode).first()
-                if existing_item:
-                    failed_items.append({
-                        'index': index,
-                        'barcode': barcode,
-                        'error': f'Barcode already assigned to: {existing_item.name}'
-                    })
-                    continue
+                    # Check if barcode already exists in database
+                    existing_item = ItemModel.objects.filter(barcode=barcode).first()
+                    if existing_item:
+                        failed_items.append({
+                            'index': index,
+                            'barcode': barcode,
+                            'error': f'Barcode already assigned to: {existing_item.name}'
+                        })
+                        continue
 
-                duplicate_barcodes.add(barcode)
+                    duplicate_barcodes.add(barcode)
 
                 # Prepare item data
                 new_item_data = {
