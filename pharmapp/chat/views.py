@@ -658,10 +658,11 @@ def bulk_message_view(request):
                         logger.debug(f"Room for {user.username}: {'Created' if created else 'Exists'}")
 
                         # Create message in the room
+                        # Use [BROADCAST] prefix instead of emoji to avoid MySQL utf8 encoding issues
                         ChatMessage.objects.create(
                             room=room,
                             sender=request.user,
-                            message=f"📢 BROADCAST MESSAGE:\n\n{message_text}",
+                            message=f"[BROADCAST] {message_text}",
                             message_type='text',
                             receiver=user  # Legacy field
                         )

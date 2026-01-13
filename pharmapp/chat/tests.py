@@ -321,7 +321,7 @@ class BulkMessageTests(TestCase):
         messages = ChatMessage.objects.filter(sender=self.admin)
         self.assertEqual(messages.count(), 2)
         for msg in messages:
-            self.assertIn('BROADCAST MESSAGE', msg.message)
+            self.assertIn('[BROADCAST]', msg.message)
             self.assertIn('Test bulk message', msg.message)
 
     def test_bulk_message_excludes_inactive_users(self):
