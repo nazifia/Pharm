@@ -1,4 +1,4 @@
-﻿from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods
 from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db import transaction, IntegrityError
@@ -3353,14 +3353,34 @@ def get_cashier_daily_payment_totals(user, start_date=None, end_date=None):
 def get_monthly_expenses():
     """
     Returns a dictionary mapping the first day of each month to its total expenses.
+    Keys are datetime objects (timezone-aware) to match the format used in get_monthly_sales_with_expenses().
     """
+    from datetime import date, datetime, time
+    from django.utils import timezone
+
     expenses = (
         Expense.objects
         .annotate(month=TruncMonth('date'))
         .values('month')
         .annotate(total_expense=Sum('amount'))
     )
-    return {entry['month']: entry['total_expense'] for entry in expenses}
+    # Convert date keys to timezone-aware datetime to match the sales data format
+    # TruncMonth on DateField returns date, but on DateTimeField returns datetime
+    # Sales data uses DateTimeField with timezone, so we need to convert expense dates accordingly
+    result = {}
+    for entry in expenses:
+        month_key = entry['month']
+        # Check if it's a date object (not datetime)
+        if isinstance(month_key, date) and not isinstance(month_key, datetime):
+            # It's a date object, convert to timezone-aware datetime
+            naive_datetime = datetime.combine(month_key, time.min)
+            # Make it timezone-aware using Django's timezone utility
+            aware_datetime = timezone.make_aware(naive_datetime)
+            result[aware_datetime] = entry['total_expense']
+        else:
+            # Already a datetime object (could be naive or aware)
+            result[month_key] = entry['total_expense']
+    return result
 
 
 def get_monthly_customer_performance(start_date=None, end_date=None):
@@ -3886,8 +3906,22 @@ def get_monthly_sales_with_expenses():
             combined_sales[month]['payment_methods'][payment_method] += sale['total_amount'] or Decimal('0.00')
 
     # Add expense data and calculate net profit for each month
+    from datetime import date, datetime
     for month, data in combined_sales.items():
-        data['total_expense'] = monthly_expenses.get(month, 0)
+        expense = monthly_expenses.get(month, None)
+
+        # Fallback: if expense not found, try with date component
+        if expense is None:
+            # Try extracting just the date part (without time/tz info)
+            if isinstance(month, datetime):
+                date_only = month.date()
+                expense = monthly_expenses.get(date_only, None)
+            elif isinstance(month, date) and not isinstance(month, datetime):
+                # Month is a date object, convert to naive datetime
+                naive_dt = datetime.combine(month, datetime.min.time())
+                expense = monthly_expenses.get(naive_dt, None)
+
+        data['total_expense'] = expense if expense is not None else Decimal('0.00')
         data['net_profit'] = data['total_profit'] - data['total_expense']
 
     # Sort results by month (descending)
