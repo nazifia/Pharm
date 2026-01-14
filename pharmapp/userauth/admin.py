@@ -170,7 +170,7 @@ class ActivityLogAdmin(admin.ModelAdmin):
         today_count = ActivityLog.objects.filter(timestamp__range=(today_start, today_end)).count()
 
         # Get active users count (users with activity in the last 7 days)
-        last_week = today - datetime.timedelta(days=7)
+        last_week = timezone.now() - datetime.timedelta(days=7)
         active_users = User.objects.filter(activities__timestamp__gte=last_week).distinct().count()
 
         # Add to context

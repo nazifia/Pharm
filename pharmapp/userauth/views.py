@@ -131,12 +131,13 @@ def activity_dashboard(request):
     can_view_all_users = request.user.profile.user_type in ['Admin']
 
     # Get base queryset based on permissions
+    # Use select_related for user and user__profile to avoid N+1 queries
     if can_view_all_users:
-        logs = ActivityLog.objects.select_related('user').all()
+        logs = ActivityLog.objects.select_related('user', 'user__profile').all()
         user_queryset = User.objects.all()
     else:
         # Regular users can only see their own activity logs
-        logs = ActivityLog.objects.select_related('user').filter(user=request.user)
+        logs = ActivityLog.objects.select_related('user', 'user__profile').filter(user=request.user)
         user_queryset = User.objects.filter(id=request.user.id)
 
     # Initialize search form with user queryset
@@ -225,7 +226,8 @@ def activity_dashboard(request):
         active_users = logs.values('user').distinct().count()
     else:
         # No date filter - show users active in the last 7 days
-        last_week = today - timezone.timedelta(days=7)
+        # Use timezone-aware datetime to avoid naive datetime warnings
+        last_week = timezone.now() - timezone.timedelta(days=7)
         active_users = logs.filter(timestamp__gte=last_week).values('user').distinct().count()
 
     # Limit to 50 most recent for display
