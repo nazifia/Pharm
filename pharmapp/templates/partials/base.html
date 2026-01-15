@@ -35,8 +35,9 @@
     <!-- HTMX for all pages - load synchronously to avoid timing issues -->
     <script src="{% static 'htmx/htmx.min.js' %}"></script>
     <script>
-        // Configure HTMX to NOT cache requests - ensures fresh data on every request
+        // Configure HTMX to include CSRF token and NOT cache requests
         document.body.setAttribute('hx-headers', JSON.stringify({
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
             'Expires': '0'
