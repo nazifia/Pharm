@@ -402,17 +402,56 @@ def add_item(request):
                 item.save()
                 messages.success(request, 'Item added successfully')
 
-                # Handle HTMX requests differently - trigger page reload
+                # Handle HTMX requests differently - update only the item list instead of full page reload
                 if request.headers.get('HX-Request'):
-                    from django.http import HttpResponse
-                    response = HttpResponse(status=204)  # No content
-                    response['HX-Redirect'] = '/store/'  # Tell HTMX to redirect
-                    return response
+                    # Get updated items list for partial update
+                    from django.db.models import Sum, F, DecimalField, ExpressionWrapper
+                    items = Item.objects.all().order_by('name')
+                    settings = StoreSettings.get_settings()
+                    low_stock_items = Item.objects.filter(
+                        stock__lte=settings.low_stock_threshold
+                    ).order_by('stock', 'name')
+                    
+                    # Return partial HTML for item list update
+                    context = {
+                        'items': items,
+                        'low_stock_items': low_stock_items,
+                        'user': request.user,
+                    }
+                    
+                    # Add financial data if user has permission
+                    if request.user.has_permission('view_financial_reports'):
+                        financial_data = Item.objects.aggregate(
+                            total_purchase_value=Sum(
+                                ExpressionWrapper(
+                                    F('cost') * F('stock'),
+                                    output_field=DecimalField()
+                                )
+                            ),
+                            total_stock_value=Sum(
+                                ExpressionWrapper(
+                                    F('price') * F('stock'),
+                                    output_field=DecimalField()
+                                )
+                            )
+                        )
+                        total_purchase_value = financial_data['total_purchase_value'] or Decimal('0')
+                        total_stock_value = financial_data['total_stock_value'] or Decimal('0')
+                        context.update({
+                            'total_purchase_value': total_purchase_value,
+                            'total_stock_value': total_stock_value,
+                        })
+                    
+                    return render(request, 'partials/store_items_table.html', context)
 
                 return redirect('store:store')
             else:
                 print("Form errors:", form.errors)  # Debugging output
                 messages.error(request, 'Error creating item')
+                
+                # For HTMX requests, return the form with errors
+                if request.headers.get('HX-Request'):
+                    return render(request, 'partials/add_item_modal_content.html', {'form': form})
         else:
             form = addItemForm()
         if request.headers.get('HX-Request'):

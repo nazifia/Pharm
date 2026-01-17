@@ -1,0 +1,110 @@
+{% load humanize %}
+{% load permission_tags %}
+
+<!-- Low Stock Alert -->
+{% if low_stock_items %}
+<div class="alert alert-warning" role="alert">
+    <strong>Restocking Alert:</strong> The following items are running low on stock:
+    <ul>
+        {% for item in low_stock_items %}
+        <li>
+            <strong>{{ item.name|title }}</strong>
+            {% if item.brand %} - {{ item.brand|title }}{% endif %}
+            (Stock: {{ item.stock }} {{ item.unit }})
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- Items Table -->
+<div class="table-responsive">
+    <table class="table table-hover" id="dataTable" width="100%" cellspacing="0">
+        <thead class="table-secondary">
+            <tr>
+                <th scope="col">ACTION</th>
+                <th scope="col">GENERIC</th>
+                <th scope="col">D/FORM</th>
+                <th scope="col">BRAND</th>
+                {% if user.is_superuser or user.is_staff %}
+                <th scope="col">UNIT</th>
+                {% endif %}
+                {% if user|can_view_financial_data %}
+                <th scope="col">COST</th>
+                {% endif %}
+                <th scope="col">U/PRICE</th>
+                <th scope="col">STOCK</th>
+                <th scope="col">EXP DATE</th>
+            </tr>
+        </thead>
+        <tfoot class="table-secondary">
+            <tr>
+                <th scope="col">ACTION</th>
+                <th scope="col">GENERIC</th>
+                <th scope="col">D/FORM</th>
+                <th scope="col">BRAND</th>
+                {% if user.is_superuser or user.is_staff %}
+                <th scope="col">UNIT</th>
+                {% endif %}
+                {% if user|can_view_financial_data %}
+                <th scope="col">COST</th>
+                {% endif %}
+                <th scope="col">U/PRICE</th>
+                <th scope="col">STOCK</th>
+                <th scope="col">EXP DATE</th>
+            </tr>
+        </tfoot>
+        <tbody id="item-list">
+            {% for item in items %}
+            <tr>
+                <td>
+                    <a href="{% url 'wholesale:edit_wholesale_item' item.id %}" class="btn btn-sm btn-info edit-wholesale-btn"
+                        hx-get="{% url 'wholesale:edit_wholesale_item' item.id %}"
+                        hx-target="#editWholesaleModal .modal-content"
+                        hx-swap="innerHTML">Edit</a>
+
+                    <a href="{% url 'wholesale:return_wholesale_item' item.id %}" class="btn btn-sm btn-warning return-wholesale-btn"
+                        hx-get="{% url 'wholesale:return_wholesale_item' item.id %}"
+                        hx-target="#returnWholesaleItemModal .modal-content"
+                        hx-swap="innerHTML">Return</a>
+
+                    {% if user|can_delete_items %}
+                    <a href="{% url 'wholesale:delete_wholesale_item' item.id %}"
+                        onclick="return confirm('Are you sure you want to delete {{item.name|title}} from Wholesale Store?')"
+                        class="btn btn-sm btn-danger">x</a>
+                    {% endif %}
+                </td>
+                <td>{{item.name|title}}</td>
+                <td>{{item.dosage_form|title}}</td>
+                <td>{{item.brand|title}}</td>
+                {% if user.is_superuser or user.is_staff %}
+                <td>{{item.unit}}</td>
+                {% endif %}
+                {% if user|can_view_financial_data %}
+                <td>{{item.cost|intcomma}}</td>
+                {% endif %}
+                <td>{{item.price|intcomma}}</td>
+                <td>{{item.stock}}</td>
+                <td>{{item.exp_date}}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Initialize DataTables for the updated table -->
+<script>
+    // Initialize DataTables on the updated table
+    if ($.fn.DataTable.isDataTable('#dataTable')) {
+        $('#dataTable').DataTable().destroy();
+    }
+    
+    setTimeout(function() {
+        $('#dataTable').DataTable({
+            "pageLength": 25,
+            "order": [[1, 'asc']],
+            "responsive": true,
+            "autoWidth": false
+        });
+    }, 100);
+</script>

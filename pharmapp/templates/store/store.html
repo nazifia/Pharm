@@ -240,6 +240,9 @@
     {% for message in messages %}
     <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
     {% endfor %}
+    
+    <!-- HTMX target for partial updates -->
+    <div id="items-table-container">
     <div class="table-responsive">
         <table class="table table-hover" id="dataTable" width="100%" cellspacing="0">
             <thead class="table-secondary">
@@ -307,7 +310,7 @@
             </tbody>
         </table>
     </div>
-</div>
+    </div>
 
 <!-- Add Item to Store Modal -->
 <div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
@@ -411,7 +414,7 @@
         }
     });
 
-    // Close modal and refresh page after successful form submission
+    // Close modal after successful form submission
     document.addEventListener('htmx:afterRequest', function(event) {
         // Check if the request was successful and it was a form submission (POST/PUT)
         if (event.detail.successful && event.detail.xhr.status === 200) {
@@ -421,18 +424,46 @@
             if (editModal && $(editModal).hasClass('show')) {
                 // Close the modal
                 $(editModal).modal('hide');
-                // Refresh the page to show updated data
-                location.reload();
+                // Show success message for edit operation
+                showMessage('Item updated successfully!', 'success');
             }
 
             if (returnModal && $(returnModal).hasClass('show')) {
                 // Close the modal
                 $(returnModal).modal('hide');
-                // Refresh the page to show updated data
-                location.reload();
+                // Show success message for return operation
+                showMessage('Item return processed successfully!', 'success');
             }
         }
     });
+
+    // Global message function for success/error notifications
+    function showMessage(message, type = 'success') {
+        // Check if messages container exists on the page
+        const messagesContainer = document.querySelector('.alert-container');
+        if (messagesContainer) {
+            // Create and append a new message
+            const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${alertClass} text-center`;
+            alertDiv.innerHTML = `<strong>${type === 'success' ? '✓ Success' : '✗ Error'}:</strong> ${message}`;
+            
+            // Replace existing messages or append
+            const existingAlerts = messagesContainer.querySelectorAll('.alert');
+            existingAlerts.forEach(alert => alert.remove());
+            messagesContainer.appendChild(alertDiv);
+            
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                alertDiv.style.opacity = '0';
+                alertDiv.style.transition = 'opacity 0.3s ease-out';
+                setTimeout(() => alertDiv.remove(), 300);
+            }, 3000);
+        } else {
+            // Fallback to console
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    }
 </script>
 
 {% endblock %}

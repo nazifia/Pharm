@@ -10,7 +10,13 @@
 </div>
 
 <div class="modal-body">
-    <form id="addItemForm" method="post" novalidate>
+    <form id="addItemForm" method="post" novalidate
+          hx-post="{% url 'store:add_item' %}"
+          hx-target="#items-table-container"
+          hx-swap="innerHTML"
+          hx-trigger="submit"
+          hx-indicator="#addItemModal .modal-content"
+          hx-on::after-request="if(event.detail.successful) { $('#addItemModal').modal('hide'); }">
         {% csrf_token %}
         <input type="text" name="name" placeholder=" ENTER ITEM GENERIC NAME" class="form-control mt-3" required>
         
@@ -330,143 +336,104 @@
         }
     };
 
-    // Handle form submission
-    document.getElementById('addItemForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const form = e.target;
-        const submitBtn = document.getElementById('submitItemBtn');
-        const originalBtnText = document.getElementById('submitBtnText').textContent;
-        
-        // Get form data
-        const formData = new FormData(form);
-        const isOffline = formData.get('is_offline') === 'true';
-        const mode = formData.get('mode');
-        
-        // Validate required fields
-        const requiredFields = ['name', 'cost', 'stock'];
-        const missingFields = [];
-        
-        for (const field of requiredFields) {
-            const value = formData.get(field);
-            if (!value || value.trim() === '') {
-                missingFields.push(field);
-            }
-        }
-        
-        if (missingFields.length > 0) {
-            showError(`Missing required fields: ${missingFields.join(', ')}`);
-            return;
-        }
-        
-        // Disable submit button and show loading
-        submitBtn.disabled = true;
-        document.getElementById('submitBtnText').textContent = 'Saving...';
-        
-        try {
-            const itemData = {
-                name: formData.get('name').trim(),
-                dosage_form: document.getElementById('dosage_form_hidden').value,
-                brand: formData.get('brand').trim(),
-                unit: document.getElementById('unit_hidden').value,
-                cost: parseFloat(formData.get('cost')),
-                price: formData.get('price') ? parseFloat(formData.get('price')) : null,
-                markup: formData.get('markup') ? parseFloat(formData.get('markup')) : null,
-                stock: parseInt(formData.get('stock')),
-                exp_date: formData.get('exp_date') || null,
-                barcode: formData.get('barcode')?.trim() || '',
-                barcode_type: formData.get('barcode_type'),
-                mode: mode,
-                manual_price_override: formData.get('manual_price_override') === 'on'
-            };
-            
-            if (isOffline) {
-                // Handle offline submission
-                await handleOfflineItemCreation(itemData);
-            } else {
-                // Handle online submission
-                await handleOnlineItemCreation(itemData);
+    // Enhanced form submission handling for HTMX
+    document.addEventListener('htmx:afterRequest', function(event) {
+        // Handle successful form submission
+        if (event.detail.successful && event.detail.pathConfig?.target === '#items-table-container') {
+            // Show success message
+            const newItemName = document.querySelector('[name="name"]')?.value || 'Item';
+            if (window.showMessage) {
+                window.showMessage(`${newItemName} added successfully!`, 'success');
             }
             
-            // Close modal on success using Bootstrap 4/jQuery
+            // Close the modal
             $('#addItemModal').modal('hide');
             
-        } catch (error) {
-            console.error('[Add Item Modal] Error:', error);
-            showError(error.message || 'Failed to create item. Please try again.');
-        } finally {
-            // Re-enable submit button
-            submitBtn.disabled = false;
-            document.getElementById('submitBtnText').textContent = originalBtnText;
+            // Reset form for next use
+            document.getElementById('addItemForm').reset();
+            
+            // Clear any calculated fields
+            document.getElementById('price').value = '';
+            document.getElementById('dosage_form_hidden').value = '';
+            document.getElementById('unit_hidden').value = '';
+            document.getElementById('dosage_form_select').value = '';
+            document.getElementById('unit_select').value = '';
+            document.getElementById('custom_dosage_form').style.display = 'none';
+            document.getElementById('custom_unit').style.display = 'none';
+        }
+        
+        // Handle form validation errors
+        if (!event.detail.successful && event.detail.xhr) {
+            try {
+                const response = JSON.parse(event.detail.xhr.responseText);
+                if (response.errors) {
+                    if (window.showMessage) {
+                        window.showMessage('Form validation failed. Please check your inputs.', 'error');
+                    } else {
+                        showError('Form validation failed. Please check your inputs.');
+                    }
+                } else if (response.error) {
+                    if (window.showMessage) {
+                        window.showMessage(response.error, 'error');
+                    } else {
+                        showError(response.error);
+                    }
+                }
+            } catch (e) {
+                if (window.showMessage) {
+                    window.showMessage('Submission failed. Please try again.', 'error');
+                } else {
+                    showError('Submission failed. Please try again.');
+                }
+            }
         }
     });
 
-    // Handle online item creation
-    async function handleOnlineItemCreation(itemData) {
-        const response = await fetch('/api/barcode/add-item/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            },
-            body: JSON.stringify(itemData)
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && result.status === 'success') {
-            showSuccess(`${itemData.name} has been added successfully!`);
-            
-            // Refresh the current page or redirect
-            if (window.location.pathname.includes('store')) {
-                // On store page, just refresh
-                location.reload();
-            } else {
-                // Navigate to store page
-                window.location.href = '/store/store/';
+    // HTMX loading indicator for submit button
+    document.addEventListener('htmx:configRequest', function(event) {
+        if (event.detail.path.includes('/store/add/')) {
+            const submitBtn = document.getElementById('submitItemBtn');
+            const btnText = document.getElementById('submitBtnText');
+            if (submitBtn && btnText) {
+                submitBtn.disabled = true;
+                btnText.textContent = 'Saving...';
             }
-        } else {
-            throw new Error(result.user_message || result.error || 'Failed to create item');
         }
-    }
+    });
 
-    // Handle offline item creation
-    async function handleOfflineItemCreation(itemData) {
-        if (!window.dbManager) {
-            throw new Error('IndexedDB not available for offline storage');
+    document.addEventListener('htmx:afterRequest', function(event) {
+        if (event.detail.path.includes('/store/add/')) {
+            const submitBtn = document.getElementById('submitItemBtn');
+            const btnText = document.getElementById('submitBtnText');
+            if (submitBtn && btnText) {
+                submitBtn.disabled = false;
+                btnText.textContent = 'Add Item';
+            }
         }
-        
-        const offlineItem = {
-            id: `offline_${Date.now()}`,
-            action: 'create_item',
-            data: itemData,
-            timestamp: new Date().toISOString(),
-            status: 'pending_sync'
-        };
-        
-        await window.dbManager.add('pendingActions', offlineItem);
-        showSuccess('Item has been queued for creation when you are back online.');
-    }
+    });
 
-    // Show error function
+    // Show error function (fallback when global showMessage is not available)
     function showError(message) {
         const errorDiv = document.getElementById('addItemErrors');
         const errorMessages = document.getElementById('errorMessages');
         
-        errorMessages.textContent = message;
-        errorDiv.style.display = 'block';
-        
-        // Scroll to top of modal to show error
-        document.getElementById('addItemModal').scrollTop = 0;
-    }
-
-    // Show success function
-    function showSuccess(message) {
-        // Use existing notification system if available
-        if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
-            window.offlineHandler.showInAppNotification('Success', message, 'success');
+        if (errorDiv && errorMessages) {
+            errorMessages.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+            
+            // Scroll to top of modal to show error
+            document.getElementById('addItemModal').scrollTop = 0;
+        } else if (window.showMessage) {
+            // Use global message function if available
+            window.showMessage(message, 'error');
         } else {
-            // Fallback to alert
+            // Final fallback
+            console.error(message);
             alert(message);
         }
     }

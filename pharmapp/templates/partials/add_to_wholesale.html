@@ -3,7 +3,13 @@
     <button type="button" class="close" data-dismiss="modal" aria-label="Close">x</button>
 </div>
 <div class="modal-body">
-    <form action="{% url 'wholesale:add_to_wholesale' %}" method="post">
+    <form id="addWholesaleItemForm" method="post" novalidate
+          hx-post="{% url 'wholesale:add_to_wholesale' %}"
+          hx-target="#wholesale-items-table-container"
+          hx-swap="innerHTML"
+          hx-trigger="submit"
+          hx-indicator="#addItemModal .modal-content"
+          hx-on::after-request="if(event.detail.successful) { $('#addItemModal').modal('hide'); }">
         {% csrf_token %}
         <input type="text" name="name" placeholder=" ENTER ITEM GENERIC NAME" class="form-control mt-3" required>
         <!-- Hidden input for dosage_form that will be set by the dropdown or custom input -->
@@ -158,7 +164,15 @@
         </div>
         <input type="number" name="stock" placeholder="STOCK QUANTITY" class="form-control mt-3" required>
         <input type="date" name="exp_date" class="form-control mt-3" required>
-        <input type="submit" class="btn btn-success btn-sm mt-3" value="Save">
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                <i class="fas fa-times me-1"></i> Cancel
+            </button>
+            <button type="submit" class="btn btn-success" id="submitWholesaleItemBtn">
+                <i class="fas fa-save me-1"></i>
+                <span id="submitWholesaleBtnText">Add Item</span>
+            </button>
+        </div>
     </form>
 </div>
 
@@ -294,4 +308,74 @@
             $('#barcodeScannerModal').modal('show');
         }
     }
+
+    // Enhanced form submission handling for HTMX
+    document.addEventListener('htmx:afterRequest', function(event) {
+        // Handle successful form submission
+        if (event.detail.successful && event.detail.pathConfig?.target === '#wholesale-items-table-container') {
+            // Show success message
+            const newItemName = document.querySelector('[name="name"]')?.value || 'Item';
+            if (window.showMessage) {
+                window.showMessage(`${newItemName} added successfully to wholesale!`, 'success');
+            }
+            
+            // Close the modal
+            $('#addItemModal').modal('hide');
+            
+            // Reset form for next use
+            document.getElementById('addWholesaleItemForm').reset();
+            
+            // Clear any calculated fields
+            document.getElementById('price').value = '';
+            document.getElementById('dosage_form_hidden').value = '';
+            document.getElementById('unit_hidden').value = '';
+            document.getElementById('dosage_form_select').value = '';
+            document.getElementById('unit_select').value = '';
+            document.getElementById('custom_dosage_form').style.display = 'none';
+            document.getElementById('custom_unit').style.display = 'none';
+        }
+        
+        // Handle form validation errors
+        if (!event.detail.successful && event.detail.xhr) {
+            try {
+                const response = JSON.parse(event.detail.xhr.responseText);
+                if (response.errors) {
+                    if (window.showMessage) {
+                        window.showMessage('Form validation failed. Please check your inputs.', 'error');
+                    }
+                } else if (response.error) {
+                    if (window.showMessage) {
+                        window.showMessage(response.error, 'error');
+                    }
+                }
+            } catch (e) {
+                if (window.showMessage) {
+                    window.showMessage('Submission failed. Please try again.', 'error');
+                }
+            }
+        }
+    });
+
+    // HTMX loading indicator for submit button
+    document.addEventListener('htmx:configRequest', function(event) {
+        if (event.detail.path.includes('/wholesale/add/')) {
+            const submitBtn = document.getElementById('submitWholesaleItemBtn');
+            const btnText = document.getElementById('submitWholesaleBtnText');
+            if (submitBtn && btnText) {
+                submitBtn.disabled = true;
+                btnText.textContent = 'Saving...';
+            }
+        }
+    });
+
+    document.addEventListener('htmx:afterRequest', function(event) {
+        if (event.detail.path.includes('/wholesale/add/')) {
+            const submitBtn = document.getElementById('submitWholesaleItemBtn');
+            const btnText = document.getElementById('submitWholesaleBtnText');
+            if (submitBtn && btnText) {
+                submitBtn.disabled = false;
+                btnText.textContent = 'Add Item';
+            }
+        }
+    });
 </script>
