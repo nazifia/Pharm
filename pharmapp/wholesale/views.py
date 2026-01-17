@@ -800,7 +800,8 @@ def dispense_wholesale(request):
             'form': form,
             'results': results,
             'cart_count': cart_count,
-            'cart_total': cart_total
+            'cart_total': cart_total,
+            'user': request.user,  # Add user to context for template permissions
         }
         logger.debug(f"Rendering wholesale/dispense_wholesale.html with context: {context}")
         response = render(request, 'wholesale/dispense_wholesale.html', context)
@@ -1032,7 +1033,12 @@ def wholesale_dispense_search_items(request):
                 Q(name__icontains=query) | Q(brand__icontains=query) | Q(barcode=query)
             ).filter(stock__gt=0).order_by('name')[:50]
 
-    return render(request, 'partials/wholesale_dispense_search_results.html', {'results': results, 'query': query})
+    # Pass user to context for permission checks and CSRF context
+    return render(request, 'partials/wholesale_dispense_search_results.html', {
+        'results': results,
+        'query': query,
+        'user': request.user
+    })
 
 
 from django.views.decorators.http import require_POST, require_http_methods

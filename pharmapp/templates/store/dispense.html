@@ -1,11 +1,11 @@
 {% extends "partials/base.html" %}
 {% load static %}
+{% load humanize %}
+{% load permission_tags %}
 
 {% block title %}
 Dispense Items - {{ block.super }}
 {% endblock %}
-
-{% comment %}CACHE BUSTER: v3.0.0 - 2025-11-27 13:58 - SERVICE WORKER FIX{% endcomment %}
 
 {% block extra_css %}
 <style>
@@ -383,192 +383,37 @@ Dispense Items - {{ block.super }}
 <script>
     window.currentUserId = {{ user.id|default:'null' }};
     
-    // Force refresh of dispense page scripts for debugging
-    console.log('[Dispense] Dispense script loaded at:', new Date().toISOString());
-    console.log('🔧 DISPENSE PAGE - CALLBACK FIX VERSION 3.0');
-
-    // Add a unique marker to ensure latest code is loaded
-    window.DISPENSE_SCRIPT_VERSION = '2025-11-27-FIX-V3';
-    console.log('[Dispense] Script version:', window.DISPENSE_SCRIPT_VERSION);
+    console.log('[Dispense] Optimized dispense page loaded');
 </script>
 
-<!-- Load offline cart support -->
-<script src="{% static 'js/cart-offline.js' %}"></script>
-
-<!-- Load cart clear handler -->
-<script src="{% static 'js/cart-clear-handler.js' %}"></script>
-
 <script>
-// Debug script to check HTMX functionality
+// Optimized dispense page JavaScript - focused on fast experience
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Dispense page loaded');
+    console.log('Optimized dispense page loaded');
     console.log('HTMX available:', typeof htmx !== 'undefined');
-    console.log('Current user ID:', window.currentUserId);
-    console.log('Offline mode available:', typeof isOfflineModeAvailable !== 'undefined' ? isOfflineModeAvailable() : 'unknown');
 
+    // Disable the hardware scanner initialization to reduce script loading
+    // Hardware scanner will be initialized only when user clicks scan button
+    
     if (typeof htmx !== 'undefined') {
-        console.log('HTMX version:', htmx.version);
-
         // Log HTMX events for debugging
         document.body.addEventListener('htmx:afterRequest', function(evt) {
-            console.log('HTMX request completed:', evt.detail);
-        });
-
-        document.body.addEventListener('htmx:afterSwap', function(evt) {
-            console.log('HTMX content swapped:', evt.detail.target);
+            console.log('HTMX request completed for:', evt.detail.path);
         });
 
         document.body.addEventListener('htmx:responseError', function(evt) {
             console.error('HTMX response error:', evt.detail);
         });
-    } else {
-        console.error('HTMX is not loaded!');
-    }
-
-    // Real-time auto-refresh for dispense page when data changes
-    let lastCartHash = '{{ cart_count|default:0 }}';  // Will be updated on first check
-    let refreshInterval = null;
-    let isPageVisible = !document.hidden;
-
-    // Function to check for cart updates
-    async function checkForUpdates() {
-        if (!isPageVisible || !navigator.onLine) {
-            return;
-        }
-
-        try {
-            // Fetch current cart data without reloading page
-            // Add timestamp to URL to bust browser cache
-            const timestamp = Date.now();
-            const url = '{% url "store:view_cart" %}' + '?_=' + timestamp;
-
-            const response = await fetch(url, {
-                method: 'GET',
-                cache: 'no-store',  // Force bypass all caches
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0'
-                }
-            });
-
-            if (response.ok) {
-                const html = await response.text();
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const cartElement = doc.querySelector('[data-cart-hash]');
-
-                if (cartElement) {
-                    const currentCartHash = cartElement.dataset.cartHash || '';
-                    const currentCartCount = parseInt(cartElement.dataset.cartCount) || 0;
-
-                    // Compare hash to detect ANY cart changes (count, items, status, etc)
-                    if (currentCartHash !== lastCartHash) {
-                        console.log('[Dispense] Cart changed detected - updating display dynamically');
-                        console.log('  Previous hash:', lastCartHash);
-                        console.log('  Current hash:', currentCartHash);
-                        console.log('  Cart count:', currentCartCount);
-                        lastCartHash = currentCartHash;
-
-                        // Update cart display without reloading page - items persist
-                        // Cart content is managed via HTMX and will update automatically
-                        // NO RELOAD: window.location.reload(true);
-                    } else {
-                        console.log('[Dispense] No cart changes detected');
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('[Dispense] Update check failed:', error);
-        }
-    }
-
-    // Start auto-refresh when page is visible
-    function startAutoRefresh() {
-        if (refreshInterval) return;
-
-        console.log('[Dispense] Auto-refresh started (every 30 seconds)');
-
-        // Immediate check
-        checkForUpdates();
-
-        // Then check every 30 seconds
-        refreshInterval = setInterval(checkForUpdates, 30000);
-    }
-
-    // Stop auto-refresh when page is hidden
-    function stopAutoRefresh() {
-        if (refreshInterval) {
-            clearInterval(refreshInterval);
-            refreshInterval = null;
-            console.log('[Dispense] Auto-refresh paused (page hidden)');
-        }
-    }
-
-    // Handle visibility changes
-    document.addEventListener('visibilitychange', function() {
-        isPageVisible = !document.hidden;
-
-        if (isPageVisible) {
-            console.log('[Dispense] Page visible - checking for updates');
-            startAutoRefresh();
-        } else {
-            stopAutoRefresh();
-        }
-    });
-
-    // Force refresh on page show (browser back/forward)
-    window.addEventListener('pageshow', function(event) {
-        if (event.persisted || performance.navigation.type === 2) {
-            console.log('[Dispense] Page loaded from cache - reloading for fresh data');
-            window.location.reload(true);
-        }
-    });
-
-    // Start auto-refresh if page is visible
-    if (isPageVisible) {
-        startAutoRefresh();
-    }
-
-    console.log('[Dispense] Real-time auto-refresh enabled - page will update automatically');
-
-    // Listen for localStorage changes (payment request sent from another tab/window)
-    window.addEventListener('storage', function(event) {
-        if (event.key === 'payment_request_sent' && event.newValue) {
-            console.log('[Dispense] Payment request detected via storage event - refreshing immediately');
-            window.location.reload(true);
-        }
-    });
-
-    // Also check localStorage on page load (same tab scenario)
-    const paymentRequestFlag = localStorage.getItem('payment_request_sent');
-    if (paymentRequestFlag) {
-        const flagTime = parseInt(paymentRequestFlag);
-        const currentTime = Date.now();
-
-        // If flag is less than 5 seconds old, trigger immediate refresh
-        if (currentTime - flagTime < 5000) {
-            console.log('[Dispense] Recent payment request detected - refreshing immediately');
-            localStorage.removeItem('payment_request_sent');
-            window.location.reload(true);
-        } else {
-            // Flag is stale, remove it
-            localStorage.removeItem('payment_request_sent');
-        }
     }
 });
 
-// Barcode scanner callback for retail - Define immediately for camera scanning
-console.log('[Dispense] Setting up barcode callback');
-
-// Prevent barcode-cart-integration.js from auto-initializing and overwriting our callback
-window.barcodeCartHandler = true;
+// Barcode scanner setup - Reduced complexity for speed
+console.log('[Dispense] Setting up optimized barcode callback');
 
 // Define callback immediately so camera scanning works without delay
 window.onBarcodeItemFound = function(item, barcode) {
-        console.log('*** BARCODE SCANNER CALLBACK TRIGGERED ***');
-        console.log('[Dispense] Barcode scanned:', barcode, 'Item:', item);
+    console.log('*** BARCODE SCANNER CALLBACK TRIGGERED ***');
+    console.log('[Dispense] Barcode scanned:', barcode, 'Item:', item);
 
         // Prevent multiple submissions
         if (window.isProcessingBarcode) {
@@ -580,14 +425,12 @@ window.onBarcodeItemFound = function(item, barcode) {
 
         setTimeout(() => {
             window.isProcessingBarcode = false;
-        }, 500); // Reduced to 500ms for faster rescanning
+        }, 500);
 
-        // Fill the search input with the item name (not barcode number)
+        // Fill the search input with the item name
         const searchInput = document.getElementById('search-input');
-        console.log('[Dispense] *** Search input element:', searchInput);
 
         if (searchInput && item) {
-            console.log('[Dispense] *** Search input found and item is valid');
             // Use item name for searching
             searchInput.value = item.name;
             console.log('[Dispense] Search input filled with:', item.name);
@@ -607,8 +450,8 @@ window.onBarcodeItemFound = function(item, barcode) {
                 // Wait for search results to load, then highlight the scanned item
                 setTimeout(() => {
                     highlightScannedItem(item.id);
-                }, 400); // Optimized from 500ms
-            }, 80);  // Reduced from 100ms for faster response
+                }, 400);
+            }, 80);
         } else {
             console.error('[Dispense] Search input not found or item is null');
         }
@@ -626,7 +469,7 @@ window.onBarcodeItemFound = function(item, barcode) {
         }
 };
 
-console.log('[Dispense] Barcode callback initialized');
+console.log('[Dispense] Optimized barcode callback initialized');
 
 // Function to highlight the scanned item in search results
 function highlightScannedItem(itemId) {
@@ -661,16 +504,10 @@ function highlightScannedItem(itemId) {
                 console.log('[Dispense] Item scrolled into view with offset');
             }, 300);
 
-            // Remove loading state after scroll animation
-            setTimeout(() => {
-                itemCard.classList.remove('scrolling-to-view');
-            }, 650);
-
         } catch (e) {
             console.error('[Dispense] Error scrolling item into view:', e);
             // Fallback: scroll without smooth behavior
             itemCard.scrollIntoView(true);
-            itemCard.classList.remove('scrolling-to-view');
         }
 
         // Focus the quantity input for immediate interaction (accessibility)
@@ -706,7 +543,7 @@ function highlightScannedItem(itemId) {
     }
 }
 
-console.log('[Dispense] Barcode callback and highlight function ready');
+console.log('[Dispense] Optimized barcode callback and highlight function ready');
 
 // ==================== FORM SUBMISSION PROTECTION ====================
 // Prevent double-clicking on add to cart forms
@@ -716,8 +553,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Prevent double submission on add-to-cart forms
     document.addEventListener('htmx:beforeRequest', function(event) {
         const form = event.target;
-        if (form && (form.classList.contains('add-to-cart-form') || 
-                     form.classList.contains('add-to-wholesale-cart-form'))) {
+        if (form && form.classList.contains('add-to-cart-form')) {
             
             // Find the submit button
             const submitBtn = form.querySelector('button[type="submit"]');
@@ -751,8 +587,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Reset form submission flag when request completes
     document.addEventListener('htmx:afterRequest', function(event) {
         const form = event.target;
-        if (form && (form.classList.contains('add-to-cart-form') || 
-                     form.classList.contains('add-to-wholesale-cart-form'))) {
+        if (form && form.classList.contains('add-to-cart-form')) {
             
             // Find the submit button
             const submitBtn = form.querySelector('button[type="submit"]');
@@ -776,57 +611,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ==================== HARDWARE BARCODE SCANNER SUPPORT ====================
 // Supports USB/Bluetooth handheld barcode scanners
-// No need to click scan button - just point and scan!
-// Module is loaded globally in base.html, just initialize here
-// ==========================================================================
-
-// Wait for HardwareScannerHandler to be available (loaded in base.html)
-function initRetailHardwareScanner() {
-
-    // Initialize hardware scanner for retail mode
-    window.retailHardwareScanner = new HardwareScannerHandler({
-        mode: 'retail',
-        scannerSpeed: 50,        // Max 50ms between characters
-        minBarcodeLength: 3,     // Min barcode length
-        maxBarcodeLength: 50     // Max barcode length
-    });
-
-    // Start listening for scanner input
-    window.retailHardwareScanner.init();
-    console.log('[Dispense] Hardware scanner initialized - Ready to scan!');
-
-    // Disable hardware scanner when camera modal is open (avoid conflicts)
-    $('#barcodeScannerModal').on('shown.bs.modal', function() {
-        if (window.retailHardwareScanner) {
-            window.retailHardwareScanner.disable();
-            console.log('[Dispense] Hardware scanner disabled (camera active)');
-        }
-    });
-
-    // Re-enable hardware scanner when camera modal is closed
-    $('#barcodeScannerModal').on('hidden.bs.modal', function() {
-        if (window.retailHardwareScanner) {
-            window.retailHardwareScanner.enable();
-            console.log('[Dispense] Hardware scanner enabled');
-        }
-    });
-}
-
-// Initialize hardware scanner
-document.addEventListener('scannerModulesLoaded', function() {
-    const scanButton = document.querySelector('button[data-target="#barcodeScannerModal"]');
-    if (scanButton) {
-        scanButton.disabled = false;
-        scanButton.title = "Scan Barcode";
-    }
-    initRetailHardwareScanner();
-});
-
-// ==========================================================================
-// USAGE: Just scan with your USB/Bluetooth barcode scanner!
-// - Point scanner at barcode
-// - Press trigger
-// - Item automatically appears in search results
+// Just scan - no need to click any button!
+// Handled globally via base template scanning support
 // ==========================================================================
 
 </script>

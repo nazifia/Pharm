@@ -1,3 +1,6 @@
+{% load humanize %}
+{% load permission_tags %}
+
 {% if results %}
 <div class="results-header">
     <i class="fas fa-list mr-2"></i>
@@ -32,7 +35,8 @@
                   hx-post="{% url 'store:add_to_cart' item.id %}?from_dispense=true"
                   hx-target="#cart-summary-widget"
                   hx-swap="outerHTML"
-                  hx-indicator="#loading-indicator-{{ item.id|default:'unknown' }}">
+                  hx-indicator="#loading-indicator-{{ item.id|default:'unknown' }}"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token|escapejs }}"}'>
                 {% csrf_token %}
                 <div class="quantity-form">
                     <label for="quantity_{{ item.id|default:'unknown' }}" class="form-label mb-0">Qty:</label>
