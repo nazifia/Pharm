@@ -5142,13 +5142,22 @@ def dispensing_log_stats(request):
 def receipt_list(request):
     if request.user.is_authenticated:
         from django.core.paginator import Paginator
+        from utils.date_utils import filter_queryset_by_date, get_date_filter_context
+
+        # Get the date query from the GET request
+        date_context = get_date_filter_context(request, 'date')
+        date_query = date_context['date_string']
 
         # PERFORMANCE OPTIMIZATION: Add select_related for foreign keys to avoid N+1 queries
         receipts_queryset = Receipt.objects.select_related(
             'customer', 'cashier', 'sales', 'return_processed_by'
         ).prefetch_related(
-            'receipt_payments'  # Related name from ReceiptPayment model
+            'receipt_payments'
         ).order_by('-date')
+
+        # Filter by date if provided
+        if date_query and date_context['is_valid_date']:
+            receipts_queryset = filter_queryset_by_date(receipts_queryset, 'date', date_query)
 
         # Add pagination (50 receipts per page)
         paginator = Paginator(receipts_queryset, 50)

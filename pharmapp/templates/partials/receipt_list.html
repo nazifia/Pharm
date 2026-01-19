@@ -133,8 +133,7 @@
             <div class="col-md-4">
                 <label for="date">Search by Date</label>
                 <input type="date" name="date" id="date" class="form-control"
-                    style="background-color: rgb(212, 248, 159);" hx-get="{% url 'store:search_receipts' %}"
-                    hx-target="#sales-data" hx-trigger="change delay:150ms" value="{{ request.GET.date }}">
+                    style="background-color: rgb(212, 248, 159);" value="{{ request.GET.date }}">
             </div>
         </div>
     </form>
@@ -177,6 +176,64 @@
                 {% endfor %}
             </tbody>
         </table>
+
+        <!-- Pagination -->
+        {% if is_paginated %}
+        <nav aria-label="Receipt list pagination">
+            <ul class="pagination justify-content-center">
+                {% if receipts.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}">&laquo; First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ receipts.previous_page_number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}">Previous</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&laquo; First</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Previous</span>
+                    </li>
+                {% endif %}
+
+                {% for num in receipts.paginator.page_range %}
+                    {% if receipts.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% elif num > receipts.number|add:'-3' and num < receipts.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if receipts.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ receipts.next_page_number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ receipts.paginator.num_pages }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}">Last &raquo;</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Next</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Last &raquo;</span>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        <!-- Showing page info -->
+        <div class="text-center mb-3">
+            <small class="text-muted">
+                Showing {{ receipts.start_index }} to {{ receipts.end_index }} of {{ receipts.paginator.count }} receipts
+            </small>
+        </div>
+        {% endif %}
     </div>
 </div>
 

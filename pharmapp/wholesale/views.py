@@ -2951,8 +2951,31 @@ def return_wholesale_items_for_customer(request, pk):
 @never_cache
 def wholesale_receipt_list(request):
     if request.user.is_authenticated:
-        receipts = WholesaleReceipt.objects.all().order_by('-date')  # Only wholesale receipts
-        return render(request, 'partials/wholesale_receipt_list.html', {'receipts': receipts})
+        from django.core.paginator import Paginator
+        from utils.date_utils import filter_queryset_by_date, get_date_filter_context
+
+        # Get the date query from the GET request
+        date_context = get_date_filter_context(request, 'date')
+        date_query = date_context['date_string']
+
+        receipts_queryset = WholesaleReceipt.objects.select_related(
+            'wholesale_customer', 'cashier', 'sales'
+        ).prefetch_related(
+            'receipt_payments'
+        ).order_by('-date')
+
+        # Filter by date if provided
+        if date_query and date_context['is_valid_date']:
+            receipts_queryset = filter_queryset_by_date(receipts_queryset, 'date', date_query)
+
+        paginator = Paginator(receipts_queryset, 50)
+        page_number = request.GET.get('page', 1)
+        receipts = paginator.get_page(page_number)
+
+        return render(request, 'partials/wholesale_receipt_list.html', {
+            'receipts': receipts,
+            'is_paginated': paginator.num_pages > 1
+        })
     else:
         return redirect('store:index')
 
