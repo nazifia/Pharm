@@ -1,9 +1,20 @@
-<!-- Update the Generate Report button -->
-{% comment %} <div class="mb-3">
-    <a href="{% url 'store:generate_monthly_report' %}?month={% now 'Y-m' %}" class="btn btn-success">
-        <i class="fas fa-file-alt"></i> Generate Expense Report
-    </a>
-</div> {% endcomment %}
+<!-- Search Form -->
+<form method="get" action="" class="mb-3">
+    <div class="form-row align-items-end">
+        <div class="col-md-4">
+            <label for="date">Search by Date</label>
+            <input type="date" name="date" id="date" class="form-control"
+                style="background-color: rgb(212, 248, 159);"
+                value="{{ date_query }}">
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary btn-block">Search</button>
+        </div>
+        <div class="col-md-2">
+            <a href="{% url 'store:expense_list' %}" class="btn btn-secondary btn-block">Clear</a>
+        </div>
+    </div>
+</form>
 
 <!-- Expense List Table -->
 <div class="table-responsive">
@@ -49,10 +60,72 @@
                 {% endif %}
             </td>
         </tr>
+        {% empty %}
+        <tr>
+            <td colspan="5" style="text-align: center;">No expenses found{% if date_query %} for the selected date{% endif %}.</td>
+        </tr>
         {% endfor %}
     </tbody>
 </table>
 </div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<nav aria-label="Expense list pagination">
+    <ul class="pagination justify-content-center">
+        {% if expenses.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1{% if date_query %}&date={{ date_query }}{% endif %}">&laquo; First</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ expenses.previous_page_number }}{% if date_query %}&date={{ date_query }}{% endif %}">Previous</a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">&laquo; First</span>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link">Previous</span>
+            </li>
+        {% endif %}
+
+        {% for num in expenses.paginator.page_range %}
+            {% if expenses.number == num %}
+                <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+            {% elif num > expenses.number|add:'-3' and num < expenses.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}{% if date_query %}&date={{ date_query }}{% endif %}">{{ num }}</a>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        {% if expenses.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ expenses.next_page_number }}{% if date_query %}&date={{ date_query }}{% endif %}">Next</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ expenses.paginator.num_pages }}{% if date_query %}&date={{ date_query }}{% endif %}">Last &raquo;</a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">Next</span>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link">Last &raquo;</span>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+
+<!-- Showing page info -->
+<div class="text-center mb-3">
+    <small class="text-muted">
+        Showing {{ expenses.start_index }} to {{ expenses.end_index }} of {{ expenses.paginator.count }} expenses
+    </small>
+</div>
+{% endif %}
 
 <!-- Bootstrap Modal for Adding/Editing Expenses -->
 <div class="modal fade" id="expenseModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">

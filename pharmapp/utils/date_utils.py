@@ -60,27 +60,48 @@ def parse_date_string(date_string):
 def filter_queryset_by_date(queryset, date_field, date_string):
     """
     Filter a queryset by a date field using a date string.
-    
+
     Args:
         queryset: Django queryset to filter
         date_field (str): Name of the date field to filter on
         date_string (str): Date string to parse and filter by
-        
+
     Returns:
         queryset: Filtered queryset or original queryset if parsing fails
     """
     parsed_date = parse_date_string(date_string)
     if parsed_date:
         # Handle both DateField and DateTimeField
-        if '__date' not in date_field:
-            # If it's a DateTimeField, we need to filter by date part
-            filter_kwargs = {f"{date_field}__date": parsed_date}
-        else:
-            # If it's already a DateField or has __date suffix
+        # If the field already has __date suffix, use it directly
+        # If it's a DateTimeField without __date suffix, add __date to filter by date part
+        # If it's a DateField (simple field name), use it directly
+        if '__date' in date_field:
+            # Already has __date suffix (e.g., 'created_at__date')
             filter_kwargs = {date_field: parsed_date}
-        
+        elif date_field.endswith('__date'):
+            # Ends with __date (e.g., 'created_at__date')
+            filter_kwargs = {date_field: parsed_date}
+        else:
+            # Try to determine field type from the model
+            try:
+                model = queryset.model
+                field = model._meta.get_field(date_field)
+                from django.db.models import DateTimeField
+                if isinstance(field, DateTimeField):
+                    # DateTimeField - filter by date part
+                    filter_kwargs = {f"{date_field}__date": parsed_date}
+                else:
+                    # DateField or other - use directly
+                    filter_kwargs = {date_field: parsed_date}
+            except Exception:
+                # Fallback: assume fields with underscores are DateTimeFields
+                if '_' in date_field:
+                    filter_kwargs = {f"{date_field}__date": parsed_date}
+                else:
+                    filter_kwargs = {date_field: parsed_date}
+
         return queryset.filter(**filter_kwargs)
-    
+
     return queryset
 
 

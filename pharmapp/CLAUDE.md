@@ -250,6 +250,39 @@ DB_PORT=3306
 - Cashier: `'CSH:' + 8 digits`
 - PaymentRequest: `'PRQ:' + 8 digits`
 
+#### Expense Management
+**Date-based Filtering & Pagination:**
+- `expense_list` view supports date filtering via query parameter `?date=YYYY-MM-DD`
+- Pagination with 50 expenses per page using Django's `Paginator`
+- Search form with HTML5 date input for easy date selection
+- Pagination controls preserve date filters across page navigation
+- Uses `utils.date_utils` functions for consistent date handling
+
+**Expense Model:**
+```python
+class Expense(models.Model):
+    category = models.ForeignKey(ExpenseCategory, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    date = models.DateField(default=datetime.now)  # Used for filtering
+    description = models.TextField(blank=True, null=True)
+```
+
+**Query Parameters:**
+- `date` - Date string in YYYY-MM-DD format for filtering
+- `page` - Page number for pagination (integer)
+
+**Template Context:**
+- `expenses` - Paginated queryset (Page object)
+- `date_query` - Current date filter value (empty string if none)
+- `is_paginated` - Boolean indicating if pagination is needed
+- Permission flags: `can_manage_expenses`, `can_add_expenses`, etc.
+
+**Performance:**
+- Single query with ordering: `Expense.objects.all().order_by('-date')`
+- Date filter adds efficient `WHERE date = ?` clause
+- Pagination uses `LIMIT` and `OFFSET` (50 records per page)
+- Recommended index: `CREATE INDEX idx_expense_date ON store_expense (date DESC)`
+
 ### Performance Optimizations
 
 **Database:**

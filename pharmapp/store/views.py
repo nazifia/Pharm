@@ -6768,9 +6768,31 @@ def generate_monthly_report(request):
 def expense_list(request):
     if request.user.is_authenticated:
         from userauth.permissions import can_manage_expenses, can_add_expenses, can_add_expense_categories, can_manage_expense_categories
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        from utils.date_utils import filter_queryset_by_date, get_date_filter_context
+
+        # Get the date query from the GET request
+        date_context = get_date_filter_context(request, 'date')
+        date_query = date_context['date_string']
 
         # Allow all authenticated users to view expenses
-        expenses = Expense.objects.all().order_by('-date')
+        expenses_queryset = Expense.objects.all().order_by('-date')
+
+        # Filter by date if provided
+        if date_query and date_context['is_valid_date']:
+            expenses_queryset = filter_queryset_by_date(expenses_queryset, 'date', date_query)
+
+        # Add pagination (50 expenses per page)
+        paginator = Paginator(expenses_queryset, 50)
+        page_number = request.GET.get('page', 1)
+
+        try:
+            expenses = paginator.get_page(page_number)
+        except PageNotAnInteger:
+            expenses = paginator.get_page(1)
+        except EmptyPage:
+            expenses = paginator.get_page(paginator.num_pages)
+
         expense_categories = ExpenseCategory.objects.all().order_by('name')
 
         # Pass permission info to template
@@ -6780,7 +6802,9 @@ def expense_list(request):
             'can_manage_expenses': can_manage_expenses(request.user),
             'can_add_expenses': can_add_expenses(request.user),
             'can_add_expense_categories': can_add_expense_categories(request.user),
-            'can_manage_expense_categories': can_manage_expense_categories(request.user)
+            'can_manage_expense_categories': can_manage_expense_categories(request.user),
+            'is_paginated': paginator.num_pages > 1,
+            'date_query': date_query
         }
         return render(request, 'store/expense_list.html', context)
     else:
