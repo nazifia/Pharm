@@ -5216,7 +5216,7 @@ def exp_date_alert(request):
 
         alert_threshold = datetime.now() + timedelta(days=90)
 
-        expiring_items = Item.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=datetime.now())
+        expiring_items = Item.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=datetime.now(), stock__gt=0)
 
         expired_items = Item.objects.filter(exp_date__lt=datetime.now())
 

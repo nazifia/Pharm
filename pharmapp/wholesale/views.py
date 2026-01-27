@@ -3582,7 +3582,7 @@ def transfer_multiple_wholesale_items(request):
 def exp_date_alert(request):
     if request.user.is_authenticated:
         alert_threshold = timezone.now() + timedelta(days=90)
-        expiring_items = WholesaleItem.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=timezone.now())
+        expiring_items = WholesaleItem.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=timezone.now(), stock__gt=0)
         expired_items = WholesaleItem.objects.filter(exp_date__lt=timezone.now())
 
         for expired_item in expired_items:

@@ -135,6 +135,82 @@
             font-size: 12px;
         }
     }
+
+    /* Search Results Dropdown Styling */
+    .search-results {
+        position: absolute;
+        z-index: 1000;
+        background-color: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        max-height: 250px;
+        overflow-y: auto;
+        width: 100%;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        margin-top: 2px;
+    }
+
+    .search-result-item {
+        padding: 10px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+        transition: background-color 0.2s ease;
+    }
+
+    .search-result-item:hover,
+    .search-result-item.active {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .search-result-item:last-child {
+        border-bottom: none;
+    }
+
+    .search-result-item strong {
+        display: block;
+        font-size: 14px;
+    }
+
+    .search-result-item small {
+        font-size: 12px;
+        opacity: 0.8;
+    }
+
+    .add-new-item {
+        padding: 10px 12px;
+        cursor: pointer;
+        background-color: #e7f3ff;
+        text-align: center;
+        font-weight: bold;
+        color: #007bff;
+        border-top: 1px solid #ddd;
+        transition: background-color 0.2s ease;
+    }
+
+    .add-new-item:hover {
+        background-color: #cfe2ff;
+    }
+
+    .search-loading {
+        padding: 10px 12px;
+        text-align: center;
+        color: #666;
+        font-style: italic;
+    }
+
+    .search-no-results {
+        padding: 10px 12px;
+        text-align: center;
+        color: #999;
+        font-style: italic;
+    }
+
+    /* Input focus styling for autocomplete */
+    input[name$="-item_name"]:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
 </style>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3 style="text-align: center;"><strong>Wholesale Procurement Form</strong></h3>
@@ -311,7 +387,7 @@
         document.getElementById('grand-total').textContent = grandTotal.toFixed(2);
     }
 
-    // Function to search for items as user types
+    // Function to search for items as user types with enhanced features
     function setupItemSearch(row) {
         const itemNameInput = row.querySelector('input[name$="-item_name"]');
         const dosageFormSelect = row.querySelector('select[name$="-dosage_form"]');
@@ -327,101 +403,147 @@
         const searchResultsDiv = document.createElement('div');
         searchResultsDiv.className = 'search-results';
         searchResultsDiv.style.display = 'none';
-        searchResultsDiv.style.position = 'absolute';
-        searchResultsDiv.style.zIndex = '1000';
-        searchResultsDiv.style.backgroundColor = 'white';
-        searchResultsDiv.style.border = '1px solid #ddd';
-        searchResultsDiv.style.maxHeight = '200px';
-        searchResultsDiv.style.overflowY = 'auto';
-        searchResultsDiv.style.width = '100%';
         itemNameInput.parentNode.style.position = 'relative';
         itemNameInput.parentNode.appendChild(searchResultsDiv);
 
-        // Add event listener for input changes
-        itemNameInput.addEventListener('input', function() {
-            const query = this.value.trim();
-            if (query.length >= 2) {
-                // Fetch items from API
+        // Debounce timer for API calls
+        let debounceTimer;
+        let currentFocusIndex = -1;
+        let currentResults = [];
+
+        // Function to select an item from results
+        function selectItem(item) {
+            itemNameInput.value = item.name;
+            if (dosageFormSelect) {
+                Array.from(dosageFormSelect.options).forEach(option => {
+                    if (option.value === item.dosage_form) {
+                        option.selected = true;
+                    }
+                });
+            }
+            if (brandInput) brandInput.value = item.brand;
+            if (barcodeInput && item.barcode) barcodeInput.value = item.barcode;
+            if (unitSelect) {
+                Array.from(unitSelect.options).forEach(option => {
+                    if (option.value === item.unit) {
+                        option.selected = true;
+                    }
+                });
+            }
+            if (costPriceInput) costPriceInput.value = item.cost_price;
+            if (expiryDateInput && item.expiry_date) {
+                expiryDateInput.value = item.expiry_date.split('T')[0];
+            }
+
+            // Hide search results
+            searchResultsDiv.style.display = 'none';
+            currentFocusIndex = -1;
+
+            // Calculate subtotal and grand total
+            calculateSubtotal(row);
+            calculateGrandTotal();
+        }
+
+        // Function to update visual focus
+        function updateFocus() {
+            const items = searchResultsDiv.querySelectorAll('.search-result-item');
+            items.forEach((item, index) => {
+                if (index === currentFocusIndex) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+
+        // Function to fetch and display results
+        function fetchAndDisplayResults(query) {
+            if (query.length < 2) {
+                searchResultsDiv.style.display = 'none';
+                return;
+            }
+
+            // Show loading state
+            searchResultsDiv.innerHTML = '<div class="search-loading">Searching...</div>';
+            searchResultsDiv.style.display = 'block';
+
+            // Debounce API calls
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
                 fetch(`/wholesale/search_wholesale_items_for_procurement/?q=${encodeURIComponent(query)}`)
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) throw new Error('Network response was not ok');
+                        return response.json();
+                    })
                     .then(data => {
                         searchResultsDiv.innerHTML = '';
+                        currentResults = data.results;
+                        currentFocusIndex = -1;
+
                         if (data.results.length > 0) {
-                            searchResultsDiv.style.display = 'block';
-                            data.results.forEach(item => {
+                            data.results.forEach((item, index) => {
                                 const resultItem = document.createElement('div');
                                 resultItem.className = 'search-result-item';
-                                resultItem.style.padding = '8px';
-                                resultItem.style.cursor = 'pointer';
-                                resultItem.style.borderBottom = '1px solid #eee';
-                                resultItem.innerHTML = `<strong>${item.name}</strong> - ${item.dosage_form} (${item.brand})`;
+                                resultItem.innerHTML = `
+                                    <strong>${item.name}</strong>
+                                    <small>${item.dosage_form} - ${item.brand}</small>
+                                `;
 
-                                // Add hover effect
-                                resultItem.addEventListener('mouseover', function() {
-                                    this.style.backgroundColor = '#f0f0f0';
-                                });
-                                resultItem.addEventListener('mouseout', function() {
-                                    this.style.backgroundColor = 'white';
-                                });
-
-                                // Add click handler to select item
-                                resultItem.addEventListener('click', function() {
-                                    itemNameInput.value = item.name;
-                                    if (dosageFormSelect) {
-                                        // Find and select the matching option
-                                        Array.from(dosageFormSelect.options).forEach(option => {
-                                            if (option.value === item.dosage_form) {
-                                                option.selected = true;
-                                            }
-                                        });
-                                    }
-                                    if (brandInput) brandInput.value = item.brand;
-                                    if (barcodeInput && item.barcode) barcodeInput.value = item.barcode;
-                                    if (unitSelect) {
-                                        // Find and select the matching option
-                                        Array.from(unitSelect.options).forEach(option => {
-                                            if (option.value === item.unit) {
-                                                option.selected = true;
-                                            }
-                                        });
-                                    }
-                                    if (costPriceInput) costPriceInput.value = item.cost_price;
-                                    if (expiryDateInput && item.expiry_date) expiryDateInput.value = item.expiry_date.split('T')[0];
-
-                                    // Hide search results
-                                    searchResultsDiv.style.display = 'none';
-
-                                    // Calculate subtotal and grand total
-                                    calculateSubtotal(row);
-                                    calculateGrandTotal();
-                                });
+                                // Click handler
+                                resultItem.addEventListener('click', () => selectItem(item));
 
                                 searchResultsDiv.appendChild(resultItem);
                             });
 
-                            // Add option to add new item if not found
+                            // Add option to add new item
                             const addNewItem = document.createElement('div');
                             addNewItem.className = 'add-new-item';
-                            addNewItem.style.padding = '8px';
-                            addNewItem.style.cursor = 'pointer';
-                            addNewItem.style.backgroundColor = '#e7f3ff';
-                            addNewItem.style.textAlign = 'center';
                             addNewItem.innerHTML = '<strong>+ Add New Item</strong>';
-
-                            addNewItem.addEventListener('click', function() {
+                            addNewItem.addEventListener('click', () => {
                                 window.open('{% url "wholesale:add_to_wholesale" %}', '_blank');
                             });
-
                             searchResultsDiv.appendChild(addNewItem);
                         } else {
-                            searchResultsDiv.style.display = 'none';
+                            searchResultsDiv.innerHTML = '<div class="search-no-results">No items found</div>';
                         }
                     })
                     .catch(error => {
                         console.error('Error fetching items:', error);
+                        searchResultsDiv.innerHTML = '<div class="search-no-results">Error loading results</div>';
                     });
-            } else {
+            }, 300); // 300ms debounce
+        }
+
+        // Add event listener for input changes
+        itemNameInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            fetchAndDisplayResults(query);
+        });
+
+        // Keyboard navigation
+        itemNameInput.addEventListener('keydown', function(e) {
+            const items = searchResultsDiv.querySelectorAll('.search-result-item');
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (currentFocusIndex < items.length - 1) {
+                    currentFocusIndex++;
+                    updateFocus();
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (currentFocusIndex > 0) {
+                    currentFocusIndex--;
+                    updateFocus();
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (currentFocusIndex >= 0 && currentResults[currentFocusIndex]) {
+                    selectItem(currentResults[currentFocusIndex]);
+                }
+            } else if (e.key === 'Escape') {
                 searchResultsDiv.style.display = 'none';
+                currentFocusIndex = -1;
             }
         });
 
@@ -429,7 +551,17 @@
         document.addEventListener('click', function(event) {
             if (!itemNameInput.contains(event.target) && !searchResultsDiv.contains(event.target)) {
                 searchResultsDiv.style.display = 'none';
+                currentFocusIndex = -1;
             }
+        });
+
+        // Add focus indicator to input
+        itemNameInput.addEventListener('focus', function() {
+            this.style.borderColor = '#007bff';
+        });
+
+        itemNameInput.addEventListener('blur', function() {
+            this.style.borderColor = '#ccc';
         });
     }
 
