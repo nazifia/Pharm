@@ -733,9 +733,9 @@ def wholesale_exp_alert(request):
 
         alert_threshold = timezone.now() + timedelta(days=90)
 
-        expiring_items = WholesaleItem.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=timezone.now())
+        expiring_items = WholesaleItem.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=timezone.now(), stock__gt=0)
 
-        expired_items = WholesaleItem.objects.filter(exp_date__lt=timezone.now())
+        expired_items = WholesaleItem.objects.filter(exp_date__lt=timezone.now(), stock__gt=0)
 
         for expired_item in expired_items:
 

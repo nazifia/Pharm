@@ -5218,7 +5218,8 @@ def exp_date_alert(request):
 
         expiring_items = Item.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=datetime.now(), stock__gt=0)
 
-        expired_items = Item.objects.filter(exp_date__lt=datetime.now())
+        # Only consider expired items that still have stock > 0
+        expired_items = Item.objects.filter(exp_date__lt=datetime.now(), stock__gt=0)
 
         # PERFORMANCE OPTIMIZATION: Use bulk_update instead of individual saves
         items_to_update = []
