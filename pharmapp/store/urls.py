@@ -56,6 +56,7 @@ urlpatterns = [
     path('yearly_customer_performance/', views.yearly_customer_performance, name='yearly_customer_performance'),
     path('sales_by_user/', views.sales_by_user, name='sales_by_user'),
     path('exp_date_alert/', views.exp_date_alert, name='exp_date_alert'),
+    path('low_stock_alert/', views.low_stock_alert, name='low_stock_alert'),
     path('customer_history/<int:customer_id>/', views.customer_history, name='customer_history'),
     path('register_supplier_view/', views.register_supplier_view, name='register_supplier_view'),
     path('list_suppliers_view/', views.list_suppliers_view, name='supplier_list'),

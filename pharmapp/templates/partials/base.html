@@ -292,6 +292,10 @@
                             <i class="fas fa-calendar-times"></i> Retail Expiry Alerts</a>
                         <a class="collapse-item" href="{% url 'wholesale:wholesale_exp_alert' %}">
                             <i class="fas fa-calendar-times"></i> Wholesale Expiry Alerts</a>
+                        <a class="collapse-item" href="{% url 'store:low_stock_alert' %}">
+                            <i class="fas fa-exclamation-triangle"></i> Retail Low Stock</a>
+                        <a class="collapse-item" href="{% url 'wholesale:wholesale_low_stock_alert' %}">
+                            <i class="fas fa-exclamation-triangle"></i> Wholesale Low Stock</a>
                         <div class="collapse-divider"></div>
                         <h6 class="collapse-header">Stock Transfers:</h6>
                         <a class="collapse-item" href="{% url 'store:transfer_multiple_store_items' %}">

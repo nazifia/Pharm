@@ -471,6 +471,44 @@ def can_manage_all_expiry(user):
 
     return user.has_permission('manage_all_expiry')
 
+# Inventory Management Permissions
+def can_manage_retail_inventory(user):
+    """Check if user can manage retail inventory only"""
+    if not user.is_authenticated:
+        return False
+
+    # If user has manage_all_inventory permission, they can manage retail inventory
+    if user.has_permission('manage_all_inventory'):
+        return True
+
+    # If user has manage_retail_inventory but NOT manage_wholesale_inventory, they can manage retail inventory
+    if user.has_permission('manage_retail_inventory') and not user.has_permission('manage_wholesale_inventory'):
+        return True
+
+    return False
+
+def can_manage_wholesale_inventory(user):
+    """Check if user can manage wholesale inventory only"""
+    if not user.is_authenticated:
+        return False
+
+    # If user has manage_all_inventory permission, they can manage wholesale inventory
+    if user.has_permission('manage_all_inventory'):
+        return True
+
+    # If user has manage_wholesale_inventory but NOT manage_retail_inventory, they can manage wholesale inventory
+    if user.has_permission('manage_wholesale_inventory') and not user.has_permission('manage_retail_inventory'):
+        return True
+
+    return False
+
+def can_manage_all_inventory(user):
+    """Check if user can manage both retail and wholesale inventory"""
+    if not user.is_authenticated:
+        return False
+
+    return user.has_permission('manage_all_inventory')
+
 def can_manage_payment_methods(user):
     """Check if user can manage payment methods"""
     return user.is_authenticated and user.profile.user_type in ['Admin', 'Manager']

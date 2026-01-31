@@ -71,6 +71,9 @@
 <div class="modal-body">
     <form action="{% url 'wholesale:edit_wholesale_item' item.id %}" method="post" hx-post="{% url 'wholesale:edit_wholesale_item' item.id %}" hx-target="#editWholesaleModal .modal-content">
         {% csrf_token %}
+        {% if request.GET.next %}
+        <input type="hidden" name="next" value="{{ request.GET.next }}">
+        {% endif %}
         <div class="form-group">
             <label for="name">Item Name:</label>
             <input type="text" name="name" class="form-control mb-3" value="{{ item.name }}">

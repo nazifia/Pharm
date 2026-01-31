@@ -515,6 +515,16 @@ def search_item(request):
     else:
         return redirect('store:index')
 
+def get_client_ip(request):
+    """Get the client IP address from request"""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+
 @login_required
 def edit_item(request, pk):
     if request.user.is_authenticated:
@@ -554,10 +564,31 @@ def edit_item(request, pk):
                         item.barcode_type = 'GS1'
                     logger.info(f"GS1 barcode parsed for item {item.name}: GTIN={item.gtin}, Batch={item.batch_number}, Serial={item.serial_number}")
 
+                # Track stock change for restocking
+                old_stock = item.stock
+                new_stock = form.cleaned_data.get('stock', old_stock)
+                stock_changed = old_stock != new_stock
+
                 # Save the form with updated fields
                 form.save()
 
-                messages.success(request, f'{item.name} updated successfully')
+                # Log restock activity if stock was changed
+                if stock_changed:
+                    from userauth.models import ActivityLog
+                    ActivityLog.objects.create(
+                        user=request.user,
+                        action='RESTOCK',
+                        details=f'Restocked {item.name} (Retail): {old_stock} → {new_stock} units',
+                        ip_address=get_client_ip(request)
+                    )
+                    messages.success(request, f'{item.name} restocked successfully! Stock updated from {old_stock} to {new_stock} units.')
+                else:
+                    messages.success(request, f'{item.name} updated successfully')
+
+                # Check if we should redirect back to low stock alert
+                next_url = request.POST.get('next') or request.GET.get('next')
+                if next_url and 'low_stock' in next_url:
+                    return redirect(next_url)
                 return redirect('store:store')
             else:
                 messages.error(request, 'Failed to update item')
@@ -5245,6 +5276,31 @@ def exp_date_alert(request):
             'expiring_items': expiring_items,
             'expired_by_date': expired_by_date,
             'view_mode': view_mode,
+        })
+    else:
+        return redirect('store:index')
+
+
+@login_required
+def low_stock_alert(request):
+    if request.user.is_authenticated:
+        from userauth.permissions import can_manage_retail_inventory
+        if not can_manage_retail_inventory(request.user):
+            messages.error(request, 'You do not have permission to view retail low stock alerts.')
+            return redirect('store:index')
+
+        from .models import StoreSettings
+        settings = StoreSettings.get_settings()
+        low_stock_threshold = settings.low_stock_threshold
+
+        # Get items with stock <= threshold
+        low_stock_items = Item.objects.filter(
+            stock__lte=low_stock_threshold
+        ).order_by('stock', 'name')
+
+        return render(request, 'partials/low_stock_alert.html', {
+            'low_stock_items': low_stock_items,
+            'low_stock_threshold': low_stock_threshold,
         })
     else:
         return redirect('store:index')

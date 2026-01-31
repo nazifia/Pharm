@@ -74,6 +74,9 @@
 
     <form action="{% url 'store:edit_item' item.id %}" method="post" id="editItemForm">
         {% csrf_token %}
+        {% if request.GET.next %}
+        <input type="hidden" name="next" value="{{ request.GET.next }}">
+        {% endif %}
         <div class="form-group">
             <label for="name">Item Name:</label>
             <input type="text" name="name" class="form-control mb-3" value="{{ item.name }}">

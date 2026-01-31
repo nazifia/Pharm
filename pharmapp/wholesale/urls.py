@@ -43,6 +43,7 @@ urlpatterns = [
     path('select_wholesale_items/<int:pk>/', views.select_wholesale_items, name='select_wholesale_items'),
     path('wholesale/select_wholesale_items/<int:pk>/', views.select_wholesale_items, name='select_wholesale_items_alt'),
     path('wholesale_exp_alert/', views.wholesale_exp_alert, name='wholesale_exp_alert'),
+    path('wholesale_low_stock_alert/', views.wholesale_low_stock_alert, name='wholesale_low_stock_alert'),
     path('wholesale_receipt_list/', views.wholesale_receipt_list, name='wholesale_receipt_list'),
     path('wholesale_customer_history/<int:customer_id>/', views.wholesale_customer_history, name='wholesale_customer_history'),
     path('search_wholesale_receipts/', views.search_wholesale_receipts, name='search_wholesale_receipts'),
