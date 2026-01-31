@@ -131,9 +131,13 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="{% url 'store:edit_item' item.pk %}?next={% url 'store:low_stock_alert' %}" class="btn btn-sm btn-primary">
+                        <button class="btn btn-sm btn-primary" 
+                                hx-get="{% url 'store:edit_item' item.pk %}?next={% url 'store:low_stock_alert' %}" 
+                                hx-target="#editModal .modal-content"
+                                data-toggle="modal" 
+                                data-target="#editModal">
                             <i class="fas fa-edit"></i> Restock
-                        </a>
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -146,4 +150,12 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Edit Item Modal -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-label="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content"></div>
+    </div>
+</div>
+
 {% endblock %}

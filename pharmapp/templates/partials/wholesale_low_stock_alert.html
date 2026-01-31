@@ -131,9 +131,13 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="{% url 'wholesale:edit_wholesale_item' item.pk %}?next={% url 'wholesale:wholesale_low_stock_alert' %}" class="btn btn-sm btn-primary">
+                        <button class="btn btn-sm btn-primary" 
+                                hx-get="{% url 'wholesale:edit_wholesale_item' item.pk %}?next={% url 'wholesale:wholesale_low_stock_alert' %}" 
+                                hx-target="#editWholesaleModal .modal-content"
+                                data-toggle="modal" 
+                                data-target="#editWholesaleModal">
                             <i class="fas fa-edit"></i> Restock
-                        </a>
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -146,4 +150,12 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Edit Wholesale Item Modal -->
+<div class="modal fade" id="editWholesaleModal" tabindex="-1" aria-label="editWholesaleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content"></div>
+    </div>
+</div>
+
 {% endblock %}
