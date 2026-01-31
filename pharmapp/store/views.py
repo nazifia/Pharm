@@ -315,9 +315,17 @@ def store(request):
             stock__lte=low_stock_threshold
         ).order_by('stock', 'name')
 
+        # Get expired items (stock > 0 and expiry date passed)
+        from django.utils import timezone
+        expired_items = Item.objects.filter(
+            exp_date__lt=timezone.now().date(),
+            stock__gt=0
+        ).order_by('-exp_date')
+
         context = {
             'items': items,
             'low_stock_items': low_stock_items,
+            'expired_items': expired_items,
             'settings_form': settings_form,
             'low_stock_threshold': low_stock_threshold,
         }
@@ -5218,22 +5226,25 @@ def exp_date_alert(request):
 
         expiring_items = Item.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=datetime.now(), stock__gt=0)
 
-        # Only consider expired items that still have stock > 0
-        expired_items = Item.objects.filter(exp_date__lt=datetime.now(), stock__gt=0)
+        # Get expired items - do NOT set stock to 0, just display them
+        expired_items = Item.objects.filter(exp_date__lt=datetime.now(), stock__gt=0).order_by('-exp_date')
 
-        # PERFORMANCE OPTIMIZATION: Use bulk_update instead of individual saves
-        items_to_update = []
-        for expired_item in expired_items:
-            if expired_item.stock > 0:
-                expired_item.stock = 0
-                items_to_update.append(expired_item)
+        # Group expired items by expiry date
+        from itertools import groupby
+        from operator import attrgetter
+        
+        expired_by_date = {}
+        for date, items in groupby(expired_items, key=attrgetter('exp_date')):
+            expired_by_date[date] = list(items)
 
-        if items_to_update:
-            Item.objects.bulk_update(items_to_update, ['stock'])
+        # Get view mode from query parameter
+        view_mode = request.GET.get('view', 'expiring')  # 'expiring' or 'expired'
 
         return render(request, 'partials/exp_date_alert.html', {
             'expired_items': expired_items,
             'expiring_items': expiring_items,
+            'expired_by_date': expired_by_date,
+            'view_mode': view_mode,
         })
     else:
         return redirect('store:index')

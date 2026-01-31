@@ -180,6 +180,16 @@
                             </a>
                         </div>
                         {% endif %}
+
+                        <!-- Expired Items -->
+                        {% if user|has_permission:'manage_wholesale_expiry' %}
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'wholesale:wholesale_exp_alert' %}" class="btn btn-danger btn-block">
+                                <i class="fas fa-calendar-times"></i><br>
+                                <small>View Expired Items</small>
+                            </a>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>

@@ -200,15 +200,16 @@
 
 <div class="col-15">
     <h2 style="text-align: center;">Retail Items</h2>
-    {% if low_stock_items %}
-    <div class="alert alert-warning" role="alert">
-        <strong>Restocking Alert:</strong> The following items are running low on stock:
-        <ul>
-            {% for item in low_stock_items %}
+    {% if expired_items %}
+    <div class="alert alert-danger" role="alert">
+        <strong><i class="fas fa-calendar-times"></i> Expired Items Alert:</strong> 
+        <a href="{% url 'store:exp_date_alert' %}?view=expired" class="alert-link">The following items have expired:</a>
+        <ul class="mt-2">
+            {% for item in expired_items %}
             <li>
                 <strong>{{ item.name|title }}</strong>
                 {% if item.brand %} - {{ item.brand|title }}{% endif %}
-                (Stock: {{ item.stock }} {{ item.unit }})
+                <span class="text-danger">(Expired: {{ item.exp_date }}, Stock: {{ item.stock }})</span>
             </li>
             {% endfor %}
         </ul>

@@ -304,6 +304,11 @@ Dispense Items - {{ block.super }}
             <a href="{% url 'store:add_item' %}" class="btn btn-success btn-sm">
                 <i class="fas fa-plus"></i> Add New Item
             </a>
+            {% if user|has_permission:'manage_retail_expiry' %}
+            <a href="{% url 'store:exp_date_alert' %}" class="btn btn-danger btn-sm">
+                <i class="fas fa-calendar-times"></i> View Expired Items
+            </a>
+            {% endif %}
         </div>
 
         <!-- Cart Summary Widget -->

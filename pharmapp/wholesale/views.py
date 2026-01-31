@@ -258,9 +258,14 @@ def wholesales(request):
         # Identify low-stock items using the threshold from settings
         low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
 
+        # Get expired items (stock > 0 and expiry date passed)
+        from datetime import date
+        expired_items = [item for item in items if item.exp_date and item.exp_date < date.today() and item.stock > 0]
+
         context = {
             'items': items,
             'low_stock_items': low_stock_items,
+            'expired_items': expired_items,
             'settings_form': settings_form,
             'low_stock_threshold': low_stock_threshold,
         }
@@ -735,18 +740,25 @@ def wholesale_exp_alert(request):
 
         expiring_items = WholesaleItem.objects.filter(exp_date__lte=alert_threshold, exp_date__gt=timezone.now(), stock__gt=0)
 
-        expired_items = WholesaleItem.objects.filter(exp_date__lt=timezone.now(), stock__gt=0)
+        # Get expired items - do NOT set stock to 0, just display them
+        expired_items = WholesaleItem.objects.filter(exp_date__lt=timezone.now(), stock__gt=0).order_by('-exp_date')
 
-        for expired_item in expired_items:
+        # Group expired items by expiry date
+        from itertools import groupby
+        from operator import attrgetter
+        
+        expired_by_date = {}
+        for date, items in groupby(expired_items, key=attrgetter('exp_date')):
+            expired_by_date[date] = list(items)
 
-            if expired_item.stock > 0:
-
-                expired_item.stock = 0
-                expired_item.save()
+        # Get view mode from query parameter
+        view_mode = request.GET.get('view', 'expiring')  # 'expiring' or 'expired'
 
         return render(request, 'partials/wholesale_exp_date_alert.html', {
             'expired_items': expired_items,
             'expiring_items': expiring_items,
+            'expired_by_date': expired_by_date,
+            'view_mode': view_mode,
         })
     else:
         return redirect('store:index')
