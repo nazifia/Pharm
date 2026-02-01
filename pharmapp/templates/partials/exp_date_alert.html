@@ -29,6 +29,7 @@
         border: 1px solid #dc3545;
         border-radius: 5px;
         overflow: hidden;
+        overflow-x: auto;
     }
 
     .date-header {
@@ -138,7 +139,7 @@
                 <div class="date-header">
                     <i class="fas fa-calendar-times"></i> Expired on: {{ date }} ({{ items|length }} item{{ items|length|pluralize }})
                 </div>
-                <table class="table table-hover mb-0">
+                <table class="table table-hover mb-0" style="box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);">
                     <thead class="table-danger">
                         <tr>
                             <th>SN</th>
