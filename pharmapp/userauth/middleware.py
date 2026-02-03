@@ -74,51 +74,51 @@ class ActivityMiddleware(MiddlewareMixin):
             else:
                 action_type = 'OTHER'
 
-                # Create a more descriptive action
-                action = f"{request.method} {request.path}"
+            # Create a more descriptive action
+            action = f"{request.method} {request.path}"
 
-                # Add query parameters if they exist, but exclude sensitive data
-                if request.GET and not any(param in request.GET for param in ['password', 'token', 'key']):
-                    action += f" Params: {dict(request.GET)}"
+            # Add query parameters if they exist, but exclude sensitive data
+            if request.GET and not any(param in request.GET for param in ['password', 'token', 'key']):
+                action += f" Params: {dict(request.GET)}"
 
-                # Try to determine target model from URL
-                target_model = None
-                target_id = None
+            # Try to determine target model from URL
+            target_model = None
+            target_id = None
 
-                # Extract model name from URL path segments
-                path_parts = request.path.strip('/').split('/')
-                if len(path_parts) > 1:
-                    # Try to identify model name from URL
-                    model_candidates = ['user', 'customer', 'supplier', 'item', 'product',
-                                       'receipt', 'expense', 'procurement', 'stock']
-                    for part in path_parts:
-                        for candidate in model_candidates:
-                            if candidate in part.lower():
-                                target_model = candidate.capitalize()
-                                break
-                        if target_model:
-                            break
-
-                # Try to extract ID from URL if it's a numeric segment
+            # Extract model name from URL path segments
+            path_parts = request.path.strip('/').split('/')
+            if len(path_parts) > 1:
+                # Try to identify model name from URL
+                model_candidates = ['user', 'customer', 'supplier', 'item', 'product',
+                                   'receipt', 'expense', 'procurement', 'stock']
                 for part in path_parts:
-                    if part.isdigit():
-                        target_id = part
+                    for candidate in model_candidates:
+                        if candidate in part.lower():
+                            target_model = candidate.capitalize()
+                            break
+                    if target_model:
                         break
 
-                # Get IP address and user agent
-                ip_address = self._get_client_ip(request)
-                user_agent = request.META.get('HTTP_USER_AGENT', '')
+            # Try to extract ID from URL if it's a numeric segment
+            for part in path_parts:
+                if part.isdigit():
+                    target_id = part
+                    break
 
-                # Create the activity log using the helper method
-                ActivityLog.log_activity(
-                    user=request.user,
-                    action=action,
-                    action_type=action_type,
-                    target_model=target_model,
-                    target_id=target_id,
-                    ip_address=ip_address,
-                    user_agent=user_agent
-                )
+            # Get IP address and user agent
+            ip_address = self._get_client_ip(request)
+            user_agent = request.META.get('HTTP_USER_AGENT', '')
+
+            # Create the activity log using the helper method
+            ActivityLog.log_activity(
+                user=request.user,
+                action=action,
+                action_type=action_type,
+                target_model=target_model,
+                target_id=target_id,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
         return None
 
     def _get_client_ip(self, request):

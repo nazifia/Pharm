@@ -45,12 +45,11 @@
     <!-- Generate Test Logs Button -->
     <div class="row mb-4">
         <div class="col-12 text-center">
-            <!--<a href="{% url 'userauth:generate_test_logs' %}" class="btn btn-outline-primary">-->
-            <!--    <i class="fa fa-plus-circle"></i> Generate Test Logs-->
-            <!--</a>-->
-            <!--<a href="{% url 'admin:userauth_activitylog_changelist' %}" class="btn btn-outline-secondary ml-2">-->
-            <!--    <i class="fa fa-cog"></i> Admin View-->
-            <!--</a>-->
+            {% if user.profile.user_type == 'Admin' %}
+            <a href="{% url 'userauth:generate_test_logs' %}" class="btn btn-outline-primary">
+                <i class="fa fa-plus-circle"></i> Generate Test Logs
+            </a>
+            {% endif %}
         </div>
     </div>
 
@@ -151,7 +150,7 @@
                                 <tr>
                                     <td>{{ log.user.username }}</td>
                                     <td>
-                                        {% if log.user.profile.user_type %}
+                                        {% if log.user.profile and log.user.profile.user_type %}
                                             <span class="badge badge-primary">{{ log.user.profile.user_type }}</span>
                                         {% else %}
                                             <span class="badge badge-secondary">N/A</span>

@@ -128,16 +128,20 @@ def activity_dashboard(request):
     from utils.date_utils import filter_queryset_by_date, filter_queryset_by_date_range
 
     # Permission check: Admins can see all users, others can only see their own data
-    can_view_all_users = request.user.profile.user_type in ['Admin']
+    try:
+        can_view_all_users = request.user.profile.user_type in ['Admin']
+    except:
+        can_view_all_users = False
 
     # Get base queryset based on permissions
-    # Use select_related for user and user__profile to avoid N+1 queries
+    # Use select_related for user to avoid N+1 queries
+    # Note: user__profile might fail for users without profiles, handle carefully
     if can_view_all_users:
-        logs = ActivityLog.objects.select_related('user', 'user__profile').all()
+        logs = ActivityLog.objects.select_related('user').all()
         user_queryset = User.objects.all()
     else:
         # Regular users can only see their own activity logs
-        logs = ActivityLog.objects.select_related('user', 'user__profile').filter(user=request.user)
+        logs = ActivityLog.objects.select_related('user').filter(user=request.user)
         user_queryset = User.objects.filter(id=request.user.id)
 
     # Initialize search form with user queryset
@@ -148,10 +152,10 @@ def activity_dashboard(request):
         # Filter by search query (action or username)
         search_query = search_form.cleaned_data.get('search_query')
         if search_query:
+            # Only search by action and username - avoid profile lookup to prevent errors
             logs = logs.filter(
                 models.Q(action__icontains=search_query) |
-                models.Q(user__username__icontains=search_query) |
-                models.Q(user__profile__full_name__icontains=search_query)
+                models.Q(user__username__icontains=search_query)
             )
 
         # Filter by date - prioritize single date over date range

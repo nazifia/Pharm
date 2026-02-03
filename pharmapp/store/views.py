@@ -5865,6 +5865,7 @@ def search_store_items(request):
                 'unit': item.unit,
                 'cost_price': float(item.cost_price),
                 'expiry_date': item.expiry_date.isoformat() if item.expiry_date else '',
+                'barcode': item.barcode or '',
                 'source': 'store'
             })
 
@@ -5878,6 +5879,7 @@ def search_store_items(request):
                 'unit': item.unit,
                 'cost_price': float(item.cost),
                 'expiry_date': item.exp_date.isoformat() if item.exp_date else '',
+                'barcode': item.barcode or '',
                 'source': 'item'
             })
 
