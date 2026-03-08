@@ -96,6 +96,206 @@
             transition: 0.5s ease-in-out;
         }
 
+        /* ============================================================
+           SCROLLING BACKDROP SIDEBAR
+           Overrides SB Admin 2's fixed-layout and compact-mobile modes
+           ============================================================ */
+
+        /* 1 ── Sidebar: fixed overlay drawer, hidden off-screen by default */
+        #accordionSidebar {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            height: 100vh !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            z-index: 1051 !important;
+            /* -105% hides the box-shadow edge during slide-out */
+            transform: translateX(-105%) !important;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                        box-shadow 0.3s ease !important;
+            width: 14rem !important;
+            min-height: unset !important;
+            box-shadow: none !important;
+            /* Remove from flex flow – content-wrapper expands instead */
+            flex: 0 0 auto;
+        }
+
+        /* Open state */
+        #accordionSidebar.sidebar-open {
+            transform: translateX(0) !important;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4) !important;
+        }
+
+        /* Neutralise SB Admin 2 .sidebar.toggled collapsing the sidebar to
+           width:0 (mobile) or 6.5rem (desktop). We handle visibility via
+           transform, not width. */
+        #accordionSidebar.toggled {
+            width: 14rem !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+        }
+
+        /* 2 ── Content wrapper always occupies full viewport width */
+        #wrapper {
+            overflow-x: hidden;
+            /* Ensure wrapper itself doesn't add a flex gap for the fixed sidebar */
+            display: flex;
+        }
+
+        #content-wrapper {
+            flex: 1 1 auto !important;
+            margin-left: 0 !important;
+            width: 100% !important;
+            min-width: 0;
+            overflow-x: hidden;
+        }
+
+        /* Neutralise SB Admin 2 #wrapper.toggled margin changes */
+        #wrapper.toggled #content-wrapper {
+            margin-left: 0 !important;
+        }
+        #wrapper.toggled #accordionSidebar {
+            width: 14rem !important;
+            overflow-y: auto !important;
+        }
+
+        /* 3 ── Force FULL-SIZE sidebar content layout on ALL screen sizes.
+           SB Admin 2 defaults to an icon-only compact mode below 768 px.
+           These overrides ensure proper nav-link text and inline collapses
+           appear on mobile, tablet, and desktop equally. */
+
+        /* Nav links */
+        #accordionSidebar .nav-item .nav-link {
+            display: block !important;
+            width: 100% !important;
+            text-align: left !important;
+            padding: 1rem !important;
+        }
+        #accordionSidebar .nav-item .nav-link i {
+            font-size: 0.85rem !important;
+            margin-right: 0.25rem !important;
+        }
+        /* Show text labels (hidden in compact mode) */
+        #accordionSidebar .nav-item .nav-link span {
+            font-size: 0.85rem !important;
+            display: inline !important;
+        }
+
+        /* Collapse-toggle chevron (right-aligned, always visible) */
+        #accordionSidebar .nav-item .nav-link[data-toggle="collapse"]::after {
+            display: block !important;
+            width: 1rem !important;
+            text-align: center !important;
+            float: right !important;
+            border: 0 !important;
+            font-weight: 900 !important;
+            content: '\f107' !important;
+            font-family: 'Font Awesome 5 Free' !important;
+        }
+        #accordionSidebar .nav-item .nav-link[data-toggle="collapse"].collapsed::after {
+            content: '\f105' !important;
+        }
+
+        /* Collapse panels: inline (not absolute popout flyouts) */
+        #accordionSidebar .nav-item .collapse {
+            position: relative !important;
+            left: 0 !important;
+            top: 0 !important;
+            z-index: 1 !important;
+            -webkit-animation: none !important;
+            animation: none !important;
+        }
+        #accordionSidebar .nav-item .collapse .collapse-inner {
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+        #accordionSidebar .nav-item .collapsing {
+            display: block !important;
+            transition: height 0.15s ease !important;
+        }
+        #accordionSidebar .nav-item .collapse,
+        #accordionSidebar .nav-item .collapsing {
+            margin: 0 1rem !important;
+        }
+
+        /* Brand text always shown */
+        #accordionSidebar .sidebar-brand .sidebar-brand-text {
+            display: inline !important;
+        }
+
+        /* Section headings left-aligned */
+        #accordionSidebar .sidebar-heading {
+            text-align: left !important;
+            padding: 0 1rem !important;
+            font-size: 0.65rem !important;
+        }
+
+        /* 4 ── Backdrop overlay */
+        #sidebar-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1050;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            cursor: pointer;
+            pointer-events: none;
+        }
+        #sidebar-backdrop.show {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        /* 5 ── Lock body scroll when sidebar is open */
+        body.sidebar-is-open {
+            overflow: hidden;
+        }
+
+        /* 6 ── Hamburger toggle: visible on ALL breakpoints */
+        #sidebarToggleTop {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            color: rgba(255, 255, 255, 0.8) !important;
+            flex-shrink: 0;
+        }
+        #sidebarToggleTop:hover {
+            color: #fff !important;
+            background-color: rgba(255, 255, 255, 0.15) !important;
+        }
+
+        /* 7 ── In-sidebar close toggle row (always visible) */
+        .sidebar-toggler-row {
+            display: flex !important;
+            justify-content: center;
+            padding-bottom: 1rem;
+        }
+
+        /* 8 ── Thin scrollbar for the sidebar */
+        #accordionSidebar::-webkit-scrollbar { width: 4px; }
+        #accordionSidebar::-webkit-scrollbar-track { background: rgba(255,255,255,0.08); }
+        #accordionSidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+        }
+
+        /* 9 ── Mobile: sidebar takes 85 % of viewport width on very small screens */
+        @media (max-width: 400px) {
+            #accordionSidebar {
+                width: 85vw !important;
+            }
+        }
+
+        /* ============================================================
+           END SCROLLING BACKDROP SIDEBAR
+           ============================================================ */
+
         .offline-status-container {
             position: fixed;
             bottom: 20px;
@@ -558,13 +758,16 @@
             <!-- Divider -->
             <hr class="sidebar-divider d-none d-md-block">
 
-            <!-- Sidebar Toggler (Sidebar) -->
-            <div class="text-center d-none d-md-inline">
+            <!-- Sidebar Toggler (Sidebar) — close button, always visible -->
+            <div class="sidebar-toggler-row">
                 <button class="rounded-circle border-0 lg" id="sidebarToggle"></button>
             </div>
 
         </ul>
         <!-- End of Sidebar -->
+
+        <!-- Sidebar Backdrop -->
+        <div id="sidebar-backdrop"></div>
 
         <!-- Content Wrapper -->
         <div id="content-wrapper" class="d-flex flex-column">
@@ -575,8 +778,8 @@
                 <!-- Topbar -->
                 <nav class="navbar navbar-expand navbar-dark bg-info topbar mb-4 static-top shadow">
 
-                    <!-- Sidebar Toggle (Topbar) -->
-                    <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
+                    <!-- Sidebar Toggle (Topbar) — visible on all screen sizes -->
+                    <button id="sidebarToggleTop" class="btn btn-link rounded-circle mr-3">
                         <i class="fa fa-bars"></i>
                     </button>
 
@@ -1165,6 +1368,137 @@
 
     <!-- Custom scripts for all pages-->
     <script src="{% static 'js/sb-admin-2.min.js' %}"></script>
+
+    <!-- Scrolling Backdrop Sidebar Logic -->
+    <script>
+    (function () {
+        function initBackdropSidebar() {
+            var sidebar  = document.getElementById('accordionSidebar');
+            var backdrop = document.getElementById('sidebar-backdrop');
+            if (!sidebar || !backdrop) return;
+
+            /* ── Open / Close ───────────────────────────────────────────── */
+            function openSidebar() {
+                sidebar.classList.add('sidebar-open');
+                backdrop.classList.add('show');
+                document.body.classList.add('sidebar-is-open');
+                // aria
+                sidebar.setAttribute('aria-hidden', 'false');
+            }
+
+            function closeSidebar() {
+                sidebar.classList.remove('sidebar-open');
+                backdrop.classList.remove('show');
+                document.body.classList.remove('sidebar-is-open');
+                sidebar.setAttribute('aria-hidden', 'true');
+            }
+
+            function toggleSidebar(e) {
+                if (e) { e.preventDefault(); e.stopImmediatePropagation(); }
+                sidebar.classList.contains('sidebar-open') ? closeSidebar() : openSidebar();
+            }
+
+            /* ── Replace toggle buttons (strips SB Admin 2 jQuery handlers) */
+            ['sidebarToggle', 'sidebarToggleTop'].forEach(function (id) {
+                var btn = document.getElementById(id);
+                if (!btn) return;
+                var clone = btn.cloneNode(true);
+                btn.parentNode.replaceChild(clone, btn);
+                clone.addEventListener('click', toggleSidebar);
+            });
+
+            /* ── Backdrop click → close ──────────────────────────────────── */
+            backdrop.addEventListener('click', closeSidebar);
+
+            /* ── Escape key → close ─────────────────────────────────────── */
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && sidebar.classList.contains('sidebar-open')) {
+                    closeSidebar();
+                }
+            });
+
+            /* ── Close on sidebar nav-link click (before page transition) ── */
+            sidebar.addEventListener('click', function (e) {
+                var link = e.target.closest('a.collapse-item, a.nav-link:not([data-toggle])');
+                if (link && link.href && !link.href.endsWith('#')) {
+                    closeSidebar();
+                }
+            });
+
+            /* ── Touch swipe-left to close (mobile / tablet) ─────────────── */
+            var touchStartX = null;
+            var touchStartY = null;
+
+            sidebar.addEventListener('touchstart', function (e) {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }, { passive: true });
+
+            sidebar.addEventListener('touchend', function (e) {
+                if (touchStartX === null) return;
+                var dx = e.changedTouches[0].clientX - touchStartX;
+                var dy = e.changedTouches[0].clientY - touchStartY;
+                // Swipe left (dx < -50) and mostly horizontal
+                if (dx < -50 && Math.abs(dy) < Math.abs(dx)) {
+                    closeSidebar();
+                }
+                touchStartX = null;
+                touchStartY = null;
+            }, { passive: true });
+
+            /* ── Edge-swipe-right on backdrop area to open (mobile) ─────── */
+            document.addEventListener('touchstart', function (e) {
+                if (!sidebar.classList.contains('sidebar-open') &&
+                        e.touches[0].clientX < 20) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                }
+            }, { passive: true });
+
+            document.addEventListener('touchend', function (e) {
+                if (touchStartX === null || sidebar.classList.contains('sidebar-open')) return;
+                var dx = e.changedTouches[0].clientX - touchStartX;
+                var dy = e.changedTouches[0].clientY - touchStartY;
+                if (dx > 60 && Math.abs(dy) < Math.abs(dx)) {
+                    openSidebar();
+                }
+                touchStartX = null;
+                touchStartY = null;
+            }, { passive: true });
+
+            /* ── Neutralise SB Admin 2 .sidebar.toggled class mutations ────
+               SB Admin 2 JS does: $(".sidebar").toggleClass("toggled") on
+               every click of the original buttons.  Because we cloned those
+               buttons the click handler won't fire, but the resize handler
+               ($window.width() < 768 → collapse()) still runs.  As a safety
+               net we watch the sidebar's class list and strip "toggled" the
+               moment it appears, then rely on our own transform for visibility.
+            ──────────────────────────────────────────────────────────────── */
+            if (window.MutationObserver) {
+                new MutationObserver(function (mutations) {
+                    mutations.forEach(function (m) {
+                        if (m.attributeName === 'class') {
+                            // Strip 'toggled' from sidebar so SB Admin 2 cannot
+                            // collapse it (width:0 / width:6.5rem).
+                            if (sidebar.classList.contains('toggled')) {
+                                sidebar.classList.remove('toggled');
+                            }
+                        }
+                    });
+                }).observe(sidebar, { attributes: true });
+            }
+
+            /* ── Initial aria state ─────────────────────────────────────── */
+            sidebar.setAttribute('aria-hidden', 'true');
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initBackdropSidebar);
+        } else {
+            initBackdropSidebar();
+        }
+    })();
+    </script>
 
     <!-- Page level plugins -->
     <script src="{% static 'vendor/chart.js/Chart.min.js' %}"></script>
