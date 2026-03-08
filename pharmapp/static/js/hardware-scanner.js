@@ -415,7 +415,7 @@ class HardwareScannerHandler {
             window.onBarcodeItemFound(item, barcode);
         } else {
             console.warn('[Hardware Scanner] No callback defined, showing alert');
-            alert(`Found: ${item.name}\nBarcode: ${barcode}\nPrice: â‚¦${item.price}`);
+            alert(`Found: ${item.name}\nBarcode: ${barcode}\nPrice: ₦${item.price}`);
         }
 
         this.showSuccess(`Scanned: ${item.name}`);
@@ -637,13 +637,15 @@ class HardwareScannerHandler {
         
         if (response) {
             // Navigate to add item page with pre-filled barcode
-            const addUrl = this.mode === 'wholesale' 
+            const addUrl = this.mode === 'wholesale'
                 ? `/wholesale/add_wholesale_item/?barcode=${encodeURIComponent(barcode)}`
                 : `/store/add_item/?barcode=${encodeURIComponent(barcode)}`;
-            
+
             if (isOffline) {
                 this.queueOfflineItemCreation(barcode);
-            if (isOffline) {
+            } else {
+                window.location.href = addUrl;
+            }
         }
     }
 

@@ -386,12 +386,17 @@ if (!window.barcodeCartHandler) {
         showNotifications: true
     });
 
-    // Set global callback that barcode scanner will use
-    window.onBarcodeItemFound = function(item, barcode) {
-        window.barcodeCartHandler.onItemScanned(item, barcode);
-    };
-
-    console.log('[Barcode Cart Integration] Default handler initialized');
+    // Only set the global callback if the page hasn't already defined its own handler.
+    // Page-specific scripts (e.g. select_items.html) set window.onBarcodeItemFound before
+    // this module loads and must not be overwritten here.
+    if (!window.onBarcodeItemFound) {
+        window.onBarcodeItemFound = function(item, barcode) {
+            window.barcodeCartHandler.onItemScanned(item, barcode);
+        };
+        console.log('[Barcode Cart Integration] Default handler initialized');
+    } else {
+        console.log('[Barcode Cart Integration] Page handler already set, preserving it');
+    }
 }
 
 // Add CSS animations

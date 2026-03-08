@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python manage.py:*)"
+      "Bash(python manage.py:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
