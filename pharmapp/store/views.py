@@ -3284,6 +3284,10 @@ def get_daily_sales():
                 for method in data['payment_methods']:
                     data['payment_methods'][method] = data['payment_methods'][method] * adjustment_factor
 
+    # Sort cashiers by total_sales descending so the top cashier by amount is first
+    for day, data in combined_sales.items():
+        data['cashiers'] = dict(sorted(data['cashiers'].items(), key=lambda x: x[1]['total_sales'], reverse=True))
+
     # Convert combined sales to a sorted list by date in descending order
     sorted_combined_sales = sorted(combined_sales.items(), key=lambda x: x[0], reverse=True)
 
@@ -4017,6 +4021,10 @@ def get_monthly_sales_with_expenses():
         if hasattr(key, 'date') and callable(getattr(key, 'date')):
             return key.date()
         return key
+
+    # Sort cashiers by total_sales descending so the top cashier by amount is first
+    for month, data in combined_sales.items():
+        data['cashiers'] = dict(sorted(data['cashiers'].items(), key=lambda x: x[1]['total_sales'], reverse=True))
 
     sorted_sales = sorted(combined_sales.items(), key=get_sort_key, reverse=True)
     return sorted_sales

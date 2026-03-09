@@ -121,7 +121,7 @@
                                 {% for cashier_name, cashier_data in sale.cashiers.items %}
                                     {% if forloop.first %}
                                         <strong>{{ cashier_name|title }}</strong>
-                                        <br><small class="text-muted">{{ cashier_data.transaction_count }} tx</small>
+                                        <br><span class="badge bg-success">₦{{ cashier_data.total_sales|floatformat:2 }}</span>
                                     {% endif %}
                                 {% endfor %}
                             {% else %}
