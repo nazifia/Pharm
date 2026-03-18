@@ -302,7 +302,7 @@
 
     // Define global function to open barcode scanner
     window.openBarcodeScannerForAddItem = function() {
-        // Set the callback for when barcode is scanned
+        // Set the callback for when barcode is scanned and item IS found
         window.onBarcodeItemFound = function(item, barcode) {
             // Fill the barcode field
             document.getElementById('itemBarcode').value = barcode;
@@ -325,6 +325,13 @@
             }
 
             // Close modal
+            $('#barcodeScannerModal').modal('hide');
+        };
+
+        // Set the callback for when barcode is scanned but item is NOT found
+        // Just fill the barcode field so the user can still add the item manually
+        window.onBarcodeNotFound = function(barcode) {
+            document.getElementById('itemBarcode').value = barcode;
             $('#barcodeScannerModal').modal('hide');
         };
 
@@ -387,6 +394,14 @@
                 }
             }
         }
+    });
+
+    // Sync hidden fields from dropdowns right before HTMX submits the form
+    document.getElementById('addItemForm').addEventListener('htmx:configRequest', function() {
+        const df = document.getElementById('dosage_form_select');
+        const u = document.getElementById('unit_select');
+        if (df && df.value !== 'custom') document.getElementById('dosage_form_hidden').value = df.value;
+        if (u && u.value !== 'custom') document.getElementById('unit_hidden').value = u.value;
     });
 
     // HTMX loading indicator for submit button

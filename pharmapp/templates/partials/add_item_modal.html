@@ -540,25 +540,28 @@ document.getElementById('itemBarcode')?.addEventListener('blur', function() {
 window.openBarcodeScanner = function() {
     const modal = document.getElementById('barcodeScannerModal');
     if (modal) {
-        // Set mode to retail for store items
-        modal.dataset.mode = 'retail';
+        // Use the current mode from the hidden field (retail or wholesale)
+        const currentMode = document.getElementById('itemMode')?.value || 'retail';
+        modal.dataset.mode = currentMode;
+
+        // Set callback for when item IS found
+        window.onBarcodeItemFound = function(item, barcode) {
+            document.getElementById('itemBarcode').value = barcode;
+            $('#barcodeScannerModal').modal('hide');
+            document.getElementById('itemName').focus();
+        };
+
+        // Set callback for when item is NOT found — still fill the barcode field
+        window.onBarcodeNotFound = function(barcode) {
+            document.getElementById('itemBarcode').value = barcode;
+            $('#barcodeScannerModal').modal('hide');
+        };
+
         $('#barcodeScannerModal').modal('show');
     } else {
         console.error('[Add Item Modal] Barcode scanner modal not found');
         alert('Barcode scanner not available. Please enter barcode manually.');
     }
-};
-
-// Set up barcode scanner callback
-window.onBarcodeItemFound = function(item, barcode) {
-    // Fill barcode field
-    document.getElementById('itemBarcode').value = barcode;
-    
-    // Close scanner modal
-    $('#barcodeScannerModal').modal('hide');
-    
-    // Focus on item name field
-    document.getElementById('itemName').focus();
 };
 
 // Make barcode field editable on click
@@ -571,5 +574,4 @@ document.getElementById('itemBarcode')?.addEventListener('blur', function() {
     this.readOnly = true;
     this.classList.remove('bg-light');
 });
-</script>
 </script>

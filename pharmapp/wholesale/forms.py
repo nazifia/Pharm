@@ -7,14 +7,14 @@ from django.forms import modelformset_factory
 
 class addWholesaleForm(forms.ModelForm):
     name = forms.CharField(max_length=100)
-    dosage_form = forms.CharField(max_length=200)  # Changed to CharField to allow any value
-    brand = forms.CharField(max_length=100)
+    dosage_form = forms.CharField(max_length=200, required=False)
+    brand = forms.CharField(max_length=100, required=False)
     cost = forms.DecimalField(max_digits=10, decimal_places=2)
     price = forms.DecimalField(max_digits=10, decimal_places=2, required=False)
     stock = forms.IntegerField()
     exp_date = forms.DateField()
     markup = forms.DecimalField(max_digits=6, decimal_places=2)
-    unit = forms.CharField(max_length=200)
+    unit = forms.CharField(max_length=200, required=False)
     barcode = forms.CharField(max_length=200, required=False)
     barcode_type = forms.ChoiceField(
         choices=[('', 'Select Type'), ('UPC', 'UPC'), ('EAN13', 'EAN-13'), ('CODE128', 'Code-128'), ('QR', 'QR Code')],

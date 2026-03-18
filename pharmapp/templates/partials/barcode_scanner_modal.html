@@ -223,10 +223,12 @@
             // Transfer mode from button to modal
             this.dataset.mode = button.dataset.mode;
             console.log('[Scanner Modal] Mode set from button:', button.dataset.mode);
-        } else {
-            // Default to retail if no mode specified
+        } else if (!this.dataset.mode) {
+            // Only default to retail if no mode was already set programmatically
             this.dataset.mode = 'retail';
-            console.log('[Scanner Modal] No mode on button, defaulting to retail');
+            console.log('[Scanner Modal] No mode set, defaulting to retail');
+        } else {
+            console.log('[Scanner Modal] Keeping programmatically set mode:', this.dataset.mode);
         }
     });
 
@@ -285,6 +287,17 @@
             // Make instance available globally for dynamic modals
             window.barcodeScanner = barcodeScanner;
 
+            // If scanning from Add Item context, override not-found behavior to just fill the barcode field
+            if (typeof window.onBarcodeNotFound === 'function') {
+                barcodeScanner.onItemNotFoundAnywhere = function(barcode) {
+                    window.onBarcodeNotFound(barcode);
+                };
+                barcodeScanner.onItemNotFoundOffline = function(barcode) {
+                    window.onBarcodeNotFound(barcode);
+                };
+                console.log('[Scanner Modal] Custom not-found handler registered');
+            }
+
             console.log('[Scanner Modal] BarcodeScanner instance created');
             console.log('[Scanner Modal] Calling init()...');
 
@@ -329,6 +342,10 @@
         fileInput.value = '';
         hideStatus();
         document.getElementById('barcode-scanner').innerHTML = '';
+
+        // Clear context-specific callbacks and reset mode so next open gets a fresh state
+        window.onBarcodeNotFound = null;
+        delete this.dataset.mode;
 
         console.log('[Scanner Modal] Cleaned up');
     });
