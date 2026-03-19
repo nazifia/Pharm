@@ -24,7 +24,8 @@
       "Bash(git log:*)",
       "Bash(dir:*)",
       "Bash(findstr:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(source ../venv/Scripts/activate)"
     ],
     "deny": [],
     "ask": []

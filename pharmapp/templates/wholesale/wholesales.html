@@ -179,7 +179,7 @@
 
     {% if expired_items %}
     <div class="alert alert-danger" role="alert">
-        <strong><i class="fas fa-calendar-times"></i> Expired Items Alert:</strong> 
+        <strong><i class="fas fa-calendar-times"></i> Expired Items Alert:</strong>
         <a href="{% url 'wholesale:wholesale_exp_alert' %}?view=expired" class="alert-link">The following items have expired:</a>
         <ul class="mt-2">
             {% for item in expired_items %}
@@ -187,6 +187,23 @@
                 <strong>{{ item.name|title }}</strong>
                 {% if item.brand %} - {{ item.brand|title }}{% endif %}
                 <span class="text-danger">(Expired: {{ item.exp_date }}, Stock: {{ item.stock }})</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if low_stock_items %}
+    <div class="alert alert-warning" role="alert">
+        <strong><i class="fas fa-exclamation-triangle"></i> Restocking Alert:</strong>
+        <span>{{ low_stock_items|length }} item{{ low_stock_items|length|pluralize }} need{{ low_stock_items|length|pluralize:"s," }} restocking (stock &le; {{ low_stock_threshold }}):</span>
+        <a href="{% url 'wholesale:wholesale_low_stock_alert' %}" class="alert-link ml-2">View Full Report</a>
+        <ul class="mt-2 mb-0">
+            {% for item in low_stock_items %}
+            <li>
+                <strong>{{ item.name|title }}</strong>
+                {% if item.brand %} - {{ item.brand|title }}{% endif %}
+                <span class="badge badge-warning ml-1">Stock: {{ item.stock }}</span>
             </li>
             {% endfor %}
         </ul>
@@ -288,7 +305,12 @@
                     <td>{{item.cost|intcomma}}</td>
                     {% endif %}
                     <td>{{item.price|intcomma}}</td>
-                    <td>{{item.stock}}</td>
+                    <td>
+                        {{item.stock}}
+                        {% if low_stock_threshold and item.stock <= low_stock_threshold %}
+                        <span class="badge badge-warning ml-1" title="Needs restocking">Low</span>
+                        {% endif %}
+                    </td>
                     <td>{{item.exp_date}}</td>
                 </tr>
                 {% endfor %}
