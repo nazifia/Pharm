@@ -513,7 +513,8 @@ class HardwareScannerHandler {
         // Load modal content via fetch (HTMX style)
         fetch(url, {
             headers: {
-                'HX-Request': 'true'
+                'HX-Request': 'true',
+                'X-CSRFToken': this.getCsrfToken()
             }
         })
         .then(response => response.text())
