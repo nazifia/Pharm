@@ -1212,19 +1212,19 @@
         document.body.addEventListener("htmx:configRequest", (event) => {
             try {
                 if (event && event.detail && event.detail.headers) {
-                    // Method 1: Direct template variable (most reliable)
-                    event.detail.headers["X-CSRFToken"] = "{{ csrf_token }}";
-
-                    // Method 2: Read from meta tag (fallback)
-                    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-                    if (csrfMeta) {
-                        const csrfToken = csrfMeta.getAttribute('content');
-                        if (csrfToken && csrfToken !== '') {
-                            event.detail.headers["X-CSRFToken"] = csrfToken;
-                        }
+                    // Read CSRF token from cookie at request time (most reliable for dynamic content)
+                    function getCsrfTokenFromCookie() {
+                        const name = 'csrftoken';
+                        const match = document.cookie.split(';').map(c => c.trim())
+                            .find(c => c.startsWith(name + '='));
+                        return match ? decodeURIComponent(match.split('=')[1]) : null;
+                    }
+                    const cookieToken = getCsrfTokenFromCookie();
+                    if (cookieToken) {
+                        event.detail.headers["X-CSRFToken"] = cookieToken;
                     }
 
-                    console.log('HTMX CSRF token set:', event.detail.headers["X-CSRFToken"]);
+                    console.log('HTMX CSRF token set:', cookieToken ? '(from cookie)' : '(none found)');
                 }
             } catch (error) {
                 console.error('Error setting CSRF token in HTMX:', error);
@@ -1243,13 +1243,19 @@
         // Method 3: Configure HTMX to automatically handle CSRF tokens
         // This sets up HTMX to read CSRF token from the meta tag automatically
         document.addEventListener('DOMContentLoaded', function() {
-            // HTMX should automatically read from meta[name="csrf-token"]
-            // This is a fallback configuration if the automatic detection doesn't work
-            if (typeof htmx !== 'undefined') {
+            // Read CSRF token from cookie dynamically at request time
+            function getCsrfCookie() {
+                const name = 'csrftoken';
+                const match = document.cookie.split(';').map(c => c.trim())
+                    .find(c => c.startsWith(name + '='));
+                return match ? decodeURIComponent(match.split('=')[1]) : null;
+            }
+            const token = getCsrfCookie();
+            if (typeof htmx !== 'undefined' && token) {
                 htmx.config.globalHeaders = {
-                    'X-CSRFToken': '{{ csrf_token }}'
+                    'X-CSRFToken': token
                 };
-                console.log('HTMX global headers configured with CSRF token');
+                console.log('HTMX global headers configured with CSRF token from cookie');
             }
         });
     </script>
@@ -1318,11 +1324,15 @@
 
     <!-- Configure jQuery AJAX to include CSRF token for all requests -->
     <script>
-        // Set up CSRF token for all jQuery AJAX requests
-        $.ajaxSetup({
-            beforeSend: function(xhr, settings) {
-                if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
-                    xhr.setRequestHeader("X-CSRFToken", "{{ csrf_token }}");
+        // Set up CSRF token for all jQuery AJAX requests - read from cookie at request time
+        $(document).ajaxSend(function(event, xhr, settings) {
+            if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type)) {
+                const name = 'csrftoken';
+                const match = document.cookie.split(';').map(c => c.trim())
+                    .find(c => c.startsWith(name + '='));
+                const token = match ? decodeURIComponent(match.split('=')[1]) : null;
+                if (token) {
+                    xhr.setRequestHeader("X-CSRFToken", token);
                 }
             }
         });
