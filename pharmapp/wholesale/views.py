@@ -6,7 +6,8 @@ from django.contrib import messages
 from django.utils.timezone import now, timezone
 from datetime import timedelta, datetime
 from decimal import Decimal
-from django.db.models import Sum, Q, F
+from django.db.models import Sum, Q, F, ExpressionWrapper, DecimalField
+from collections import defaultdict
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST, require_http_methods
@@ -4625,10 +4626,8 @@ def wholesale_stock_check_report(request, stock_check_id):
     stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
     total_cost_difference = 0
 
-    # Loop through each stock check item and aggregate the cost difference.
     for item in stock_check.wholesale_items.all():
-        discrepancy = item.discrepancy()  # Actual - Expected
-        # Assuming each item has a 'price' attribute.
+        discrepancy = item.discrepancy()
         unit_price = getattr(item.item, 'price', 0)
         cost_difference = discrepancy * unit_price
         total_cost_difference += cost_difference
@@ -4640,19 +4639,257 @@ def wholesale_stock_check_report(request, stock_check_id):
     return render(request, 'wholesale/wholesale_stock_check_report.html', context)
 
 
+@login_required
+def export_wholesale_stock_check_excel(request, stock_check_id):
+    """Export a wholesale stock check report as an Excel file."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from decimal import Decimal
+    from django.http import HttpResponse
+
+    stock_check = get_object_or_404(WholesaleStockCheck, id=stock_check_id)
+    items = stock_check.wholesale_items.select_related('item').all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"Wholesale Check #{stock_check_id}"
+
+    # --- Styles ---
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill("solid", fgColor="744700")
+    center = Alignment(horizontal="center", vertical="center")
+    thin = Side(style="thin", color="CCCCCC")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    total_font = Font(bold=True, size=11)
+    total_fill = PatternFill("solid", fgColor="FCE4D6")
+
+    # --- Report header block ---
+    ws.merge_cells("A1:F1")
+    ws["A1"] = "WHOLESALE STOCK CHECK REPORT"
+    ws["A1"].font = Font(bold=True, size=14, color="744700")
+    ws["A1"].alignment = center
+
+    ws["A2"] = "Report ID:"
+    ws["B2"] = stock_check.id
+    ws["A3"] = "Date:"
+    ws["B3"] = stock_check.date.strftime("%d %B %Y") if hasattr(stock_check.date, 'strftime') else str(stock_check.date)
+    ws["A4"] = "Status:"
+    ws["B4"] = stock_check.status.title()
+    ws["A5"] = "Created By:"
+    ws["B5"] = stock_check.created_by.username
+
+    for row in range(2, 6):
+        ws.cell(row=row, column=1).font = Font(bold=True)
+
+    ws.append([])  # blank row
+
+    # --- Column headers ---
+    headers = ["Item Name", "Expected Qty", "Actual Qty", "Discrepancy", "Unit Price (₦)", "Cost Difference (₦)", "Status"]
+    ws.append(headers)
+    header_row = ws.max_row
+    for col_idx, _ in enumerate(headers, start=1):
+        cell = ws.cell(row=header_row, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center
+        cell.border = border
+
+    # --- Data rows ---
+    total_cost_diff = Decimal('0.00')
+    pos_fill = PatternFill("solid", fgColor="E2EFDA")
+    neg_fill = PatternFill("solid", fgColor="FFDCE1")
+
+    for item in items:
+        discrepancy = item.discrepancy()
+        unit_price = Decimal(str(getattr(item.item, 'price', 0)))
+        cost_diff = discrepancy * unit_price
+        total_cost_diff += cost_diff
+
+        row_data = [
+            item.item.name,
+            float(item.expected_quantity),
+            float(item.actual_quantity),
+            float(discrepancy),
+            float(unit_price),
+            float(cost_diff),
+            item.get_status_display(),
+        ]
+        ws.append(row_data)
+        data_row = ws.max_row
+        row_fill = neg_fill if discrepancy < 0 else (pos_fill if discrepancy > 0 else None)
+        for col_idx in range(1, len(row_data) + 1):
+            cell = ws.cell(row=data_row, column=col_idx)
+            cell.border = border
+            cell.alignment = Alignment(vertical="center")
+            if row_fill and col_idx == 4:
+                cell.fill = row_fill
+
+    # --- Totals row ---
+    ws.append([])
+    ws.append(["", "", "", "Total Discrepancy:", float(stock_check.total_discrepancy()), "", ""])
+    ws.append(["", "", "", "Total Cost Difference (₦):", "", float(total_cost_diff), ""])
+    for offset in [1, 2]:
+        total_row = ws.max_row - (2 - offset)
+        for col_idx in range(1, 8):
+            cell = ws.cell(row=total_row, column=col_idx)
+            cell.font = total_font
+            cell.fill = total_fill
+            cell.border = border
+
+    # --- Column widths ---
+    col_widths = [30, 15, 15, 15, 18, 22, 14]
+    for i, width in enumerate(col_widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = width
+
+    # --- HTTP response ---
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="wholesale_stock_check_{stock_check_id}.xlsx"'
+    wb.save(response)
+    return response
+
+
+@login_required
+def wholesale_expense_list(request):
+    if request.user.is_authenticated:
+        from userauth.permissions import can_manage_expenses, can_add_expenses, can_add_expense_categories, can_manage_expense_categories
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        from utils.date_utils import filter_queryset_by_date, get_date_filter_context
+
+        date_context = get_date_filter_context(request, 'date')
+        date_query = date_context['date_string']
+
+        expenses_queryset = Expense.objects.filter(
+            store_type__in=['wholesale', 'general']
+        ).order_by('-date')
+
+        if date_query and date_context['is_valid_date']:
+            expenses_queryset = filter_queryset_by_date(expenses_queryset, 'date', date_query)
+
+        paginator = Paginator(expenses_queryset, 50)
+        page_number = request.GET.get('page', 1)
+        try:
+            expenses = paginator.get_page(page_number)
+        except PageNotAnInteger:
+            expenses = paginator.get_page(1)
+        except EmptyPage:
+            expenses = paginator.get_page(paginator.num_pages)
+
+        expense_categories = ExpenseCategory.objects.all().order_by('name')
+
+        context = {
+            'expenses': expenses,
+            'expense_categories': expense_categories,
+            'can_manage_expenses': can_manage_expenses(request.user),
+            'can_add_expenses': can_add_expenses(request.user),
+            'can_add_expense_categories': can_add_expense_categories(request.user),
+            'can_manage_expense_categories': can_manage_expense_categories(request.user),
+            'is_paginated': paginator.num_pages > 1,
+            'date_query': date_query,
+        }
+        return render(request, 'wholesale/wholesale_expense_list.html', context)
+    else:
+        return redirect('store:index')
+
 
 @login_required
 def list_wholesale_stock_checks(request):
-    # Get all StockCheck objects ordered by date (newest first)
+    # Get all WholesaleStockCheck objects ordered by date (newest first)
     stock_checks = WholesaleStockCheck.objects.all().order_by('-date')
 
     # Check if user can delete stock check reports
     from userauth.permissions import can_delete_stock_check_reports
     can_delete_reports = can_delete_stock_check_reports(request.user)
 
+    # --- Monthly Wholesale Financial Summary ---
+    from django.db.models.functions import ExtractYear, ExtractMonth
+
+    # Monthly wholesale sales from wholesale receipts (excluding returns)
+    wholesale_sales_qs = (
+        WholesaleReceipt.objects
+        .filter(Q(status='Paid') | Q(status='Unpaid'), is_returned=False)
+        .annotate(yr=ExtractYear('date'), mo=ExtractMonth('date'))
+        .values('yr', 'mo')
+        .annotate(total=Sum('total_amount'))
+    )
+
+    # Monthly wholesale COGS: actual item cost × quantity sold
+    wholesale_cogs_qs = (
+        WholesaleSalesItem.objects
+        .annotate(yr=ExtractYear('sales__date'), mo=ExtractMonth('sales__date'))
+        .values('yr', 'mo')
+        .annotate(
+            total_cost=Sum(
+                ExpressionWrapper(F('item__cost') * F('quantity'), output_field=DecimalField())
+            )
+        )
+    )
+
+    # Monthly wholesale expenses (wholesale-specific + general shared expenses)
+    expenses_qs = (
+        Expense.objects
+        .filter(store_type__in=['wholesale', 'general'])
+        .annotate(yr=ExtractYear('date'), mo=ExtractMonth('date'))
+        .values('yr', 'mo')
+        .annotate(total_expenses=Sum('amount'))
+    )
+
+    # Combine wholesale-only data using (year, month) tuple as key
+    monthly_map = defaultdict(lambda: {
+        'total_sales': Decimal('0.00'),
+        'total_stock_cost': Decimal('0.00'),
+        'total_expenses': Decimal('0.00'),
+    })
+
+    for row in wholesale_sales_qs:
+        key = (row['yr'], row['mo'])
+        monthly_map[key]['total_sales'] += row['total'] or Decimal('0.00')
+
+    for row in wholesale_cogs_qs:
+        key = (row['yr'], row['mo'])
+        monthly_map[key]['total_stock_cost'] += row['total_cost'] or Decimal('0.00')
+
+    for row in expenses_qs:
+        key = (row['yr'], row['mo'])
+        monthly_map[key]['total_expenses'] += row['total_expenses'] or Decimal('0.00')
+
+    # Compute gross profit and net profit, then build sorted list
+    import calendar
+    monthly_summary = []
+    for (yr, mo), data in sorted(monthly_map.items(), key=lambda x: x[0], reverse=True):
+        gross_profit = data['total_sales'] - data['total_stock_cost']
+        net_profit = gross_profit - data['total_expenses']
+        monthly_summary.append({
+            'year': yr,
+            'month': mo,
+            'month_name': calendar.month_name[mo],
+            'total_sales': data['total_sales'],
+            'total_stock_cost': data['total_stock_cost'],
+            'stock_cost_diff': gross_profit,
+            'total_expenses': data['total_expenses'],
+            'net_profit': net_profit,
+        })
+
+    # Overall totals across all months
+    overall_sales = sum(r['total_sales'] for r in monthly_summary)
+    overall_stock_cost = sum(r['total_stock_cost'] for r in monthly_summary)
+    overall_expenses = sum(r['total_expenses'] for r in monthly_summary)
+    overall_gross = overall_sales - overall_stock_cost
+    overall_net = overall_gross - overall_expenses
+
     context = {
         'stock_checks': stock_checks,
         'can_delete_reports': can_delete_reports,
+        'monthly_summary': monthly_summary,
+        'overall': {
+            'total_sales': overall_sales,
+            'total_stock_cost': overall_stock_cost,
+            'stock_cost_diff': overall_gross,
+            'total_expenses': overall_expenses,
+            'net_profit': overall_net,
+        },
     }
     return render(request, 'wholesale/wholesale_stock_check_list.html', context)
 

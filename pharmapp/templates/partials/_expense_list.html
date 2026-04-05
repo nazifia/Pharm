@@ -24,6 +24,7 @@
             <th>Category</th>
             <th>Amount</th>
             <th>Date</th>
+            <th>Store</th>
             <th>Description</th>
             <th>Actions</th>
         </tr>
@@ -34,6 +35,15 @@
             <td>{{ expense.category }}</td>
             <td>{{ expense.amount }}</td>
             <td>{{ expense.date }}</td>
+            <td>
+              {% if expense.store_type == 'retail' %}
+                <span class="badge badge-primary">Retail</span>
+              {% elif expense.store_type == 'wholesale' %}
+                <span class="badge badge-warning">Wholesale</span>
+              {% else %}
+                <span class="badge badge-secondary">General</span>
+              {% endif %}
+            </td>
             <td>{{ expense.description }}</td>
             <td>
                 {% if can_manage_expenses %}
@@ -62,7 +72,7 @@
         </tr>
         {% empty %}
         <tr>
-            <td colspan="5" style="text-align: center;">No expenses found{% if date_query %} for the selected date{% endif %}.</td>
+            <td colspan="6" style="text-align: center;">No expenses found{% if date_query %} for the selected date{% endif %}.</td>
         </tr>
         {% endfor %}
     </tbody>

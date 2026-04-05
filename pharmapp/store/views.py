@@ -6456,10 +6456,8 @@ def stock_check_report(request, stock_check_id):
     stock_check = get_object_or_404(StockCheck, id=stock_check_id)
     total_cost_difference = 0
 
-    # Loop through each stock check item and aggregate the cost difference.
     for item in stock_check.stockcheckitem_set.all():
-        discrepancy = item.discrepancy()  # Actual - Expected
-        # Assuming each item has a 'price' attribute.
+        discrepancy = item.discrepancy()
         unit_price = getattr(item.item, 'price', 0)
         cost_difference = discrepancy * unit_price
         total_cost_difference += cost_difference
@@ -6472,6 +6470,116 @@ def stock_check_report(request, stock_check_id):
 
 
 @login_required
+def export_stock_check_excel(request, stock_check_id):
+    """Export a retail stock check report as an Excel file."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    stock_check = get_object_or_404(StockCheck, id=stock_check_id)
+    items = stock_check.stockcheckitem_set.select_related('item').all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"Stock Check #{stock_check_id}"
+
+    # --- Styles ---
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill("solid", fgColor="1F4E79")
+    center = Alignment(horizontal="center", vertical="center")
+    thin = Side(style="thin", color="CCCCCC")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    total_font = Font(bold=True, size=11)
+    total_fill = PatternFill("solid", fgColor="D9E1F2")
+
+    # --- Report header block ---
+    ws.merge_cells("A1:F1")
+    ws["A1"] = "RETAIL STOCK CHECK REPORT"
+    ws["A1"].font = Font(bold=True, size=14, color="1F4E79")
+    ws["A1"].alignment = center
+
+    ws["A2"] = "Report ID:"
+    ws["B2"] = stock_check.id
+    ws["A3"] = "Date:"
+    ws["B3"] = stock_check.date.strftime("%d %B %Y") if hasattr(stock_check.date, 'strftime') else str(stock_check.date)
+    ws["A4"] = "Status:"
+    ws["B4"] = stock_check.status.title()
+    ws["A5"] = "Created By:"
+    ws["B5"] = stock_check.created_by.username
+
+    for row in range(2, 6):
+        ws.cell(row=row, column=1).font = Font(bold=True)
+
+    ws.append([])  # blank row
+
+    # --- Column headers ---
+    headers = ["Item Name", "Expected Qty", "Actual Qty", "Discrepancy", "Unit Price (₦)", "Cost Difference (₦)", "Status"]
+    ws.append(headers)
+    header_row = ws.max_row
+    for col_idx, _ in enumerate(headers, start=1):
+        cell = ws.cell(row=header_row, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center
+        cell.border = border
+
+    # --- Data rows ---
+    total_cost_diff = Decimal('0.00')
+    pos_fill = PatternFill("solid", fgColor="E2EFDA")
+    neg_fill = PatternFill("solid", fgColor="FFDCE1")
+
+    for item in items:
+        discrepancy = item.discrepancy()
+        unit_price = Decimal(str(getattr(item.item, 'price', 0)))
+        cost_diff = discrepancy * unit_price
+        total_cost_diff += cost_diff
+
+        row_data = [
+            item.item.name,
+            float(item.expected_quantity),
+            float(item.actual_quantity),
+            float(discrepancy),
+            float(unit_price),
+            float(cost_diff),
+            item.get_status_display(),
+        ]
+        ws.append(row_data)
+        data_row = ws.max_row
+        row_fill = neg_fill if discrepancy < 0 else (pos_fill if discrepancy > 0 else None)
+        for col_idx in range(1, len(row_data) + 1):
+            cell = ws.cell(row=data_row, column=col_idx)
+            cell.border = border
+            cell.alignment = Alignment(vertical="center")
+            if row_fill and col_idx == 4:
+                cell.fill = row_fill
+
+    # --- Totals row ---
+    ws.append([])
+    ws.append(["", "", "", "Total Discrepancy:", float(stock_check.total_discrepancy()), "", ""])
+    ws.append(["", "", "", "Total Cost Difference (₦):", "", float(total_cost_diff), ""])
+    for offset in [1, 2]:
+        total_row = ws.max_row - (2 - offset)
+        for col_idx in range(1, 8):
+            cell = ws.cell(row=total_row, column=col_idx)
+            cell.font = total_font
+            cell.fill = total_fill
+            cell.border = border
+
+    # --- Column widths ---
+    col_widths = [30, 15, 15, 15, 18, 22, 14]
+    for i, width in enumerate(col_widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = width
+
+    # --- HTTP response ---
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="retail_stock_check_{stock_check_id}.xlsx"'
+    wb.save(response)
+    return response
+
+
+@login_required
 def list_stock_checks(request):
     # Get all StockCheck objects ordered by date (newest first)
     stock_checks = StockCheck.objects.all().order_by('-date')
@@ -6480,9 +6588,93 @@ def list_stock_checks(request):
     from userauth.permissions import can_delete_stock_check_reports
     can_delete_reports = can_delete_stock_check_reports(request.user)
 
+    # --- Monthly Retail Financial Summary ---
+    from django.db.models.functions import ExtractYear, ExtractMonth
+
+    # Monthly retail sales from receipts (excluding returns)
+    retail_sales_qs = (
+        Receipt.objects
+        .filter(Q(status='Paid') | Q(status='Unpaid'), is_returned=False)
+        .annotate(yr=ExtractYear('date'), mo=ExtractMonth('date'))
+        .values('yr', 'mo')
+        .annotate(total=Sum('total_amount'))
+    )
+
+    # Monthly retail COGS: actual item cost × quantity sold
+    retail_cogs_qs = (
+        SalesItem.objects
+        .annotate(yr=ExtractYear('sales__date'), mo=ExtractMonth('sales__date'))
+        .values('yr', 'mo')
+        .annotate(
+            total_cost=Sum(
+                ExpressionWrapper(F('item__cost') * F('quantity'), output_field=DecimalField())
+            )
+        )
+    )
+
+    # Monthly retail expenses (retail-specific + general shared expenses)
+    expenses_qs = (
+        Expense.objects
+        .filter(store_type__in=['retail', 'general'])
+        .annotate(yr=ExtractYear('date'), mo=ExtractMonth('date'))
+        .values('yr', 'mo')
+        .annotate(total_expenses=Sum('amount'))
+    )
+
+    # Combine retail-only data using (year, month) tuple as key
+    monthly_map = defaultdict(lambda: {
+        'total_sales': Decimal('0.00'),
+        'total_stock_cost': Decimal('0.00'),
+        'total_expenses': Decimal('0.00'),
+    })
+
+    for row in retail_sales_qs:
+        key = (row['yr'], row['mo'])
+        monthly_map[key]['total_sales'] += row['total'] or Decimal('0.00')
+
+    for row in retail_cogs_qs:
+        key = (row['yr'], row['mo'])
+        monthly_map[key]['total_stock_cost'] += row['total_cost'] or Decimal('0.00')
+
+    for row in expenses_qs:
+        key = (row['yr'], row['mo'])
+        monthly_map[key]['total_expenses'] += row['total_expenses'] or Decimal('0.00')
+
+    # Compute gross profit and net profit, then build sorted list
+    import calendar
+    monthly_summary = []
+    for (yr, mo), data in sorted(monthly_map.items(), key=lambda x: x[0], reverse=True):
+        gross_profit = data['total_sales'] - data['total_stock_cost']
+        net_profit = gross_profit - data['total_expenses']
+        monthly_summary.append({
+            'year': yr,
+            'month': mo,
+            'month_name': calendar.month_name[mo],
+            'total_sales': data['total_sales'],
+            'total_stock_cost': data['total_stock_cost'],
+            'stock_cost_diff': gross_profit,  # sales minus stock cost
+            'total_expenses': data['total_expenses'],
+            'net_profit': net_profit,
+        })
+
+    # Overall totals across all months
+    overall_sales = sum(r['total_sales'] for r in monthly_summary)
+    overall_stock_cost = sum(r['total_stock_cost'] for r in monthly_summary)
+    overall_expenses = sum(r['total_expenses'] for r in monthly_summary)
+    overall_gross = overall_sales - overall_stock_cost
+    overall_net = overall_gross - overall_expenses
+
     context = {
         'stock_checks': stock_checks,
         'can_delete_reports': can_delete_reports,
+        'monthly_summary': monthly_summary,
+        'overall': {
+            'total_sales': overall_sales,
+            'total_stock_cost': overall_stock_cost,
+            'stock_cost_diff': overall_gross,
+            'total_expenses': overall_expenses,
+            'net_profit': overall_net,
+        },
     }
     return render(request, 'store/stock_check_list.html', context)
 
@@ -6842,6 +7034,71 @@ def generate_monthly_report(request):
     return render(request, 'store/expense_report.html', context)
 
 
+def _expense_list_response(request, expense_context, can_manage):
+    """Return the correct expense list partial based on the context (retail/wholesale/all)."""
+    if expense_context == 'retail':
+        expenses = Expense.objects.filter(store_type__in=['retail', 'general']).order_by('-date')
+        return render(request, 'partials/_retail_expense_list.html', {
+            'expenses': expenses,
+            'can_manage_expenses': can_manage,
+        })
+    elif expense_context == 'wholesale':
+        expenses = Expense.objects.filter(store_type__in=['wholesale', 'general']).order_by('-date')
+        return render(request, 'partials/_wholesale_expense_list.html', {
+            'expenses': expenses,
+            'can_manage_expenses': can_manage,
+        })
+    else:
+        expenses = Expense.objects.all().order_by('-date')
+        return render(request, 'partials/_expense_list.html', {
+            'expenses': expenses,
+            'can_manage_expenses': can_manage,
+        })
+
+
+@login_required
+def retail_expense_list(request):
+    if request.user.is_authenticated:
+        from userauth.permissions import can_manage_expenses, can_add_expenses, can_add_expense_categories, can_manage_expense_categories
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        from utils.date_utils import filter_queryset_by_date, get_date_filter_context
+
+        date_context = get_date_filter_context(request, 'date')
+        date_query = date_context['date_string']
+
+        expenses_queryset = Expense.objects.filter(
+            store_type__in=['retail', 'general']
+        ).order_by('-date')
+
+        if date_query and date_context['is_valid_date']:
+            expenses_queryset = filter_queryset_by_date(expenses_queryset, 'date', date_query)
+
+        paginator = Paginator(expenses_queryset, 50)
+        page_number = request.GET.get('page', 1)
+        try:
+            expenses = paginator.get_page(page_number)
+        except PageNotAnInteger:
+            expenses = paginator.get_page(1)
+        except EmptyPage:
+            expenses = paginator.get_page(paginator.num_pages)
+
+        expense_categories = ExpenseCategory.objects.all().order_by('name')
+
+        context = {
+            'expenses': expenses,
+            'expense_categories': expense_categories,
+            'can_manage_expenses': can_manage_expenses(request.user),
+            'can_add_expenses': can_add_expenses(request.user),
+            'can_add_expense_categories': can_add_expense_categories(request.user),
+            'can_manage_expense_categories': can_manage_expense_categories(request.user),
+            'is_paginated': paginator.num_pages > 1,
+            'date_query': date_query,
+        }
+        return render(request, 'store/retail_expense_list.html', context)
+    else:
+        return redirect('store:index')
+
+
 @login_required
 def expense_list(request):
     if request.user.is_authenticated:
@@ -6896,9 +7153,12 @@ def add_expense_form(request):
         if not can_add_expenses(request.user):
             messages.error(request, 'You do not have permission to add expenses.')
             return redirect('store:index')
-        """Return the modal form for adding expenses."""
-        form = ExpenseForm()
-        return render(request, 'partials/_expense_form.html', {'form': form})
+        expense_context = request.GET.get('context', '')  # 'retail', 'wholesale', or ''
+        initial = {}
+        if expense_context in ('retail', 'wholesale'):
+            initial['store_type'] = expense_context
+        form = ExpenseForm(initial=initial)
+        return render(request, 'partials/_expense_form.html', {'form': form, 'expense_context': expense_context})
     else:
         return redirect('store:index')
 
@@ -6910,21 +7170,17 @@ def add_expense(request):
         if not can_add_expenses(request.user):
             messages.error(request, 'You do not have permission to add expenses.')
             return redirect('store:index')
-        """Handle expense form submission."""
         if request.method == 'POST':
+            expense_context = request.POST.get('expense_context', '')
             form = ExpenseForm(request.POST)
             if form.is_valid():
                 form.save()
-                expenses = Expense.objects.all().order_by('-date')
-                context = {
-                    'expenses': expenses,
-                    'can_manage_expenses': can_manage_expenses(request.user)
-                }
-                return render(request, 'partials/_expense_list.html', context)
+                return _expense_list_response(request, expense_context, can_manage_expenses(request.user))
         else:
+            expense_context = request.GET.get('context', '')
             form = ExpenseForm()
 
-        return render(request, 'partials/_expense_form.html', {'form': form})
+        return render(request, 'partials/_expense_form.html', {'form': form, 'expense_context': expense_context})
     else:
         return redirect('store:index')
 
@@ -6935,10 +7191,14 @@ def edit_expense_form(request, expense_id):
         if not can_manage_expenses(request.user):
             messages.error(request, 'You do not have permission to edit expenses.')
             return redirect('store:index')
-        """Return the modal form for editing an expense."""
         expense = get_object_or_404(Expense, id=expense_id)
+        expense_context = request.GET.get('context', '')
         form = ExpenseForm(instance=expense)
-        return render(request, 'partials/_expense_form.html', {'form': form, 'expense_id': expense.id})
+        return render(request, 'partials/_expense_form.html', {
+            'form': form,
+            'expense_id': expense.id,
+            'expense_context': expense_context,
+        })
     else:
         return redirect('store:index')
 
@@ -6950,17 +7210,12 @@ def update_expense(request, expense_id):
         if not can_manage_expenses(request.user):
             messages.error(request, 'You do not have permission to update expenses.')
             return redirect('store:index')
-        """Handle updating an expense."""
         expense = get_object_or_404(Expense, id=expense_id)
+        expense_context = request.POST.get('expense_context', '')
         form = ExpenseForm(request.POST, instance=expense)
         if form.is_valid():
             form.save()
-            expenses = Expense.objects.all().order_by('-date')  # Refresh list
-            context = {
-                'expenses': expenses,
-                'can_manage_expenses': can_manage_expenses(request.user)
-            }
-            return render(request, 'partials/_expense_list.html', context)
+            return _expense_list_response(request, expense_context, can_manage_expenses(request.user))
         return JsonResponse({'error': form.errors}, status=400)
     else:
         return redirect('store:index')
@@ -7086,15 +7341,10 @@ def delete_expense(request, expense_id):
         if not can_manage_expenses(request.user):
             messages.error(request, 'You do not have permission to delete expenses.')
             return redirect('store:index')
-        """Handle deleting an expense."""
+        expense_context = request.POST.get('expense_context', '')
         expense = get_object_or_404(Expense, id=expense_id)
         expense.delete()
-        expenses = Expense.objects.all().order_by('-date')  # Refresh list
-        context = {
-            'expenses': expenses,
-            'can_manage_expenses': can_manage_expenses(request.user)
-        }
-        return render(request, 'partials/_expense_list.html', context)
+        return _expense_list_response(request, expense_context, can_manage_expenses(request.user))
     else:
         return redirect('store:index')
 

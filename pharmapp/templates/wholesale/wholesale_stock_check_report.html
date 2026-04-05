@@ -3,9 +3,18 @@
 {% load math_filters %}
 
 {% block content %}
-<h2>Wholesale Stock Check Report: {{ stock_check.id }}</h2>
-<p>Date: {{ stock_check.date }}</p>
-<p>Status: <span class="badge badge-{{ stock_check.status|lower|slice:':7' }}">{{ stock_check.status }}</span></p>
+<div class="d-flex align-items-start justify-content-between mb-3">
+  <div>
+    <h2 class="mb-1">Wholesale Stock Check Report: #{{ stock_check.id }}</h2>
+    <p class="mb-1 text-muted">Date: {{ stock_check.date }}</p>
+    <p class="mb-0">Status: <span class="badge badge-{{ stock_check.status|lower|slice:':7' }}">{{ stock_check.status }}</span></p>
+  </div>
+  <a href="{% url 'wholesale:export_wholesale_stock_check_excel' stock_check.id %}"
+     class="btn btn-success btn-sm align-self-start">
+    <i class="fas fa-file-excel mr-1"></i> Export to Excel
+  </a>
+</div>
+
 {% for message in messages %}
 <div style="text-align: center;" class="alert alert-{{ message.tags }}">{{ message }}</div>
 {% endfor %}

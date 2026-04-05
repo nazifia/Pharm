@@ -971,14 +971,25 @@ class ExpenseCategory(models.Model):
 
 
 class Expense(models.Model):
+    STORE_TYPE_CHOICES = [
+        ('retail', 'Retail'),
+        ('wholesale', 'Wholesale'),
+        ('general', 'General (Both)'),
+    ]
+
     category = models.ForeignKey(ExpenseCategory, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     date = models.DateField(default=datetime.now)
     description = models.TextField(blank=True, null=True)
-
+    store_type = models.CharField(
+        max_length=10,
+        choices=STORE_TYPE_CHOICES,
+        default='general',
+        help_text="Which store this expense belongs to"
+    )
 
     def __str__(self):
-        return f"{self.category.name} - {self.amount} - {self.date}"
+        return f"{self.category.name} - {self.amount} - {self.date} ({self.get_store_type_display()})"
 
 
 class MonthlyReport(models.Model):

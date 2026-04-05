@@ -69,10 +69,14 @@ urlpatterns = [
     path('search_wholesale_items_for_procurement/', views.search_wholesale_items_for_procurement, name='search_wholesale_items_for_procurement'),
 
 
+    # Expense URLs
+    path('expenses/wholesale/', views.wholesale_expense_list, name='wholesale_expense_list'),
+
     # Stock Check URLs
     path('create-wholesale-check/', views.create_wholesale_stock_check, name='create_wholesale_stock_check'),
     path('<int:stock_check_id>/update-wholesale/', views.update_wholesale_stock_check, name='update_wholesale_stock_check'),
     path('<int:stock_check_id>/report-wholesale/', views.wholesale_stock_check_report, name='wholesale_stock_check_report'),
+    path('<int:stock_check_id>/report-wholesale/export/', views.export_wholesale_stock_check_excel, name='export_wholesale_stock_check_excel'),
     path('stock-check/<int:stock_check_id>/wholesale-approve/', views.approve_wholesale_stock_check, name='approve_wholesale_stock_check'),
     path('stock-check/<int:stock_check_id>/wholesale-bulk-adjust/', views.wholesale_bulk_adjust_stock, name='wholesale_bulk_adjust_stock'),
     path('wholesale_list/', views.list_wholesale_stock_checks, name='list_wholesale_stock_checks'),

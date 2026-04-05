@@ -73,6 +73,7 @@ urlpatterns = [
     path('create/', views.create_stock_check, name='create_stock_check'),
     path('<int:stock_check_id>/update/', views.update_stock_check, name='update_stock_check'),
     path('<int:stock_check_id>/report/', views.stock_check_report, name='stock_check_report'),
+    path('<int:stock_check_id>/report/export/', views.export_stock_check_excel, name='export_stock_check_excel'),
     path('stock-check/<int:stock_check_id>/approve/', views.approve_stock_check, name='approve_stock_check'),
     path('stock-check/<int:stock_check_id>/bulk-adjust/', views.bulk_adjust_stock, name='bulk_adjust_stock'),
     path('list/', views.list_stock_checks, name='list_stock_checks'),
@@ -95,6 +96,7 @@ urlpatterns = [
 
     # Expense URLs
     path('expenses/', views.expense_list, name='expense_list'),
+    path('expenses/retail/', views.retail_expense_list, name='retail_expense_list'),
     path('expenses/add/form/', views.add_expense_form, name='add_expense_form'),
     path('expenses/add/', views.add_expense, name='add_expense'),
     path('expenses/edit/<int:expense_id>/', views.edit_expense_form, name='edit_expense_form'),

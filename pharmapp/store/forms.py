@@ -338,11 +338,12 @@ class ExpenseCategoryForm(forms.ModelForm):
 class ExpenseForm(forms.ModelForm):
     class Meta:
         model = Expense
-        fields = ['category', 'amount', 'date', 'description']
+        fields = ['category', 'amount', 'date', 'store_type', 'description']
         widgets = {
             'category': forms.Select(attrs={'class': 'form-control'}),
             'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'store_type': forms.Select(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'style': 'resize: vertical;'}),
         }
 

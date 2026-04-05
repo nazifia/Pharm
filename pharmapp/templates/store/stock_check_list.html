@@ -2,46 +2,137 @@
 {% load humanize %}
 {% block content %}
 
-  <h2>All Stock Checks</h2>
-<div class="table-responsive">
-  <table class="table table-hover">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Date</th>
-        <th>Status</th>
-        <th>Created By</th>
-        <th>Total Discrepancy</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for stock_check in stock_checks %}
-      <tr>
-        <td>{{ stock_check.id }}</td>
-        <td>{{ stock_check.date|date:"SHORT_DATE_FORMAT" }}</td>
-        <td>{{ stock_check.status }}</td>
-        <td>{{ stock_check.created_by.username }}</td>
-        <td>{{ stock_check.total_discrepancy }}</td>
-        <td>
-          <a href="{% url 'store:stock_check_report' stock_check_id=stock_check.id %}" class="btn btn-info btn-sm">
-            View Report
-          </a>
-          {% if stock_check.status != 'completed' and can_delete_reports %}
-          <form method="post" action="{% url 'store:delete_stock_check' stock_check_id=stock_check.id %}" style="display: inline;"
-                onsubmit="return confirm('Are you sure you want to delete this stock check report? This action cannot be undone.');">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-          </form>
+<div class="container-fluid px-4 py-3">
+
+  <!-- Monthly Financial Summary -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex align-items-center justify-content-between">
+      <h5 class="m-0 font-weight-bold text-primary">Monthly Retail Financial Summary</h5>
+      <small class="text-muted">Sales &amp; Profitability by Month</small>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-bordered mb-0">
+          <thead class="thead-dark">
+            <tr>
+              <th>Month</th>
+              <th class="text-right">Total Sales</th>
+              <th class="text-right">Stock Cost (COGS)</th>
+              <th class="text-right">Gross Profit</th>
+              <th class="text-right">Expenses</th>
+              <th class="text-right">Net Profit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in monthly_summary %}
+            <tr>
+              <td><strong>{{ row.month_name }} {{ row.year }}</strong></td>
+              <td class="text-right">&#8358;{{ row.total_sales|floatformat:2|intcomma }}</td>
+              <td class="text-right text-danger">&#8358;{{ row.total_stock_cost|floatformat:2|intcomma }}</td>
+              <td class="text-right {% if row.stock_cost_diff >= 0 %}text-success{% else %}text-danger{% endif %}">
+                &#8358;{{ row.stock_cost_diff|floatformat:2|intcomma }}
+              </td>
+              <td class="text-right text-warning">&#8358;{{ row.total_expenses|floatformat:2|intcomma }}</td>
+              <td class="text-right font-weight-bold {% if row.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                &#8358;{{ row.net_profit|floatformat:2|intcomma }}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="6" class="text-center text-muted py-4">No financial data available.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          {% if monthly_summary %}
+          <tfoot class="bg-light font-weight-bold">
+            <tr>
+              <td><strong>Overall Total</strong></td>
+              <td class="text-right">&#8358;{{ overall.total_sales|floatformat:2|intcomma }}</td>
+              <td class="text-right text-danger">&#8358;{{ overall.total_stock_cost|floatformat:2|intcomma }}</td>
+              <td class="text-right {% if overall.stock_cost_diff >= 0 %}text-success{% else %}text-danger{% endif %}">
+                &#8358;{{ overall.stock_cost_diff|floatformat:2|intcomma }}
+              </td>
+              <td class="text-right text-warning">&#8358;{{ overall.total_expenses|floatformat:2|intcomma }}</td>
+              <td class="text-right {% if overall.net_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                &#8358;{{ overall.net_profit|floatformat:2|intcomma }}
+              </td>
+            </tr>
+          </tfoot>
           {% endif %}
-        </td>
-      </tr>
-      {% empty %}
-      <tr>
-        <td colspan="7">No stock checks available.</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+        </table>
+      </div>
+    </div>
+    {% if monthly_summary %}
+    <div class="card-footer bg-white py-2">
+      <small class="text-muted">
+        <strong>Gross Profit</strong> = Total Sales &minus; Stock Cost (COGS) &nbsp;|&nbsp;
+        <strong>Net Profit</strong> = Gross Profit &minus; Expenses
+      </small>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Stock Check Reports -->
+  <div class="card shadow mb-4">
+    <div class="card-header py-3">
+      <h5 class="m-0 font-weight-bold text-primary">Retail Stock Check Reports</h5>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-bordered mb-0">
+          <thead class="thead-dark">
+            <tr>
+              <th>#</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Created By</th>
+              <th class="text-right">Total Discrepancy</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for stock_check in stock_checks %}
+            <tr>
+              <td>{{ stock_check.id }}</td>
+              <td>{{ stock_check.date|date:"d M Y" }}</td>
+              <td>
+                {% if stock_check.status == 'completed' %}
+                  <span class="badge badge-success">Completed</span>
+                {% elif stock_check.status == 'in_progress' %}
+                  <span class="badge badge-warning">In Progress</span>
+                {% else %}
+                  <span class="badge badge-secondary">Pending</span>
+                {% endif %}
+              </td>
+              <td>{{ stock_check.created_by.username }}</td>
+              <td class="text-right {% if stock_check.total_discrepancy < 0 %}text-danger{% elif stock_check.total_discrepancy > 0 %}text-warning{% endif %}">
+                {{ stock_check.total_discrepancy|floatformat:2|intcomma }}
+              </td>
+              <td class="text-center">
+                <a href="{% url 'store:stock_check_report' stock_check_id=stock_check.id %}" class="btn btn-info btn-sm">
+                  <i class="fas fa-eye"></i> View Report
+                </a>
+                {% if stock_check.status != 'completed' and can_delete_reports %}
+                <form method="post" action="{% url 'store:delete_stock_check' stock_check_id=stock_check.id %}" style="display: inline;"
+                      onsubmit="return confirm('Are you sure you want to delete this stock check report? This action cannot be undone.');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-danger btn-sm">
+                    <i class="fas fa-trash"></i> Delete
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="6" class="text-center text-muted py-4">No stock checks available.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
