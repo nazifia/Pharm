@@ -35,14 +35,6 @@
     <!-- HTMX for all pages - load synchronously to avoid timing issues -->
     <script src="{% static 'htmx/htmx.min.js' %}"></script>
     <script>
-        // Configure HTMX to include CSRF token and NOT cache requests
-        document.body.setAttribute('hx-headers', JSON.stringify({
-            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-        }));
-
         // Ensure HTMX is loaded before continuing
         document.addEventListener('DOMContentLoaded', function() {
             if (typeof htmx === 'undefined') {
@@ -61,6 +53,19 @@
                 document.head.appendChild(script);
             } else {
                 console.log('[HTMX] Loaded successfully - cache disabled for all requests');
+            }
+
+            // Configure HTMX to include CSRF token — must run after DOMContentLoaded
+            // so document.body is available and the meta csrf-token tag is parsed.
+            var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            if (csrfMeta && document.body) {
+                document.body.setAttribute('hx-headers', JSON.stringify({
+                    'X-CSRFToken': csrfMeta.getAttribute('content'),
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }));
+                htmx.process(document.body);
             }
         });
     </script>

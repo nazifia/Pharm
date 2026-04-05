@@ -327,48 +327,6 @@ def search_wholesale_item(request):
         return redirect('store:index')
 
 
-@login_required
-def add_to_wholesale(request):
-    if request.user.is_authenticated:
-        from userauth.permissions import can_manage_items
-        if not can_manage_items(request.user):
-            messages.error(request, 'You do not have permission to add wholesale items.')
-            return redirect('wholesale:wholesales')
-        if request.method == 'POST':
-            form = addWholesaleForm(request.POST)
-            if form.is_valid():
-                item = form.save(commit=False)
-                item.save()
-                messages.success(request, 'Item added successfully')
-                return redirect('wholesale:wholesales')
-        low_stock_threshold = 10  # Adjust this number as needed
-
-        # Get items and low stock items
-        items = WholesaleItem.objects.all()
-        low_stock_items = [item for item in items if item.stock <= low_stock_threshold]
-
-        context = {
-            'items': items,
-            'low_stock_items': low_stock_items,
-        }
-
-        # Only include financial data if user has permission
-        if request.user.has_permission('view_financial_reports'):
-            # Calculate total purchase value and total stock value
-            total_purchase_value = sum(item.cost * item.stock for item in items)
-            total_stock_value = sum(item.price * item.stock for item in items)
-            total_profit = total_stock_value - total_purchase_value
-
-            context.update({
-                'total_purchase_value': total_purchase_value,
-                'total_stock_value': total_stock_value,
-                'total_profit': total_profit,
-            })
-        return render(request, 'wholesale/wholesales.html', context)
-    else:
-        return render(request, 'store/index.html')
-
-
 @user_passes_test(is_admin_or_manager)
 @login_required
 def add_to_wholesale(request):
