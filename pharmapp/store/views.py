@@ -7444,7 +7444,7 @@ def update_marquee(request):
     marquee_text = request.POST.get('marquee_text')
     if marquee_text:
         # Store the marquee text in cache
-        cache.set('marquee_text', marquee_text, timeout=None)
+        cache.set('global_marquee_text', marquee_text, timeout=None)
         return HttpResponse(status=200)
     return HttpResponse(status=400)
 

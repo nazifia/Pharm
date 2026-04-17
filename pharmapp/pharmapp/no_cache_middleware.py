@@ -24,10 +24,6 @@ class NoCacheMiddleware:
             response['Pragma'] = 'no-cache'
             response['Expires'] = '0'
 
-            # Add ETag with timestamp to force revalidation
-            import time
-            response['ETag'] = f'"{int(time.time())}"'
-
             # Prevent caching in proxies
             response['Vary'] = 'Accept-Encoding, Cookie'
 

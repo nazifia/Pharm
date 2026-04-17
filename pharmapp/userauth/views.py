@@ -16,6 +16,7 @@ from django.db import models
 import random
 import json
 from .permissions import role_required
+from .context_processors import clear_user_permissions_cache
 
 
 @login_required
@@ -444,6 +445,7 @@ def edit_user(request, user_id):
                 profile.employee_id = form.cleaned_data.get('employee_id', '')
                 profile.hire_date = form.cleaned_data.get('hire_date')
                 profile.save()
+                clear_user_permissions_cache(user.id)
 
                 # Log the activity
                 ActivityLog.log_activity(
@@ -666,7 +668,8 @@ def assign_cashier_role(request, user_id):
             # Update profile
             user.profile.user_type = 'Cashier'
             user.profile.save()
-            
+            clear_user_permissions_cache(user.id)
+
             # Create cashier record if it doesn't exist
             from store.models import Cashier
             cashier, created = Cashier.objects.get_or_create(
@@ -1109,6 +1112,9 @@ def save_user_permissions_api(request):
                 # Remove individual permission if it matches role permission
                 UserPermission.objects.filter(user=user, permission=permission).delete()
 
+        # Invalidate cached permissions so changes take effect immediately
+        clear_user_permissions_cache(user.id)
+
         # Log the activity
         ActivityLog.log_activity(
             user=request.user,
@@ -1261,6 +1267,7 @@ def bulk_operations_api(request):
                 if hasattr(user, 'profile'):
                     user.profile.user_type = role_template
                     user.profile.save()
+                    clear_user_permissions_cache(user.id)
                     affected_users += 1
 
             # Apply status change
