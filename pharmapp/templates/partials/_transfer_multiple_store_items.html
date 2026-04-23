@@ -1,3 +1,5 @@
+{% load store_filters %}
+{% load permission_tags %}
 {% block content %}
 <style>
   /* Style for manual price override */
@@ -43,7 +45,8 @@
         hx-target="#transfer-messages"
         hx-swap="outerHTML">
     {% csrf_token %}
-    <table class="table table-bordered shadow table-hover table-responsive">
+    <div style="overflow-x: auto; max-width: 100vw; -webkit-overflow-scrolling: touch;">
+    <table class="table table-bordered shadow table-hover" style="min-width: 1800px;">
       <thead class="table-secondary">
         <tr>
           <th>
@@ -55,6 +58,7 @@
           <th>Brand</th>
           <th>Unit</th>
           <th>Stock</th>
+          <th>Procurement Value</th>
           <th>R/Qty</th>
           <th>Transfer Unit</th>
           <th>Unit Conversion</th>
@@ -74,7 +78,39 @@
           <td>{{ item.dosage_form }}</td>
           <td>{{ item.brand }}</td>
           <td>{{ item.unit }}</td>
-          <td>{{ item.stock }}</td>
+          <td>
+            {% if user|can_edit_transfer_item_quantity %}
+            <div class="d-flex align-items-center">
+              <span class="stock-display font-weight-bold" id="stock-display-{{ item.id }}">
+                {{ item.stock }}
+              </span>
+              <button type="button"
+                      class="btn btn-sm btn-link text-primary edit-stock-btn ml-2"
+                      data-item-id="{{ item.id }}"
+                      data-current-stock="{{ item.stock }}"
+                      data-item-name="{{ item.name }}"
+                      data-item-brand="{{ item.brand }}"
+                      data-item-unit="{{ item.unit }}"
+                      data-toggle="tooltip"
+                      title="Edit stock quantity">
+                <i class="fas fa-edit"></i>
+              </button>
+            </div>
+            {% else %}
+            <span class="font-weight-bold">{{ item.stock }}</span>
+            {% endif %}
+          </td>
+          <td class="procurement-value text-center"
+              data-cost="{{ item.cost_price }}"
+              data-stock="{{ item.stock }}">
+            <span class="badge badge-info badge-lg" style="font-size: 0.95rem;">
+              ₦<span class="item-proc-value">{{ item.cost_price|multiply:item.stock|floatformat:2 }}</span>
+            </span>
+            <br>
+            <small class="text-muted">
+              ₦{{ item.cost_price|floatformat:2 }} × {{ item.stock }}
+            </small>
+          </td>
           <td>
             <input type="number" name="quantity_{{ item.id }}" style="width:100px;" class="form-control" min="0" value="0" step="0.5">
           </td>
@@ -164,6 +200,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     <button type="submit" class="btn btn-sm btn-primary">Process Transfers</button>
   </form>
 </div>
@@ -172,8 +209,7 @@
 
 
 
-  document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM fully loaded and parsed');
+  (function() {
     // Select All checkbox functionality
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
     const itemCheckboxes = document.querySelectorAll("input[type='checkbox'][name^='select_']");
@@ -265,7 +301,7 @@
       targetUnitSpan.textContent = targetUnit;
       conversionLabel.innerHTML = `1 ${sourceUnit} = <span class="conversion-value">${conversionValue}</span> <span class="target-unit">${targetUnit}</span>`;
     }
-  });
+  })();
 </script>
 {% include "partials/_transfer_price_calc.js.html" %}
 {% endblock %}
