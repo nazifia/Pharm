@@ -1,0 +1,223 @@
+{% extends "partials/base.html" %}
+{% load static humanize %}
+
+{% block extra_css %}
+<style>
+    .stat-card { border-left: 4px solid; }
+    .stat-card.active { border-color: #198754; }
+    .stat-card.trial { border-color: #0d6efd; }
+    .stat-card.grace { border-color: #ffc107; }
+    .stat-card.expired { border-color: #dc3545; }
+    .license-key {
+        font-family: monospace;
+        font-size: 1.1rem;
+        letter-spacing: 2px;
+        background: #f8f9fa;
+        padding: 6px 12px;
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="fw-bold mb-0">Subscription</h4>
+            <small class="text-muted">Annual License Management</small>
+        </div>
+        {% if user.is_superuser %}
+        <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#paymentModal">
+            + Record Payment
+        </button>
+        {% endif %}
+    </div>
+
+    {% if messages %}
+        {% for msg in messages %}
+            <div class="alert alert-{{ msg.tags }} alert-dismissible fade show" role="alert">
+                {{ msg }}
+                <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {% if sub %}
+    <!-- Status Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card {{ sub.status }} shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Status</div>
+                    <div class="fw-bold fs-5 text-capitalize">{{ sub.get_status_display }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Expiry Date</div>
+                    <div class="fw-bold fs-5">{{ sub.end_date }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Days Remaining</div>
+                    <div class="fw-bold fs-5
+                        {% if sub.days_remaining <= 7 %}text-danger
+                        {% elif sub.days_remaining <= 30 %}text-warning
+                        {% else %}text-success{% endif %}">
+                        {{ sub.days_remaining }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-1">Annual Price</div>
+                    <div class="fw-bold fs-5">₦{{ annual_price|intcomma }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subscription Details -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white fw-semibold">Subscription Details</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr>
+                            <td class="text-muted" style="width:40%">Pharmacy</td>
+                            <td class="fw-semibold">{{ sub.pharmacy_name }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Mobile</td>
+                            <td>{{ sub.contact_mobile }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Start Date</td>
+                            <td>{{ sub.start_date }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Grace Period</td>
+                            <td>{{ sub.grace_period_days }} days after expiry</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <div class="text-muted small mb-1">License Key</div>
+                    <span class="license-key">{{ sub.license_key }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment History -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white fw-semibold">Payment History</div>
+        <div class="card-body p-0">
+            {% if payments %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Amount</th>
+                            <th>Method</th>
+                            <th>Reference</th>
+                            <th>Period</th>
+                            <th>Recorded By</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in payments %}
+                        <tr>
+                            <td>{{ p.payment_date }}</td>
+                            <td class="fw-semibold">₦{{ p.amount|intcomma }}</td>
+                            <td>{{ p.get_payment_method_display }}</td>
+                            <td><code>{{ p.reference|default:"—" }}</code></td>
+                            <td class="small text-muted">{{ p.period_start }} → {{ p.period_end }}</td>
+                            <td>{{ p.recorded_by.get_full_name|default:p.recorded_by.mobile }}</td>
+                            <td class="small text-muted">{{ p.notes|default:"—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-4">No payments recorded yet.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% else %}
+    <div class="card shadow-sm">
+        <div class="card-body text-center py-5">
+            <p class="text-muted mb-3">No subscription configured.</p>
+            {% if user.is_superuser %}
+            <a href="{% url 'subscription:setup' %}" class="btn btn-primary">Set Up Trial</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Payment Modal (superuser only) -->
+{% if user.is_superuser %}
+<div class="modal fade" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Record Annual Payment</h5>
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <form method="post" action="{% url 'subscription:record_payment' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Amount (₦)</label>
+                        <input type="number" name="amount" class="form-control" step="0.01" min="1"
+                               value="{{ annual_price }}" required>
+                        <div class="form-text">Standard annual price: ₦{{ annual_price|intcomma }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Payment Method</label>
+                        <select name="payment_method" class="form-select" required>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="cash">Cash</option>
+                            <option value="pos">POS</option>
+                            <option value="online">Online</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Reference / Transaction ID</label>
+                        <input type="text" name="reference" class="form-control"
+                               placeholder="e.g. TRF2024001">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Notes</label>
+                        <textarea name="notes" class="form-control" rows="2"
+                                  placeholder="Optional notes..."></textarea>
+                    </div>
+                    <div class="alert alert-info small mb-0">
+                        Recording this payment extends the subscription by <strong>365 days</strong>
+                        from the current expiry date.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Record Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

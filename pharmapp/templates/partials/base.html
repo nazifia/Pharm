@@ -838,6 +838,19 @@
                         <a class="collapse-item" href="{% url 'chat:bulk_message' %}">
                             <i class="fas fa-bullhorn"></i> Bulk Message</a>
                         {% endif %}
+                        {% if user.is_superuser or is_admin or is_manager %}
+                        <div class="collapse-divider"></div>
+                        <h6 class="collapse-header">License:</h6>
+                        <a class="collapse-item {% if subscription_expiring_soon or subscription_in_grace %}text-warning fw-bold{% endif %}"
+                           href="{% url 'subscription:status' %}">
+                            <i class="fas fa-id-card"></i> Subscription
+                            {% if subscription_in_grace %}
+                                <span class="badge badge-danger badge-counter">Grace</span>
+                            {% elif subscription_expiring_soon %}
+                                <span class="badge badge-warning badge-counter">{{ subscription_days_remaining }}d</span>
+                            {% endif %}
+                        </a>
+                        {% endif %}
 
                     </div>
                 </div>
@@ -955,6 +968,10 @@
 
                 </nav>
                 <!-- End of Topbar -->
+
+                {% if user.is_authenticated %}
+                    {% include 'subscription/_banner.html' %}
+                {% endif %}
 
                 <!-- Begin Page Content -->
                 <div class="container-fluid">

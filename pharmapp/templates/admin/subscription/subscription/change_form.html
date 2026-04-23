@@ -1,0 +1,12 @@
+{% extends "admin/change_form.html" %}
+
+{% block submit_buttons_bottom %}
+  {{ block.super }}
+  {% if renew_url %}
+  <div class="submit-row" style="margin-top:0;padding-top:0;border-top:none">
+    <a href="{{ renew_url }}" class="button" style="background:#417690;color:#fff;padding:10px 15px;text-decoration:none;border-radius:4px">
+      Record Payment &amp; Renew
+    </a>
+  </div>
+  {% endif %}
+{% endblock %}

@@ -13,6 +13,7 @@ urlpatterns = [
     path('chat/', include('chat.urls')),
     path('notebook/', include('notebook.urls')),
     path('api/', include('api.urls')),
+    path('subscription/', include('subscription.urls', namespace='subscription')),
 
     # Serve service worker from root path with full scope control
     path('sw.js', serve_service_worker, name='service-worker'),

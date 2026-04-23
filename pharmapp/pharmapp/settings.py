@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'chat',
     'notebook',  # Add notebook app for note-taking functionality
     'corsheaders',  # Make sure this is here
+    'subscription',
 ]
 
 MIDDLEWARE = [
@@ -88,6 +89,7 @@ MIDDLEWARE = [
     'userauth.session_middleware.SessionValidationMiddleware',  # Session validation for security
     'userauth.session_middleware.UserActivityTrackingMiddleware',  # Track user activity per session
     'userauth.session_middleware.SessionCleanupMiddleware',  # Clean up expired sessions
+    'subscription.middleware.SubscriptionMiddleware',  # Annual license enforcement
     # User isolation middleware (temporarily disabled for testing)
     # 'userauth.user_isolation_middleware.UserIsolationMiddleware',  # Ensure user data isolation
     # 'userauth.user_isolation_middleware.UserSessionIsolationMiddleware',  # Session isolation
@@ -132,6 +134,7 @@ TEMPLATES = [
                 'userauth.context_processors.user_roles',
                 'store.context_processors.contact_info_context',
                 'store.context_processors_performance.performance_metrics',
+                'subscription.context_processors.subscription_context',
             ],
             # Performance optimizations
             'debug': DEBUG,  # Only enable template debug in development
@@ -373,3 +376,9 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 PHARMACY_PHONE = config('PHARMACY_PHONE', default='+234-803-123-4567')
 PHARMACY_ADDRESS = config('PHARMACY_ADDRESS', default='No. 123 FTH Jibia Bypass, Katsina')
 PHARMACY_EMAIL = config('PHARMACY_EMAIL', default='info@nazzpharmacy.com')
+
+# ── Subscription / SaaS ───────────────────────────────────────────────────────
+SUBSCRIPTION_ANNUAL_PRICE = config('SUBSCRIPTION_ANNUAL_PRICE', default=150000, cast=int)
+SUBSCRIPTION_TRIAL_DAYS = config('SUBSCRIPTION_TRIAL_DAYS', default=30, cast=int)
+SUBSCRIPTION_GRACE_PERIOD_DAYS = config('SUBSCRIPTION_GRACE_PERIOD_DAYS', default=7, cast=int)
+SUBSCRIPTION_RENEWAL_WARNING_DAYS = config('SUBSCRIPTION_RENEWAL_WARNING_DAYS', default=30, cast=int)

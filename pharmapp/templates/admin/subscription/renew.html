@@ -1,0 +1,47 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Renew Subscription{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a> ›
+  <a href="{% url 'admin:subscription_subscription_changelist' %}">Subscriptions</a> ›
+  <a href="{% url 'admin:subscription_subscription_change' sub.pk %}">{{ sub.pharmacy_name }}</a> ›
+  Renew
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Renew Subscription — {{ sub.pharmacy_name }}</h1>
+
+<div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:4px;padding:16px;margin-bottom:24px;max-width:500px">
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td style="padding:4px 8px;color:#666">Status</td><td style="padding:4px 8px;font-weight:bold">{{ sub.get_status_display }}</td></tr>
+    <tr><td style="padding:4px 8px;color:#666">Current end date</td><td style="padding:4px 8px">{{ sub.end_date }}</td></tr>
+    <tr><td style="padding:4px 8px;color:#666">Days remaining</td><td style="padding:4px 8px">{{ sub.days_remaining }}</td></tr>
+    <tr><td style="padding:4px 8px;color:#666">Grace end date</td><td style="padding:4px 8px">{{ sub.grace_end_date }}</td></tr>
+  </table>
+</div>
+
+<form method="post" style="max-width:500px">
+  {% csrf_token %}
+  <table class="form-table">
+    {% for field in form %}
+    <tr>
+      <th><label for="{{ field.id_for_label }}">{{ field.label }}</label></th>
+      <td>
+        {{ field }}
+        {% if field.errors %}<ul class="errorlist">{% for e in field.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        {% if field.help_text %}<p class="help">{{ field.help_text }}</p>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <div class="submit-row" style="margin-top:16px">
+    <input type="submit" value="Record Payment & Renew" class="default">
+    <a href="{% url 'admin:subscription_subscription_change' sub.pk %}" class="button cancel-link" style="margin-left:12px">Cancel</a>
+  </div>
+</form>
+{% endblock %}

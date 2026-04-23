@@ -1,0 +1,97 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activate Subscription — PharmApp</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; }
+        .setup-card { border-top: 5px solid #0d6efd; }
+    </style>
+</head>
+<body>
+<div class="container py-4">
+    <div class="row g-4 justify-content-center align-items-start">
+        <!-- Activation Form -->
+        <div class="col-12 col-lg-5">
+            <div class="card shadow setup-card">
+                <div class="card-body p-4 p-md-5">
+                    <h3 class="fw-bold mb-1">Activate PharmApp</h3>
+                    <p class="text-muted mb-4 small">Start your {{ trial_days }}-day free trial. No payment needed now.</p>
+
+                    {% if messages %}
+                        {% for msg in messages %}
+                            <div class="alert alert-{{ msg.tags }} alert-dismissible fade show" role="alert">
+                                {{ msg }}
+                                <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Pharmacy Name</label>
+                            <input type="text" name="pharmacy_name" class="form-control" required
+                                   placeholder="e.g. Nazz Pharmacy">
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Contact Mobile</label>
+                            <input type="tel" name="contact_mobile" class="form-control" required
+                                   placeholder="e.g. 08012345678">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            Start Free Trial
+                        </button>
+                    </form>
+                </div>
+                <div class="card-footer text-center py-2 bg-light">
+                    <small class="text-muted">PharmApp &mdash; Annual License &mdash; ₦{{ annual_price|floatformat:"0" }} / year</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Funding Account Details -->
+        <div class="col-12 col-lg-5">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0 fw-bold">&#128176; Payment / Funding Account Details</h6>
+                </div>
+                <div class="card-body px-4 py-3">
+                    <p class="text-muted small mb-3">After your free trial, renew with an annual license. Transfer to any account below and record payment in the subscription portal.</p>
+
+                    <div class="mb-3 p-3 border rounded bg-white">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="badge bg-primary me-2">Bank 1</span>
+                            <strong>Opay</strong>
+                        </div>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr><td class="text-muted" style="width:45%">Account Name</td><td><strong>Mohammed Nazif Ahmed</strong></td></tr>
+                            <tr><td class="text-muted">Account Number</td><td><strong class="font-monospace">8032194090</strong></td></tr>
+                        </table>
+                    </div>
+
+                    <div class="mb-2 p-3 border rounded bg-white">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="badge bg-success me-2">Bank 2</span>
+                            <strong>Union Bank</strong>
+                        </div>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr><td class="text-muted" style="width:45%">Account Name</td><td><strong>Mohammed Nazif Ahmed</strong></td></tr>
+                            <tr><td class="text-muted">Account Number</td><td><strong class="font-monospace">0017377673</strong></td></tr>
+                        </table>
+                    </div>
+
+                    <div class="alert alert-warning py-2 mb-0 small">
+                        <strong>After payment:</strong> Contact <strong>08032194090</strong> with your receipt/reference to get your subscription activated.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

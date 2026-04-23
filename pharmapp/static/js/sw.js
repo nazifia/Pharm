@@ -110,7 +110,7 @@ self.addEventListener('fetch', event => {
     }
 
     // Static files only - cache first, network fallback
-    event.respondWith(cacheFirstStrategy(request));
+    event.respondWith(cacheFirstStrategy(event, request));
 });
 
 /**
@@ -158,7 +158,7 @@ async function networkFirstStrategy(request) {
  * Cache-first strategy (for static resources)
  * Serve from cache, update cache in background
  */
-async function cacheFirstStrategy(request) {
+async function cacheFirstStrategy(event, request) {
     const cachedResponse = await caches.match(request);
 
     if (cachedResponse) {

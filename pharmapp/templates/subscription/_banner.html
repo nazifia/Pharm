@@ -1,0 +1,29 @@
+{% if subscription_expiring_soon %}
+<div class="alert alert-warning alert-dismissible fade show mb-0 rounded-0 text-center py-2" role="alert" style="font-size:0.875rem;">
+    <strong>Subscription Expiring:</strong>
+    {% if subscription_days_remaining == 0 %}
+        Expires <strong>today</strong>.
+    {% elif subscription_days_remaining == 1 %}
+        <strong>1 day</strong> remaining.
+    {% else %}
+        <strong>{{ subscription_days_remaining }} days</strong> remaining.
+    {% endif %}
+    {% if user.is_superuser %}
+        <a href="{% url 'subscription:status' %}" class="alert-link ms-2">Renew now &rarr;</a>
+    {% else %}
+        Contact your administrator to renew.
+    {% endif %}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+{% if subscription_in_grace %}
+<div class="alert alert-danger mb-0 rounded-0 text-center py-2" role="alert" style="font-size:0.875rem;">
+    <strong>Grace Period:</strong> Subscription expired. System access ends on <strong>{{ subscription.grace_end_date }}</strong>.
+    {% if user.is_superuser %}
+        <a href="{% url 'subscription:status' %}" class="alert-link ms-2">Record payment &rarr;</a>
+    {% else %}
+        Contact your administrator immediately.
+    {% endif %}
+</div>
+{% endif %}

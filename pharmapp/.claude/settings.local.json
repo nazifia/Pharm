@@ -25,7 +25,9 @@
       "Bash(dir:*)",
       "Bash(findstr:*)",
       "Bash(pkill:*)",
-      "Bash(source ../venv/Scripts/activate)"
+      "Bash(source ../venv/Scripts/activate)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Dell\\\\Desktop\\\\MY_PRODUCTS\\\\Pharm\\\\pharmapp\\\\subscription\\\\migrations\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Dell\\\\Desktop\\\\MY_PRODUCTS\\\\Pharm\\\\pharmapp\\\\templates\\\\subscription\")"
     ],
     "deny": [],
     "ask": []
