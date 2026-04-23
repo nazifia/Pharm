@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from django.conf import settings as django_settings
@@ -28,6 +29,7 @@ def _admin_or_manager(request):
 
 # ── views ─────────────────────────────────────────────────────────────────────
 
+@never_cache
 @login_required
 def subscription_status(request):
     if not _admin_or_manager(request):
@@ -35,6 +37,8 @@ def subscription_status(request):
         return redirect('store:dashboard')
 
     sub = Subscription.objects.order_by('-end_date').first()
+    if sub:
+        sub.sync_status()
     payments = sub.payments.all() if sub else []
     config = SubscriptionConfig.get_or_create_default()
     return render(request, 'subscription/status.html', {
@@ -44,8 +48,11 @@ def subscription_status(request):
     })
 
 
+@never_cache
 def expired_view(request):
     sub = Subscription.objects.order_by('-end_date').first()
+    if sub:
+        sub.sync_status()
     return render(request, 'subscription/expired.html', {
         'sub': sub,
         'is_superuser': request.user.is_authenticated and request.user.is_superuser,

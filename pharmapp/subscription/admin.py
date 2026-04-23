@@ -12,8 +12,25 @@ from .models import ANNUAL_PRICE, Subscription, PaymentRecord, SubscriptionConfi
 
 # ── Inline ────────────────────────────────────────────────────────────────────
 
+class PaymentRecordInlineForm(forms.ModelForm):
+    class Meta:
+        model = PaymentRecord
+        fields = '__all__'
+
+    def clean(self):
+        cleaned = super().clean()
+        start = cleaned.get('period_start')
+        end = cleaned.get('period_end')
+        if start and end and end < start:
+            raise forms.ValidationError(
+                f'Period end ({end}) must be after period start ({start}).'
+            )
+        return cleaned
+
+
 class PaymentRecordInline(admin.TabularInline):
     model = PaymentRecord
+    form = PaymentRecordInlineForm
     extra = 1
     readonly_fields = ('created_at',)
     fields = (
@@ -25,6 +42,42 @@ class PaymentRecordInline(admin.TabularInline):
         if not request.user.is_superuser:
             return [f.name for f in self.model._meta.fields]
         return self.readonly_fields
+
+
+# ── Subscription change form ──────────────────────────────────────────────────
+
+class SubscriptionAdminForm(forms.ModelForm):
+    days_remaining_override = forms.IntegerField(
+        required=False,
+        min_value=0,
+        label='Set days remaining',
+        help_text=(
+            'Leave blank to use the End Date field above. '
+            'If filled, sets end_date = today + this number (overrides End Date). '
+            'Current value shown for reference only — field is intentionally left blank.'
+        ),
+    )
+
+    class Meta:
+        model = Subscription
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            # Show as placeholder so admin knows current value without pre-filling
+            self.fields['days_remaining_override'].widget.attrs['placeholder'] = (
+                f'Current: {self.instance.days_remaining} days'
+            )
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        days = self.cleaned_data.get('days_remaining_override')
+        if days is not None:
+            obj.end_date = date.today() + timedelta(days=days)
+        if commit:
+            obj.save()
+        return obj
 
 
 # ── Renewal form ──────────────────────────────────────────────────────────────
@@ -45,6 +98,7 @@ class RenewSubscriptionForm(forms.Form):
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
+    form = SubscriptionAdminForm
     list_display = (
         'pharmacy_name', 'contact_mobile', 'status_badge',
         'start_date', 'end_date', 'days_left', 'active_check', 'license_key',
@@ -64,6 +118,13 @@ class SubscriptionAdmin(admin.ModelAdmin):
         }),
         ('Subscription Period', {
             'fields': ('status', 'start_date', 'end_date', 'grace_period_days'),
+        }),
+        ('Quick Expiry Adjustment', {
+            'fields': ('days_remaining_override',),
+            'description': (
+                'Enter number of days remaining to automatically compute and set the end date. '
+                'Takes precedence over the End Date field above if both are changed.'
+            ),
         }),
         ('Computed Status', {
             'fields': ('days_left', 'active_check', 'grace_end_date_display'),
@@ -111,8 +172,24 @@ class SubscriptionAdmin(admin.ModelAdmin):
     # ── save hook ────────────────────────────────────────────────────────────
 
     def save_model(self, request, obj, form, change):
+        # form.save() already applied days_remaining_override → end_date
         super().save_model(request, obj, form, change)
         obj.sync_status()
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        # If superuser explicitly set days_remaining_override, respect it — don't let
+        # payment period_end silently override the manual adjustment.
+        if form.cleaned_data.get('days_remaining_override') is not None:
+            form.instance.sync_status()
+            return
+        # Otherwise extend end_date to the latest valid payment period_end (additive only).
+        obj = form.instance
+        latest = obj.payments.order_by('-period_end').first()
+        if latest and latest.period_end > obj.end_date:
+            obj.end_date = latest.period_end
+            obj.save(update_fields=['end_date', 'updated_at'])
+            obj.sync_status()
 
     # ── permission guard ─────────────────────────────────────────────────────
 
