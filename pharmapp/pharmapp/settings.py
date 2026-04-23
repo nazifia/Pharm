@@ -382,3 +382,5 @@ SUBSCRIPTION_ANNUAL_PRICE = config('SUBSCRIPTION_ANNUAL_PRICE', default=150000, 
 SUBSCRIPTION_TRIAL_DAYS = config('SUBSCRIPTION_TRIAL_DAYS', default=30, cast=int)
 SUBSCRIPTION_GRACE_PERIOD_DAYS = config('SUBSCRIPTION_GRACE_PERIOD_DAYS', default=7, cast=int)
 SUBSCRIPTION_RENEWAL_WARNING_DAYS = config('SUBSCRIPTION_RENEWAL_WARNING_DAYS', default=30, cast=int)
+# Optional: restrict superuser bypass to a specific mobile. If unset, all superusers bypass.
+SUBSCRIPTION_BYPASS_MOBILE = config('SUBSCRIPTION_BYPASS_MOBILE', default=None)

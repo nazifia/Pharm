@@ -7,4 +7,4 @@ class SubscriptionConfig(AppConfig):
     verbose_name = 'Subscription'
 
     def ready(self):
-        pass
+        import subscription.signals  # noqa: F401 — wire signals

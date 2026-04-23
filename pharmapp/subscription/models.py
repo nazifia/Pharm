@@ -88,6 +88,7 @@ class Subscription(models.Model):
     # ── methods ─────────────────────────────────────────────────────────────
 
     def sync_status(self):
+        """Recalculate and persist status. Returns True if status changed."""
         today = date.today()
         if self.end_date >= today:
             new_status = 'trial' if self.status == 'trial' else 'active'
@@ -99,6 +100,8 @@ class Subscription(models.Model):
         if new_status != self.status:
             self.status = new_status
             self.save(update_fields=['status', 'updated_at'])
+            return True
+        return False
 
     def renew(self, recorded_by, amount, payment_method, reference='', notes=''):
         today = date.today()

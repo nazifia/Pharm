@@ -1,4 +1,5 @@
 import json
+from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import redirect
 
@@ -47,8 +48,10 @@ class SubscriptionMiddleware:
     def _should_check(self, request):
         if not request.user.is_authenticated:
             return False
-        if request.user.is_superuser and getattr(request.user, 'mobile', None) == '08032194090':
-            return False
+        if request.user.is_superuser:
+            bypass_mobile = getattr(settings, 'SUBSCRIPTION_BYPASS_MOBILE', None)
+            if bypass_mobile is None or getattr(request.user, 'mobile', None) == bypass_mobile:
+                return False
         if any(request.path.startswith(p) for p in EXEMPT_PREFIXES):
             return False
         return True
