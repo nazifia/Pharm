@@ -1,7 +1,26 @@
 import json
 from django.conf import settings
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import redirect
+
+_ENFORCEMENT_CACHE_KEY = 'subscription_enforcement_enabled'
+_ENFORCEMENT_CACHE_TTL = 60  # seconds
+
+
+def _enforcement_enabled():
+    """Return whether subscription enforcement is active. Cached to avoid per-request DB hit."""
+    cached = cache.get(_ENFORCEMENT_CACHE_KEY)
+    if cached is not None:
+        return cached
+    try:
+        from .models import SubscriptionConfig
+        config = SubscriptionConfig.objects.filter(pk=1).values_list('enforcement_enabled', flat=True).first()
+        enabled = config if config is not None else True
+    except Exception:
+        enabled = True
+    cache.set(_ENFORCEMENT_CACHE_KEY, enabled, _ENFORCEMENT_CACHE_TTL)
+    return enabled
 
 
 EXEMPT_PREFIXES = (
@@ -31,6 +50,8 @@ class SubscriptionMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        if not _enforcement_enabled():
+            return self.get_response(request)
         if self._should_check(request):
             from .models import Subscription
             sub = Subscription.get_current()

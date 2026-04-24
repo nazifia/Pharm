@@ -183,6 +183,14 @@ class PaymentRecord(models.Model):
 class SubscriptionConfig(models.Model):
     """Singleton model — only one row should exist."""
     annual_price = models.DecimalField(max_digits=12, decimal_places=2, default=ANNUAL_PRICE)
+    enforcement_enabled = models.BooleanField(
+        default=True,
+        help_text=(
+            'When OFF, subscription checks are completely skipped — all users can access '
+            'the system regardless of subscription status. Turn OFF only for maintenance '
+            'or testing. Changes take effect immediately.'
+        ),
+    )
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -195,12 +203,19 @@ class SubscriptionConfig(models.Model):
         verbose_name = 'Subscription Config'
 
     def __str__(self):
-        return f"Annual Price: ₦{self.annual_price:,.0f}"
+        enforcement = 'ENFORCED' if self.enforcement_enabled else 'DISABLED'
+        return f"Annual Price: ₦{self.annual_price:,.0f} | Enforcement: {enforcement}"
 
     @classmethod
     def get_or_create_default(cls):
         obj, _ = cls.objects.get_or_create(
             pk=1,
-            defaults={'annual_price': ANNUAL_PRICE},
+            defaults={'annual_price': ANNUAL_PRICE, 'enforcement_enabled': True},
         )
         return obj
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Bust cached enforcement flag so middleware picks up change immediately.
+        from django.core.cache import cache
+        cache.delete('subscription_enforcement_enabled')

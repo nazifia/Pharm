@@ -313,8 +313,57 @@ class PaymentRecordAdmin(admin.ModelAdmin):
 
 @admin.register(SubscriptionConfig)
 class SubscriptionConfigAdmin(admin.ModelAdmin):
-    list_display = ('annual_price', 'updated_at', 'updated_by')
-    readonly_fields = ('updated_at', 'updated_by')
+    list_display = ('annual_price', 'enforcement_badge', 'updated_at', 'updated_by')
+    readonly_fields = ('updated_at', 'updated_by', 'enforcement_warning')
+
+    fieldsets = (
+        ('Subscription Enforcement', {
+            'fields': ('enforcement_warning', 'enforcement_enabled'),
+            'description': (
+                '<strong>⚠ Disabling enforcement allows ALL users to bypass subscription checks.</strong> '
+                'Use only for maintenance or testing. Re-enable when done.'
+            ),
+        }),
+        ('Pricing', {
+            'fields': ('annual_price',),
+        }),
+        ('Audit', {
+            'fields': ('updated_at', 'updated_by'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def enforcement_badge(self, obj):
+        if obj.enforcement_enabled:
+            return format_html(
+                '<span style="background:#4CAF50;color:#fff;padding:2px 10px;border-radius:4px;font-size:11px;font-weight:bold">ENFORCED</span>'
+            )
+        return format_html(
+            '<span style="background:#F44336;color:#fff;padding:2px 10px;border-radius:4px;font-size:11px;font-weight:bold">DISABLED</span>'
+        )
+    enforcement_badge.short_description = 'Enforcement'
+
+    def enforcement_warning(self, obj):
+        if obj and not obj.enforcement_enabled:
+            return format_html(
+                '<div style="background:#FFF3CD;border:1px solid #FFC107;padding:10px;border-radius:4px;color:#856404">'
+                '<strong>⚠ WARNING:</strong> Subscription enforcement is currently <strong>DISABLED</strong>. '
+                'All users can access the system regardless of subscription status. '
+                'Re-enable enforcement when maintenance is complete.'
+                '</div>'
+            )
+        return format_html(
+            '<div style="background:#D4EDDA;border:1px solid #28A745;padding:10px;border-radius:4px;color:#155724">'
+            '✓ Subscription enforcement is <strong>ACTIVE</strong>. Users must have a valid subscription to access the system.'
+            '</div>'
+        )
+    enforcement_warning.short_description = 'Current Status'
+
+    def save_model(self, request, obj, form, change):
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+        status = 'enabled' if obj.enforcement_enabled else 'DISABLED'
+        messages.success(request, f'Subscription enforcement is now {status}.')
 
     def has_add_permission(self, request):
         return request.user.is_superuser and not SubscriptionConfig.objects.exists()
