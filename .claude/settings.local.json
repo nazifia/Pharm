@@ -7,7 +7,14 @@
       "Bash(git push:*)",
       "Bash(python -c \"import openpyxl; print\\(openpyxl.__version__\\)\")",
       "Bash(venv\\\\Scripts\\\\pip install:*)",
-      "Bash(\"venv/Scripts/pip.exe\" install:*)"
+      "Bash(\"venv/Scripts/pip.exe\" install:*)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Dell\\\\Desktop\\\\MY_PRODUCTS\\\\Pharm\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(grep -E \"\\\\.\\(html\\)$\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Dell\\\\Desktop\\\\MY_PRODUCTS\\\\Pharm\" -Recurse -Directory)",
+      "Bash(Select-Object FullName)",
+      "Bash(xargs grep -l \"procurement\\\\|Procurement\")",
+      "Bash(xargs grep -l \"payment\\\\|Payment\\\\|invoice\\\\|Invoice\\\\|bill\\\\|Bill\")"
     ],
     "deny": [],
     "ask": []

@@ -1243,47 +1243,6 @@ def select_wholesale_items(request, pk):
 
             total_cost = Decimal('0.0')
 
-            # Create a new Sales record only for purchases, not for returns
-            sales = None
-            if action == 'purchase':
-                # Create a new Sales record for this transaction
-                sales = Sales.objects.create(
-                    user=request.user,
-                    wholesale_customer=customer,
-                    total_amount=Decimal('0.0')
-                )
-
-            # Fetch or create a Receipt only for purchases
-            receipt = None
-            if action == 'purchase' and sales:
-                receipt = WholesaleReceipt.objects.filter(wholesale_customer=customer, sales=sales).first()
-
-                if not receipt:
-                    # Generate a unique receipt ID using uuid
-                    import uuid
-                    receipt_id = str(uuid.uuid4())[:5]  # Use first 5 characters of a UUID
-
-                    # Get payment method and status from form
-                    payment_method = request.POST.get('payment_method', 'Cash')
-                    status = request.POST.get('status', 'Paid')
-
-                    # Store in session for later use in receipt generation
-                    request.session['payment_method'] = payment_method
-                    request.session['payment_status'] = status
-
-                    receipt = WholesaleReceipt.objects.create(
-                        wholesale_customer=customer,
-                        sales=sales,
-                        receipt_id=receipt_id,
-                        total_amount=Decimal('0.0'),
-                        buyer_name=customer.name,
-                        buyer_address=customer.address,
-                        date=datetime.now(),
-                        payment_method=payment_method,
-                        status=status
-                    )
-
-
             for i, item_id in enumerate(item_ids):
                 try:
                     item = WholesaleItem.objects.get(id=item_id)
@@ -1325,24 +1284,6 @@ def select_wholesale_items(request, pk):
 
                         discounted_subtotal = base_subtotal - discount_amount
                         total_cost += discounted_subtotal
-
-                        # Update or create WholesaleSalesItem
-                        sales_item, created = WholesaleSalesItem.objects.get_or_create(
-                            sales=sales,
-                            item=item,
-                            defaults={'quantity': quantity, 'price': item.price, 'discount_amount': discount_amount}
-                        )
-                        if not created:
-                            sales_item.quantity += quantity
-                            sales_item.discount_amount += discount_amount
-                            sales_item.save()
-
-                        # Update the receipt with discounted amount
-                        receipt.total_amount += discounted_subtotal
-                        receipt.save()
-
-                        # Note: WholesaleSelectionHistory for purchases is now created in wholesale_receipt function
-                        # to ensure it only happens when receipts are actually generated
 
                     elif action == 'return':
                         # Handle return logic - find existing sales items for this customer and item
@@ -2332,7 +2273,20 @@ def wholesale_receipt(request):
             print(f"Split Payment - Method 1: {payment_method_1}, Amount 1: {payment_amount_1}")
             print(f"Split Payment - Method 2: {payment_method_2}, Amount 2: {payment_amount_2}")
 
-        cart_items = WholesaleCart.objects.filter(user=request.user)
+        # Atomically claim active cart items — prevents double-receipt on double-submit.
+        # Within the @transaction.atomic block, the UPDATE acquires an exclusive lock so a
+        # concurrent request sees 0 rows updated and is redirected before creating anything.
+        claimed = WholesaleCart.objects.filter(
+            user=request.user, status='active'
+        ).update(status='processed')
+        if claimed == 0:
+            existing_receipt_id = request.session.get('receipt_id')
+            if existing_receipt_id:
+                return redirect('wholesale:wholesale_receipt_detail', receipt_id=existing_receipt_id)
+            messages.warning(request, "Cart already processed.")
+            return redirect('wholesale:wholesale_receipt_list')
+
+        cart_items = WholesaleCart.objects.filter(user=request.user, status='processed')
         if not cart_items.exists():
             messages.warning(request, "No items in the cart.")
             return redirect('wholesale:wholesale_cart')
@@ -2357,18 +2311,14 @@ def wholesale_receipt(request):
             except WholesaleCustomer.DoesNotExist:
                 pass
 
-        # Always create a new Sales instance to avoid conflicts
         sales = Sales.objects.create(
             user=request.user,
             wholesale_customer=wholesale_customer,
             total_amount=final_total
         )
-        
-
 
         try:
-            receipt = WholesaleReceipt.objects.filter(sales=sales).first()
-            if not receipt:
+            if True:
                 # Set default values based on customer presence if not provided
                 if not payment_method and payment_type != 'split':
                     # Default payment method is Wallet for registered customers, Cash for walk-in
@@ -2987,7 +2937,7 @@ def wholesale_receipt_list(request):
         receipts_queryset = WholesaleReceipt.objects.select_related(
             'wholesale_customer', 'cashier', 'sales'
         ).prefetch_related(
-            'receipt_payments'
+            'wholesale_receipt_payments'
         ).order_by('-date')
 
         # Filter by date if provided
@@ -4119,6 +4069,8 @@ def add_wholesale_procurement(request):
                         # Update the procurement with the form data
                         procurement.supplier = procurement_form.cleaned_data['supplier']
                         procurement.date = procurement_form.cleaned_data['date']
+                        procurement.amount_paid = procurement_form.cleaned_data.get('amount_paid') or 0
+                        procurement.payment_method = procurement_form.cleaned_data.get('payment_method') or 'Cash'
 
                         # Delete existing items to avoid duplicates
                         procurement.items.all().delete()
@@ -4306,6 +4258,36 @@ def wholesale_procurement_detail(request, procurement_id):
         })
     else:
         return redirect('store:index')
+
+
+@require_POST
+@login_required
+def update_wholesale_procurement_payment(request, procurement_id):
+    procurement = get_object_or_404(WholesaleProcurement, id=procurement_id)
+    amount = request.POST.get('amount', '').strip()
+    payment_method = request.POST.get('payment_method', '').strip()
+
+    try:
+        amount = Decimal(amount)
+        if amount <= 0:
+            raise ValueError
+    except (ValueError, Exception):
+        messages.error(request, 'Invalid payment amount.')
+        return redirect('wholesale:wholesale_procurement_list')
+
+    if payment_method not in dict(PAYMENT_METHOD_CHOICES):
+        messages.error(request, 'Invalid payment method.')
+        return redirect('wholesale:wholesale_procurement_list')
+
+    procurement.amount_paid += amount
+    if procurement.total and procurement.amount_paid > procurement.total:
+        procurement.amount_paid = procurement.total
+    procurement.payment_method = payment_method
+    procurement.save(update_fields=['amount_paid', 'payment_method'])
+    procurement.update_payment_status()
+
+    messages.success(request, f'Payment of ₦{amount:,.2f} recorded. Status: {procurement.payment_status.title()}')
+    return redirect(request.POST.get('next', 'wholesale:wholesale_procurement_list'))
 
 
 
@@ -5997,12 +5979,16 @@ def complete_wholesale_payment_request(request, request_id):
                 messages.error(request, 'You are not authorized to complete this wholesale payment request.')
                 return redirect('wholesale:wholesale_cashier_dashboard')
             
+            if payment_request.status == 'completed' or payment_request.wholesale_receipt:
+                # Receipt already generated — redirect rather than create a duplicate.
+                if payment_request.wholesale_receipt:
+                    return redirect('wholesale:wholesale_receipt_detail', receipt_id=payment_request.wholesale_receipt.receipt_id)
+                return redirect('wholesale:wholesale_cashier_dashboard')
+
             if payment_request.status != 'accepted':
                 messages.error(request, 'This wholesale payment request must be accepted first.')
                 return redirect('wholesale:wholesale_cashier_dashboard')
-            
-            
-            
+
             if request.method == 'POST':
                 payment_type = request.POST.get('payment_type', 'single')
                 payment_status = request.POST.get('payment_status', 'Paid')
@@ -6476,4 +6462,72 @@ def bulk_generate_wholesale_labels(request):
             'success': False,
             'error': str(e)
         }, status=400)
+
+
+@login_required
+def fast_selling_wholesale_items(request):
+    """Fast-selling wholesale items ranked by total quantity sold in the selected period."""
+    from userauth.permissions import can_operate_wholesale
+    if not can_operate_wholesale(request.user):
+        messages.error(request, 'You do not have permission to access wholesale operations.')
+        return redirect('store:index')
+
+    from django.utils import timezone as tz
+    from django.db.models import Count
+    today = tz.localdate()
+
+    period = request.GET.get('period', 'month')
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+
+    if period == 'today':
+        start_date = today
+        end_date = today
+    elif period == 'week':
+        start_date = today - timedelta(days=6)
+        end_date = today
+    elif period == 'year':
+        start_date = today.replace(month=1, day=1)
+        end_date = today
+    elif period == 'custom' and start_date_str and end_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            start_date = today.replace(day=1)
+            end_date = today
+        period = 'custom'
+    else:
+        period = 'month'
+        start_date = today.replace(day=1)
+        end_date = today
+
+    top_items = (
+        WholesaleSalesItem.objects
+        .filter(sales__date__gte=start_date, sales__date__lte=end_date)
+        .values('item', 'item__name', 'item__dosage_form', 'item__brand', 'item__unit', 'item__stock', 'item__price')
+        .annotate(
+            total_qty=Sum('quantity'),
+            total_revenue=Sum(
+                ExpressionWrapper(F('price') * F('quantity'), output_field=DecimalField(max_digits=14, decimal_places=2))
+            ),
+            transaction_count=Count('sales', distinct=True),
+        )
+        .order_by('-total_qty')[:20]
+    )
+
+    context = {
+        'top_items': top_items,
+        'period': period,
+        'start_date': start_date,
+        'end_date': end_date,
+        'period_label': {
+            'today': 'Today',
+            'week': 'Last 7 Days',
+            'month': 'This Month',
+            'year': 'This Year',
+            'custom': f'{start_date} – {end_date}',
+        }.get(period, 'This Month'),
+    }
+    return render(request, 'wholesale/fast_selling_wholesale_items.html', context)
 

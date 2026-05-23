@@ -68,6 +68,10 @@
         color: #4caf50;
         font-weight: bold;
     }
+
+    .pay-paid { color: #28a745; font-weight: bold; }
+    .pay-partial { color: #ffc107; font-weight: bold; }
+    .pay-unpaid { color: #dc3545; font-weight: bold; }
 </style>
 
 <div class="container">
@@ -102,6 +106,9 @@
                         <th>Supplier</th>
                         <th>Date</th>
                         <th>Total</th>
+                        <th>Paid</th>
+                        <th>Balance</th>
+                        <th>Payment</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -119,17 +126,34 @@
                         </td>
                         <td>{{ procurement.date }}</td>
                         <td>₦{{ procurement.calculated_total|default:procurement.total|floatformat:2|intcomma }}</td>
+                        <td>₦{{ procurement.amount_paid|floatformat:2|intcomma }}</td>
+                        <td>₦{{ procurement.balance|floatformat:2|intcomma }}</td>
+                        <td>{{ procurement.payment_method }}</td>
+                        <td>
+                            <span class="pay-{{ procurement.payment_status }}">{{ procurement.payment_status|title }}</span>
+                        </td>
                         <td class="status-{{ procurement.status }}">{{ procurement.status|title }}</td>
                         <td>
                             <a href="{% url 'store:procurement_detail' procurement.id %}" class="btn btn-info btn-sm">View</a>
                             {% if procurement.status == 'draft' %}
                             <a href="{% url 'store:add_procurement' %}?draft_id={{ procurement.id }}" class="btn btn-warning btn-sm">Continue</a>
                             {% endif %}
+                            {% if procurement.payment_status != 'paid' %}
+                            <button class="btn btn-success btn-sm"
+                                data-toggle="modal"
+                                data-target="#paymentModal"
+                                data-id="{{ procurement.id }}"
+                                data-balance="{{ procurement.balance }}"
+                                data-supplier="{{ procurement.supplier.name|upper }}"
+                                data-url="{% url 'store:update_procurement_payment' procurement.id %}">
+                                Pay Balance
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center">No procurements found.</td>
+                        <td colspan="10" class="text-center">No procurements found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -137,4 +161,61 @@
         </div>
     </div>
 </div>
+<!-- Update Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="paymentModalLabel">Record Payment</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <form method="POST" id="paymentForm">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'store:procurement_list' %}">
+        <div class="modal-body">
+          <p><strong>Supplier:</strong> <span id="modal-supplier"></span></p>
+          <p><strong>Balance Due:</strong> ₦<span id="modal-balance"></span></p>
+          <div class="mb-3">
+            <label class="form-label">Amount Paying Now (₦)</label>
+            <input type="number" name="amount" class="form-control" step="0.01" min="0.01" required id="modal-amount">
+            <button type="button" class="btn btn-link btn-sm p-0 mt-1" id="pay-full-btn">Pay full balance</button>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Payment Method</label>
+            <select name="payment_method" class="form-select" required>
+              <option value="Cash">Cash</option>
+              <option value="Transfer">Transfer</option>
+              <option value="Cheque">Cheque</option>
+              <option value="Credit">Credit</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">Record Payment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var paymentModal = document.getElementById('paymentModal');
+    paymentModal.addEventListener('show.bs.modal', function (event) {
+        var btn = event.relatedTarget;
+        var balance = btn.getAttribute('data-balance');
+        var supplier = btn.getAttribute('data-supplier');
+        document.getElementById('modal-supplier').textContent = supplier;
+        document.getElementById('modal-balance').textContent = parseFloat(balance).toLocaleString('en-NG', {minimumFractionDigits: 2});
+        document.getElementById('modal-amount').value = '';
+        document.getElementById('modal-amount').setAttribute('max', balance);
+        document.getElementById('pay-full-btn').setAttribute('data-balance', balance);
+        document.getElementById('paymentForm').action = btn.getAttribute('data-url');
+    });
+    document.getElementById('pay-full-btn').addEventListener('click', function () {
+        document.getElementById('modal-amount').value = this.getAttribute('data-balance');
+    });
+});
+</script>
 {% endblock %}

@@ -175,7 +175,7 @@
                 <p><strong>Total Price:</strong> {{ total_price }}</p>
                 <p><strong>Discount:</strong> {{ total_discount|floatformat:2|intcomma }}</p>
                 <h4>Total Payable:</strong> {{ total_discounted_price|floatformat:2|intcomma }}</h4>
-                <p><strong>Buyer Name Available:</strong> {% if receipt.wholesale_customer.name %}}Yes{% else %}No{% endif %}</p>
+                <p><strong>Buyer Name Available:</strong> {% if receipt.wholesale_customer.name %}Yes{% else %}No{% endif %}</p>
             </div>
         </div>
 

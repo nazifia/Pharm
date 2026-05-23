@@ -1,5 +1,6 @@
 {% extends "partials/base.html" %}
 {% load static %}
+{% load permission_tags %}
 {% block content %}
 
 <div
@@ -99,6 +100,20 @@
                             <a href="{% url 'store:monthly_sales' %}" class="btn btn-outline-info btn-sm">
                                 <i class="fas fa-calendar-alt"></i> Monthly
                             </a>
+                            <a href="{% url 'store:fast_selling_items' %}?period=week" class="btn btn-danger btn-sm mt-2 me-1">
+                                <i class="fas fa-fire"></i> Weekly Top
+                            </a>
+                            <a href="{% url 'store:fast_selling_items' %}?period=month" class="btn btn-outline-danger btn-sm mt-2">
+                                <i class="fas fa-fire"></i> Monthly Top
+                            </a>
+                            {% if user|can_operate_wholesale or user|can_operate_all %}
+                            <a href="{% url 'wholesale:fast_selling_wholesale_items' %}?period=week" class="btn btn-success btn-sm mt-2 me-1">
+                                <i class="fas fa-fire"></i> W/S Weekly Top
+                            </a>
+                            <a href="{% url 'wholesale:fast_selling_wholesale_items' %}?period=month" class="btn btn-outline-success btn-sm mt-2">
+                                <i class="fas fa-fire"></i> W/S Monthly Top
+                            </a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

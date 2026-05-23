@@ -190,6 +190,18 @@
                             </a>
                         </div>
                         {% endif %}
+
+                        <!-- Fast Selling Items -->
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'wholesale:fast_selling_wholesale_items' %}?period=week" class="btn btn-warning btn-block mb-1">
+                                <i class="fas fa-fire"></i><br>
+                                <small>Weekly Top Sales</small>
+                            </a>
+                            <a href="{% url 'wholesale:fast_selling_wholesale_items' %}?period=month" class="btn btn-outline-warning btn-block">
+                                <i class="fas fa-fire"></i><br>
+                                <small>Monthly Top Sales</small>
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>

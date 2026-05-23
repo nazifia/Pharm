@@ -5495,6 +5495,8 @@ def add_procurement(request):
                         # Update the procurement with the form data
                         procurement.supplier = procurement_form.cleaned_data['supplier']
                         procurement.date = procurement_form.cleaned_data['date']
+                        procurement.amount_paid = procurement_form.cleaned_data.get('amount_paid') or 0
+                        procurement.payment_method = procurement_form.cleaned_data.get('payment_method') or 'Cash'
 
                         # Delete existing items to avoid duplicates
                         procurement.items.all().delete()
@@ -5953,6 +5955,36 @@ def procurement_detail(request, procurement_id):
         })
     else:
         return redirect('store:index')
+
+
+@require_POST
+@login_required
+def update_procurement_payment(request, procurement_id):
+    procurement = get_object_or_404(Procurement, id=procurement_id)
+    amount = request.POST.get('amount', '').strip()
+    payment_method = request.POST.get('payment_method', '').strip()
+
+    try:
+        amount = Decimal(amount)
+        if amount <= 0:
+            raise ValueError
+    except (ValueError, Exception):
+        messages.error(request, 'Invalid payment amount.')
+        return redirect('store:procurement_list')
+
+    if payment_method not in dict(PAYMENT_METHOD_CHOICES):
+        messages.error(request, 'Invalid payment method.')
+        return redirect('store:procurement_list')
+
+    procurement.amount_paid += amount
+    if procurement.total and procurement.amount_paid > procurement.total:
+        procurement.amount_paid = procurement.total
+    procurement.payment_method = payment_method
+    procurement.save(update_fields=['amount_paid', 'payment_method'])
+    procurement.update_payment_status()
+
+    messages.success(request, f'Payment of ₦{amount:,.2f} recorded. Status: {procurement.payment_status.title()}')
+    return redirect(request.POST.get('next', 'store:procurement_list'))
 
 
 
@@ -8843,6 +8875,73 @@ def sync_offline_actions(request):
     """
     if request.method != "POST":
         return JsonResponse({"error": "Invalid method"}, status=405)
-    
+
     return JsonResponse({"error": "Not implemented"}, status=501)
+
+
+@login_required
+def fast_selling_items(request):
+    """Fast-selling retail items ranked by total quantity sold in the selected period."""
+    from django.utils import timezone as tz
+    today = tz.localdate()
+
+    period = request.GET.get('period', 'month')
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+
+    if period == 'today':
+        start_date = today
+        end_date = today
+    elif period == 'week':
+        start_date = today - timedelta(days=6)
+        end_date = today
+    elif period == 'year':
+        start_date = today.replace(month=1, day=1)
+        end_date = today
+    elif period == 'custom' and start_date_str and end_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            start_date = today.replace(day=1)
+            end_date = today
+        period = 'custom'
+    else:  # default: this month
+        period = 'month'
+        start_date = today.replace(day=1)
+        end_date = today
+
+    stock_subquery = Item.objects.filter(name=OuterRef('name')).values('stock')[:1]
+
+    top_items = (
+        DispensingLog.objects
+        .filter(
+            created_at__date__gte=start_date,
+            created_at__date__lte=end_date,
+            status='Dispensed',
+        )
+        .values('name', 'brand', 'unit', 'dosage_form__dosage_form')
+        .annotate(
+            total_qty=Sum('quantity'),
+            total_revenue=Sum('amount'),
+            transaction_count=Count('id'),
+            stock_left=Subquery(stock_subquery),
+        )
+        .order_by('-total_qty')[:20]
+    )
+
+    context = {
+        'top_items': top_items,
+        'period': period,
+        'start_date': start_date,
+        'end_date': end_date,
+        'period_label': {
+            'today': 'Today',
+            'week': 'Last 7 Days',
+            'month': 'This Month',
+            'year': 'This Year',
+            'custom': f'{start_date} – {end_date}',
+        }.get(period, 'This Month'),
+    }
+    return render(request, 'store/fast_selling_items.html', context)
 

@@ -219,14 +219,18 @@ class SupplierRegistrationForm(forms.ModelForm):
 class ProcurementForm(forms.ModelForm):
     class Meta:
         model = Procurement
-        fields = ['supplier', 'date']
+        fields = ['supplier', 'date', 'amount_paid', 'payment_method']
         widgets = {
             'supplier': forms.Select(attrs={'placeholder': 'Select supplier'}),
             'date': forms.DateInput(attrs={'placeholder': 'Select date', 'type': 'date'}),
+            'amount_paid': forms.NumberInput(attrs={'placeholder': 'Amount paid', 'min': '0', 'step': '0.01'}),
+            'payment_method': forms.Select(),
         }
         labels = {
             'supplier': 'Supplier',
             'date': 'Date',
+            'amount_paid': 'Amount Paid (₦)',
+            'payment_method': 'Payment Method',
         }
 
 

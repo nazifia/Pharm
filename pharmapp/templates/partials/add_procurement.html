@@ -272,9 +272,9 @@
     {% endif %}
 
     <!-- Procurement Form -->
-    <div>
+    <div class="row">
         {% for field in procurement_form %}
-        <div>
+        <div class="col-md-3 mb-2">
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
             {% if field.help_text %}
@@ -356,7 +356,24 @@
             <button class="btn btn-secondary btn-sm" id="pause" type="submit" name="action" value="pause">Pause</button>
         </div>
         <div class="col-md-6 text-right">
-            <h4>Total: ₦<span id="grand-total">0.00</span></h4>
+            <table class="table table-sm table-borderless mb-0" style="width:auto;float:right;">
+                <tr>
+                    <td><strong>Total:</strong></td>
+                    <td>₦<span id="grand-total">0.00</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Amount Paid:</strong></td>
+                    <td>₦<span id="amount-paid-display">0.00</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Balance:</strong></td>
+                    <td style="color:#dc3545;font-weight:bold;">₦<span id="balance-display">0.00</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Payment Status:</strong></td>
+                    <td><span id="payment-status-display" class="badge badge-warning">Unpaid</span></td>
+                </tr>
+            </table>
         </div>
     </div>
 
@@ -382,7 +399,45 @@
             grandTotal += parseFloat(subtotalText) || 0;
         });
         document.getElementById('grand-total').textContent = grandTotal.toFixed(2);
+        updatePaymentSummary(grandTotal);
     }
+
+    function updatePaymentSummary(grandTotal) {
+        const amountPaidInput = document.getElementById('id_amount_paid');
+        const amountPaid = amountPaidInput ? parseFloat(amountPaidInput.value) || 0 : 0;
+        const balance = Math.max(grandTotal - amountPaid, 0);
+
+        document.getElementById('amount-paid-display').textContent = amountPaid.toFixed(2);
+        document.getElementById('balance-display').textContent = balance.toFixed(2);
+
+        const statusEl = document.getElementById('payment-status-display');
+        if (amountPaid >= grandTotal && grandTotal > 0) {
+            statusEl.textContent = 'Paid';
+            statusEl.className = 'badge badge-success';
+            statusEl.style.backgroundColor = '#28a745';
+        } else if (amountPaid > 0) {
+            statusEl.textContent = 'Partial';
+            statusEl.className = 'badge badge-warning';
+            statusEl.style.backgroundColor = '#ffc107';
+        } else {
+            statusEl.textContent = 'Unpaid';
+            statusEl.className = 'badge badge-danger';
+            statusEl.style.backgroundColor = '#dc3545';
+        }
+        statusEl.style.color = '#fff';
+        statusEl.style.padding = '3px 8px';
+        statusEl.style.borderRadius = '4px';
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const amountPaidInput = document.getElementById('id_amount_paid');
+        if (amountPaidInput) {
+            amountPaidInput.addEventListener('input', function() {
+                const grandTotal = parseFloat(document.getElementById('grand-total').textContent) || 0;
+                updatePaymentSummary(grandTotal);
+            });
+        }
+    });
 
     // Function to search for items as user types with enhanced features
     function setupItemSearch(row) {

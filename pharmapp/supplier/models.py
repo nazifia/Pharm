@@ -118,6 +118,20 @@ class Supplier(models.Model):
         return self.name
 
 
+PAYMENT_METHOD_CHOICES = [
+    ('Cash', 'Cash'),
+    ('Transfer', 'Transfer'),
+    ('Credit', 'Credit'),
+    ('Cheque', 'Cheque'),
+]
+
+PAYMENT_STATUS_CHOICES = [
+    ('unpaid', 'Unpaid'),
+    ('partial', 'Partial'),
+    ('paid', 'Paid'),
+]
+
+
 class Procurement(models.Model):
     STATUS_CHOICES = [
         ('draft', 'Draft'),
@@ -129,16 +143,34 @@ class Procurement(models.Model):
     date = models.DateField(default=timezone.now)
     total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='Cash')
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='unpaid')
 
     def __str__(self):
         return f'Procurement {self.supplier.name}'
 
+    @property
+    def balance(self):
+        if self.total is None:
+            return Decimal('0.00')
+        return max(self.total - self.amount_paid, Decimal('0.00'))
 
+    def update_payment_status(self):
+        if self.total is None or self.total == 0:
+            self.payment_status = 'unpaid'
+        elif self.amount_paid >= self.total:
+            self.payment_status = 'paid'
+        elif self.amount_paid > 0:
+            self.payment_status = 'partial'
+        else:
+            self.payment_status = 'unpaid'
+        self.save(update_fields=['payment_status'])
 
     def calculate_total(self):
-        """Calculate and update the total cost of the procurement."""
         self.total = sum(item.subtotal for item in self.items.all())
         self.save(update_fields=['total'])
+        self.update_payment_status()
 
 
 
@@ -238,14 +270,34 @@ class WholesaleProcurement(models.Model):
     date = models.DateField(default=timezone.now)
     total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='Cash')
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='unpaid')
 
     def __str__(self):
         return f'Procurement {self.supplier.name}'
 
+    @property
+    def balance(self):
+        if self.total is None:
+            return Decimal('0.00')
+        return max(self.total - self.amount_paid, Decimal('0.00'))
+
+    def update_payment_status(self):
+        if self.total is None or self.total == 0:
+            self.payment_status = 'unpaid'
+        elif self.amount_paid >= self.total:
+            self.payment_status = 'paid'
+        elif self.amount_paid > 0:
+            self.payment_status = 'partial'
+        else:
+            self.payment_status = 'unpaid'
+        self.save(update_fields=['payment_status'])
+
     def calculate_total(self):
-        """Calculate and update the total cost of the procurement."""
         self.total = sum(item.subtotal for item in self.items.all())
         self.save(update_fields=['total'])
+        self.update_payment_status()
 
 
 class WholesaleProcurementItem(models.Model):

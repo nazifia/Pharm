@@ -479,6 +479,31 @@
         width: 1rem;
         height: 1rem;
     }
+
+    .barcode-scanned-item {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%) !important;
+        border: 3px solid #ffc107 !important;
+        box-shadow: 0 0 20px rgba(255, 193, 7, 0.5) !important;
+        animation: pulse-highlight 2s ease-in-out infinite;
+        transform: translateX(0) !important;
+    }
+
+    .barcode-scanned-item td {
+        font-weight: 700;
+        color: #856404;
+    }
+
+    @keyframes pulse-highlight {
+        0%, 100% { box-shadow: 0 0 20px rgba(255, 193, 7, 0.5); }
+        50% { box-shadow: 0 0 30px rgba(255, 193, 7, 0.8); }
+    }
+
+    @media (max-width: 768px) {
+        .barcode-scanned-item {
+            margin: 0 -1rem;
+            padding: 1.5rem !important;
+        }
+    }
 </style>
 
 
@@ -559,7 +584,7 @@
                     {% for item in items %}
                     <tr>
                         <td data-label="Select">
-                            <input type="checkbox" name="item_ids" value="{{ item.id }}">
+                            <input type="checkbox" name="item_ids" value="{{ item.id }}" data-item-id="{{ item.id }}">
                         </td>
                         <td data-label="Item" class="item-name">{{ item.name|title }}</td>
                         <td data-label="D/form">{{ item.dosage_form|default:"N/A" }}</td>
@@ -570,8 +595,8 @@
                             {{ item.stock }}
                         </td>
                         <td data-label="Quantity">
-                            <input type="number" name="quantities" max="{{ item.stock_quantity }}" value="1" min="0.5" step="0.5"
-                                class="form-control input-sm" disabled>
+                            <input type="number" name="quantities" max="{{ item.stock }}" value="1" min="0.5" step="0.5"
+                                class="form-control input-sm" data-item-id="{{ item.id }}" disabled>
                         </td>
                     </tr>
                     {% endfor %}
@@ -629,34 +654,89 @@
     </div>
 </div>
 <script>
-    // Function to enable quantity input when checkbox is selected
+    // Global object to persist selected items across HTMX search swaps
+    let selectedItems = {};
+
+    function saveItemSelection(itemId, isChecked, quantity) {
+        if (isChecked) {
+            selectedItems[itemId] = { checked: true, quantity: quantity || 1 };
+        } else {
+            delete selectedItems[itemId];
+        }
+    }
+
+    function restoreItemSelections() {
+        Object.keys(selectedItems).forEach(function(itemId) {
+            const checkbox = document.querySelector(`input[type="checkbox"][value="${itemId}"]`);
+            const quantityInput = checkbox ? checkbox.closest('tr').querySelector('input[type="number"]') : null;
+            if (checkbox && quantityInput) {
+                checkbox.checked = selectedItems[itemId].checked;
+                quantityInput.disabled = !checkbox.checked;
+                quantityInput.value = selectedItems[itemId].quantity;
+            }
+        });
+    }
+
+    function addHiddenInputsForSelectedItems() {
+        document.querySelectorAll('.hidden-selected-item').forEach(el => el.remove());
+        const form = document.getElementById('item-form');
+        const visibleItemIds = Array.from(document.querySelectorAll('input[type="checkbox"][name="item_ids"]'))
+            .map(cb => cb.value);
+        Object.keys(selectedItems).forEach(function(itemId) {
+            if (!visibleItemIds.includes(itemId)) {
+                const hiddenItemId = document.createElement('input');
+                hiddenItemId.type = 'hidden';
+                hiddenItemId.name = 'item_ids';
+                hiddenItemId.value = itemId;
+                hiddenItemId.className = 'hidden-selected-item';
+                form.appendChild(hiddenItemId);
+                const hiddenQuantity = document.createElement('input');
+                hiddenQuantity.type = 'hidden';
+                hiddenQuantity.name = 'quantities';
+                hiddenQuantity.value = selectedItems[itemId].quantity;
+                hiddenQuantity.className = 'hidden-selected-item';
+                form.appendChild(hiddenQuantity);
+            }
+        });
+    }
+
     function setupCheckboxListeners() {
-        document.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+        document.querySelectorAll('input[type="checkbox"][name="item_ids"]').forEach(function (checkbox) {
             checkbox.addEventListener('change', function () {
                 const quantityInput = this.closest('tr').querySelector('input[type="number"]');
+                const itemId = this.value;
+                const quantity = quantityInput.value;
                 quantityInput.disabled = !this.checked;
+                saveItemSelection(itemId, this.checked, quantity);
+                addHiddenInputsForSelectedItems();
+            });
+        });
+
+        document.querySelectorAll('input[type="number"][name="quantities"]').forEach(function (quantityInput) {
+            quantityInput.addEventListener('change', function () {
+                const checkbox = this.closest('tr').querySelector('input[type="checkbox"]');
+                if (checkbox && checkbox.checked) {
+                    saveItemSelection(checkbox.value, true, this.value);
+                }
             });
         });
     }
 
-    // Call the function on page load
     setupCheckboxListeners();
+    restoreItemSelections();
 
-    // Set up HTMX event listener to reinitialize checkbox listeners after search results load
     document.body.addEventListener('htmx:afterSwap', function(event) {
         if (event.detail.target.id === 'for-customer') {
             setupCheckboxListeners();
+            restoreItemSelections();
+            addHiddenInputsForSelectedItems();
         }
     });
 
-    // Update form action dynamically based on selected action
     const actionSelect = document.getElementById('action');
     actionSelect.addEventListener('change', function () {
-        const selectedAction = this.value;
-
-        // Reload the page with the new action parameter to show correct items
         const currentUrl = new URL(window.location);
-        currentUrl.searchParams.set('action', selectedAction);
+        currentUrl.searchParams.set('action', this.value);
         window.location.href = currentUrl.toString();
     });
 </script>
@@ -666,62 +746,95 @@
 
 <!-- Barcode Scanner Callback for Wholesale Item Selection -->
 <script>
-    console.log('[Wholesale Item Selection - Partials] Defining barcode callback');
+    console.log('[Wholesale Item Selection] Defining barcode callback');
 
     window.onBarcodeItemFound = function(item, barcode) {
-        console.log('[Wholesale Item Selection - Partials] Barcode scanned:', barcode, 'Item:', item);
+        console.log('[Wholesale Item Selection] Barcode scanned:', barcode, 'Item:', item);
 
-        // Fill the search input with the item name
+        if (window.isProcessingBarcode) {
+            console.log('[Wholesale Item Selection] Already processing barcode, ignoring...');
+            return;
+        }
+        window.isProcessingBarcode = true;
+        setTimeout(() => { window.isProcessingBarcode = false; }, 500);
+
         const searchInput = document.getElementById('wholesale-item-search');
         if (searchInput && item) {
             searchInput.value = item.name;
-            console.log('[Wholesale Item Selection - Partials] Search input filled with:', item.name);
+            window.scannedItemId = item.id;
 
-            // Trigger HTMX search
             setTimeout(() => {
-                htmx.trigger(searchInput, 'keyup');
-                console.log('[Wholesale Item Selection - Partials] HTMX search triggered');
-
-                // Wait for search results to load, then auto-select the item
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
                 setTimeout(() => {
-                    // Find the checkbox for this wholesale item
-                    const checkbox = document.querySelector(`input[type="checkbox"][data-item-id="${item.id}"]`);
-                    if (checkbox && !checkbox.checked) {
-                        checkbox.checked = true;
-                        console.log('[Wholesale Item Selection - Partials] Item checkbox auto-selected');
+                    htmx.trigger(searchInput, 'keyup');
+                    console.log('[Wholesale Item Selection] HTMX search triggered');
+                }, 50);
 
-                        // Find and set quantity to 1 if not already set
-                        const quantityInput = document.querySelector(`input[name="quantities"][data-item-id="${item.id}"]`);
-                        if (quantityInput && (!quantityInput.value || quantityInput.value === '0')) {
-                            quantityInput.value = '1';
-                            quantityInput.disabled = false;
-                            console.log('[Wholesale Item Selection - Partials] Quantity set to 1');
+                setTimeout(() => {
+                    const checkbox = document.querySelector(`input[type="checkbox"][data-item-id="${item.id}"]`);
+                    if (checkbox) {
+                        if (!checkbox.checked) {
+                            checkbox.checked = true;
+                            const quantityInput = document.querySelector(`input[name="quantities"][data-item-id="${item.id}"]`);
+                            if (quantityInput) {
+                                quantityInput.value = '1';
+                                quantityInput.disabled = false;
+                                saveItemSelection(checkbox.value, true, '1');
+                                addHiddenInputsForSelectedItems();
+                            }
                         }
+                        highlightScannedItem(item.id);
                     }
-                }, 800); // Wait for HTMX to load results
-            }, 100);
+                }, 400);
+            }, 80);
         } else {
-            console.error('[Wholesale Item Selection - Partials] Search input not found or item is null');
+            console.error('[Wholesale Item Selection] Search input not found or item is null');
         }
 
-        // Close the scanner modal
         const modalElement = document.getElementById('barcodeScannerModal');
         if (modalElement) {
             const modal = bootstrap.Modal.getInstance(modalElement);
             if (modal) modal.hide();
         }
 
-        // Show success notification
         if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
             window.offlineHandler.showInAppNotification(
-                'Wholesale Item Scanned',
-                `${item.name} added to selection`,
-                'success'
+                'Item Found',
+                `${item.name}${item.brand ? ' - ' + item.brand : ''} selected. Adjust quantity if needed, then click "Proceed with Action".`,
+                'info'
             );
         }
     };
 
-    console.log('[Wholesale Item Selection - Partials] Barcode callback ready');
+    function highlightScannedItem(itemId) {
+        const checkbox = document.querySelector(`input[type="checkbox"][data-item-id="${itemId}"]`);
+        const itemRow = checkbox ? checkbox.closest('tr') : null;
+        if (itemRow) {
+            itemRow.classList.add('barcode-scanned-item');
+            itemRow.setAttribute('aria-live', 'polite');
+            itemRow.setAttribute('aria-label', 'Scanned wholesale item');
+            try {
+                itemRow.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            } catch (e) {
+                itemRow.scrollIntoView(true);
+            }
+            const quantityInput = itemRow.querySelector('input[name="quantities"]');
+            if (quantityInput && !quantityInput.disabled) {
+                setTimeout(() => { quantityInput.focus(); quantityInput.select(); }, 700);
+            }
+            setTimeout(() => { itemRow.classList.remove('barcode-scanned-item'); }, 5000);
+        } else {
+            if (window.offlineHandler && window.offlineHandler.showInAppNotification) {
+                window.offlineHandler.showInAppNotification(
+                    'Item Not Available',
+                    'The scanned wholesale item was not found in available inventory.',
+                    'warning'
+                );
+            }
+        }
+    }
+
+    console.log('[Wholesale Item Selection] Barcode callback ready');
 
     // ==================== HARDWARE BARCODE SCANNER SUPPORT ====================
     // Supports USB/Bluetooth handheld barcode scanners for wholesale registered customers

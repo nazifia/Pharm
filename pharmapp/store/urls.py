@@ -66,6 +66,7 @@ urlpatterns = [
     path('add_procurement/', views.add_procurement, name='add_procurement'),
     path('search_procurement/', views.search_procurement, name='search_procurement'),
     path('procurement_detail/<int:procurement_id>/', views.procurement_detail, name='procurement_detail'),
+    path('update_procurement_payment/<int:procurement_id>/', views.update_procurement_payment, name='update_procurement_payment'),
     path('suppliers/', views.list_suppliers_view, name='list_suppliers'),
     path('register_supplier_view/partials/supplier_list.html', views.supplier_list_partial),
 
@@ -156,4 +157,7 @@ urlpatterns = [
     
     # Test barcode scanner
     path('test_barcode/', views.test_barcode_scanner, name='test_barcode'),
+
+    # Fast Selling Items
+    path('fast-selling-items/', views.fast_selling_items, name='fast_selling_items'),
 ]

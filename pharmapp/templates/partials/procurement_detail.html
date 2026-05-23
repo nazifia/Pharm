@@ -185,7 +185,21 @@
     </table>
 </div>
 
-    <p style="text-align: end;"><strong>Total Amount: ₦{{ total|floatformat:2| intcomma }}</strong></p>
+    <div style="text-align:end; margin-top:10px;">
+        <p><strong>Total Amount:</strong> ₦{{ total|floatformat:2|intcomma }}</p>
+        <p><strong>Amount Paid:</strong> ₦{{ procurement.amount_paid|floatformat:2|intcomma }}</p>
+        <p><strong>Balance Due:</strong> ₦{{ procurement.balance|floatformat:2|intcomma }}</p>
+        <p><strong>Payment Method:</strong> {{ procurement.payment_method }}</p>
+        <p><strong>Payment Status:</strong>
+            {% if procurement.payment_status == 'paid' %}
+            <span style="color:#28a745;font-weight:bold;">Paid</span>
+            {% elif procurement.payment_status == 'partial' %}
+            <span style="color:#ffc107;font-weight:bold;">Partial Payment</span>
+            {% else %}
+            <span style="color:#dc3545;font-weight:bold;">Unpaid</span>
+            {% endif %}
+        </p>
+    </div>
 
     <footer>
         <p>___Official Procurement Record___</p>
@@ -204,7 +218,54 @@
     <button class="btn btn-info btn-sm" onclick="window.location.reload()">
         <i class="fas fa-redo"></i> Reset
     </button>
+    {% if procurement.payment_status != 'paid' %}
+    <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#paymentModal">
+        <i class="fas fa-money-bill"></i> Update Payment
+    </button>
+    {% endif %}
 </div>
+
+{% if procurement.payment_status != 'paid' %}
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="paymentModalLabel">Record Payment</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <form method="POST" action="{% url 'store:update_procurement_payment' procurement.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'store:procurement_detail' procurement.id %}">
+        <div class="modal-body">
+          <p><strong>Balance Due:</strong> ₦{{ procurement.balance|floatformat:2 }}</p>
+          <div class="mb-3">
+            <label class="form-label">Amount Paying Now (₦)</label>
+            <input type="number" name="amount" class="form-control" step="0.01" min="0.01"
+                   max="{{ procurement.balance }}" required>
+            <button type="button" class="btn btn-link btn-sm p-0 mt-1"
+                onclick="this.previousElementSibling.value='{{ procurement.balance }}'">
+                Pay full balance
+            </button>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Payment Method</label>
+            <select name="payment_method" class="form-select" required>
+              <option value="Cash" {% if procurement.payment_method == 'Cash' %}selected{% endif %}>Cash</option>
+              <option value="Transfer" {% if procurement.payment_method == 'Transfer' %}selected{% endif %}>Transfer</option>
+              <option value="Cheque" {% if procurement.payment_method == 'Cheque' %}selected{% endif %}>Cheque</option>
+              <option value="Credit" {% if procurement.payment_method == 'Credit' %}selected{% endif %}>Credit</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">Record Payment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <script>
     function downloadPDF() {

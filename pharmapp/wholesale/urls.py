@@ -65,6 +65,7 @@ urlpatterns = [
     path('wholesale_procurement_list/', views.wholesale_procurement_list, name='wholesale_procurement_list'),
     path('search_wholesale_procurement/', views.search_wholesale_procurement, name='search_wholesale_procurement'),
     path('wholesale_procurement_detail/<int:procurement_id>/', views.wholesale_procurement_detail, name='wholesale_procurement_detail'),
+    path('update_wholesale_procurement_payment/<int:procurement_id>/', views.update_wholesale_procurement_payment, name='update_wholesale_procurement_payment'),
     path('wholesale_procurement_form/', views.wholesale_procurement_form, name='wholesale_procurement_form'),
     path('search_wholesale_items_for_procurement/', views.search_wholesale_items_for_procurement, name='search_wholesale_items_for_procurement'),
 
@@ -120,4 +121,7 @@ urlpatterns = [
     path('qr/receipt/<int:receipt_id>/', views.generate_wholesale_receipt_qr, name='generate_wholesale_receipt_qr'),
     path('print-labels/', views.print_wholesale_item_labels, name='print_wholesale_item_labels'),
     path('qr/bulk-labels/', views.bulk_generate_wholesale_labels, name='bulk_generate_wholesale_labels'),
+
+    # Fast Selling Items
+    path('fast-selling-items/', views.fast_selling_wholesale_items, name='fast_selling_wholesale_items'),
 ]

@@ -94,11 +94,7 @@
 
 <div class="container">
     <div class="side-nav">
-        {% comment %} <a class="btn btn-primary btn-sm" data-toggle="modal" data-target="#dispenseModal"
-            hx-get="{% url 'store:dispense' %}" hx-target="#dispenseModal .modal-body">Select item</a>
-
-        <a class="btn btn-sm btn-warning" href="{% url 'store:view_cart' %}">View cart</a> {% endcomment %}
-
+        
         <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#paymentModal">Generate Receipt</button>
 
         <form method="POST" action="{% url 'store:clear_cart' %}" onsubmit="return confirmClearCart();">
@@ -150,7 +146,7 @@
                                 {% csrf_token %}
                                 <input type="number" name="quantity" min="1" id="quantity-{{ cart_item.id }}"
                                     style="width: 70px; border-radius: 3px;">
-                                <button class="btn btn-outline-danger btn-sm mb-2" type="submit">Reduce</button>
+                                <button class="btn btn-outline-danger btn-sm mb-2" type="submit">Remove</button>
                             </form>
                         </td>
                         <td>
