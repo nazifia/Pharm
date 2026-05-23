@@ -11,7 +11,7 @@ from collections import defaultdict
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST, require_http_methods
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.cache import never_cache
 import uuid
 from store.models import *
@@ -328,6 +328,7 @@ def search_wholesale_item(request):
         return redirect('store:index')
 
 
+@ensure_csrf_cookie
 @user_passes_test(is_admin_or_manager)
 @login_required
 def add_to_wholesale(request):

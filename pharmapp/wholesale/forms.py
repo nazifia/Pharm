@@ -12,7 +12,7 @@ class addWholesaleForm(forms.ModelForm):
     cost = forms.DecimalField(max_digits=10, decimal_places=2)
     price = forms.DecimalField(max_digits=10, decimal_places=2, required=False)
     stock = forms.IntegerField()
-    exp_date = forms.DateField()
+    exp_date = forms.DateField(required=False)
     markup = forms.DecimalField(max_digits=6, decimal_places=2)
     unit = forms.CharField(max_length=200, required=False)
     barcode = forms.CharField(max_length=200, required=False)

@@ -55,17 +55,14 @@
                 console.log('[HTMX] Loaded successfully - cache disabled for all requests');
             }
 
-            // Configure HTMX to include CSRF token — must run after DOMContentLoaded
-            // so document.body is available and the meta csrf-token tag is parsed.
-            var csrfMeta = document.querySelector('meta[name="csrf-token"]');
-            if (csrfMeta && document.body) {
-                document.body.setAttribute('hx-headers', JSON.stringify({
-                    'X-CSRFToken': csrfMeta.getAttribute('content'),
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0'
-                }));
-                htmx.process(document.body);
+            // Configure HTMX to include CSRF token from cookie (most reliable — reads current value at request time)
+            function getCsrfCookieValue() {
+                const match = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('csrftoken='));
+                return match ? decodeURIComponent(match.split('=')[1]) : null;
+            }
+            const csrfToken = getCsrfCookieValue();
+            if (typeof htmx !== 'undefined' && csrfToken) {
+                htmx.config.globalHeaders = { 'X-CSRFToken': csrfToken };
             }
         });
     </script>
@@ -1228,56 +1225,13 @@
     </div>
 
 
-{% comment %} Provide csrf token to transfer-request {% endcomment %}
     <script>
-        // Configure HTMX CSRF token using multiple approaches for robustness
-        document.body.addEventListener("htmx:configRequest", (event) => {
-            try {
-                if (event && event.detail && event.detail.headers) {
-                    // Read CSRF token from cookie at request time (most reliable for dynamic content)
-                    function getCsrfTokenFromCookie() {
-                        const name = 'csrftoken';
-                        const match = document.cookie.split(';').map(c => c.trim())
-                            .find(c => c.startsWith(name + '='));
-                        return match ? decodeURIComponent(match.split('=')[1]) : null;
-                    }
-                    const cookieToken = getCsrfTokenFromCookie();
-                    if (cookieToken) {
-                        event.detail.headers["X-CSRFToken"] = cookieToken;
-                    }
-
-                    console.log('HTMX CSRF token set:', cookieToken ? '(from cookie)' : '(none found)');
-                }
-            } catch (error) {
-                console.error('Error setting CSRF token in HTMX:', error);
-            }
-        });
-
-        // Debug: Log CSRF token availability
-        console.log('CSRF token available in template:', '{{ csrf_token }}' !== '');
-        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-        console.log('CSRF meta tag available:', csrfMeta !== null);
-        if (csrfMeta) {
-            console.log('CSRF meta tag content:', csrfMeta.getAttribute('content'));
-        }
-    </script>
-    <script>
-        // Method 3: Configure HTMX to automatically handle CSRF tokens
-        // This sets up HTMX to read CSRF token from the meta tag automatically
-        document.addEventListener('DOMContentLoaded', function() {
-            // Read CSRF token from cookie dynamically at request time
-            function getCsrfCookie() {
-                const name = 'csrftoken';
-                const match = document.cookie.split(';').map(c => c.trim())
-                    .find(c => c.startsWith(name + '='));
-                return match ? decodeURIComponent(match.split('=')[1]) : null;
-            }
-            const token = getCsrfCookie();
-            if (typeof htmx !== 'undefined' && token) {
-                htmx.config.globalHeaders = {
-                    'X-CSRFToken': token
-                };
-                console.log('HTMX global headers configured with CSRF token from cookie');
+        // Refresh X-CSRFToken on every HTMX request (handles cookie updates after partial loads)
+        document.body.addEventListener("htmx:configRequest", function(event) {
+            const match = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('csrftoken='));
+            const token = match ? decodeURIComponent(match.split('=')[1]) : null;
+            if (token) {
+                event.detail.headers["X-CSRFToken"] = token;
             }
         });
     </script>

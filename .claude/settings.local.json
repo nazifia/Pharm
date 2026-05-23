@@ -14,7 +14,9 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Dell\\\\Desktop\\\\MY_PRODUCTS\\\\Pharm\" -Recurse -Directory)",
       "Bash(Select-Object FullName)",
       "Bash(xargs grep -l \"procurement\\\\|Procurement\")",
-      "Bash(xargs grep -l \"payment\\\\|Payment\\\\|invoice\\\\|Invoice\\\\|bill\\\\|Bill\")"
+      "Bash(xargs grep -l \"payment\\\\|Payment\\\\|invoice\\\\|Invoice\\\\|bill\\\\|Bill\")",
+      "Bash(dir /s \"C:\\\\Users\\\\Dell\\\\Desktop\\\\MY_PRODUCTS\\\\Pharm\\\\pharmapp\\\\*.py\")",
+      "Bash(findstr settings *)"
     ],
     "deny": [],
     "ask": []
