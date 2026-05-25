@@ -5901,12 +5901,38 @@ def search_store_items(request):
 @login_required
 def procurement_list(request):
     if request.user.is_authenticated:
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        from utils.date_utils import filter_queryset_by_date, get_date_filter_context
+
+        date_context = get_date_filter_context(request, 'date')
+        date_query = date_context['date_string']
+        name_query = request.GET.get('name', '').strip()
+
         procurements = (
             Procurement.objects.annotate(calculated_total=Sum('items__subtotal'))
             .order_by('-date')
         )
+
+        if date_query and date_context['is_valid_date']:
+            procurements = filter_queryset_by_date(procurements, 'date', date_query)
+
+        if name_query:
+            procurements = procurements.filter(supplier__name__icontains=name_query)
+
+        paginator = Paginator(procurements, 50)
+        page_number = request.GET.get('page', 1)
+        try:
+            procurements = paginator.get_page(page_number)
+        except PageNotAnInteger:
+            procurements = paginator.get_page(1)
+        except EmptyPage:
+            procurements = paginator.get_page(paginator.num_pages)
+
         return render(request, 'partials/procurement_list.html', {
             'procurements': procurements,
+            'date_query': date_query,
+            'name_query': name_query,
+            'is_paginated': paginator.num_pages > 1,
         })
     else:
         return redirect('store:index')

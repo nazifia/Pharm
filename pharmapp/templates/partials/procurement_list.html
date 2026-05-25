@@ -35,30 +35,6 @@
         margin-right: 5px;
     }
 
-    .search-form {
-        margin-bottom: 20px;
-    }
-
-    .search-form input {
-        padding: 8px;
-        width: 300px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-    }
-
-    .search-form button {
-        padding: 8px 15px;
-        background-color: #007bff;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-
-    .search-form button:hover {
-        background-color: #0056b3;
-    }
-
     .status-draft {
         color: #ff9800;
         font-weight: bold;
@@ -88,14 +64,27 @@
     <div class="alert alert-{{message.tags}} text-center">{{ message }}</div>
     {% endfor %}
 
-    <div class="search-form">
-        <form hx-get="{% url 'store:search_procurement' %}" hx-target="#procurement-list" hx-trigger="submit">
-            <div class="input-group mb-3">
-                <input type="text" name="name" class="form-control" placeholder="Search by supplier name...">
-                <button class="btn btn-primary" type="submit">Search</button>
+    <!-- Search / Filter Form -->
+    <form method="get" action="" class="mb-3">
+        <div class="form-row align-items-end">
+            <div class="col-md-3">
+                <label for="name">Supplier Name</label>
+                <input type="text" name="name" id="name" class="form-control"
+                    placeholder="Search by supplier..." value="{{ name_query }}">
             </div>
-        </form>
-    </div>
+            <div class="col-md-3">
+                <label for="date">Date</label>
+                <input type="date" name="date" id="date" class="form-control"
+                    style="background-color: rgb(212, 248, 159);" value="{{ date_query }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-block">Search</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{% url 'store:procurement_list' %}" class="btn btn-secondary btn-block">Clear</a>
+            </div>
+        </div>
+    </form>
 
     <div id="procurement-list" class="procurement-list">
         <div class="table-responsive">
@@ -109,6 +98,7 @@
                         <th>Paid</th>
                         <th>Balance</th>
                         <th>Payment</th>
+                        <th>Payment Status</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -153,14 +143,62 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="10" class="text-center">No procurements found.</td>
+                        <td colspan="10" class="text-center">No procurements found{% if date_query or name_query %} for the selected filters{% endif %}.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+
+        <!-- Pagination -->
+        {% if is_paginated %}
+        <nav aria-label="Procurement list pagination">
+            <ul class="pagination justify-content-center">
+                {% if procurements.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if date_query %}&date={{ date_query }}{% endif %}{% if name_query %}&name={{ name_query }}{% endif %}">&laquo; First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ procurements.previous_page_number }}{% if date_query %}&date={{ date_query }}{% endif %}{% if name_query %}&name={{ name_query }}{% endif %}">Previous</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">&laquo; First</span></li>
+                    <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                {% endif %}
+
+                {% for num in procurements.paginator.page_range %}
+                    {% if procurements.number == num %}
+                        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > procurements.number|add:'-3' and num < procurements.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% if date_query %}&date={{ date_query }}{% endif %}{% if name_query %}&name={{ name_query }}{% endif %}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if procurements.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ procurements.next_page_number }}{% if date_query %}&date={{ date_query }}{% endif %}{% if name_query %}&name={{ name_query }}{% endif %}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ procurements.paginator.num_pages }}{% if date_query %}&date={{ date_query }}{% endif %}{% if name_query %}&name={{ name_query }}{% endif %}">Last &raquo;</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">Next</span></li>
+                    <li class="page-item disabled"><span class="page-link">Last &raquo;</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        <div class="text-center mb-3">
+            <small class="text-muted">
+                Showing {{ procurements.start_index }} to {{ procurements.end_index }} of {{ procurements.paginator.count }} procurements
+            </small>
+        </div>
+        {% endif %}
     </div>
 </div>
+
 <!-- Update Payment Modal -->
 <div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
   <div class="modal-dialog">
