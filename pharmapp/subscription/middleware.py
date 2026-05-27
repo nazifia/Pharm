@@ -6,6 +6,8 @@ from django.shortcuts import redirect
 
 _ENFORCEMENT_CACHE_KEY = 'subscription_enforcement_enabled'
 _ENFORCEMENT_CACHE_TTL = 60  # seconds
+_SUBSCRIPTION_STATUS_KEY = 'subscription_is_active'
+_SUBSCRIPTION_STATUS_TTL = 300  # 5 minutes — subscription status changes at most daily
 
 
 def _enforcement_enabled():
@@ -21,6 +23,28 @@ def _enforcement_enabled():
         enabled = True
     cache.set(_ENFORCEMENT_CACHE_KEY, enabled, _ENFORCEMENT_CACHE_TTL)
     return enabled
+
+
+def _get_subscription_active():
+    """Return whether an active subscription exists. Cached for 5 minutes."""
+    cached = cache.get(_SUBSCRIPTION_STATUS_KEY)
+    if cached is not None:
+        return cached
+    try:
+        from .models import Subscription
+        sub = Subscription.get_current()
+        if sub:
+            sub.sync_status()
+            is_active = sub.is_active
+        else:
+            any_sub = Subscription.objects.order_by('-end_date').first()
+            if any_sub:
+                any_sub.sync_status()
+            is_active = False
+    except Exception:
+        is_active = True  # Fail open
+    cache.set(_SUBSCRIPTION_STATUS_KEY, is_active, _SUBSCRIPTION_STATUS_TTL)
+    return is_active
 
 
 EXEMPT_PREFIXES = (
@@ -53,16 +77,7 @@ class SubscriptionMiddleware:
         if not _enforcement_enabled():
             return self.get_response(request)
         if self._should_check(request):
-            from .models import Subscription
-            sub = Subscription.get_current()
-            if sub:
-                sub.sync_status()
-                if not sub.is_active:
-                    return self._block(request)
-            else:
-                any_sub = Subscription.objects.order_by('-end_date').first()
-                if any_sub:
-                    any_sub.sync_status()
+            if not _get_subscription_active():
                 return self._block(request)
         return self.get_response(request)
 

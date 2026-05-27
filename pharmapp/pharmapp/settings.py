@@ -337,7 +337,7 @@ SESSION_SAVE_EVERY_REQUEST = True  # Reset the session expiration time on each r
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
 SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookies
 SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database sessions for better user isolation
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'  # Read from cache, persist to DB
 # Note: SESSION_COOKIE_SECURE is set above based on DEBUG flag (True in production, False in development)
 
 # Auto logout settings

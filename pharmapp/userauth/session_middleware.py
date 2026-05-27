@@ -3,6 +3,7 @@ Session validation middleware to ensure proper user session isolation.
 This middleware prevents session hijacking and ensures each user has independent sessions.
 """
 
+import threading
 from django.contrib.auth import logout
 from django.contrib.sessions.models import Session
 from django.utils import timezone
@@ -86,18 +87,22 @@ class SessionValidationMiddleware:
     def _update_session_data(self, request):
         """
         Update session with user-specific data for validation.
+        Throttled to once per 60 seconds to reduce DB writes.
         """
         try:
-            # Store user-specific session data
+            last_validation = request.session.get('last_validation')
+            if last_validation:
+                last_dt = timezone.datetime.fromisoformat(last_validation)
+                if (timezone.now() - last_dt).total_seconds() < 60:
+                    return  # Skip — recently validated
+
             request.session['user_id'] = request.user.id
             request.session['username'] = request.user.username
             request.session['last_validation'] = timezone.now().isoformat()
 
-            # Generate and store session validation key
             validation_key = self._generate_session_validation_key(request.user)
             request.session['session_validation_key'] = validation_key
 
-            # Ensure user-specific session namespace exists
             if 'user_data' not in request.session:
                 request.session['user_data'] = {}
 
@@ -125,24 +130,19 @@ class SessionCleanupMiddleware:
         self.cleanup_counter = 0
 
     def __call__(self, request):
-        # Periodically clean up expired sessions (every 100 requests)
         self.cleanup_counter += 1
         if self.cleanup_counter >= 100:
-            self._cleanup_expired_sessions()
+            threading.Thread(target=self._cleanup_expired_sessions, daemon=True).start()
             self.cleanup_counter = 0
-        
+
         response = self.get_response(request)
         return response
 
     def _cleanup_expired_sessions(self):
-        """
-        Clean up expired sessions from the database.
-        """
         try:
-            expired_sessions = Session.objects.filter(expire_date__lt=timezone.now())
-            count = expired_sessions.count()
-            expired_sessions.delete()
-            logger.info(f"Cleaned up {count} expired sessions")
+            deleted, _ = Session.objects.filter(expire_date__lt=timezone.now()).delete()
+            if deleted:
+                logger.info(f"Cleaned up {deleted} expired sessions")
         except Exception as e:
             logger.error(f"Error cleaning up sessions: {e}")
 
@@ -170,32 +170,46 @@ class UserActivityTrackingMiddleware:
     def _track_user_activity(self, request):
         """
         Track user activity in their session for security monitoring.
+        Throttled to once per 30 seconds to reduce DB writes.
         """
         try:
-            # Get or initialize activity tracking data
-            activity_data = request.session.get('user_activity', {
-                'login_time': timezone.now().isoformat(),
-                'page_views': 0,
-                'last_activity': timezone.now().isoformat(),
-                'ip_address': self._get_client_ip(request),
-                'user_agent': request.META.get('HTTP_USER_AGENT', '')[:200]
-            })
-            
-            # Update activity data
-            activity_data['page_views'] += 1
-            activity_data['last_activity'] = timezone.now().isoformat()
-            
-            # Check for suspicious activity (IP change)
+            now = timezone.now()
+            activity_data = request.session.get('user_activity')
+
+            if activity_data:
+                last_dt = timezone.datetime.fromisoformat(activity_data.get('last_activity', ''))
+                if (now - last_dt).total_seconds() < 30:
+                    # Check IP change even when throttled (security)
+                    current_ip = self._get_client_ip(request)
+                    if activity_data.get('ip_address') != current_ip:
+                        logger.warning(
+                            f"IP change: {request.user.username} "
+                            f"{activity_data['ip_address']} -> {current_ip}"
+                        )
+                        activity_data['ip_address'] = current_ip
+                        request.session['user_activity'] = activity_data
+                    return
+            else:
+                activity_data = {
+                    'login_time': now.isoformat(),
+                    'page_views': 0,
+                    'last_activity': now.isoformat(),
+                    'ip_address': self._get_client_ip(request),
+                    'user_agent': request.META.get('HTTP_USER_AGENT', '')[:200],
+                }
+
             current_ip = self._get_client_ip(request)
-            if activity_data['ip_address'] != current_ip:
-                logger.warning(f"IP address change detected for user {request.user.username}: "
-                             f"{activity_data['ip_address']} -> {current_ip}")
-                # Update IP but log the change
+            if activity_data.get('ip_address') != current_ip:
+                logger.warning(
+                    f"IP change: {request.user.username} "
+                    f"{activity_data.get('ip_address')} -> {current_ip}"
+                )
                 activity_data['ip_address'] = current_ip
-            
-            # Store updated activity data
+
+            activity_data['page_views'] = activity_data.get('page_views', 0) + 1
+            activity_data['last_activity'] = now.isoformat()
             request.session['user_activity'] = activity_data
-            
+
         except Exception as e:
             logger.error(f"Error tracking user activity: {e}")
 

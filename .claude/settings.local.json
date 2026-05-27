@@ -16,7 +16,8 @@
       "Bash(xargs grep -l \"procurement\\\\|Procurement\")",
       "Bash(xargs grep -l \"payment\\\\|Payment\\\\|invoice\\\\|Invoice\\\\|bill\\\\|Bill\")",
       "Bash(dir /s \"C:\\\\Users\\\\Dell\\\\Desktop\\\\MY_PRODUCTS\\\\Pharm\\\\pharmapp\\\\*.py\")",
-      "Bash(findstr settings *)"
+      "Bash(findstr settings *)",
+      "Bash(grep -r \"time\\\\.sleep\\\\|import time\\\\|requests\\\\.\" \"C:\\\\Users\\\\Dell\\\\Desktop\\\\MY_PRODUCTS\\\\Pharm\\\\pharmapp\" --include=\"*.py\" -not -path \"*/venv/*\")"
     ],
     "deny": [],
     "ask": []
