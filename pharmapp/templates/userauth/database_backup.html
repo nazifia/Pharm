@@ -1,0 +1,104 @@
+{% extends "partials/base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="text-center">Database Backup</h1>
+            <p class="text-center text-muted">Create and download backups for migration or safekeeping</p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-database"></i> SQLite Snapshot</h5>
+                    <p class="card-text text-muted">Exact copy of the database file. Best for restoring to another
+                        server running SQLite. Safe to run while the app is in use.</p>
+                    <form method="post" action="{% url 'userauth:create_database_backup' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="format" value="sqlite">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Create SQLite Backup
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-file-code"></i> JSON Dump (Portable)</h5>
+                    <p class="card-text text-muted">Engine-independent export of all data. Use this to migrate to
+                        MySQL/PostgreSQL: run migrations on the new database, then <code>loaddata</code> this file.</p>
+                    <form method="post" action="{% url 'userauth:create_database_backup' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="format" value="json">
+                        <button type="submit" class="btn btn-info">
+                            <i class="fas fa-file-export"></i> Create JSON Backup
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-archive"></i> Existing Backups</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if backups %}
+            <div class="table-responsive">
+                <table class="table table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th>Type</th>
+                            <th>Size</th>
+                            <th>Created</th>
+                            <th class="text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for backup in backups %}
+                        <tr>
+                            <td><code>{{ backup.name }}</code></td>
+                            <td>{{ backup.type }}</td>
+                            <td>{{ backup.size_mb|floatformat:1 }} MB</td>
+                            <td>{{ backup.created|date:"M d, Y H:i" }}</td>
+                            <td class="text-right">
+                                <a href="{% url 'userauth:download_database_backup' backup.name %}"
+                                   class="btn btn-sm btn-success">
+                                    <i class="fas fa-download"></i> Download
+                                </a>
+                                <form method="post" class="d-inline"
+                                      action="{% url 'userauth:delete_database_backup' backup.name %}"
+                                      onsubmit="return confirm('Delete {{ backup.name }}? This cannot be undone.');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center py-4 mb-0">No backups yet. Create one above.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

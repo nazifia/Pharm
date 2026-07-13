@@ -45,4 +45,10 @@ urlpatterns = [
     # Password management URLs
     path('users/change-password/<int:user_id>/', views.change_user_password, name='change_user_password'),
     path('users/password-history/<int:user_id>/', views.password_change_history, name='password_change_history'),
+
+    # Database backup (migration) URLs
+    path('database-backup/', views.database_backup, name='database_backup'),
+    path('database-backup/create/', views.create_database_backup, name='create_database_backup'),
+    path('database-backup/download/<str:filename>/', views.download_database_backup, name='download_database_backup'),
+    path('database-backup/delete/<str:filename>/', views.delete_database_backup, name='delete_database_backup'),
 ]

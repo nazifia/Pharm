@@ -1591,3 +1591,101 @@ def password_change_history(request, user_id):
         messages.error(request, 'User not found.')
         return redirect('userauth:user_list')
 
+
+
+# ============================================================
+# Database backup for migration
+# ============================================================
+import os
+import re
+import sqlite3
+from datetime import datetime
+from django.conf import settings
+from django.core.management import call_command
+from django.http import FileResponse, Http404
+
+BACKUP_DIR = settings.BASE_DIR / 'backups'
+# ponytail: strict filename whitelist doubles as path-traversal guard
+BACKUP_NAME_RE = re.compile(r'^backup_\d{8}_\d{6}\.(sqlite3|json)$')
+
+
+def _backup_path(filename):
+    if not BACKUP_NAME_RE.match(filename):
+        raise Http404('Invalid backup filename.')
+    path = BACKUP_DIR / filename
+    if not path.exists():
+        raise Http404('Backup not found.')
+    return path
+
+
+@login_required
+@user_passes_test(is_admin)
+def database_backup(request):
+    """List backups and show backup creation UI."""
+    BACKUP_DIR.mkdir(exist_ok=True)
+    backups = []
+    for f in BACKUP_DIR.iterdir():
+        if BACKUP_NAME_RE.match(f.name):
+            stat = f.stat()
+            backups.append({
+                'name': f.name,
+                'size_mb': stat.st_size / (1024 * 1024),
+                'created': datetime.fromtimestamp(stat.st_mtime),
+                'type': 'SQLite snapshot' if f.name.endswith('.sqlite3') else 'JSON dump',
+            })
+    backups.sort(key=lambda b: b['created'], reverse=True)
+    return render(request, 'userauth/database_backup.html', {'backups': backups})
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_http_methods(['POST'])
+def create_database_backup(request):
+    """Create a backup: 'sqlite' (full file snapshot) or 'json' (engine-portable dump)."""
+    backup_format = request.POST.get('format', 'sqlite')
+    BACKUP_DIR.mkdir(exist_ok=True)
+    stamp = timezone.localtime().strftime('%Y%m%d_%H%M%S')
+    try:
+        if backup_format == 'json':
+            dest = BACKUP_DIR / f'backup_{stamp}.json'
+            # Portable across DB engines (SQLite -> MySQL migration)
+            call_command(
+                'dumpdata',
+                exclude=['contenttypes', 'auth.permission', 'sessions.session', 'admin.logentry'],
+                natural_foreign=True,
+                indent=None,
+                output=str(dest),
+            )
+        else:
+            dest = BACKUP_DIR / f'backup_{stamp}.sqlite3'
+            # sqlite3 backup API: consistent copy even while the app is writing
+            src = sqlite3.connect(settings.DATABASES['default']['NAME'])
+            try:
+                dst = sqlite3.connect(dest)
+                try:
+                    src.backup(dst)
+                finally:
+                    dst.close()
+            finally:
+                src.close()
+        messages.success(request, f'Backup created: {dest.name} ({dest.stat().st_size / (1024 * 1024):.1f} MB)')
+    except Exception as e:
+        messages.error(request, f'Backup failed: {e}')
+    return redirect('userauth:database_backup')
+
+
+@login_required
+@user_passes_test(is_admin)
+def download_database_backup(request, filename):
+    path = _backup_path(filename)
+    return FileResponse(open(path, 'rb'), as_attachment=True, filename=filename)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_http_methods(['POST'])
+def delete_database_backup(request, filename):
+    path = _backup_path(filename)
+    path.unlink()
+    messages.success(request, f'Backup deleted: {filename}')
+    return redirect('userauth:database_backup')

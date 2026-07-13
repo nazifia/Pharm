@@ -825,6 +825,10 @@
                         <a class="collapse-item" href="{% url 'userauth:activity_dashboard' %}">
                             <i class="fas fa-chart-line"></i> Activity Logs</a>
                         {% endif %}
+                        {% if is_admin %}
+                        <a class="collapse-item" href="{% url 'userauth:database_backup' %}">
+                            <i class="fas fa-database"></i> Database Backup</a>
+                        {% endif %}
                         <!--<a class="collapse-item" href="{% url 'admin:index' %}">-->
                         <!--    <i class="fas fa-cog"></i> Django Admin</a>-->
                         <div class="collapse-divider"></div>

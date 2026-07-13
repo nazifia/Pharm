@@ -18,3 +18,5 @@ venv/
 .kiro/steering/byterover-rules.md
 .qoder/rules/byterover-rules.md
 .augment/rules/byterover-rules.md
+# Database backups (contain patient/sales data - never commit)
+pharmapp/backups/
