@@ -46,46 +46,6 @@ from .gs1_parser import parse_barcode, is_gs1_barcode
 # Import ActivityLog for audit trail
 from userauth.models import ActivityLog
 
-# Cache utility functions for search optimization
-def get_search_cache_key(model_name, query, user_id=None):
-    """Generate a cache key for search results"""
-    key_data = f"{model_name}:{query}:{user_id or 'all'}"
-    return f"search:{hashlib.md5(key_data.encode()).hexdigest()}"
-
-def cache_search_results(cache_key, results, timeout=300):  # 5 minutes cache
-    """Cache search results - simplified to work with QuerySets directly"""
-    try:
-        # Cache the primary key list to reconstruct the queryset later
-        if hasattr(results, 'values_list'):
-            # It's a QuerySet, cache the primary keys
-            pk_list = list(results.values_list('pk', flat=True))
-            cache.set(cache_key, pk_list, timeout)
-            return pk_list
-        else:
-            # It's already a list, cache as-is
-            cache.set(cache_key, results, timeout)
-            return results
-    except Exception as e:
-        logger.warning(f"Failed to cache search results: {e}")
-        return None
-
-def get_cached_search_results(cache_key):
-    """Retrieve cached search results and reconstruct queryset if needed"""
-    try:
-        cached_data = cache.get(cache_key)
-        if cached_data is None:
-            return None
-            
-        # Check if it's a list of primary keys (from queryset caching)
-        if isinstance(cached_data, list) and len(cached_data) > 0 and isinstance(cached_data[0], int):
-            # Reconstruct the queryset from primary keys
-            return Item.objects.filter(pk__in=cached_data).order_by('name')
-        
-        # Return as-is if it's already a list of items
-        return cached_data
-    except Exception as e:
-        logger.warning(f"Failed to retrieve cached search results: {e}")
-        return None
 
 
 def can_view_all_users_dispensing(user):
@@ -388,7 +348,7 @@ def add_item(request):
                 item.markup = markup
 
                 # Get the price from the form
-                submitted_price = Decimal(form.cleaned_data.get("price", 0))
+                submitted_price = Decimal(form.cleaned_data.get("price") or 0)
 
                 if not manual_price_override:
                     # Calculate price based on the cost and markup percentage
@@ -457,9 +417,9 @@ def add_item(request):
                 print("Form errors:", form.errors)  # Debugging output
                 messages.error(request, 'Error creating item')
                 
-                # For HTMX requests, return the form with errors
+                # HTMX: 422 so htmx does not swap the form into the items table; JS shows errors
                 if request.headers.get('HX-Request'):
-                    return render(request, 'partials/add_item_modal_content.html', {'form': form})
+                    return JsonResponse({'errors': form.errors}, status=422)
         else:
             form = addItemForm()
         if request.headers.get('HX-Request'):
@@ -545,7 +505,7 @@ def edit_item(request, pk):
                 item.markup = markup
 
                 # Get the price from the form
-                submitted_price = Decimal(form.cleaned_data.get("price", 0))
+                submitted_price = Decimal(form.cleaned_data.get("price") or 0)
 
                 if not manual_price_override:
                     # Calculate price based on the cost and markup percentage
@@ -618,28 +578,10 @@ def dispense(request):
             if form.is_valid():
                 q = form.cleaned_data['q']
 
-                try:
-                    # Use cached search results for better performance
-                    cache_key = get_search_cache_key('item', q, request.user.id)
-                    cached_results = get_cached_search_results(cache_key)
-
-                    if cached_results:
-                        # Use cached results directly
-                        results = cached_results
-                    else:
-                        # Optimized database query
-                        results = Item.objects.filter(
-                            Q(name__icontains=q) | Q(brand__icontains=q)
-                        ).filter(stock__gt=0).order_by('name')[:50]  # Only show items with stock > 0, limit for performance
-
-                        # Cache the results for 5 minutes
-                        cache_search_results(cache_key, results)
-                except Exception as e:
-                    logger.error(f"Error in dispense POST search: {e}")
-                    # Fallback to basic query without caching
-                    results = Item.objects.filter(
-                        Q(name__icontains=q) | Q(brand__icontains=q)
-                    ).filter(stock__gt=0).order_by('name')[:50]
+                # No result cache: it hid newly added / just sold-out items for 5 min
+                results = Item.objects.filter(
+                    Q(name__icontains=q) | Q(brand__icontains=q)
+                ).filter(stock__gt=0).order_by('name')[:50]
         else:
             # GET request - preserve cart items for continued dispensing
             # Note: Cart is no longer auto-cleared to allow items to persist
@@ -688,42 +630,13 @@ def dispense_search_items(request):
         results = []
 
         if query and len(query) >= 2:
-            try:
-                # Check if query looks like a barcode (numeric, 8-14 digits)
-                is_barcode = query.isdigit() and 8 <= len(query) <= 14
-
-                # Use cached search results for better performance
-                cache_key = get_search_cache_key('item', query, request.user.id)
-                cached_results = get_cached_search_results(cache_key)
-
-                if cached_results:
-                    # Use cached results directly as they're already in the right format
-                    results = cached_results
-                else:
-                    if is_barcode:
-                        # Try barcode lookup first
-                        barcode_results = Item.objects.filter(barcode=query).filter(stock__gt=0).order_by('name')[:50]
-                        if barcode_results.exists():
-                            results = barcode_results
-                        else:
-                            # Fallback to name/brand search if barcode not found
-                            results = Item.objects.filter(
-                                Q(name__icontains=query) | Q(brand__icontains=query)
-                            ).filter(stock__gt=0).order_by('name')[:50]
-                    else:
-                        # Regular name/brand search
-                        results = Item.objects.filter(
-                            Q(name__icontains=query) | Q(brand__icontains=query)
-                        ).filter(stock__gt=0).order_by('name')[:50]
-
-                    # Cache the results for 5 minutes
-                    cache_search_results(cache_key, results)
-            except Exception as e:
-                logger.error(f"Error in dispense search: {e}")
-                # Fallback to basic query without caching if something goes wrong
-                results = Item.objects.filter(
-                    Q(name__icontains=query) | Q(brand__icontains=query) | Q(barcode=query)
-                ).filter(stock__gt=0).order_by('name')[:50]
+            # No result cache: it hid newly added / just sold-out items for 5 min
+            in_stock = Item.objects.filter(stock__gt=0).order_by('name')
+            results = []
+            if query.isdigit() and 8 <= len(query) <= 14:  # looks like a barcode
+                results = in_stock.filter(barcode=query)[:50]
+            if not results:
+                results = in_stock.filter(Q(name__icontains=query) | Q(brand__icontains=query))[:50]
 
         # Pass user to context for permission checks
         # Pass user to context for permission checks and CSRF context
@@ -821,12 +734,28 @@ def cart(request):
 def add_to_cart(request, pk):
     if request.user.is_authenticated:
         item = get_object_or_404(Item, id=pk)
-        quantity = int(request.POST.get('quantity', 1))
         unit = request.POST.get('unit')
 
-        if quantity <= 0:
-            messages.warning(request, "Quantity must be greater than zero.")
+        def fail(msg):
+            messages.error(request, msg)
+            if request.headers.get('HX-Request'):
+                # From dispense page: re-render the widget with the error instead of redirecting
+                # (htmx would otherwise swap the whole cart page into the widget)
+                cart_items = Cart.objects.filter(user=request.user, status='active')
+                return render(request, 'partials/cart_summary_widget.html', {
+                    'cart_count': cart_items.count(),
+                    'cart_total': sum(c.subtotal for c in cart_items),
+                    'error_message': msg,
+                })
             return redirect('store:cart')
+
+        try:
+            quantity = int(request.POST.get('quantity', 1))
+        except (TypeError, ValueError):
+            return fail("Invalid quantity.")
+
+        if quantity <= 0:
+            return fail("Quantity must be greater than zero.")
 
         # Validate stock availability (but don't deduct yet)
         # Get existing cart quantity for this item
@@ -839,12 +768,10 @@ def add_to_cart(request, pk):
         total_needed = current_cart_quantity + quantity
 
         if total_needed > item.stock:
-            messages.error(
-                request,
+            return fail(
                 f"Not enough stock for {item.name}. Available: {item.stock}, "
                 f"Already in cart: {current_cart_quantity}, Requested: {quantity}"
             )
-            return redirect('store:cart')
 
         # Add the item to the cart or update its quantity if it already exists
         # Only work with active cart items
@@ -2233,6 +2160,13 @@ def receipt(request):
             messages.warning(request, "No items in the cart.")
             return redirect('store:cart')
 
+        # Verify stock before creating any Sales/Receipt rows
+        short = [c for c in cart_items if c.item.stock < c.quantity]
+        if short:
+            messages.error(request, "Insufficient stock: " + ", ".join(
+                f"{c.item.name} (available {c.item.stock}, in cart {c.quantity})" for c in short))
+            return redirect('store:cart')
+
         total_price, total_discount = 0, 0
 
         for cart_item in cart_items:
@@ -2339,24 +2273,24 @@ def receipt(request):
                     item = cart_item.item
                     quantity = cart_item.quantity
                     
-                    # Check if we have enough stock (should always be true since we checked earlier)
-                    if item.stock >= quantity:
-                        item.stock -= quantity
-                        item.save()
-                        
-                        # Create or update SalesItem record
-                        SalesItem.objects.update_or_create(
-                            sales=sales,
-                            item=item,
-                            defaults={
-                                'quantity': quantity,
-                                'price': item.price,
-                                'discount_amount': cart_item.discount_amount or Decimal('0.00')
-                            }
-                        )
-                    else:
-                        # This should not happen, but handle it gracefully
+                    # Atomic conditional decrement: safe against concurrent cashiers
+                    updated = Item.objects.filter(pk=item.pk, stock__gte=quantity).update(stock=F('stock') - quantity)
+                    if not updated:
+                        transaction.set_rollback(True)  # discard Sales/Receipt rows created above
                         messages.error(request, f'Insufficient stock for {item.name} during receipt creation')
+                        return redirect('store:cart')
+                    item.refresh_from_db(fields=['stock'])
+
+                    # Create or update SalesItem record
+                    SalesItem.objects.update_or_create(
+                        sales=sales,
+                        item=item,
+                        defaults={
+                            'quantity': quantity,
+                            'price': item.price,
+                            'discount_amount': cart_item.discount_amount or Decimal('0.00')
+                        }
+                    )
 
                 # If this is a split payment, create the payment records
                 if payment_type == 'split':

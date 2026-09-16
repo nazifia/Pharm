@@ -20,19 +20,6 @@
 <body>
     <div id="receipt" class="receipt-container">
         <header>
-            <!-- Debug Information - Remove in production -->
-            <div style="display: none; background: #f8f9fa; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
-                <h4>Debug Info:</h4>
-                <p><strong>Receipt ID:</strong> {{ receipt.receipt_id }}</p>
-                <p><strong>Payment Method:</strong> {{ receipt.payment_method }}</p>
-                <p><strong>Status:</strong> {{ receipt.status }}</p>
-                <p><strong>Calculated Status:</strong> {{ receipt.calculated_status }}</p>
-                <p><strong>Total Amount:</strong> {{ receipt.total_amount }}</p>
-                <p><strong>Sales Items Count:</strong> {{ wholesale_sales_items|length }}</p>
-                <p><strong>Has Sales Object:</strong> {% if sales %}{{ sales.id }}{% else %}No sales object found{% endif %}</p>
-                <p><strong>Customer:</strong> {% if receipt.wholesale_customer %}{{ receipt.wholesale_customer.name }}{% else %}Walk-in Customer{% endif %}</p>
-            </div>
-        <header>
             <div class="receipt-head">
 
                 <h3>NAZZ PHARMACY</h3>

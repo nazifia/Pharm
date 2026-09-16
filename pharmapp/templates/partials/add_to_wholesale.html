@@ -317,9 +317,9 @@
     }
 
     // Enhanced form submission handling for HTMX
-    document.addEventListener('htmx:afterRequest', function(event) {
+    document.getElementById('addWholesaleItemForm').addEventListener('htmx:afterRequest', function(event) {
         // Handle successful form submission
-        if (event.detail.successful && event.detail.pathConfig?.target === '#wholesale-items-table-container') {
+        if (event.detail.successful) {
             // Show success message
             const newItemName = document.querySelector('[name="name"]')?.value || 'Item';
             if (window.showMessage) {
@@ -347,9 +347,8 @@
             try {
                 const response = JSON.parse(event.detail.xhr.responseText);
                 if (response.errors) {
-                    if (window.showMessage) {
-                        window.showMessage('Form validation failed. Please check your inputs.', 'error');
-                    }
+                    const msg = Object.entries(response.errors).map(([f, e]) => `${f}: ${e.join(', ')}`).join('; ');
+                    if (window.showMessage) { window.showMessage(msg, 'error'); } else if (typeof showError === 'function') { showError(msg); } else { console.error(msg); }
                 } else if (response.error) {
                     if (window.showMessage) {
                         window.showMessage(response.error, 'error');
@@ -372,25 +371,21 @@
     });
 
     // HTMX loading indicator for submit button
-    document.addEventListener('htmx:configRequest', function(event) {
-        if (event.detail.path.includes('/wholesale/add/')) {
-            const submitBtn = document.getElementById('submitWholesaleItemBtn');
-            const btnText = document.getElementById('submitWholesaleBtnText');
-            if (submitBtn && btnText) {
-                submitBtn.disabled = true;
-                btnText.textContent = 'Saving...';
-            }
+    document.getElementById('addWholesaleItemForm').addEventListener('htmx:configRequest', function(event) {
+        const submitBtn = document.getElementById('submitWholesaleItemBtn');
+        const btnText = document.getElementById('submitWholesaleBtnText');
+        if (submitBtn && btnText) {
+            submitBtn.disabled = true;
+            btnText.textContent = 'Saving...';
         }
     });
 
-    document.addEventListener('htmx:afterRequest', function(event) {
-        if (event.detail.path.includes('/wholesale/add/')) {
-            const submitBtn = document.getElementById('submitWholesaleItemBtn');
-            const btnText = document.getElementById('submitWholesaleBtnText');
-            if (submitBtn && btnText) {
-                submitBtn.disabled = false;
-                btnText.textContent = 'Add Item';
-            }
+    document.getElementById('addWholesaleItemForm').addEventListener('htmx:afterRequest', function(event) {
+        const submitBtn = document.getElementById('submitWholesaleItemBtn');
+        const btnText = document.getElementById('submitWholesaleBtnText');
+        if (submitBtn && btnText) {
+            submitBtn.disabled = false;
+            btnText.textContent = 'Add Item';
         }
     });
 </script>

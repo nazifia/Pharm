@@ -5,7 +5,7 @@ from django.http import HttpResponse, JsonResponse
 from django.contrib import messages
 from django.utils.timezone import now, timezone
 from datetime import timedelta, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.db.models import Sum, Q, F, ExpressionWrapper, DecimalField
 from collections import defaultdict
 from django.core.paginator import Paginator
@@ -349,7 +349,7 @@ def add_to_wholesale(request):
                 item.markup = markup
 
                 # Get the price from the form
-                submitted_price = Decimal(form.cleaned_data.get("price", 0))
+                submitted_price = Decimal(form.cleaned_data.get("price") or 0)
 
                 if not manual_price_override:
                     # Calculate price based on the cost and markup percentage
@@ -420,9 +420,9 @@ def add_to_wholesale(request):
                 print("Form errors:", form.errors)  # Debugging output
                 messages.error(request, 'Error creating item')
                 
-                # For HTMX requests, return the form with errors
+                # HTMX: 422 so htmx does not swap the form into the items table; JS shows errors
                 if request.headers.get('HX-Request'):
-                    return render(request, 'partials/add_to_wholesale.html', {'form': form})
+                    return JsonResponse({'errors': form.errors}, status=422)
         else:
             form = addWholesaleForm()
         if request.headers.get('HX-Request'):
@@ -466,7 +466,7 @@ def edit_wholesale_item(request, pk):
                 item.markup = markup
 
                 # Get the price from the form
-                submitted_price = Decimal(form.cleaned_data.get("price", 0))
+                submitted_price = Decimal(form.cleaned_data.get("price") or 0)
 
                 if not manual_price_override:
                     # Calculate price based on the cost and markup percentage
@@ -1076,12 +1076,28 @@ from django.views.decorators.csrf import csrf_exempt
 def add_to_wholesale_cart(request, item_id):
     if request.user.is_authenticated:
         item = get_object_or_404(WholesaleItem, id=item_id)
-        quantity = Decimal(request.POST.get('quantity', 0.5))
         unit = request.POST.get('unit')
 
-        if quantity < 0.5:  # Minimum quantity is 0.5 units
-            messages.warning(request, "Quantity must be greater than zero.")
+        def fail(msg):
+            messages.error(request, msg)
+            if request.headers.get('HX-Request'):
+                # From dispense page: re-render the widget with the error instead of redirecting
+                # (htmx would otherwise swap the whole cart page into the widget)
+                cart_items = WholesaleCart.objects.filter(user=request.user, status='active')
+                return render(request, 'partials/wholesale_cart_summary_widget.html', {
+                    'cart_count': cart_items.count(),
+                    'cart_total': sum(c.subtotal for c in cart_items),
+                    'error_message': msg,
+                })
             return redirect('wholesale:wholesale_cart')
+
+        try:
+            quantity = Decimal(request.POST.get('quantity', '0.5'))
+        except (TypeError, ValueError, InvalidOperation):
+            return fail("Invalid quantity.")
+
+        if quantity < Decimal('0.5'):  # Minimum quantity is 0.5 units
+            return fail("Quantity must be at least 0.5.")
 
         # Validate stock availability (but don't deduct yet)
         # Get existing cart quantity for this item
@@ -1094,12 +1110,10 @@ def add_to_wholesale_cart(request, item_id):
         total_needed = current_cart_quantity + quantity
 
         if total_needed > item.stock:
-            messages.error(
-                request,
+            return fail(
                 f"Not enough stock for {item.name}. Available: {item.stock}, "
                 f"Already in cart: {current_cart_quantity}, Requested: {quantity}"
             )
-            return redirect('wholesale:wholesale_cart')
 
         # Add the item to the cart or update its quantity if it already exists
         # Only work with active cart items
@@ -2292,6 +2306,13 @@ def wholesale_receipt(request):
             messages.warning(request, "No items in the cart.")
             return redirect('wholesale:wholesale_cart')
 
+        # Verify stock before creating any Sales/Receipt rows
+        short = [c for c in cart_items if c.item.stock < c.quantity]
+        if short:
+            messages.error(request, "Insufficient stock: " + ", ".join(
+                f"{c.item.name} (available {c.item.stock}, in cart {c.quantity})" for c in short))
+            return redirect('wholesale:wholesale_cart')
+
         total_price, total_discount = 0, 0
 
         for cart_item in cart_items:
@@ -2411,24 +2432,24 @@ def wholesale_receipt(request):
                     item = cart_item.item
                     quantity = cart_item.quantity
                     
-                    # Check if we have enough stock (should always be true since we checked earlier)
-                    if item.stock >= quantity:
-                        item.stock -= quantity
-                        item.save()
-                        
-                        # Create or update WholesaleSalesItem record
-                        WholesaleSalesItem.objects.update_or_create(
-                            sales=sales,
-                            item=item,
-                            defaults={
-                                'quantity': quantity,
-                                'price': item.price,
-                                'discount_amount': cart_item.discount_amount or Decimal('0.00')
-                            }
-                        )
-                    else:
-                        # This should not happen, but handle it gracefully
+                    # Atomic conditional decrement: safe against concurrent cashiers
+                    updated = WholesaleItem.objects.filter(pk=item.pk, stock__gte=quantity).update(stock=F('stock') - quantity)
+                    if not updated:
+                        transaction.set_rollback(True)  # discard Sales/Receipt rows created above
                         messages.error(request, f'Insufficient stock for {item.name} during receipt creation')
+                        return redirect('wholesale:wholesale_cart')
+                    item.refresh_from_db(fields=['stock'])
+
+                    # Create or update WholesaleSalesItem record
+                    WholesaleSalesItem.objects.update_or_create(
+                        sales=sales,
+                        item=item,
+                        defaults={
+                            'quantity': quantity,
+                            'price': item.price,
+                            'discount_amount': cart_item.discount_amount or Decimal('0.00')
+                        }
+                    )
 
                 # If this is a split payment, create the payment records
                 if payment_type == 'split':
