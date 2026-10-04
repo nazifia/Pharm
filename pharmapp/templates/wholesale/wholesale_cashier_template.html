@@ -597,7 +597,7 @@ function refreshAcceptedRequests() {
 }
 
 function openBulkOperationModal() {
-    $('#bulkOperationsModal').modal('show');
+    VModal.show('#bulkOperationsModal');
     loadBulkOperationRequests();
 }
 
@@ -645,7 +645,7 @@ function executeBulkOperation() {
     if (confirm(confirmMessage)) {
         // Execute bulk operation via AJAX
         alert(`Bulk ${action} operation would be executed here`);
-        $('#bulkOperationsModal').modal('hide');
+        VModal.hide('#bulkOperationsModal');
     }
 }
 

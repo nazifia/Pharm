@@ -765,17 +765,17 @@
     console.log('[Edit Stock] Feature enabled');
 
     // Cache modal references
-    const $editStockModal = $('#editStockModal');
+    const editStockModal = document.getElementById('editStockModal');
     const editNewStockInput = document.getElementById('edit-new-stock');
 
-    if (!$editStockModal || !editNewStockInput) {
+    if (!editStockModal || !editNewStockInput) {
       console.warn('[Edit Stock] Modal elements not found, retrying...');
       setTimeout(initEditStockFeature, 100);
       return;
     }
 
     // Set up modal focus handler ONCE (outside click handler)
-    $editStockModal.on('shown.bs.modal', function() {
+    editStockModal.addEventListener('shown.bs.modal', function() {
       if (editNewStockInput) {
         editNewStockInput.focus();
         editNewStockInput.select();
@@ -805,7 +805,7 @@
         document.getElementById('edit-stock-error').style.display = 'none';
 
         // Show modal
-        $editStockModal.modal('show');
+        VModal.show(editStockModal);
       }
     });
 
@@ -880,7 +880,7 @@
             alert(message);
 
             // Close modal
-            $editStockModal.modal('hide');
+            VModal.hide(editStockModal);
 
             // Recalculate procurement values
             if (typeof calculateProcurementValues === 'function') {

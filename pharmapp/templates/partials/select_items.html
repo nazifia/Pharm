@@ -781,7 +781,7 @@
         console.log('[Select Items] Hardware scanner initialized - Ready to scan!');
 
         // Disable hardware scanner when camera modal is open (avoid conflicts)
-        $('#barcodeScannerModal').on('shown.bs.modal', function() {
+        document.querySelector('#barcodeScannerModal')?.addEventListener('shown.bs.modal', function() {
             if (window.selectItemsHardwareScanner) {
                 window.selectItemsHardwareScanner.disable();
                 console.log('[Select Items] Hardware scanner disabled (camera active)');
@@ -789,7 +789,7 @@
         });
 
         // Re-enable hardware scanner when camera modal is closed
-        $('#barcodeScannerModal').on('hidden.bs.modal', function() {
+        document.querySelector('#barcodeScannerModal')?.addEventListener('hidden.bs.modal', function() {
             if (window.selectItemsHardwareScanner) {
                 window.selectItemsHardwareScanner.enable();
                 console.log('[Select Items] Hardware scanner enabled');

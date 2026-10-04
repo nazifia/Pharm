@@ -434,8 +434,8 @@ window.onBarcodeItemFound = function(item, barcode) {
         }
 
         // Close the scanner modal
-        if (typeof $ !== 'undefined' && $('#barcodeScannerModal').length) {
-            $('#barcodeScannerModal').modal('hide');
+        if (document.getElementById('barcodeScannerModal')) {
+            VModal.hide('#barcodeScannerModal');
         }
 
         // Show notification that item was found in results

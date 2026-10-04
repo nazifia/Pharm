@@ -270,14 +270,14 @@
             document.getElementById('edit-wholesale-barcode').value = barcode;
 
             // Close modal
-            $('#barcodeScannerModal').modal('hide');
+            VModal.hide('#barcodeScannerModal');
         };
 
         // Open the scanner modal with wholesale mode
         const modal = document.getElementById('barcodeScannerModal');
         if (modal) {
             modal.dataset.mode = 'wholesale';
-            $('#barcodeScannerModal').modal('show');
+            VModal.show('#barcodeScannerModal');
         }
     }
-</script>
+</script>

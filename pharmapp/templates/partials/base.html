@@ -478,6 +478,27 @@
                 </div>
             </li>
 
+            <!-- Items (vanilla JS + JSON API) -->
+            {% if user|can_operate_retail or user|can_operate_wholesale %}
+            <li class="nav-item">
+                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseItemsJs"
+                    aria-expanded="true" aria-controls="collapseItemsJs">
+                    <i class="fas fa-fw fa-boxes"></i>
+                    <span>Items (JS)</span>
+                </a>
+                <div id="collapseItemsJs" class="collapse" data-parent="#accordionSidebar">
+                    <div class="bg-white py-2 collapse-inner rounded">
+                        {% if user|can_operate_retail %}
+                        <a class="collapse-item" href="{% url 'api:app_items' 'store' %}">Store Items</a>
+                        {% endif %}
+                        {% if user|can_operate_wholesale %}
+                        <a class="collapse-item" href="{% url 'api:app_items' 'wholesale' %}">Wholesale Items</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </li>
+            {% endif %}
+
             <!-- Customers -->
             <li class="nav-item">
                 <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseCustomers"
@@ -1321,6 +1342,7 @@
     </script>
 
     <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/vanilla-modal.js' %}"></script>
 
     <!-- Core plugin JavaScript-->
     <script src="{% static 'vendor/jquery-easing/jquery.easing.min.js' %}"></script>

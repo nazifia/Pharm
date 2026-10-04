@@ -430,11 +430,11 @@
     document.addEventListener('htmx:afterSwap', function(event) {
         // Check if the target is the edit modal content
         if (event.detail.target.closest('#editModal')) {
-            $('#editModal').modal('show');
+            VModal.show('#editModal');
         }
         // Check if the target is the return modal content
         if (event.detail.target.closest('#returnItemModal')) {
-            $('#returnItemModal').modal('show');
+            VModal.show('#returnItemModal');
         }
     });
 
@@ -445,16 +445,16 @@
             const editModal = document.querySelector('#editModal');
             const returnModal = document.querySelector('#returnItemModal');
 
-            if (editModal && $(editModal).hasClass('show')) {
+            if (editModal && editModal.classList.contains('show')) {
                 // Close the modal
-                $(editModal).modal('hide');
+                VModal.hide(editModal);
                 // Show success message for edit operation
                 showMessage('Item updated successfully!', 'success');
             }
 
-            if (returnModal && $(returnModal).hasClass('show')) {
+            if (returnModal && returnModal.classList.contains('show')) {
                 // Close the modal
-                $(returnModal).modal('hide');
+                VModal.hide(returnModal);
                 // Show success message for return operation
                 showMessage('Item return processed successfully!', 'success');
             }

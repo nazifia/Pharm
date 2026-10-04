@@ -282,7 +282,7 @@ window.showAddItemModal = function(barcode, mode = 'retail', isOffline = false) 
     }
     
     // Show modal using Bootstrap 4/jQuery
-    $('#addItemModal').modal('show');
+    VModal.show('#addItemModal');
     
     // Focus on item name field
     setTimeout(() => {
@@ -362,7 +362,7 @@ document.getElementById('addItemForm').addEventListener('submit', async function
                     
                     await window.barcodeScanner.saveCustomBarcode(customBarcodeData);
                     showSuccess('Custom barcode saved successfully!');
-                    $('#addItemModal').modal('hide');
+                    VModal.hide('#addItemModal');
                 } catch (error) {
                     console.error('[Add Item] Error saving custom barcode:', error);
                     showError('Failed to save custom barcode: ' + error.message);
@@ -377,7 +377,7 @@ document.getElementById('addItemForm').addEventListener('submit', async function
         }
         
         // Close modal on success using Bootstrap 4/jQuery
-        $('#addItemModal').modal('hide');
+        VModal.hide('#addItemModal');
         
     } catch (error) {
         console.error('[Add Item Modal] Error:', error);
@@ -547,17 +547,17 @@ window.openBarcodeScanner = function() {
         // Set callback for when item IS found
         window.onBarcodeItemFound = function(item, barcode) {
             document.getElementById('itemBarcode').value = barcode;
-            $('#barcodeScannerModal').modal('hide');
+            VModal.hide('#barcodeScannerModal');
             document.getElementById('itemName').focus();
         };
 
         // Set callback for when item is NOT found — still fill the barcode field
         window.onBarcodeNotFound = function(barcode) {
             document.getElementById('itemBarcode').value = barcode;
-            $('#barcodeScannerModal').modal('hide');
+            VModal.hide('#barcodeScannerModal');
         };
 
-        $('#barcodeScannerModal').modal('show');
+        VModal.show('#barcodeScannerModal');
     } else {
         console.error('[Add Item Modal] Barcode scanner modal not found');
         alert('Barcode scanner not available. Please enter barcode manually.');

@@ -950,7 +950,7 @@ function addNewCashier() {
     
     document.getElementById('cashierManagementModalLabel').innerHTML = 
         '<i class="fas fa-cash-register"></i> Add New Cashier';
-    $('#cashierManagementModal').modal('show');
+    VModal.show('#cashierManagementModal');
 }
 
 function loadAvailableUsers() {
@@ -999,7 +999,7 @@ function editCashier(cashierId) {
     
     document.getElementById('cashierManagementModalLabel').innerHTML = 
         '<i class="fas fa-cash-register"></i> Edit Cashier';
-    $('#cashierManagementModal').modal('show');
+    VModal.show('#cashierManagementModal');
 }
 
 function toggleCashierStatus(cashierId) {
@@ -1144,7 +1144,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.success) {
                     showNotification(cashierId ? 'Cashier updated successfully' : 'Cashier created successfully', 'success');
-                    $('#cashierManagementModal').modal('hide');
+                    VModal.hide('#cashierManagementModal');
                     // Reload the full cashier list to get complete data
                     loadCashiers();
                 } else {
@@ -1448,7 +1448,7 @@ function showBulkPermissionModal() {
     // Load users and permissions for bulk management
     loadBulkUsers();
     loadBulkPermissions();
-    $('#bulkPermissionModal').modal('show');
+    VModal.show('#bulkPermissionModal');
 }
 
 function loadBulkUsers() {
@@ -1526,7 +1526,7 @@ function executeBulkPermission() {
     .then(data => {
         if (data.success) {
             alert(`Successfully ${action}ed permission for ${data.affected_users} user(s).`);
-            $('#bulkPermissionModal').modal('hide');
+            VModal.hide('#bulkPermissionModal');
             // Refresh current user permissions if one of the affected users is currently selected
             const currentUserId = document.getElementById('selected_user_id').value;
             if (selectedUsers.includes(currentUserId)) {

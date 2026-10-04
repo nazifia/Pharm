@@ -543,8 +543,8 @@ class HardwareScannerHandler {
             }
 
             // Show modal
-            if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
-                $(modal).modal('show');
+            if (window.VModal) {
+                VModal.show(modal);
             } else {
                 modal.classList.add('show');
                 modal.style.display = 'block';

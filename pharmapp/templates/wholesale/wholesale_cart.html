@@ -236,7 +236,7 @@
     // Update payment method and status handling
     document.addEventListener('DOMContentLoaded', function() {
         // Set up event listener for when the payment modal is shown
-        $('#paymentModal').on('show.bs.modal', function () {
+        document.querySelector('#paymentModal')?.addEventListener('show.bs.modal', function () {
             // Check if there's a wholesale customer
             const hasCustomer = {% if wholesale_customer %}true{% else %}false{% endif %};
 

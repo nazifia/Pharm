@@ -1211,8 +1211,8 @@ class BarcodeScanner {
         }
 
         // Close the scanner modal first
-        if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
-            $('#barcodeScannerModal').modal('hide');
+        if (window.VModal) {
+            VModal.hide('#barcodeScannerModal');
         }
 
         // Stop scanning
@@ -1294,8 +1294,8 @@ class BarcodeScanner {
 
         // Show the modal
         const modal = document.getElementById('addItemModal');
-        if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
-            $(modal).modal('show');
+        if (window.VModal) {
+            VModal.show(modal);
         } else {
             // Fallback for non-jQuery
             modal.classList.add('show');
@@ -1380,8 +1380,8 @@ class BarcodeScanner {
             }
 
             // Close scanner modal and stop scanning
-            if (typeof $ !== 'undefined' && typeof $.fn.modal !== 'undefined') {
-                $('#barcodeScannerModal').modal('hide');
+            if (window.VModal) {
+                VModal.hide('#barcodeScannerModal');
             }
             self.stopScanning();
 

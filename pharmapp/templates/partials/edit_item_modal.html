@@ -292,14 +292,14 @@
             document.getElementById('edit-barcode').value = barcode;
 
             // Close modal
-            $('#barcodeScannerModal').modal('hide');
+            VModal.hide('#barcodeScannerModal');
         };
 
         // Open the scanner modal
         const modal = document.getElementById('barcodeScannerModal');
         if (modal) {
             modal.dataset.mode = 'retail';
-            $('#barcodeScannerModal').modal('show');
+            VModal.show('#barcodeScannerModal');
         }
     }
 

@@ -9,7 +9,7 @@
           hx-swap="innerHTML"
           hx-trigger="submit"
           hx-indicator="#addItemModal .modal-content"
-          hx-on::after-request="if(event.detail.successful) { $('#addItemModal').modal('hide'); }">
+          hx-on::after-request="if(event.detail.successful) { VModal.hide('#addItemModal'); }">
         {% csrf_token %}
         <input type="text" name="name" placeholder=" ENTER ITEM GENERIC NAME" class="form-control mt-3" required>
         <!-- Hidden input for dosage_form that will be set by the dropdown or custom input -->
@@ -298,21 +298,21 @@
             }
 
             // Close modal
-            $('#barcodeScannerModal').modal('hide');
+            VModal.hide('#barcodeScannerModal');
         };
 
         // Set the callback for when barcode is scanned but item is NOT found
         // Just fill the barcode field so the user can still add the item manually
         window.onBarcodeNotFound = function(barcode) {
             document.getElementById('wholesale-barcode').value = barcode;
-            $('#barcodeScannerModal').modal('hide');
+            VModal.hide('#barcodeScannerModal');
         };
 
         // Open the scanner modal with wholesale mode
         const modal = document.getElementById('barcodeScannerModal');
         if (modal) {
             modal.dataset.mode = 'wholesale';
-            $('#barcodeScannerModal').modal('show');
+            VModal.show('#barcodeScannerModal');
         }
     }
 
@@ -327,7 +327,7 @@
             }
             
             // Close the modal
-            $('#addItemModal').modal('hide');
+            VModal.hide('#addItemModal');
             
             // Reset form for next use
             document.getElementById('addWholesaleItemForm').reset();

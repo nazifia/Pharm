@@ -191,7 +191,7 @@
     // Update debug info when payment method or status changes
     document.addEventListener('DOMContentLoaded', function() {
         // Set up event listener for when the payment modal is shown
-        $('#paymentModal').on('show.bs.modal', function () {
+        document.querySelector('#paymentModal')?.addEventListener('show.bs.modal', function () {
             // Check if there's a customer
             const hasCustomer = {% if customer %}true{% else %}false{% endif %};
 

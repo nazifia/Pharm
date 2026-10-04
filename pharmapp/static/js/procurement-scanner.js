@@ -20,8 +20,8 @@ class ProcurementScanner {
 
     init() {
         // Attach modal event listeners
-        $('#scannerModal').on('shown.bs.modal', () => this.startScanner());
-        $('#scannerModal').on('hidden.bs.modal', () => this.stopScanner());
+        document.querySelector('#scannerModal')?.addEventListener('shown.bs.modal', () => this.startScanner());
+        document.querySelector('#scannerModal')?.addEventListener('hidden.bs.modal', () => this.stopScanner());
 
         // Attach button listeners
         this.attachEventListeners();
@@ -36,7 +36,7 @@ class ProcurementScanner {
             globalBtn.addEventListener('click', () => {
                 this.mode = 'global';
                 this.currentRow = null;
-                $('#scannerModal').modal('show');
+                VModal.show('#scannerModal');
             });
         }
 
@@ -54,7 +54,7 @@ class ProcurementScanner {
                     return;
                 }
 
-                $('#scannerModal').modal('show');
+                VModal.show('#scannerModal');
             }
         });
     }
@@ -184,7 +184,7 @@ class ProcurementScanner {
             // Success feedback and close
             this.showResult('✓ Item added successfully!');
             setTimeout(() => {
-                $('#scannerModal').modal('hide');
+                VModal.hide('#scannerModal');
             }, 1000);
 
         } catch (error) {

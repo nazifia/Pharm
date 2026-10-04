@@ -98,7 +98,7 @@ function showStockValidationModal(unavailableItems, mode = 'retail') {
     });
 
     // Show the modal
-    $('#stockValidationModal').modal('show');
+    VModal.show('#stockValidationModal');
 }
 
 // Adjust cart item quantity

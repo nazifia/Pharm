@@ -212,11 +212,11 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('htmx:afterSwap', function(event) {
     // Check if the target is the edit modal content
     if (event.detail.target.closest('#editWholesaleItemModal')) {
-        $('#editWholesaleItemModal').modal('show');
+        VModal.show('#editWholesaleItemModal');
     }
     // Check if the target is the return modal content
     if (event.detail.target.closest('#returnWholesaleItemModal')) {
-        $('#returnWholesaleItemModal').modal('show');
+        VModal.show('#returnWholesaleItemModal');
     }
 });
 
@@ -227,16 +227,16 @@ document.addEventListener('htmx:afterRequest', function(event) {
         const editModal = document.querySelector('#editWholesaleItemModal');
         const returnModal = document.querySelector('#returnWholesaleItemModal');
 
-        if (editModal && $(editModal).hasClass('show')) {
+        if (editModal && editModal.classList.contains('show')) {
             // Close the modal
-            $(editModal).modal('hide');
+            VModal.hide(editModal);
             // Refresh the page to show updated data
             location.reload();
         }
 
-        if (returnModal && $(returnModal).hasClass('show')) {
+        if (returnModal && returnModal.classList.contains('show')) {
             // Close the modal
-            $(returnModal).modal('hide');
+            VModal.hide(returnModal);
             // Refresh the page to show updated data
             location.reload();
         }

@@ -140,9 +140,7 @@
         console.error('[Scanner Modal] Error:', error);
     }
 
-    // Check if jQuery is available - if not, wait and retry
-    if (typeof jQuery === 'undefined') {
-        console.warn('[Scanner Modal] jQuery not loaded yet, retrying in 100ms...');
+    if (typeof VModal === 'undefined') {
         setTimeout(initBarcodeScannerModal, 100);
         return;
     }
@@ -216,7 +214,7 @@
     /**
      * Transfer data-mode from button to modal before opening
      */
-    $(modal).on('show.bs.modal', function(event) {
+    modal.addEventListener('show.bs.modal', function(event) {
         // Get the button that triggered the modal
         const button = event.relatedTarget;
         if (button && button.dataset.mode) {
@@ -235,7 +233,7 @@
     /**
      * Initialize scanner when modal opens
      */
-    $(modal).on('shown.bs.modal', async function() {
+    modal.addEventListener('shown.bs.modal', async function() {
         const mode = this.dataset.mode || 'retail';
 
         console.log('[Scanner Modal] Modal opened in', mode, 'mode');
@@ -328,7 +326,7 @@
     /**
      * Clean up when modal closes
      */
-    $(modal).on('hidden.bs.modal', async function() {
+    modal.addEventListener('hidden.bs.modal', async function() {
         if (barcodeScanner) {
             await barcodeScanner.destroy();
             barcodeScanner = null;
@@ -494,7 +492,7 @@
 
         // Auto-close modal after 2 seconds
         setTimeout(() => {
-            $(modal).modal('hide');
+            VModal.hide(modal);
         }, 2000);
     }
 

@@ -1,9 +1,12 @@
 from django.urls import path
-from . import views
+from . import views, items
 
 app_name = 'api'
 
 urlpatterns = [
+    path('v1/<str:scope>/items/', items.items, name='v1_items'),
+    path('v1/<str:scope>/items/<int:pk>/', items.item_detail, name='v1_item_detail'),
+    path('app/<str:scope>/items/', items.items_page, name='app_items'),
     path('health/', views.health_check, name='health_check'),
     path('inventory/sync/', views.inventory_sync, name='inventory_sync'),
     path('sales/sync/', views.sales_sync, name='sales_sync'),

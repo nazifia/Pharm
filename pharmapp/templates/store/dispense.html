@@ -462,7 +462,7 @@ window.onBarcodeItemFound = function(item, barcode) {
         }
 
         // Close the scanner modal
-        $('#barcodeScannerModal').modal('hide');
+        VModal.hide('#barcodeScannerModal');
 
         // Show notification that item was found in results
         if (window.offlineHandler && window.offlineHandler.showInAppNotification) {

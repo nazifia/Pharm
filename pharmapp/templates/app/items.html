@@ -1,0 +1,27 @@
+{% load static %}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ title }}</title>
+<link href="{% static 'css/sb-admin-2.min.css' %}" rel="stylesheet">
+<style>.d-flex>*{margin-right:.5rem}dialog{border:1px solid #ccc;border-radius:6px;padding:1rem;max-width:480px;width:95%}dialog::backdrop{background:#0006}.err{color:#c00;font-size:.85rem}</style>
+</head><body class="p-3" data-api="/api/v1/{{ scope }}/items/">
+<div class="d-flex gap-2 mb-3 align-items-center">
+  <h4 class="mb-0 mr-auto">{{ title }}</h4>
+  <input id="q" class="form-control" style="max-width:260px" placeholder="Search name, brand, barcode">
+  <button id="add" class="btn btn-primary" type="button">Add item</button>
+</div>
+<div id="msg" class="err mb-2"></div>
+<table class="table table-sm table-striped"><thead><tr>
+  <th>Name</th><th>Brand</th><th>Form</th><th>Unit</th><th>Cost</th><th>Price</th><th>Stock</th><th>Expiry</th><th></th>
+</tr></thead><tbody id="rows"></tbody></table>
+
+<dialog id="dlg"><form id="f" method="dialog">
+  <h5 id="dlg-title"></h5>
+  <div id="fields"></div>
+  <label class="mt-2"><input type="checkbox" name="manual_price_override"> Manual price override</label>
+  <div class="mt-3 text-right">
+    <button type="button" id="cancel" class="btn btn-secondary">Cancel</button>
+    <button type="submit" class="btn btn-primary">Save</button>
+  </div>
+</form></dialog>
+<script src="{% static 'js/app/items.js' %}"></script>
+</body></html>
