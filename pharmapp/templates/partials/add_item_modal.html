@@ -282,7 +282,7 @@ window.showAddItemModal = function(barcode, mode = 'retail', isOffline = false) 
     }
     
     // Show modal using Bootstrap 4/jQuery
-    VModal.show('#addItemModal');
+    VModal.show(document.getElementById('addItemForm').closest('.modal'));
     
     // Focus on item name field
     setTimeout(() => {
@@ -362,7 +362,7 @@ document.getElementById('addItemForm').addEventListener('submit', async function
                     
                     await window.barcodeScanner.saveCustomBarcode(customBarcodeData);
                     showSuccess('Custom barcode saved successfully!');
-                    VModal.hide('#addItemModal');
+                    VModal.hide(document.getElementById('addItemForm').closest('.modal'));
                 } catch (error) {
                     console.error('[Add Item] Error saving custom barcode:', error);
                     showError('Failed to save custom barcode: ' + error.message);
@@ -377,7 +377,7 @@ document.getElementById('addItemForm').addEventListener('submit', async function
         }
         
         // Close modal on success using Bootstrap 4/jQuery
-        VModal.hide('#addItemModal');
+        VModal.hide(document.getElementById('addItemForm').closest('.modal'));
         
     } catch (error) {
         console.error('[Add Item Modal] Error:', error);

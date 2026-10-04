@@ -68,8 +68,7 @@
     document.addEventListener('click', function (e) {
         var t = e.target.closest && e.target.closest('[data-toggle="modal"],[data-dismiss="modal"],[data-bs-toggle="modal"],[data-bs-dismiss="modal"]');
         if (t) {
-            e.preventDefault();
-            e.stopImmediatePropagation(); // keep Bootstrap's jQuery handler out of it
+            if (t.tagName === 'A') e.preventDefault(); // other handlers (e.g. htmx hx-get on the same button) still run
             if (t.dataset.dismiss === 'modal' || t.dataset.bsDismiss === 'modal') hide(t.closest('.modal'));
             else show(t.getAttribute('data-target') || t.getAttribute('data-bs-target') || t.getAttribute('href'), t);
             return;
@@ -89,6 +88,7 @@
     // Route any leftover $(...).modal('show'|'hide') through the vanilla implementation
     function patch() {
         if (window.jQuery) {
+            window.jQuery(document).off('click.bs.modal.data-api'); // Bootstrap 4's own data-api handler
             window.jQuery.fn.modal = function (a) {
                 return this.each(function () {
                     if (a === 'hide') hide(this); else if (a === 'show' || a === undefined || typeof a === 'object') show(this);
@@ -97,6 +97,15 @@
             };
         }
     }
+    // Bootstrap 5 style API used by some templates (Bootstrap 4 has no window.bootstrap)
+    var B = window.bootstrap = window.bootstrap || {};
+    if (!B.Modal) {
+        B.Modal = function (x) { this._el = el(x); };
+        B.Modal.prototype.show = function () { show(this._el); };
+        B.Modal.prototype.hide = function () { hide(this._el); };
+        B.Modal.getInstance = B.Modal.getOrCreateInstance = function (x) { var m = el(x); return m ? new B.Modal(m) : null; };
+    }
+
     patch();
     document.addEventListener('DOMContentLoaded', patch);
 })();

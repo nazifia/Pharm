@@ -223,7 +223,7 @@ document.addEventListener('htmx:afterSwap', function(event) {
 // Close modal and refresh page after successful form submission
 document.addEventListener('htmx:afterRequest', function(event) {
     // Check if the request was successful and it was a form submission (POST/PUT)
-    if (event.detail.successful && event.detail.xhr.status === 200) {
+    if (event.detail.successful && event.detail.xhr.status === 200 && event.detail.elt && event.detail.elt.closest('.modal')) {
         const editModal = document.querySelector('#editWholesaleItemModal');
         const returnModal = document.querySelector('#returnWholesaleItemModal');
 
