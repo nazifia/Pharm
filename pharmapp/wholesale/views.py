@@ -2034,189 +2034,6 @@ def wholesale_payment_requests(request):
 
 @transaction.atomic
 @login_required
-def complete_wholesale_payment_request(request, request_id):
-    """Complete a wholesale payment request and generate receipt"""
-    if request.user.is_authenticated:
-        from userauth.permissions import is_cashier, is_admin_or_manager
-        try:
-            payment_request = PaymentRequest.objects.get(request_id=request_id)
-
-            # Check if user is a cashier or admin
-            is_cashier_user = is_cashier(request.user)
-            is_admin = is_admin_or_manager(request.user)
-
-            if not (is_cashier_user or is_admin):
-                messages.error(request, 'You are not authorized to complete this payment request.')
-                return redirect('store:cashier_dashboard')
-
-            if payment_request.status != 'accepted':
-                messages.error(request, 'This payment request must be accepted first.')
-                return redirect('store:cashier_dashboard')
-
-            if request.method == 'POST':
-                payment_method = request.POST.get('payment_method')
-                payment_status = request.POST.get('payment_status', 'Paid')
-
-                if not payment_method:
-                    messages.error(request, 'Payment method is required.')
-                    return redirect('store:cashier_dashboard')
-
-                # Debug logging
-                logger.debug("COMPLETE WHOLESALE PAYMENT REQUEST: Processing payment")
-                logger.debug(f"Payment Request Customer: {payment_request.wholesale_customer}")
-                logger.debug(f"Buyer Name: '{payment_request.buyer_name}', Address: '{payment_request.buyer_address}'")
-
-                # Get cashier object if user is a cashier
-                cashier = None
-                if hasattr(request.user, 'cashier'):
-                    cashier = request.user.cashier
-                elif is_cashier_user and not is_admin:
-                    # For profile-based cashiers, find or create cashier record
-                    try:
-                        cashier = request.user.cashier
-                    except Cashier.DoesNotExist:
-                        # Create cashier record if it doesn't exist
-                        from store.models import Cashier
-                        cashier = Cashier.objects.create(
-                            user=request.user,
-                            name=request.user.profile.full_name if request.user.profile else request.user.username,
-                            is_active=True,
-                            cashier_type='wholesale'
-                        )
-
-                # Create sales and receipt
-                sales = Sales.objects.create(
-                    user=payment_request.dispenser,
-                    wholesale_customer=payment_request.wholesale_customer,
-                    total_amount=payment_request.total_amount
-                )
-
-                # Determine buyer name and address
-                if payment_request.wholesale_customer:
-                    # Use registered customer details
-                    final_buyer_name = payment_request.wholesale_customer.name
-                    final_buyer_address = payment_request.wholesale_customer.address
-                else:
-                    # Use walk-in customer details from PaymentRequest (entered by dispenser), or default
-                    final_buyer_name = payment_request.buyer_name if payment_request.buyer_name else 'WALK-IN CUSTOMER'
-                    final_buyer_address = payment_request.buyer_address if payment_request.buyer_address else ''
-
-                receipt = WholesaleReceipt.objects.create(
-                    wholesale_customer=payment_request.wholesale_customer,
-                    sales=sales,
-                    cashier=cashier,
-                    buyer_name=final_buyer_name,
-                    buyer_address=final_buyer_address,
-                    total_amount=payment_request.total_amount,
-                    payment_method=payment_method,
-                    status=payment_status
-                )
-
-                # Debug: Verify what was saved
-                print(f"\n==== WHOLESALE RECEIPT CREATED ====")
-                print(f"Receipt ID: {receipt.receipt_id}")
-                print(f"Receipt buyer_name: '{receipt.buyer_name}'")
-                print(f"Receipt buyer_address: '{receipt.buyer_address}'")
-                print(f"Receipt customer: {receipt.wholesale_customer}")
-                print(f"==========================\n")
-
-                # Create sales items from payment request items
-                for payment_item in payment_request.items.all():
-                    if payment_item.wholesale_item:
-                        WholesaleSalesItem.objects.create(
-                            sales=sales,
-                            item=payment_item.wholesale_item,
-                            price=payment_item.unit_price,
-                            quantity=payment_item.quantity,
-                            discount_amount=payment_item.discount_amount,
-                            brand=payment_item.brand
-                        )
-
-                        # Stock was already reduced when items were added to cart
-                        # No need to reduce again
-
-                        # Create dispensing log (optional for wholesale)
-                        from store.models import Formulation
-                        dosage_form_obj = None
-                        if payment_item.dosage_form:
-                            dosage_form_obj, created = Formulation.objects.get_or_create(
-                                dosage_form=payment_item.dosage_form
-                            )
-
-                        DispensingLog.objects.create(
-                            user=payment_request.dispenser,
-                            name=payment_item.item_name,
-                            brand=payment_item.brand,
-                            dosage_form=dosage_form_obj,
-                            unit=payment_item.unit,
-                            quantity=payment_item.quantity,
-                            amount=payment_item.subtotal,
-                            discount_amount=payment_item.discount_amount,
-                            status='Dispensed'
-                        )
-
-                # Handle wallet deduction for wholesale customers
-                if payment_request.wholesale_customer and payment_method == 'Wallet':
-                    try:
-                        wallet = WholesaleCustomerWallet.objects.get(customer=payment_request.wholesale_customer)
-                        wallet_balance_before = wallet.balance
-                        wallet.balance -= payment_request.total_amount
-                        wallet.save()
-
-                        # Check if wallet went negative
-                        if wallet_balance_before >= 0 and wallet.balance < 0:
-                            receipt.wallet_went_negative = True
-                            receipt.save()
-
-                        # Create transaction history
-                        TransactionHistory.objects.create(
-                            wholesale_customer=payment_request.wholesale_customer,
-                            user=request.user,
-                            transaction_type='purchase',
-                            amount=payment_request.total_amount,
-                            description=f'Wholesale purchase payment (Receipt ID: {receipt.receipt_id})'
-                        )
-                    except WholesaleCustomerWallet.DoesNotExist:
-                        messages.warning(request, 'Customer wallet not found.')
-
-                # Update payment request
-                payment_request.status = 'completed'
-                payment_request.completed_at = timezone.now()
-                payment_request.wholesale_receipt = receipt
-                payment_request.save()
-
-                # Clear the original cart items that were used to create this payment request
-                try:
-                    cart_items = WholesaleCart.objects.filter(user=payment_request.dispenser)
-                    # Remove cart items that correspond to the payment request items
-                    for payment_item in payment_request.items.all():
-                        if payment_item.wholesale_item:
-                            cart_items.filter(item=payment_item.wholesale_item).delete()
-
-                    # Comprehensive cart session cleanup after receipt generation
-                    from store.cart_utils import cleanup_cart_session_after_receipt
-                    cleanup_summary = cleanup_cart_session_after_receipt(request, 'wholesale')
-                    logger.info(f"Wholesale cart session cleanup after payment request completion: {cleanup_summary}")
-                except Exception as e:
-                    logger.warning(f"Error clearing wholesale cart after payment request completion: {e}")
-
-                messages.success(request, f'Wholesale payment request {request_id} completed successfully. Receipt generated.')
-                return redirect('wholesale:wholesale_receipt_detail', receipt_id=receipt.receipt_id)
-
-            # Show payment completion form
-            return render(request, 'wholesale/complete_wholesale_payment_request.html', {
-                'payment_request': payment_request,
-            })
-
-        except PaymentRequest.DoesNotExist:
-            messages.error(request, 'Payment request not found.')
-            return redirect('store:cashier_dashboard')
-
-    return redirect('store:index')
-
-
-@transaction.atomic
-@login_required
 def wholesale_receipt(request):
     if request.user.is_authenticated:
         buyer_name = request.POST.get('buyer_name', '').strip()
@@ -2815,74 +2632,21 @@ def wholesale_receipt_detail(request, receipt_id):
                 print(f"Found stored wholesale split payment details: {stored_details}")
 
             if stored_details:
-                # Use the stored payment details
-                payment_method_1 = stored_details.get('payment_method_1')
-                payment_method_2 = stored_details.get('payment_method_2')
-                payment_amount_1 = Decimal(str(stored_details.get('payment_amount_1', 0)))
-                payment_amount_2 = Decimal(str(stored_details.get('payment_amount_2', 0)))
-
-                # Create the payment records using the stored details
-                WholesaleReceiptPayment.objects.create(
-                    receipt=receipt,
-                    amount=payment_amount_1,
-                    payment_method=payment_method_1,
-                    status='Paid',
-                    date=receipt.date
-                )
-                WholesaleReceiptPayment.objects.create(
-                    receipt=receipt,
-                    amount=payment_amount_2,
-                    payment_method=payment_method_2,
-                    status='Paid',
-                    date=receipt.date
-                )
-                print(f"Created wholesale payment records using stored details: {payment_method_1}: {payment_amount_1}, {payment_method_2}: {payment_amount_2}")
+                splits = [
+                    (stored_details.get('payment_method_1'), Decimal(str(stored_details.get('payment_amount_1', 0)))),
+                    (stored_details.get('payment_method_2'), Decimal(str(stored_details.get('payment_amount_2', 0)))),
+                ]
             else:
-                # No stored details, use reasonable defaults based on customer type
-                if receipt.wholesale_customer:
-                    # For registered customers, it's more likely they used their wallet
-                    # Assume 70% wallet, 30% cash or transfer as a reasonable default
-                    wallet_amount = receipt.total_amount * Decimal('0.7')
-                    cash_amount = receipt.total_amount - wallet_amount
+                # No stored details: guess a 70/30 split by customer type
+                first, second = ('Wallet', 'Cash') if receipt.wholesale_customer else ('Cash', 'Transfer')
+                first_amount = receipt.total_amount * Decimal('0.7')
+                splits = [(first, first_amount), (second, receipt.total_amount - first_amount)]
 
-                    # Create the payment records
-                    WholesaleReceiptPayment.objects.create(
-                        receipt=receipt,
-                        amount=wallet_amount,
-                        payment_method='Wallet',
-                        status='Paid',
-                        date=receipt.date
-                    )
-                    WholesaleReceiptPayment.objects.create(
-                        receipt=receipt,
-                        amount=cash_amount,
-                        payment_method='Cash',
-                        status='Paid',
-                        date=receipt.date
-                    )
-                    print(f"Created payment records for registered wholesale customer: Wallet: {wallet_amount}, Cash: {cash_amount}")
-                else:
-                    # For walk-in customers, it's more likely they used cash and transfer
-                    # Assume 70% cash, 30% transfer as a reasonable default
-                    cash_amount = receipt.total_amount * Decimal('0.7')
-                    transfer_amount = receipt.total_amount - cash_amount
-
-                    # Create the payment records
-                    WholesaleReceiptPayment.objects.create(
-                        receipt=receipt,
-                        amount=cash_amount,
-                        payment_method='Cash',
-                        status='Paid',
-                        date=receipt.date
-                    )
-                    WholesaleReceiptPayment.objects.create(
-                        receipt=receipt,
-                        amount=transfer_amount,
-                        payment_method='Transfer',
-                        status='Paid',
-                        date=receipt.date
-                    )
-                    print(f"Created payment records for walk-in wholesale customer: Cash: {cash_amount}, Transfer: {transfer_amount}")
+            for method, amount in splits:
+                WholesaleReceiptPayment.objects.create(
+                    receipt=receipt, amount=amount, payment_method=method,
+                    status='Paid', date=receipt.date
+                )
 
         payment_methods = ["Cash", "Wallet", "Transfer"]
         statuses = ["Paid", "Unpaid"]
@@ -5858,70 +5622,33 @@ def complete_wholesale_payment_request(request, request_id):
                 )
                 
                 # Handle wallet payments for registered wholesale customers
+                if payment_type == 'split':
+                    payments = [(payment_method_1, payment_amount_1), (payment_method_2, payment_amount_2)]
+                else:
+                    payments = [(payment_method, payment_request.total_amount)]
                 wallet_went_negative = False
+                wallet = None
                 if payment_request.wholesale_customer:
-                    if payment_type == 'single' and payment_method == 'Wallet':
-                        wallet = WholesaleCustomerWallet.objects.get(customer=payment_request.wholesale_customer)
-                        wallet_balance_before = wallet.balance
-                        wallet.balance -= payment_request.total_amount
+                    for n, (method, amount) in enumerate(payments, 1):
+                        if method != 'Wallet':
+                            continue
+                        if wallet is None:
+                            wallet = WholesaleCustomerWallet.objects.get(customer=payment_request.wholesale_customer)
+                        balance_before = wallet.balance
+                        wallet.balance -= amount
                         wallet.save()
-                        
-                        # Check if wallet went negative
-                        if wallet_balance_before >= 0 and wallet.balance < 0:
+                        if balance_before >= 0 and wallet.balance < 0:
                             wallet_went_negative = True
                             receipt.wallet_went_negative = True
                             receipt.save()
-                        
-                        # Create transaction history
+                        label = f' - Payment {n}' if payment_type == 'split' else ''
                         TransactionHistory.objects.create(
                             wholesale_customer=payment_request.wholesale_customer,
                             user=request.user,
                             transaction_type='purchase',
-                            amount=payment_request.total_amount,
-                            description=f'Wholesale purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                            amount=amount,
+                            description=f'Wholesale purchase payment from wallet{label} (Receipt ID: {receipt.receipt_id})'
                         )
-                        
-                    elif payment_type == 'split':
-                        # Handle split payment with wallet
-                        payment_amount_1 = Decimal(request.POST.get('payment_amount_1', '0'))
-                        payment_amount_2 = Decimal(request.POST.get('payment_amount_2', '0'))
-                        
-                        if payment_method_1 == 'Wallet' or payment_method_2 == 'Wallet':
-                            wallet = WholesaleCustomerWallet.objects.get(customer=payment_request.wholesale_customer)
-                            
-                            if payment_method_1 == 'Wallet':
-                                wallet_balance_before = wallet.balance
-                                wallet.balance -= payment_amount_1
-                                wallet.save()
-                                if wallet_balance_before >= 0 and wallet.balance < 0:
-                                    wallet_went_negative = True
-                                    receipt.wallet_went_negative = True
-                                    receipt.save()
-                                
-                                TransactionHistory.objects.create(
-                                    wholesale_customer=payment_request.wholesale_customer,
-                                    user=request.user,
-                                    transaction_type='purchase',
-                                    amount=payment_amount_1,
-                                    description=f'Wholesale purchase payment from wallet - Payment 1 (Receipt ID: {receipt.receipt_id})'
-                                )
-                            
-                            if payment_method_2 == 'Wallet':
-                                wallet_balance_before = wallet.balance
-                                wallet.balance -= payment_amount_2
-                                wallet.save()
-                                if wallet_balance_before >= 0 and wallet.balance < 0:
-                                    wallet_went_negative = True
-                                    receipt.wallet_went_negative = True
-                                    receipt.save()
-                                
-                                TransactionHistory.objects.create(
-                                    wholesale_customer=payment_request.wholesale_customer,
-                                    user=request.user,
-                                    transaction_type='purchase',
-                                    amount=payment_amount_2,
-                                    description=f'Wholesale purchase payment from wallet - Payment 2 (Receipt ID: {receipt.receipt_id})'
-                                )
                 
                 # Create WholesaleSalesItem records from payment request items
                 for payment_item in payment_request.items.all():
@@ -5969,30 +5696,11 @@ def complete_wholesale_payment_request(request, request_id):
                             status='Dispensed'
                         )
                 
-                # Create split payment records if this is a split payment
-                if payment_type == 'split':
-                    # Payment amounts already validated and set above
+                for method, amount in payments:
                     WholesaleReceiptPayment.objects.create(
                         receipt=receipt,
-                        amount=payment_amount_1,
-                        payment_method=payment_method_1,
-                        status=payment_status,
-                        date=receipt.date
-                    )
-                    
-                    WholesaleReceiptPayment.objects.create(
-                        receipt=receipt,
-                        amount=payment_amount_2,
-                        payment_method=payment_method_2,
-                        status=payment_status,
-                        date=receipt.date
-                    )
-                else:
-                    # For single payments, also create a payment record for consistency
-                    WholesaleReceiptPayment.objects.create(
-                        receipt=receipt,
-                        amount=receipt.total_amount,
-                        payment_method=payment_method,
+                        amount=amount,
+                        payment_method=method,
                         status=payment_status,
                         date=receipt.date
                     )

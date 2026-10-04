@@ -70,3 +70,63 @@ class WholesaleReceiptSplitWallet(TestCase):
         self.assertRedirects(r, reverse('wholesale:wholesale_cart'), fetch_redirect_response=False)
         self.assertEqual(self._balance(), Decimal('100.00'))
         self.assertFalse(WholesaleReceipt.objects.exists())
+
+
+@override_settings(SUBSCRIPTION_BYPASS_MOBILE='0800000002')
+class CashierCompleteSplitWallet(TestCase):
+    def setUp(self):
+        from store.models import PaymentRequest, PaymentRequestItem
+        self.user = User.objects.create_superuser(mobile='0800000002', username='admin', password='pw')
+        self.client.force_login(self.user)
+        self.customer = WholesaleCustomer.objects.create(name='Acme', phone='1', address='Lagos')
+        self.wallet = self.customer.wholesale_customer_wallet
+        self.wallet.balance = Decimal('100.00')
+        self.wallet.save()
+        item = WholesaleItem.objects.create(name='X', cost=10, price=10, markup=0, stock=10, unit='Tab')
+        self.pr = PaymentRequest.objects.create(
+            dispenser=self.user, wholesale_customer=self.customer, payment_type='wholesale',
+            total_amount=Decimal('50.00'), status='accepted')
+        PaymentRequestItem.objects.create(
+            payment_request=self.pr, item_name='X', unit='Tab', quantity=5, unit_price=10,
+            subtotal=50, wholesale_item=item)
+
+    def _post(self, **data):
+        return self.client.post(reverse('wholesale:complete_payment_request', args=[self.pr.request_id]), data)
+
+    def test_split_wallet_wallet(self):
+        self._post(payment_type='split', payment_method_1='Wallet', payment_amount_1='20',
+                   payment_method_2='Wallet', payment_amount_2='30')
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('50.00'))
+        self.assertEqual(TransactionHistory.objects.count(), 2)
+        self.assertEqual(WholesaleReceiptPayment.objects.count(), 2)
+
+    def test_single_wallet(self):
+        self._post(payment_type='single', payment_method='Wallet')
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('50.00'))
+        self.assertEqual(TransactionHistory.objects.get().amount, Decimal('50.00'))
+        self.assertEqual(WholesaleReceiptPayment.objects.get().payment_method, 'Wallet')
+
+    def test_split_wallet_cash_negative_flag(self):
+        self.wallet.balance = Decimal('10.00')
+        self.wallet.save()
+        self._post(payment_type='split', payment_method_1='Wallet', payment_amount_1='20',
+                   payment_method_2='Cash', payment_amount_2='30')
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('-10.00'))
+        self.assertTrue(WholesaleReceipt.objects.get().wallet_went_negative)
+
+
+class DetailSplitFallback(TestCase):
+    def test_detail_creates_default_split_payments(self):
+        from store.models import Sales
+        user = User.objects.create_superuser(mobile='0800000003', username='a2', password='pw')
+        with override_settings(SUBSCRIPTION_BYPASS_MOBILE='0800000003'):
+            self.client.force_login(user)
+            sales = Sales.objects.create(user=user, total_amount=0)
+            r = WholesaleReceipt.objects.create(sales=sales, total_amount=0, payment_method='Split', buyer_name='W')
+            self.client.get(reverse('wholesale:wholesale_receipt_detail', args=[r.receipt_id]))
+        self.assertEqual(
+            sorted(WholesaleReceiptPayment.objects.filter(receipt=r).values_list('payment_method', flat=True)),
+            ['Cash', 'Transfer'])
