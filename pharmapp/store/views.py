@@ -2054,15 +2054,8 @@ def complete_payment_request(request, request_id):
 @login_required
 def receipt(request):
     if request.user.is_authenticated:
-        print("\n==== RECEIPT GENERATION DEBUG =====")
-        print(f"Request method: {request.method}")
-        print(f"POST data: {request.POST}")
-
         buyer_name = request.POST.get('buyer_name', '').strip()
         buyer_address = request.POST.get('buyer_address', '').strip()
-
-        print(f"Buyer name from POST: '{buyer_name}'")
-        print(f"Buyer address from POST: '{buyer_address}'")
 
         # Check if this is a split payment
         payment_type = request.POST.get('payment_type', 'single')
@@ -2121,15 +2114,6 @@ def receipt(request):
             payment_amount_1 = Decimal('0')
             payment_amount_2 = Decimal('0')
 
-        # Dump all POST data for debugging
-        print("\n\n==== ALL POST DATA: =====")
-        for key, value in request.POST.items():
-            print(f"  {key}: {value}")
-        print(f"\nDirect access - Payment Type: {payment_type}, Payment Method: {payment_method}, Status: {status}\n")
-        if payment_type == 'split':
-            print(f"Split Payment - Method 1: {payment_method_1}, Amount 1: {payment_amount_1}")
-            print(f"Split Payment - Method 2: {payment_method_2}, Amount 2: {payment_amount_2}")
-
         # Get customer ID from user-specific session if it exists
         from userauth.session_utils import get_user_customer_id
         customer_id = get_user_customer_id(request)
@@ -2141,19 +2125,6 @@ def receipt(request):
                 has_customer = True
             except Customer.DoesNotExist:
                 pass
-
-        # Set default values based on customer presence if not provided
-        if not payment_method and payment_type != 'split':
-            if has_customer:  # If this is a registered customer
-                payment_method = "Wallet"  # Default for registered customers
-            else:  # For walk-in customers
-                payment_method = "Cash"  # Default for walk-in customers
-
-        if not status:
-            # Default status is "Paid" for all customers (both registered and walk-in)
-            status = "Paid"
-
-        print(f"After initial defaults - Payment Type: {payment_type}, Payment Method: {payment_method}, Status: {status}")
 
         cart_items = Cart.objects.filter(user=request.user)
         if not cart_items.exists():
@@ -2200,21 +2171,7 @@ def receipt(request):
                         payment_method = "Cash"  # Default for walk-in customers
 
                 if status not in ["Paid", "Partially Paid", "Unpaid"]:
-                    # Default status based on customer type
-                    if sales.customer:
-                        status = "Paid"  # Registered customers default to Paid
-                    else:
-                        status = "Paid"  # Walk-in customers also default to Paid
-
-                # Force the values for debugging purposes
-                print(f"\n==== FORCING VALUES FOR RECEIPT =====")
-                print(f"Customer: {sales.customer}")
-                print(f"Payment Method: {payment_method}")
-                print(f"Status: {status}\n")
-
-                print(f"\n==== FINAL VALUES =====")
-                print(f"Payment Method: {payment_method}")
-                print(f"Status: {status}\n")
+                    status = "Paid"
 
                 # Generate a unique receipt ID using uuid
                 import uuid
@@ -2230,12 +2187,6 @@ def receipt(request):
                     final_buyer_name = buyer_name if buyer_name else 'WALK-IN CUSTOMER'
                     final_buyer_address = buyer_address
 
-                print(f"\n==== BUYER INFO FOR RECEIPT =====")
-                print(f"Final buyer_name: '{final_buyer_name}'")
-                print(f"Final buyer_address: '{final_buyer_address}'")
-                print(f"Customer: {sales.customer}")
-                print(f"==================================\n")
-
                 # Create the receipt WITHOUT payment method and status first
                 receipt = Receipt.objects.create(
                     sales=sales,
@@ -2250,14 +2201,6 @@ def receipt(request):
                 # Now explicitly set the payment method and status
                 receipt.payment_method = payment_method
                 receipt.status = status
-
-                # Debug: Verify what was saved to database
-                print(f"\n==== RECEIPT SAVED TO DATABASE =====")
-                print(f"Receipt ID: {receipt.receipt_id}")
-                print(f"Receipt.buyer_name: '{receipt.buyer_name}'")
-                print(f"Receipt.buyer_address: '{receipt.buyer_address}'")
-                print(f"Receipt.customer: {receipt.customer}")
-                print(f"=====================================\n")
 
                 # Check if wallet went negative (from session for single payments)
                 if request.session.get('wallet_went_negative', False):
@@ -2294,142 +2237,56 @@ def receipt(request):
 
                 # If this is a split payment, create the payment records
                 if payment_type == 'split':
-                    # Handle wallet payments for registered customers
                     if has_customer:
-                        # Only deduct the amount specified for wallet payment method
-                        wallet_amount = Decimal('0.00')
-                        if payment_method_1 == 'Wallet':
-                            wallet_amount = Decimal(str(payment_amount_1))
-                            # Deduct from customer's wallet
+                        for method, amount in ((payment_method_1, payment_amount_1), (payment_method_2, payment_amount_2)):
+                            if method != 'Wallet':
+                                continue
                             try:
                                 wallet = Wallet.objects.get(customer=sales.customer)
-                                # Check if wallet will go negative
-                                wallet_balance_before = wallet.balance
-                                # Allow negative balance
-                                wallet.balance -= wallet_amount
+                                balance_before = wallet.balance
+                                wallet.balance -= amount  # negative balance allowed
                                 wallet.save()
-
-                                # Check if wallet went negative and set flag
-                                if wallet_balance_before >= 0 and wallet.balance < 0:
+                                if balance_before >= 0 and wallet.balance < 0:
                                     receipt.wallet_went_negative = True
                                     receipt.save()
-
-                                # Transaction history will be created later to avoid duplicates
-
-                                print(f"Deducted {wallet_amount} from customer {sales.customer.name}'s wallet for first payment")
-                                # Inform if balance is negative
                                 if wallet.balance < 0:
-                                    print(f"Info: Customer {sales.customer.name} now has a negative wallet balance of {wallet.balance}")
                                     messages.info(request, f"Customer {sales.customer.name} now has a negative wallet balance of {wallet.balance}")
                             except Wallet.DoesNotExist:
-                                print(f"Error: Wallet not found for customer {sales.customer.name}")
                                 messages.error(request, f"Error: Wallet not found for customer {sales.customer.name}")
 
-                        if payment_method_2 == 'Wallet':
-                            wallet_amount = Decimal(str(payment_amount_2))
-                            # Deduct from customer's wallet
-                            try:
-                                wallet = Wallet.objects.get(customer=sales.customer)
-                                # Check if wallet will go negative
-                                wallet_balance_before = wallet.balance
-                                # Allow negative balance
-                                wallet.balance -= wallet_amount
-                                wallet.save()
-
-                                # Check if wallet went negative and set flag
-                                if wallet_balance_before >= 0 and wallet.balance < 0:
-                                    receipt.wallet_went_negative = True
-                                    receipt.save()
-
-                                # Transaction history will be created later to avoid duplicates
-
-                                print(f"Deducted {wallet_amount} from customer {sales.customer.name}'s wallet for second payment")
-                                # Inform if balance is negative
-                                if wallet.balance < 0:
-                                    print(f"Info: Customer {sales.customer.name} now has a negative wallet balance of {wallet.balance}")
-                                    messages.info(request, f"Customer {sales.customer.name} now has a negative wallet balance of {wallet.balance}")
-                            except Wallet.DoesNotExist:
-                                print(f"Error: Wallet not found for customer {sales.customer.name}")
-                                messages.error(request, f"Error: Wallet not found for customer {sales.customer.name}")
-
-                    # Create the first payment
-                    try:
-                        print(f"\n==== CREATING RECEIPT PAYMENT RECORDS =====")
-                        print(f"Receipt ID: {receipt.receipt_id}")
-                        print(f"Payment method 1: {payment_method_1}, Amount 1: {payment_amount_1}")
-                        print(f"Payment method 2: {payment_method_2}, Amount 2: {payment_amount_2}")
-
-                        payment1 = ReceiptPayment.objects.create(
-                            receipt=receipt,
-                            amount=payment_amount_1,
-                            payment_method=payment_method_1,
-                            status=status,
-                            date=datetime.now()
+                    for method, amount in ((payment_method_1, payment_amount_1), (payment_method_2, payment_amount_2)):
+                        ReceiptPayment.objects.create(
+                            receipt=receipt, amount=amount, payment_method=method,
+                            status=status, date=datetime.now()
                         )
-                        print(f"Created first payment record: {payment1.id}")
 
-                        # Create the second payment
-                        payment2 = ReceiptPayment.objects.create(
-                            receipt=receipt,
-                            amount=payment_amount_2,
-                            payment_method=payment_method_2,
-                            status=status,
-                            date=datetime.now()
-                        )
-                        print(f"Created second payment record: {payment2.id}")
-                    except Exception as e:
-                        print(f"Error creating payment records: {e}")
 
-                    print(f"\n==== CREATED SPLIT PAYMENTS =====")
-                    print(f"Payment 1: {payment_method_1} - {payment_amount_1}")
-                    print(f"Payment 2: {payment_method_2} - {payment_amount_2}")
-
-                # Double-check that the payment method and status were set correctly
-                # Refresh from database to ensure we see the actual saved values
                 receipt.refresh_from_db()
-                print(f"\n==== CREATED RECEIPT =====")
-                print(f"Receipt ID: {receipt.receipt_id}")
-                print(f"Payment Method: {receipt.payment_method}")
-                print(f"Status: {receipt.status}\n")
 
-                # Create transaction history for non-wallet payments (to avoid duplicates)
                 if sales.customer and payment_type != 'split':
-                    # Only create transaction history for non-wallet payments
-                    # Wallet payments already create their own transaction history above
-                    if receipt.payment_method != 'Wallet':
-                        from customer.models import TransactionHistory
+                    from customer.models import TransactionHistory
+                    description = f'Purchase payment via {receipt.payment_method} (Receipt ID: {receipt.receipt_id})'
+                    if receipt.payment_method == 'Wallet':
+                        description = f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
+                        try:
+                            wallet = Wallet.objects.get(customer=sales.customer)
+                            balance_before = wallet.balance
+                            wallet.balance -= sales.total_amount
+                            wallet.save()
+                            if balance_before >= 0 and wallet.balance < 0:
+                                receipt.wallet_went_negative = True
+                                receipt.save()
+                        except Wallet.DoesNotExist:
+                            messages.warning(request, f'Wallet not found for customer {sales.customer.name}')
+                            description = None
+                    if description:
                         TransactionHistory.objects.create(
                             customer=sales.customer,
                             user=request.user,
                             transaction_type='purchase',
                             amount=sales.total_amount,
-                            description=f'Purchase payment via {receipt.payment_method} (Receipt ID: {receipt.receipt_id})'
+                            description=description
                         )
-                    # For wallet payments, deduct from wallet and create transaction history
-                    elif receipt.payment_method == 'Wallet' and sales.customer:
-                        from customer.models import TransactionHistory
-                        try:
-                            wallet = Wallet.objects.get(customer=sales.customer)
-                            # Check if wallet will go negative
-                            wallet_balance_before = wallet.balance
-                            wallet.balance -= sales.total_amount
-                            wallet.save()
-
-                            # Check if wallet went negative and set flag
-                            if wallet_balance_before >= 0 and wallet.balance < 0:
-                                receipt.wallet_went_negative = True
-                                receipt.save()
-
-                            # Create transaction history entry
-                            TransactionHistory.objects.create(
-                                customer=sales.customer,
-                                user=request.user,
-                                transaction_type='purchase',
-                                amount=sales.total_amount,
-                                description=f'Purchase payment from wallet (Receipt ID: {receipt.receipt_id})'
-                            )
-                        except Wallet.DoesNotExist:
-                            messages.warning(request, f'Wallet not found for customer {sales.customer.name}')
 
                 # Clear payment session data after successful receipt creation
                 from userauth.session_utils import delete_user_session_data
@@ -2441,16 +2298,6 @@ def receipt(request):
             return redirect('store:cart')
 
         for cart_item in cart_items:
-            SalesItem.objects.get_or_create(
-                sales=sales,
-                item=cart_item.item,
-                defaults={
-                    'quantity': cart_item.quantity,
-                    'price': cart_item.item.price,
-                    'discount_amount': cart_item.discount_amount
-                }
-            )
-
             subtotal = cart_item.item.price * cart_item.quantity
             # Get or create Formulation object for dosage_form
             dosage_form_obj = None
@@ -2509,43 +2356,10 @@ def receipt(request):
         payment_methods = ["Cash", "Wallet", "Transfer"]
         statuses = ["Paid", "Unpaid"]
 
-        # Double-check the receipt values one more time before rendering
-        receipt.refresh_from_db()
-        print(f"\n==== FINAL RECEIPT VALUES BEFORE RENDERING =====")
-        print(f"Receipt ID: {receipt.receipt_id}")
-        print(f"Payment Method: {receipt.payment_method}")
-        print(f"Status: {receipt.status}\n")
-
-        # Set appropriate payment method and status based on customer type and payment type
-        if has_customer and payment_type != 'split' and receipt.customer:
-            # For registered customers with single payment, default to Wallet if not specified
-            if not receipt.payment_method or receipt.payment_method == 'Cash':
-                print(f"Setting payment method to Wallet for customer {receipt.customer.name}")
-                receipt.payment_method = 'Wallet'
-                receipt.save()
-
-            # Only set status to 'Paid' if no status was set at all (respect user's choice)
-            if not receipt.status:
-                print(f"Setting default status to Paid for customer {receipt.customer.name} (no status was set)")
-                receipt.status = 'Paid'
-                receipt.save()
-
-            receipt.refresh_from_db()
-        elif has_customer and payment_type == 'split' and receipt.customer:
-            # For split payments with registered customers, ensure the payment method is 'Split'
-            if receipt.payment_method != 'Split':
-                print(f"Setting payment method to Split for customer {receipt.customer.name}")
-                receipt.payment_method = 'Split'
-                receipt.save()
-                receipt.refresh_from_db()
-        else:
-            # For walk-in customers, respect the selected payment method and status
-            # Only default to 'Paid' if status is not explicitly set
-            if not receipt.status:
-                print(f"Setting default status to Paid for walk-in customer")
-                receipt.status = 'Paid'
-                receipt.save()
-                receipt.refresh_from_db()
+        # Registered customer on single payment: Cash is shown as Wallet
+        if has_customer and payment_type != 'split' and receipt.customer and receipt.payment_method == 'Cash':
+            receipt.payment_method = 'Wallet'
+            receipt.save()
 
         # Get split payment details if this is a split payment
         split_payment_details = None
