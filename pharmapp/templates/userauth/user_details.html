@@ -377,10 +377,9 @@ function openPasswordChangeModal(userId, username) {
     // Update modal title
     document.getElementById('passwordChangeModalLabel').innerHTML = '<i class="fas fa-key"></i> Change Password - ' + username;
     
-    // Show modal using Bootstrap 5 API
+    // Show modal (VModal; bootstrap.Modal shim kept for legacy callers)
     var modalEl = document.getElementById('passwordChangeModal');
-    var modal = new bootstrap.Modal(modalEl);
-    modal.show();
+    VModal.show(modalEl);
     
     // Load the form via HTMX
     htmx.ajax('GET', '/users/change-password/' + userId + '/', {
@@ -404,30 +403,7 @@ function openPasswordChangeModal(userId, username) {
 // Listen for the passwordChanged custom event
 document.addEventListener('passwordChanged', function(evt) {
     var modalEl = document.getElementById('passwordChangeModal');
-    var modal = bootstrap.Modal.getInstance(modalEl);
-    if (modal) {
-        modal.hide();
-    }
-});
-
-// Close modal when form submission is successful
-document.addEventListener('htmx:afterRequest', function(evt) {
-    if (evt.detail.successful && evt.detail.pathInfo && evt.detail.pathInfo.requestPath.includes('change-password')) {
-        var modalEl = document.getElementById('passwordChangeModal');
-        var modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) {
-            modal.hide();
-        }
-        // Redirect will be handled by HX-Redirect header
-    } else if (evt.detail.successful && evt.detail.target && evt.detail.target.id === 'passwordChangeFormContainer') {
-        // Also check if the target is our password form
-        var modalEl = document.getElementById('passwordChangeModal');
-        var modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) {
-            modal.hide();
-        }
-        // Redirect will be handled by HX-Redirect header
-    }
+    VModal.hide(modalEl);
 });
 </script>
 {% endblock %}

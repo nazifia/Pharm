@@ -958,7 +958,7 @@ function loadAvailableUsers() {
     const userSelect = document.getElementById('cashier-user');
     userSelect.innerHTML = '<option value="">Loading users...</option>';
     
-    fetch('/api/available-users/', {
+    return fetch('/api/available-users/', {
         method: 'GET',
         headers: {
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
@@ -993,9 +993,16 @@ function editCashier(cashierId) {
     document.getElementById('cashier-type').value = cashier.cashier_type;
     document.getElementById('cashier-active').checked = cashier.is_active;
     
-    loadAvailableUsers();
-    // Set the user selection (using user ID for the form field)
-    document.getElementById('cashier-user').value = cashier.user.id;
+    // Options load async; select the cashier's user once they are there
+    loadAvailableUsers().then(() => {
+        const sel = document.getElementById('cashier-user');
+        if (!sel.querySelector(`option[value="${cashier.user.id}"]`)) {
+            // available-users may exclude users who are already cashiers
+            sel.insertAdjacentHTML('beforeend',
+                `<option value="${cashier.user.id}">${cashier.user.username || cashier.name}</option>`);
+        }
+        sel.value = cashier.user.id;
+    });
     
     document.getElementById('cashierManagementModalLabel').innerHTML = 
         '<i class="fas fa-cash-register"></i> Edit Cashier';

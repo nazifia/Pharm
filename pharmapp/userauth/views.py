@@ -487,7 +487,12 @@ def edit_user(request, user_id):
 
     # If it's an HTMX request, return just the form
     if request.headers.get('HX-Request'):
-        return render(request, 'userauth/partials/edit_user_form.html', context)
+        response = render(request, 'userauth/partials/edit_user_form.html', context)
+        if request.method == 'POST':
+            # invalid form: re-show it in the modal, not inside the table row
+            response['HX-Retarget'] = '#editUserModal .modal-content'
+            response['HX-Reswap'] = 'innerHTML'
+        return response
 
     return render(request, 'userauth/edit_user.html', context)
 

@@ -508,7 +508,7 @@ class EnhancedPrivilegeManager {
         }
 
         this.updateSelectedUsersDisplay();
-        new bootstrap.Modal(document.getElementById('bulkOperationsModal')).show();
+        VModal.show(document.getElementById('bulkOperationsModal'));
     }
 
     executeBulkOperations() {
@@ -539,7 +539,7 @@ class EnhancedPrivilegeManager {
         .then(data => {
             if (data.success) {
                 this.showSuccess(`Bulk operations completed successfully. ${data.affected_users} users updated.`);
-                bootstrap.Modal.getInstance(document.getElementById('bulkOperationsModal')).hide();
+                VModal.hide(document.getElementById('bulkOperationsModal'));
                 this.clearSelection();
                 this.refreshUserList();
             } else {
@@ -567,7 +567,7 @@ class EnhancedPrivilegeManager {
             .then(data => {
                 if (data.success) {
                     this.buildPermissionMatrix(data.matrix);
-                    new bootstrap.Modal(document.getElementById('permissionMatrixModal')).show();
+                    VModal.show(document.getElementById('permissionMatrixModal'));
                 } else {
                     this.showError('Failed to load permission matrix');
                 }
