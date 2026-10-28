@@ -481,11 +481,11 @@
             <!-- Items (vanilla JS + JSON API) -->
             {% if user|can_operate_retail or user|can_operate_wholesale %}
             <li class="nav-item">
-                <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseItemsJs"
+                {% comment %} <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseItemsJs"
                     aria-expanded="true" aria-controls="collapseItemsJs">
                     <i class="fas fa-fw fa-boxes"></i>
                     <span>Items (JS)</span>
-                </a>
+                </a> {% endcomment %}
                 <div id="collapseItemsJs" class="collapse" data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
                         {% if user|can_operate_retail %}
