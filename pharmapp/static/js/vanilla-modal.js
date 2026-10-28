@@ -24,8 +24,15 @@
         var m = el(x);
         if (!m || m.classList.contains('show')) return;
         if (!fire(m, 'show.bs.modal', rel)) return;
+        // Reopening while the previous close is still fading out: cancel that close
+        // and drop its (already faded) backdrop, otherwise the pending timer hides
+        // the modal we are opening right now.
+        if (m._hideTimer) { clearTimeout(m._hideTimer); m._hideTimer = null; }
+        if (m._shownTimer) { clearTimeout(m._shownTimer); m._shownTimer = null; }
+        if (m._backdrop) { m._backdrop.remove(); m._backdrop = null; }
         var backdrop = document.createElement('div');
         backdrop.className = 'modal-backdrop fade';
+        backdrop.setAttribute('data-vmodal-backdrop', 'true');
         document.body.appendChild(backdrop);
         m._backdrop = backdrop;
         m.style.display = 'block';
@@ -41,26 +48,46 @@
         var z = 1040 + open.length * 20;
         backdrop.style.zIndex = z;
         m.style.zIndex = z + 10;
-        setTimeout(function () {
+        // Remember the timer: if the modal is dismissed during the fade-in we must
+        // not fire "shown" afterwards (that would start cameras/focus hidden inputs).
+        m._shownTimer = setTimeout(function () {
+            m._shownTimer = null;
+            if (!m.classList.contains('show')) return;
             fire(m, 'shown.bs.modal', rel);
             var f = m.querySelector('[autofocus]') || m;
             if (f.focus) f.focus({ preventScroll: true });
         }, m.classList.contains('fade') ? 300 : 0);
     }
 
+    /**
+     * Remove overlays left behind by a second modal implementation (e.g. a page that
+     * still loads Bootstrap's JS next to this file). Without this, closing the modal
+     * leaves the page dimmed and unclickable - it looks like the close button failed.
+     */
+    function clearOrphanOverlays() {
+        if (open.length || document.querySelector('.modal.show')) return;
+        var strays = document.querySelectorAll('.modal-backdrop');
+        for (var i = 0; i < strays.length; i++) strays[i].remove();
+        document.body.classList.remove('modal-open');
+    }
+
     function hide(x) {
         var m = el(x);
         if (!m || !m.classList.contains('show')) return;
         if (!fire(m, 'hide.bs.modal')) return;
+        if (m._shownTimer) { clearTimeout(m._shownTimer); m._shownTimer = null; }
         m.classList.remove('show');
         if (m._backdrop) m._backdrop.classList.remove('show');
         open = open.filter(function (o) { return o !== m; });
-        setTimeout(function () {
+        m._hideTimer = setTimeout(function () {
+            m._hideTimer = null;
+            // A new show() may have reopened the modal while this was pending.
+            if (m.classList.contains('show')) return;
             m.style.display = 'none';
             m.setAttribute('aria-hidden', 'true');
             m.removeAttribute('aria-modal');
             if (m._backdrop) { m._backdrop.remove(); m._backdrop = null; }
-            if (!open.length) document.body.classList.remove('modal-open');
+            clearOrphanOverlays();
             fire(m, 'hidden.bs.modal');
         }, m.classList.contains('fade') ? 300 : 0);
     }

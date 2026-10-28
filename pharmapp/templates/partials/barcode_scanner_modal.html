@@ -378,6 +378,41 @@
     });
 
     /**
+     * Close the scanner from the header "x" / footer "Close" buttons.
+     * The shared modal manager already handles [data-dismiss] clicks, but binding the
+     * buttons directly keeps the close action working if another script/older page
+     * takes over the modal and leaves the page covered by a backdrop.
+     */
+    function closeScannerModal() {
+        if (window.VModal) {
+            VModal.hide(modal);
+            return;
+        }
+        if (window.bootstrap && window.bootstrap.Modal) {
+            const instance = window.bootstrap.Modal.getInstance(modal);
+            if (instance) {
+                instance.hide();
+                return;
+            }
+        }
+        // Last-resort cleanup for a page without the shared modal manager.
+        modal.classList.remove('show');
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+        modal.removeAttribute('aria-modal');
+        document.querySelectorAll('.modal-backdrop').forEach(function (backdrop) { backdrop.remove(); });
+        document.body.classList.remove('modal-open');
+        modal.dispatchEvent(new CustomEvent('hidden.bs.modal', { bubbles: true }));
+    }
+
+    modal.querySelectorAll('[data-dismiss="modal"], [data-bs-dismiss="modal"]').forEach(function (button) {
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+            closeScannerModal();
+        });
+    });
+
+    /**
      * Start scanning button
      */
     startBtn.addEventListener('click', async function() {
