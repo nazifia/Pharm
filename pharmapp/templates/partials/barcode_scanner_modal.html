@@ -6,7 +6,7 @@
                 <h5 class="modal-title" id="barcodeScannerModalLabel">
                     <i class="fas fa-barcode"></i> Scan Barcode or QR Code
                 </h5>
-                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                <button type="button" class="close text-white" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -81,7 +81,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal">
                     <i class="fas fa-times"></i> Close
                 </button>
             </div>
@@ -259,6 +259,13 @@
             }
         }
 
+        // The modal may have been closed while we were waiting for the libraries.
+        // In that case, do not create a scanner for a modal the user already dismissed.
+        if (!modal.classList.contains('show')) {
+            console.log('[Scanner Modal] Modal closed while loading libraries - aborting initialization');
+            return;
+        }
+
         if (!libraryReady) {
             showStatus('Scanner library failed to load. Please refresh the page.', 'danger');
             console.error('[Scanner Modal] Timeout waiting for libraries');
@@ -300,6 +307,22 @@
             console.log('[Scanner Modal] Calling init()...');
 
             await barcodeScanner.init();
+
+            // If the user closed the modal while init() was running, tear the scanner
+            // down again so the camera does not stay active after the modal is gone.
+            if (!modal.classList.contains('show')) {
+                console.log('[Scanner Modal] Modal closed during init - destroying scanner');
+                try {
+                    await barcodeScanner.destroy();
+                } catch (destroyError) {
+                    console.warn('[Scanner Modal] Error destroying scanner after early close:', destroyError);
+                }
+                barcodeScanner = null;
+                window.barcodeScanner = null;
+                document.getElementById('barcode-scanner').innerHTML = '';
+                return;
+            }
+
             hideStatus();
             console.log('[Scanner Modal] ✅ Scanner initialized successfully');
 
@@ -310,6 +333,7 @@
             if (autoStart) {
                 console.log('[Scanner Modal] 🚀 Auto-starting camera...');
                 setTimeout(() => {
+                    if (!modal.classList.contains('show')) return;
                     console.log('[Scanner Modal] Clicking start button...');
                     startBtn.click();
                 }, 200);
@@ -328,8 +352,13 @@
      */
     modal.addEventListener('hidden.bs.modal', async function() {
         if (barcodeScanner) {
-            await barcodeScanner.destroy();
+            try {
+                await barcodeScanner.destroy();
+            } catch (error) {
+                console.warn('[Scanner Modal] Error while destroying scanner:', error);
+            }
             barcodeScanner = null;
+            window.barcodeScanner = null;
         }
 
         // Reset UI
